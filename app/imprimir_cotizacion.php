@@ -393,9 +393,11 @@ tbody td.center { text-align: center; }
     </div>
   </div>
 
+  <?php if (!empty($c['factura_tipo']) && $c['factura_tipo'] === 'generica'): ?>
   <div style="margin-top:14px; padding-top:8px; border-top:1px solid #e2e8f0; text-align:center; font-size:9px; color:#94a3b8; letter-spacing:.3px;">
-    Factura: <?= (!empty($c['factura_tipo']) && $c['factura_tipo'] !== 'generica') ? htmlspecialchars($c['factura_tipo']) : 'PÚBLICO EN GENERAL' ?>
+    Factura: PÚBLICO EN GENERAL
   </div>
+  <?php endif; ?>
 
 </div><!-- /page -->
 </body>

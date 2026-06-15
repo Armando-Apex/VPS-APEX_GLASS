@@ -462,6 +462,7 @@ Próximo UPD disponible: **UPD-059**
 | UPD-075 | 15-jun | Armando | Fix cámara QR Android: AdminBolt bloqueaba cámara con `Permissions-Policy: camera=()` global — sobreescrito en vhost con `camera=(self)` + mejoras error handling en operador.php |
 | UPD-076 | 15-jun | Mando | operador.php: estación templado solo registra en_horno; nueva estación terminado maneja salida + reproceso; cooldown reducido a 30s; cooldown es por pieza (qr_code) no por orden |
 | UPD-077 | 15-jun | Mando | factura_tipo en cotizaciones: BD ALTER + checkbox Genérica/RFC en form + footer "PÚBLICO EN GENERAL" en PDF cotización |
+| UPD-078 | 15-jun | Mando | factura_tipo simplificado: solo checkbox "Público en general", sin input RFC; PDF muestra footer solo si está marcado |
 
 ---
 
@@ -472,4 +473,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-078**
+**Próximo UPD disponible: UPD-079**

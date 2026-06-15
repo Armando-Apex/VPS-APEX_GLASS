@@ -332,19 +332,15 @@ function renderFormulario(data) {
   html += '</div>';
 
   // Factura tipo
-  var ftVal = data ? (data.factura_tipo || 'generica') : 'generica';
+  var ftVal = data ? (data.factura_tipo || '') : '';
   var ftEsGenerica = (ftVal === 'generica');
-  html += '<div class="field span-2"><label>Factura</label>';
+  html += '<div class="field"><label>Factura genérica</label>';
   if (editable) {
-    html += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">';
-    html += '<label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;">';
-    html += '<input type="checkbox" id="fFacturaGenerica" ' + (ftEsGenerica ? 'checked' : '') + ' onchange="ModCotizacion._toggleFactura()">';
-    html += 'Genérica</label>';
-    html += '<input type="text" id="fFacturaRfc" style="flex:1;min-width:160px;display:' + (ftEsGenerica ? 'none' : 'block') + ';"';
-    html += ' value="' + escHtml(ftEsGenerica ? '' : ftVal) + '" placeholder="RFC / Razón social del cliente">';
-    html += '</div>';
+    html += '<label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;padding-top:4px;">';
+    html += '<input type="checkbox" id="fFacturaGenerica" ' + (ftEsGenerica ? 'checked' : '') + '>';
+    html += 'Público en general</label>';
   } else {
-    html += '<input type="text" readonly value="' + escHtml(ftVal === 'generica' ? 'Genérica' : ftVal) + '">';
+    html += '<input type="text" readonly value="' + (ftEsGenerica ? 'Público en general' : '—') + '">';
   }
   html += '</div>';
 
@@ -775,7 +771,7 @@ function armarPayload(clienteId) {
     localidad:      document.getElementById('fLocalidad')?.value    || 'local',
     ciudad_destino: document.getElementById('fCiudad')?.value       || '',
     fecha_entrega:  document.getElementById('fFechaEntrega')?.value || '',
-    factura_tipo:   (function() { var cb = document.getElementById('fFacturaGenerica'); if (!cb || cb.checked) return 'generica'; return document.getElementById('fFacturaRfc')?.value.trim() || 'generica'; })(),
+    factura_tipo:   (document.getElementById('fFacturaGenerica')?.checked ? 'generica' : ''),
     alerta:         document.getElementById('fAlerta')?.value       || '',
     partidas:       partidasPayload,
   };
