@@ -3,7 +3,23 @@
     "allow": [
       "mcp__mysql__mysql_query",
       "Bash(git init *)",
-      "Bash(git config *)"
+      "Bash(git config *)",
+      "Skill(update-config)",
+      "Bash(git -C /home/apexglass2025/apex.glass/public_html/produccion *)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "D=/home/apexglass2025/apex.glass/public_html/produccion; git -C \"$D\" add -A && git -C \"$D\" diff --cached --quiet || (git -C \"$D\" commit -m \"Auto-sync $(date '+%Y-%m-%d %H:%M')\" && git -C \"$D\" push origin main 2>&1)",
+            "timeout": 60,
+            "statusMessage": "Guardando cambios en GitHub..."
+          }
+        ]
+      }
     ]
   }
 }
