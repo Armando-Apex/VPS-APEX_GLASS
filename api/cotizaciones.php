@@ -290,6 +290,7 @@ if ($method === 'POST') {
     $tipo_entrega = in_array($body['tipo_entrega'] ?? '', ['domicilio','planta']) ? $body['tipo_entrega'] : 'domicilio';
     $localidad    = ($body['localidad'] ?? '') === 'foraneo' ? 'foraneo' : 'local';
     $ciudad       = trim($body['ciudad_destino']  ?? '');
+    $factura_tipo = trim($body['factura_tipo']     ?? 'generica') ?: 'generica';
     $alerta       = trim($body['alerta']           ?? '');
     $partidas     = $body['partidas']              ?? [];
     $fecha_entrega_manual = trim($body['fecha_entrega'] ?? '');
@@ -369,17 +370,17 @@ if ($method === 'POST') {
     $db->beginTransaction();
     try {
 
-        $db->prepare("INSERT INTO cotizaciones 
+        $db->prepare("INSERT INTO cotizaciones
             (folio, fecha, cliente_id, cliente_nombre, asesor_id, asesor_nombre,
              proyecto, descuento, credito, condicion_pago, tipo_entrega,
-             localidad, ciudad_destino, fecha_entrega, fecha_entrega_manual,
+             localidad, ciudad_destino, factura_tipo, fecha_entrega, fecha_entrega_manual,
              alerta, subtotal, iva, total, saldo_pendiente, entrega_bloqueada, estatus)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ")->execute([
             $folio, $fecha_hoy, $cliente_id, $cliente_nombre,
             $usuario_id, $usuario_nombre,
             $proyecto, $descuento, $credito, $condicion, $tipo_entrega,
-            $localidad, $ciudad, $fecha_entrega, $es_manual,
+            $localidad, $ciudad, $factura_tipo, $fecha_entrega, $es_manual,
             $alerta, $subtotal_total, $iva_total, $total_final,
             $saldo,
             0,
@@ -452,6 +453,7 @@ if ($method === 'PUT') {
         $tipo_entrega = in_array($body['tipo_entrega'] ?? '', ['domicilio','planta']) ? $body['tipo_entrega'] : 'domicilio';
         $localidad    = ($body['localidad'] ?? '') === 'foraneo' ? 'foraneo' : 'local';
         $ciudad       = trim($body['ciudad_destino']  ?? '');
+        $factura_tipo = trim($body['factura_tipo']     ?? 'generica') ?: 'generica';
         $alerta       = trim($body['alerta']           ?? '');
         $partidas     = $body['partidas']              ?? [];
         $fecha_entrega_manual = trim($body['fecha_entrega'] ?? '');
@@ -529,14 +531,14 @@ if ($method === 'PUT') {
             $db->prepare("UPDATE cotizaciones SET
                 cliente_id=?, cliente_nombre=?, proyecto=?, descuento=?,
                 credito=?, condicion_pago=?, tipo_entrega=?, localidad=?,
-                ciudad_destino=?, fecha_entrega=?, fecha_entrega_manual=?,
+                ciudad_destino=?, factura_tipo=?, fecha_entrega=?, fecha_entrega_manual=?,
                 alerta=?, subtotal=?, iva=?, total=?, saldo_pendiente=?,
                 updated_at=NOW()
                 WHERE id=?
             ")->execute([
                 $cliente_id, $cliente_nombre, $proyecto, $descuento,
                 $credito, $condicion, $tipo_entrega, $localidad,
-                $ciudad, $fecha_entrega, $es_manual,
+                $ciudad, $factura_tipo, $fecha_entrega, $es_manual,
                 $alerta, $subtotal_total, $iva_total, $total_final, $saldo,
                 $id
             ]);

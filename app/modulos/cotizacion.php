@@ -96,10 +96,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .corr-partidas-table td input:focus, .corr-partidas-table td select:focus { outline:none; border-color:#2563eb; }
 .corr-partidas-table td input[disabled], .corr-partidas-table td select[disabled] { background:#f1f5f9; color:#94a3b8; cursor:not-allowed; }
 .corr-num { font-weight:800; color:#2563eb; text-align:center; font-size:13px; white-space:nowrap; }
-.corr-row-del { background:#fff0f0 !important; opacity:.6; }
-.corr-row-del td input, .corr-row-del td select { pointer-events:none; }
-.btn-corr-del { background:#fee2e2; color:#dc2626; border:none; border-radius:6px; width:28px; height:28px; cursor:pointer; font-size:14px; font-weight:800; }
-.btn-corr-del.activo { background:#dc2626; color:white; }
 .corr-ref  { color:#374151; font-size:11px; white-space:nowrap; max-width:130px; overflow:hidden; text-overflow:ellipsis; }
 .corr-foot { display:flex; justify-content:flex-end; gap:10px; padding:16px 24px; border-top:1px solid #f1f5f9; }
 /* Historial */
@@ -160,7 +156,6 @@ var partidas            = [];
 var _buscarTimer        = null;
 var _dataCot            = null;
 var _authStatus         = null;
-var _corrEliminar       = [];
 
 // ── Inicializar ────────────────────────────────────────────────────────────────
 async function init() {
@@ -333,6 +328,23 @@ function renderFormulario(data) {
     html += '<select id="fCredito"><option value="no"' + (data && data.credito==='no'?' selected':'') + '>No</option><option value="si"' + (data && data.credito==='si'?' selected':'') + '>Sí</option></select>';
   } else {
     html += '<input type="text" readonly value="' + (data && data.credito === 'si' ? 'Sí' : 'No') + '">';
+  }
+  html += '</div>';
+
+  // Factura tipo
+  var ftVal = data ? (data.factura_tipo || 'generica') : 'generica';
+  var ftEsGenerica = (ftVal === 'generica');
+  html += '<div class="field span-2"><label>Factura</label>';
+  if (editable) {
+    html += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">';
+    html += '<label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;">';
+    html += '<input type="checkbox" id="fFacturaGenerica" ' + (ftEsGenerica ? 'checked' : '') + ' onchange="ModCotizacion._toggleFactura()">';
+    html += 'Genérica</label>';
+    html += '<input type="text" id="fFacturaRfc" style="flex:1;min-width:160px;display:' + (ftEsGenerica ? 'none' : 'block') + ';"';
+    html += ' value="' + escHtml(ftEsGenerica ? '' : ftVal) + '" placeholder="RFC / Razón social del cliente">';
+    html += '</div>';
+  } else {
+    html += '<input type="text" readonly value="' + escHtml(ftVal === 'generica' ? 'Genérica' : ftVal) + '">';
   }
   html += '</div>';
 
@@ -643,6 +655,14 @@ function seleccionarCliente(id, nombre, localidad, ciudad) {
 }
 
 // ── Localidad / Ciudad ────────────────────────────────────────────────────────
+function toggleFactura() {
+  var cb  = document.getElementById('fFacturaGenerica');
+  var rfc = document.getElementById('fFacturaRfc');
+  if (!cb || !rfc) return;
+  rfc.style.display = cb.checked ? 'none' : 'block';
+  if (cb.checked) rfc.value = '';
+}
+
 function toggleCiudad() {
   var esForaneo = (document.getElementById('fLocalidad')?.value === 'foraneo');
   var campo = document.getElementById('campoCiudad');
@@ -755,6 +775,7 @@ function armarPayload(clienteId) {
     localidad:      document.getElementById('fLocalidad')?.value    || 'local',
     ciudad_destino: document.getElementById('fCiudad')?.value       || '',
     fecha_entrega:  document.getElementById('fFechaEntrega')?.value || '',
+    factura_tipo:   (function() { var cb = document.getElementById('fFacturaGenerica'); if (!cb || cb.checked) return 'generica'; return document.getElementById('fFacturaRfc')?.value.trim() || 'generica'; })(),
     alerta:         document.getElementById('fAlerta')?.value       || '',
     partidas:       partidasPayload,
   };
@@ -867,7 +888,6 @@ function _inyectarModal() {
 }
 
 function _renderFormCorreccion() {
-  _corrEliminar = [];
   var d   = _dataCot;
   var esOrden = (d.estatus === 'orden');
   var html = '';
@@ -912,7 +932,6 @@ function _renderFormCorreccion() {
   html += '<th>Detalles</th><th>CPB</th>';
   html += '<th>Res</th><th>TP</th><th>TA</th><th>Templ.</th>';
   html += '<th>Comentarios</th>';
-  html += '<th title="Eliminar partida">🗑</th>';
   html += '</tr></thead><tbody>';
 
   var detOpts = ['','NO','Plantilla','Descuadre','Forma','Diámetro'];
@@ -923,7 +942,7 @@ function _renderFormCorreccion() {
   for (var i = 0; i < pts.length; i++) {
     var p   = pts[i];
     var idx = p.id;
-    html += '<tr id="corrRow_' + idx + '">';
+    html += '<tr>';
     html += '<td class="corr-num">' + p.num_partida + '</td>';
     html += '<td><div class="corr-ref">' + escHtml(p.cristal_nombre || '') + '</div>';
     html += '<div style="font-size:11px;color:#94a3b8">' + (p.ancho || 0) + '×' + (p.alto || 0) + ' mm</div></td>';
@@ -957,39 +976,11 @@ function _renderFormCorreccion() {
     html += '</select></td>';
 
     html += '<td><input type="text" id="cp_com_' + idx + '" value="' + escHtml(p.comentarios_etiqueta || '') + '" style="min-width:120px"></td>';
-    html += '<td style="text-align:center"><button class="btn-corr-del" id="btnDel_' + idx + '" onclick="ModCotizacion._toggleEliminarPartida(' + idx + ')" title="Marcar para eliminar">🗑</button></td>';
     html += '</tr>';
   }
 
   html += '</tbody></table></div></div>';
   document.getElementById('corrTabForm').innerHTML = html;
-}
-
-function toggleEliminarPartida(pid) {
-  var total = (_dataCot && _dataCot.partidas) ? _dataCot.partidas.length : 0;
-  var idx   = _corrEliminar.indexOf(pid);
-  var marcando = idx < 0;
-
-  if (marcando && (total - _corrEliminar.length) <= 1) {
-    alert('No puedes eliminar todas las partidas. La cotización debe tener al menos una.');
-    return;
-  }
-
-  if (marcando) {
-    _corrEliminar.push(pid);
-  } else {
-    _corrEliminar.splice(idx, 1);
-  }
-
-  var row = document.getElementById('corrRow_' + pid);
-  var btn = document.getElementById('btnDel_' + pid);
-  if (row) {
-    if (marcando) { row.className = 'corr-row-del'; } else { row.className = ''; }
-  }
-  if (btn) {
-    if (marcando) { btn.classList.add('activo'); btn.title = 'Desmarcar'; }
-    else          { btn.classList.remove('activo'); btn.title = 'Marcar para eliminar'; }
-  }
 }
 
 async function guardarCorreccion() {
@@ -1050,7 +1041,6 @@ async function guardarCorreccion() {
         motivo:           motivo,
         cambios_header:   cambios_header,
         cambios_partidas: cambios_partidas,
-        eliminar_partidas: _corrEliminar,
       }),
     });
     var data = await res.json();
@@ -1223,6 +1213,7 @@ return {
   _recalcular:        recalcular,
   _buscarCliente:     buscarCliente,
   _seleccionarCliente:seleccionarCliente,
+  _toggleFactura:     toggleFactura,
   _toggleCiudad:      toggleCiudad,
   _actualizarFechaEntrega: actualizarFechaEntrega,
   _convertirOrden:    convertirOrden,
@@ -1234,12 +1225,11 @@ return {
   _imprimirRemision:  imprimirRemision,
   _imprimirEtiquetas:  imprimirEtiquetas,
   _imprimirSalida:     imprimirSalida,
-  _abrirCorreccion:      abrirCorreccion,
-  _cerrarCorreccion:     cerrarCorreccion,
-  _corrTab:              corrTab,
-  _guardarCorreccion:    guardarCorreccion,
-  _toggleEliminarPartida: toggleEliminarPartida,
-  _resolverAuth:         _resolverAuth,
+  _abrirCorreccion:    abrirCorreccion,
+  _cerrarCorreccion:   cerrarCorreccion,
+  _corrTab:            corrTab,
+  _guardarCorreccion:  guardarCorreccion,
+  _resolverAuth:       _resolverAuth,
 };
 })();
 </script>
