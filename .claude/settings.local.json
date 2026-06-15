@@ -5,7 +5,9 @@
       "Bash(git init *)",
       "Bash(git config *)",
       "Skill(update-config)",
-      "Bash(git -C /home/apexglass2025/apex.glass/public_html/produccion *)"
+      "Bash(git -C /home/apexglass2025/apex.glass/public_html/produccion *)",
+      "Bash(npx -y @modelcontextprotocol/server-filesystem /home/apexglass2025/apex.glass/public_html/produccion)",
+      "Bash(kill %1)"
     ]
   },
   "hooks": {
