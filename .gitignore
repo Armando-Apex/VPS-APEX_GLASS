@@ -1,0 +1,13 @@
+# Configuracion con credenciales
+api/config.php
+.env
+
+# Backups
+_backups/
+
+# Archivos subidos por usuarios
+archivos_ordenes/
+
+# Logs y temporales
+*.log
+*.tmp

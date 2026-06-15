@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__mysql__mysql_query",
+      "Bash(git init *)",
+      "Bash(git config *)"
+    ]
+  }
+}

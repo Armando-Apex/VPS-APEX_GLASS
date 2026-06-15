@@ -1,0 +1,350 @@
+[07-May-2026 16:27:53 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:27:53 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:28:29 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:28:29 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:17 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:17 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:18 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:18 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:19 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:19 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:29 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:29 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:38 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:38 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:39 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:39 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:39 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:29:39 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:35:44 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:35:44 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:31 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:31 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:31 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:31 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:32 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:32 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:33 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:33 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:33 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:33 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:33 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:33 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:34 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:34 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:34 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:34 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:34 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:34 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:35 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:35 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:35 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:35 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:36 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:36 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:36 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:36 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:37 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:37 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:37 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:37 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:37 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:37 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:38 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:38 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:38 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:38 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:40 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:40 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:40 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:40 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:40 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:40 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:40 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:40 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:41 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:36:41 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:37:33 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:37:33 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:38:59 America/Chicago] PHP Warning:  require_once(api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[07-May-2026 16:38:59 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required 'api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php on line 2
+[11-May-2026 18:55:32 America/Monterrey] PHP Fatal error:  Uncaught Error: Call to undefined function requirePermiso() in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php:4
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/orden.php(3): require_once()
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php on line 4
+[11-May-2026 18:55:33 America/Monterrey] PHP Fatal error:  Uncaught Error: Call to undefined function requirePermiso() in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php:4
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/orden.php(3): require_once()
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php on line 4
+[11-May-2026 18:55:34 America/Monterrey] PHP Fatal error:  Uncaught Error: Call to undefined function requirePermiso() in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php:4
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/orden.php(3): require_once()
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php on line 4
+[11-May-2026 18:55:36 America/Monterrey] PHP Fatal error:  Uncaught Error: Call to undefined function requirePermiso() in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php:4
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php(7): require_once()
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php on line 4
+[11-May-2026 18:55:48 America/Monterrey] PHP Fatal error:  Uncaught Error: Call to undefined function requirePermiso() in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php:4
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php(7): require_once()
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php on line 4
+[11-May-2026 18:55:50 America/Monterrey] PHP Fatal error:  Uncaught Error: Call to undefined function requirePermiso() in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php:4
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php(7): require_once()
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php on line 4
+[11-May-2026 18:55:52 America/Monterrey] PHP Fatal error:  Uncaught Error: Call to undefined function requirePermiso() in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php:4
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php(7): require_once()
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php on line 4
+[11-May-2026 18:55:53 America/Monterrey] PHP Fatal error:  Uncaught Error: Call to undefined function requirePermiso() in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php:4
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php(7): require_once()
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php on line 4
+[11-May-2026 18:55:54 America/Monterrey] PHP Fatal error:  Uncaught Error: Call to undefined function requirePermiso() in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php:4
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php(7): require_once()
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php on line 4
+[11-May-2026 18:55:58 America/Monterrey] PHP Fatal error:  Uncaught Error: Call to undefined function requirePermiso() in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php:4
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/login.php(7): require_once()
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php on line 4
+[11-May-2026 18:56:45 America/Monterrey] PHP Fatal error:  Uncaught Error: Call to undefined function requirePermiso() in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php:4
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/orden.php(3): require_once()
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/api/permisos.php on line 4
+[12-May-2026 13:25:55 America/Monterrey] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 105
+[12-May-2026 13:25:57 America/Monterrey] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 105
+[12-May-2026 13:26:13 America/Monterrey] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 105
+[12-May-2026 13:26:34 America/Monterrey] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 105
+[12-May-2026 13:26:35 America/Monterrey] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 105
+[12-May-2026 13:26:45 America/Monterrey] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 105
+[12-May-2026 13:26:49 America/Monterrey] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 105
+[12-May-2026 13:26:54 America/Monterrey] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 105
+[12-May-2026 13:26:57 America/Monterrey] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 105
+[12-May-2026 13:26:58 America/Monterrey] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 105
+[12-May-2026 13:27:27 America/Monterrey] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 105
+[12-May-2026 13:27:30 America/Monterrey] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 105
+[21-May-2026 12:45:37 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/productividad.php on line 1
+[21-May-2026 12:45:41 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/productividad.php on line 1
+[21-May-2026 12:45:42 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/productividad.php on line 1
+[21-May-2026 12:45:46 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/productividad.php on line 1
+[21-May-2026 12:45:58 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/productividad.php on line 1
+[21-May-2026 12:46:00 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/productividad.php on line 1
+[21-May-2026 12:46:36 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/productividad.php on line 1
+[21-May-2026 12:46:37 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/productividad.php on line 1
+[21-May-2026 12:46:46 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/productividad.php on line 1
+[21-May-2026 13:07:42 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/reporte_direccion.php on line 1
+[21-May-2026 13:07:43 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/reporte_direccion.php on line 1
+[21-May-2026 13:07:44 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/reporte_direccion.php on line 1
+[21-May-2026 13:07:45 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/reporte_direccion.php on line 1
+[21-May-2026 13:12:30 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/jefe_movil.php on line 1
+[21-May-2026 13:12:34 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/jefe_movil.php on line 1
+[21-May-2026 16:21:10 America/Chicago] PHP Parse error:  syntax error, unexpected token "__DIR__" in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/produccion_estaciones.php on line 1
+[23-May-2026 13:30:49 America/Chicago] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 150
+[23-May-2026 13:30:49 America/Chicago] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php:1) in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 152
+[23-May-2026 13:30:56 America/Chicago] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 150
+[23-May-2026 13:30:56 America/Chicago] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php:1) in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 152
+[23-May-2026 13:31:50 America/Chicago] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 150
+[23-May-2026 13:31:50 America/Chicago] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php:1) in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 152
+[23-May-2026 13:31:51 America/Chicago] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 150
+[23-May-2026 13:31:51 America/Chicago] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php:1) in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 152
+[23-May-2026 13:31:52 America/Chicago] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 150
+[23-May-2026 13:31:52 America/Chicago] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php:1) in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 152
+[23-May-2026 13:31:59 America/Chicago] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 150
+[23-May-2026 13:31:59 America/Chicago] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php:1) in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 152
+[23-May-2026 13:35:58 America/Chicago] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 150
+[23-May-2026 13:35:58 America/Chicago] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php:1) in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 152
+[23-May-2026 13:36:01 America/Chicago] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 150
+[23-May-2026 13:36:01 America/Chicago] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php:1) in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 152
+[23-May-2026 13:36:02 America/Chicago] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 150
+[23-May-2026 13:36:02 America/Chicago] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php:1) in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 152
+[23-May-2026 13:36:02 America/Chicago] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 150
+[23-May-2026 13:36:02 America/Chicago] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php:1) in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/clientes.php on line 152
+[23-May-2026 13:42:41 America/Chicago] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/cristales.php on line 138
+[23-May-2026 13:42:41 America/Chicago] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home3/a3026051/apex_tnglass/apex.glass/produccion/app/cristales.php:1) in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/cristales.php on line 140
+[26-May-2026 18:34:08 America/Monterrey] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'u.telefono' in 'field list' in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php:10
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php(10): PDO->prepare('\r\n    SELECT c....')
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php on line 10
+[26-May-2026 18:34:53 America/Monterrey] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'u.telefono' in 'field list' in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php:10
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php(10): PDO->prepare('\r\n    SELECT c....')
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php on line 10
+[26-May-2026 18:37:26 America/Monterrey] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'u.telefono' in 'field list' in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php:10
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php(10): PDO->prepare('\r\n    SELECT c....')
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php on line 10
+[26-May-2026 18:39:44 America/Monterrey] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'u.telefono' in 'field list' in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php:13
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php(13): PDO->prepare('\r\n    SELECT c....')
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php on line 13
+[26-May-2026 18:40:36 America/Monterrey] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'u.telefono' in 'field list' in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php:10
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php(10): PDO->prepare('\r\n    SELECT c....')
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php on line 10
+[26-May-2026 18:40:39 America/Monterrey] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'u.telefono' in 'field list' in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php:10
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php(10): PDO->prepare('\r\n    SELECT c....')
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php on line 10
+[26-May-2026 18:41:37 America/Monterrey] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'u.telefono' in 'field list' in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php:13
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php(13): PDO->prepare('\r\n    SELECT c....')
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php on line 13
+[27-May-2026 14:26:48 America/Monterrey] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'u.email' in 'field list' in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php:9
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php(9): PDO->prepare('SELECT c.*, cl....')
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php on line 9
+[27-May-2026 14:26:52 America/Monterrey] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'u.email' in 'field list' in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php:9
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php(9): PDO->prepare('SELECT c.*, cl....')
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_cotizacion.php on line 9
+[03-Jun-2026 12:23:19 America/Chicago] PHP Warning:  require_once(/home3/a3026051/apex_tnglass/apex.glass/produccion/app/../../api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 2
+[03-Jun-2026 12:23:19 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required '/home3/a3026051/apex_tnglass/apex.glass/produccion/app/../../api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 2
+[03-Jun-2026 12:23:21 America/Chicago] PHP Warning:  require_once(/home3/a3026051/apex_tnglass/apex.glass/produccion/app/../../api/config.php): Failed to open stream: No such file or directory in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 2
+[03-Jun-2026 12:23:21 America/Chicago] PHP Fatal error:  Uncaught Error: Failed opening required '/home3/a3026051/apex_tnglass/apex.glass/produccion/app/../../api/config.php' (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php:2
+Stack trace:
+#0 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/dashboard.php on line 2
+[08-Jun-2026 13:55:01 America/Monterrey] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'cl.direccion' in 'field list' in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_salida.php:15
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_salida.php(15): PDO->prepare('\n    SELECT c.*...')
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_salida.php on line 15
+[08-Jun-2026 13:55:04 America/Monterrey] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'cl.direccion' in 'field list' in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_salida.php:15
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_salida.php(15): PDO->prepare('\n    SELECT c.*...')
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_salida.php on line 15
+[08-Jun-2026 14:05:41 America/Monterrey] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'cl.direccion' in 'field list' in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_salida.php:15
+Stack trace:
+#0 /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_salida.php(15): PDO->prepare('\n    SELECT c.*...')
+#1 {main}
+  thrown in /home3/a3026051/apex_tnglass/apex.glass/produccion/app/imprimir_salida.php on line 15
