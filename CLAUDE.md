@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 15 junio 2026 | Próximo UPD disponible: UPD-076
+# Última actualización: 15 junio 2026 | Próximo UPD disponible: UPD-080
 
 **REGLA DE ORO:** Este archivo es la memoria compartida del proyecto. Claude lo lee al inicio de cada sesión y lo actualiza al terminar. Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -463,6 +463,7 @@ Próximo UPD disponible: **UPD-059**
 | UPD-076 | 15-jun | Mando | operador.php: estación templado solo registra en_horno; nueva estación terminado maneja salida + reproceso; cooldown reducido a 30s; cooldown es por pieza (qr_code) no por orden |
 | UPD-077 | 15-jun | Mando | factura_tipo en cotizaciones: BD ALTER + checkbox Genérica/RFC en form + footer "PÚBLICO EN GENERAL" en PDF cotización |
 | UPD-078 | 15-jun | Mando | factura_tipo simplificado: solo checkbox "Público en general", sin input RFC; PDF muestra footer solo si está marcado |
+| UPD-079 | 15-jun | Armando | Fix modulos/cotizaciones.php: limit 50→200 — COT-0138 y anteriores no aparecían por límite de paginación (52 cots más recientes la desplazaban) |
 
 ---
 
@@ -473,4 +474,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-079**
+**Próximo UPD disponible: UPD-080**
