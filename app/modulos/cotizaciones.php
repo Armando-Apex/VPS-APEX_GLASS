@@ -129,7 +129,7 @@ var _authPendOpen = false;
 
 async function cotCargar() {
   try {
-    var res  = await fetch('../api/cotizaciones.php?t=' + Date.now());
+    var res  = await fetch('../api/cotizaciones.php?limit=200&t=' + Date.now());
     var data = await res.json();
     _cotData = Array.isArray(data) ? data : (data.cotizaciones || []);
     cotFiltrar();
