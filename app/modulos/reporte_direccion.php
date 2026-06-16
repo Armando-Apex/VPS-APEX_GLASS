@@ -119,6 +119,12 @@ async function rdCargar() {
   } catch(e) { document.getElementById('rdMain').innerHTML = '<div class="loading" style="color:#dc2626">Error de conexi&#243;n</div>'; }
 }
 
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 function rdFmtFecha(ts) {
   if (!ts) return '&#8212;';
   const d = new Date(ts.includes('T') ? ts : ts + 'T12:00:00');
@@ -183,7 +189,7 @@ function rdRender(rep, dash, inv) {
     '<thead><tr><th>Asesor</th><th style="text-align:right">&#xD3;rdenes</th><th style="text-align:right">Ventas (&#xD3;rdenes)</th><th style="text-align:right">Cotizado (pipeline)</th></tr></thead><tbody>';
     porAsesor.forEach(function(a) {
       var bethyCot = a.asesor_nombre && a.asesor_nombre.indexOf('Bethy') >= 0 ? fmtMXN(cot.bethy_total) : (a.asesor_nombre && a.asesor_nombre.indexOf('Cynthia') >= 0 ? fmtMXN(cot.cynthia_total) : '&#8212;');
-      html += '<tr><td><strong>' + (a.asesor_nombre||'Sin asignar') + '</strong></td>' +
+      html += '<tr><td><strong>' + esc(a.asesor_nombre||'Sin asignar') + '</strong></td>' +
         '<td style="text-align:right">' + a.ordenes + '</td>' +
         '<td style="text-align:right;font-weight:700;color:var(--blue)">' + fmtMXN(a.total_ventas) + '</td>' +
         '<td style="text-align:right;color:var(--muted)">' + bethyCot + '</td></tr>';
@@ -249,7 +255,7 @@ function rdRender(rep, dash, inv) {
       var medal = i === 0 ? '&#x1F947;' : i === 1 ? '&#x1F948;' : i === 2 ? '&#x1F949;' : (i+1) + '.';
       html += '<tr>' +
         '<td style="font-size:16px;text-align:center">' + medal + '</td>' +
-        '<td><strong>' + cl.nombre + '</strong></td>' +
+        '<td><strong>' + esc(cl.nombre) + '</strong></td>' +
         '<td style="text-align:right">' + cl.ordenes + '</td>' +
         '<td style="text-align:right;font-weight:800;color:var(--blue);font-size:15px">' + fmtMXN(cl.total_ventas) + '</td></tr>';
     });
@@ -266,7 +272,7 @@ function rdRender(rep, dash, inv) {
       html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">' +
         '<div style="font-size:11px;font-weight:700;color:var(--blue)">' + s.piezas + '</div>' +
         '<div style="width:100%;height:' + h + 'px;background:' + (isLast ? 'var(--accent)' : 'var(--blue)') + ';border-radius:4px 4px 0 0;opacity:' + (isLast ? '1' : '0.7') + '"></div>' +
-        '<div style="font-size:10px;color:var(--muted);text-align:center">' + s.semana_inicio + '</div>' +
+        '<div style="font-size:10px;color:var(--muted);text-align:center">' + esc(s.semana_inicio) + '</div>' +
       '</div>';
     });
     html += '</div></div>';
