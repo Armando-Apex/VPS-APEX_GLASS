@@ -36,32 +36,38 @@ switch ($periodo) {
 
 $params4 = [$desde, $hasta, $desde.' 00:00:00', $hasta.' 23:59:59'];
 
-// ���� Resumen global del per��odo ����
-// fecha_cierre: usa campo fecha_cierre (datetime), fallback a updated_at
-// ubicacion: 'LOCAL' o 'FORANEO' (may��sculas)
+// Retraso se mide por fecha_terminado (cuando la última pieza llegó a 'terminado'),
+// NO por fecha_cierre — el cliente puede recoger tarde y eso no es retraso de producción.
 $stmt = $pdo->prepare("
     SELECT
-        COUNT(*)                                                                     AS total,
-        SUM(estado = 'entregada')                                                    AS cerradas,
-        SUM(estado = 'activa')                                                       AS abiertas,
-        SUM(estado = 'entregada'
-            AND DATE(COALESCE(fecha_cierre, updated_at)) <= fecha_entrega)           AS a_tiempo,
-        SUM(estado = 'entregada'
-            AND DATE(COALESCE(fecha_cierre, updated_at)) >  fecha_entrega)           AS con_retraso,
-        SUM(estado = 'activa'
-            AND (fecha_entrega IS NULL OR fecha_entrega >= CURDATE()))               AS en_proceso,
-        SUM(estado = 'activa'
-            AND fecha_entrega < CURDATE())                                           AS retraso_abierto,
-        AVG(CASE WHEN estado = 'entregada'
-                 THEN DATEDIFF(DATE(COALESCE(fecha_cierre, updated_at)), fecha_pedido)
-            END)                                                                     AS prom_dias,
-        SUM(estado = 'pendiente_vobo')                                               AS vobo_pendientes,
-        SUM(UPPER(COALESCE(ubicacion,'')) != 'FORANEO')                              AS local,
-        SUM(UPPER(ubicacion) = 'FORANEO')                                           AS foraneo
-    FROM ordenes
-    WHERE estado != 'cancelada'
-      AND (fecha_pedido BETWEEN ? AND ?
-           OR (fecha_pedido IS NULL AND created_at BETWEEN ? AND ?))
+        COUNT(*)                                                                      AS total,
+        SUM(o.estado = 'entregada')                                                   AS cerradas,
+        SUM(o.estado = 'activa')                                                      AS abiertas,
+        SUM(o.estado = 'entregada'
+            AND ft.fecha_terminado <= o.fecha_entrega)                                AS a_tiempo,
+        SUM(o.estado = 'entregada'
+            AND ft.fecha_terminado >  o.fecha_entrega)                                AS con_retraso,
+        SUM(o.estado = 'activa'
+            AND (o.fecha_entrega IS NULL OR o.fecha_entrega >= CURDATE()))            AS en_proceso,
+        SUM(o.estado = 'activa'
+            AND o.fecha_entrega < CURDATE())                                          AS retraso_abierto,
+        AVG(CASE WHEN o.estado = 'entregada' AND ft.fecha_terminado IS NOT NULL
+                 THEN DATEDIFF(ft.fecha_terminado, o.fecha_pedido)
+            END)                                                                      AS prom_dias,
+        SUM(o.estado = 'pendiente_vobo')                                              AS vobo_pendientes,
+        SUM(UPPER(COALESCE(o.ubicacion,'')) != 'FORANEO')                             AS local,
+        SUM(UPPER(o.ubicacion) = 'FORANEO')                                           AS foraneo
+    FROM ordenes o
+    LEFT JOIN (
+        SELECT p.orden_id, DATE(MAX(h.created_at)) AS fecha_terminado
+        FROM historial_estatus h
+        JOIN piezas p ON p.id = h.pieza_id
+        WHERE h.estatus_nuevo = 'terminado'
+        GROUP BY p.orden_id
+    ) ft ON ft.orden_id = o.id
+    WHERE o.estado != 'cancelada'
+      AND (o.fecha_pedido BETWEEN ? AND ?
+           OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
 ");
 $stmt->execute($params4);
 $resumen = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -69,29 +75,36 @@ $resumen = $stmt->fetch(PDO::FETCH_ASSOC);
 // ���� Concentrado mensual ����
 $stmtM = $pdo->prepare("
     SELECT
-        DATE_FORMAT(COALESCE(fecha_pedido, DATE(created_at)), '%Y-%m') AS mes_key,
-        DATE_FORMAT(COALESCE(fecha_pedido, DATE(created_at)), '%b %Y') AS mes_label,
-        COUNT(*)                                                                     AS total,
-        SUM(estado = 'entregada')                                                    AS cerradas,
-        SUM(estado = 'activa')                                                       AS abiertas,
-        SUM(estado = 'entregada'
-            AND DATE(COALESCE(fecha_cierre, updated_at)) <= fecha_entrega)           AS a_tiempo,
-        SUM(estado = 'entregada'
-            AND DATE(COALESCE(fecha_cierre, updated_at)) >  fecha_entrega)           AS con_retraso,
-        SUM(estado = 'activa'
-            AND (fecha_entrega IS NULL OR fecha_entrega >= CURDATE()))               AS en_proceso,
-        SUM(estado = 'activa'
-            AND fecha_entrega < CURDATE())                                           AS retraso_abierto,
-        AVG(CASE WHEN estado = 'entregada'
-                 THEN DATEDIFF(DATE(COALESCE(fecha_cierre, updated_at)), fecha_pedido)
-            END)                                                                     AS prom_dias,
-        SUM(estado = 'pendiente_vobo')                                               AS vobo_pendientes,
-        SUM(UPPER(COALESCE(ubicacion,'')) != 'FORANEO')                              AS local,
-        SUM(UPPER(ubicacion) = 'FORANEO')                                           AS foraneo
-    FROM ordenes
-    WHERE estado != 'cancelada'
-      AND (fecha_pedido BETWEEN ? AND ?
-           OR (fecha_pedido IS NULL AND created_at BETWEEN ? AND ?))
+        DATE_FORMAT(COALESCE(o.fecha_pedido, DATE(o.created_at)), '%Y-%m') AS mes_key,
+        DATE_FORMAT(COALESCE(o.fecha_pedido, DATE(o.created_at)), '%b %Y') AS mes_label,
+        COUNT(*)                                                                      AS total,
+        SUM(o.estado = 'entregada')                                                   AS cerradas,
+        SUM(o.estado = 'activa')                                                      AS abiertas,
+        SUM(o.estado = 'entregada'
+            AND ft.fecha_terminado <= o.fecha_entrega)                                AS a_tiempo,
+        SUM(o.estado = 'entregada'
+            AND ft.fecha_terminado >  o.fecha_entrega)                                AS con_retraso,
+        SUM(o.estado = 'activa'
+            AND (o.fecha_entrega IS NULL OR o.fecha_entrega >= CURDATE()))            AS en_proceso,
+        SUM(o.estado = 'activa'
+            AND o.fecha_entrega < CURDATE())                                          AS retraso_abierto,
+        AVG(CASE WHEN o.estado = 'entregada' AND ft.fecha_terminado IS NOT NULL
+                 THEN DATEDIFF(ft.fecha_terminado, o.fecha_pedido)
+            END)                                                                      AS prom_dias,
+        SUM(o.estado = 'pendiente_vobo')                                              AS vobo_pendientes,
+        SUM(UPPER(COALESCE(o.ubicacion,'')) != 'FORANEO')                             AS local,
+        SUM(UPPER(o.ubicacion) = 'FORANEO')                                           AS foraneo
+    FROM ordenes o
+    LEFT JOIN (
+        SELECT p.orden_id, DATE(MAX(h.created_at)) AS fecha_terminado
+        FROM historial_estatus h
+        JOIN piezas p ON p.id = h.pieza_id
+        WHERE h.estatus_nuevo = 'terminado'
+        GROUP BY p.orden_id
+    ) ft ON ft.orden_id = o.id
+    WHERE o.estado != 'cancelada'
+      AND (o.fecha_pedido BETWEEN ? AND ?
+           OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
     GROUP BY mes_key
     ORDER BY mes_key ASC
 ");
