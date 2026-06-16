@@ -1121,7 +1121,7 @@ function _redraw() {
       var ly = sy>0 ? ey+r+4+fz : ey-r-4;
       var anchor1 = sx>0 ? 'start' : 'end';
       var rectX1  = sx>0 ? lx-1 : lx-lblW1+1;
-      out += '<rect x="'+rectX1+'" y="'+(ly-fz)+'" width="'+lblW1+'" height="'+(fz+3)+'" fill="white" rx="2"/>';
+      out += '<rect x="'+rectX1+'" y="'+(ly-fz)+'" width="'+lblW1+'" height="'+(fz+3)+'" fill="#dbeafe" rx="2"/>';
       out += '<text x="'+lx+'" y="'+ly+'" text-anchor="'+anchor1+'" font-size="'+fzSm+'" font-weight="700" fill="#1e40af" font-family="monospace">TP  \u00D8'+e.d+' mm</text>';
       out += '</g>';
     }
@@ -1136,7 +1136,7 @@ function _redraw() {
       var ly = sy>0 ? ey+re+4+fz : ey-re-4;
       var anchor2 = sx>0 ? 'start' : 'end';
       var rectX2  = sx>0 ? lx-1 : lx-lblW2+1;
-      out += '<rect x="'+rectX2+'" y="'+(ly-fz)+'" width="'+lblW2+'" height="'+(fz+3)+'" fill="white" rx="2"/>';
+      out += '<rect x="'+rectX2+'" y="'+(ly-fz)+'" width="'+lblW2+'" height="'+(fz+3)+'" fill="#f3e8ff" rx="2"/>';
       out += '<text x="'+lx+'" y="'+ly+'" text-anchor="'+anchor2+'" font-size="'+fzSm+'" font-weight="700" fill="#7c3aed" font-family="monospace">TA  \u00D8'+e.de+'/'+e.di+' mm</text>';
       out += '</g>';
     }
@@ -1150,17 +1150,17 @@ function _redraw() {
       out += '<line x1="'+ex+'" y1="'+(rySVG-9)+'" x2="'+(ex+rw)+'" y2="'+(rySVG-9)+'" stroke="#854d0e" stroke-width="0.8"/>';
       out += '<line x1="'+ex+'" y1="'+(rySVG-12)+'" x2="'+ex+'" y2="'+(rySVG-6)+'" stroke="#854d0e" stroke-width="0.8"/>';
       out += '<line x1="'+(ex+rw)+'" y1="'+(rySVG-12)+'" x2="'+(ex+rw)+'" y2="'+(rySVG-6)+'" stroke="#854d0e" stroke-width="0.8"/>';
-      out += '<rect x="'+(ex+rw/2-18)+'" y="'+(rySVG-20)+'" width="36" height="10" fill="white" rx="2"/>';
+      out += '<rect x="'+(ex+rw/2-18)+'" y="'+(rySVG-20)+'" width="36" height="10" fill="#dcfce7" rx="2"/>';
       out += '<text x="'+(ex+rw/2)+'" y="'+(rySVG-12)+'" text-anchor="middle" font-size="'+fzSm+'" font-weight="700" fill="#854d0e" font-family="monospace">'+e.w+' mm</text>';
       // cota alto resaque
       out += '<line x1="'+(ex+rw+9)+'" y1="'+rySVG+'" x2="'+(ex+rw+9)+'" y2="'+ey+'" stroke="#854d0e" stroke-width="0.8"/>';
       out += '<line x1="'+(ex+rw+6)+'" y1="'+rySVG+'" x2="'+(ex+rw+12)+'" y2="'+rySVG+'" stroke="#854d0e" stroke-width="0.8"/>';
       out += '<line x1="'+(ex+rw+6)+'" y1="'+ey+'" x2="'+(ex+rw+12)+'" y2="'+ey+'" stroke="#854d0e" stroke-width="0.8"/>';
       var lyRS = rySVG + rh/2;
-      out += '<rect x="'+(ex+rw+12)+'" y="'+(lyRS-16)+'" width="10" height="32" fill="white" rx="2"/>';
+      out += '<rect x="'+(ex+rw+12)+'" y="'+(lyRS-16)+'" width="10" height="32" fill="#dcfce7" rx="2"/>';
       out += '<text x="'+(ex+rw+17)+'" y="'+lyRS+'" text-anchor="middle" font-size="'+fzSm+'" font-weight="700" fill="#854d0e" font-family="monospace" transform="rotate(-90,'+(ex+rw+17)+','+lyRS+')">'+e.h+' mm</text>';
       var lxRS=ex, lyRS2=rySVG-24;
-      out += '<rect x="'+(lxRS-1)+'" y="'+(lyRS2-fz)+'" width="52" height="'+(fz+3)+'" fill="white" rx="2"/>';
+      out += '<rect x="'+(lxRS-1)+'" y="'+(lyRS2-fz)+'" width="52" height="'+(fz+3)+'" fill="#dcfce7" rx="2"/>';
       out += '<text x="'+lxRS+'" y="'+lyRS2+'" font-size="'+fzSm+'" font-weight="700" fill="#854d0e" font-family="monospace">RS  posición</text>';
       out += '</g>';
     }
