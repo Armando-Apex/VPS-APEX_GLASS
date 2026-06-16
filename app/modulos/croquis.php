@@ -1105,29 +1105,39 @@ function _redraw() {
     out += '<text x="'+(ox+gw+cyPad+cyLblW/2+2)+'" y="'+lyMid+'" text-anchor="middle" font-size="'+fzSm+'" font-weight="700" fill="#16a34a" font-family="monospace" transform="rotate(-90,'+(ox+gw+cyPad+cyLblW/2+2)+','+lyMid+')">Y: '+e.y+' mm</text>';
 
     // ── Dibujo del elemento ───────────────────────────────────────
+    // Etiqueta siempre apunta hacia el centro del vidrio para no tapar los ejes ni otros elementos
+    var sx = (ex >= ox + gw/2) ? -1 : 1;   // derecha del vidrio → etiqueta a la izquierda; izquierda → a la derecha
+    var sy = (ey <= oy + gh/2) ? 1  : -1;  // mitad superior → etiqueta abajo; mitad inferior → arriba
+
     if (e.tipo==='tp') {
-      var r = (e.d/2)*sc;
       var r = Math.max(4, (e.d/2)*sc);
       out += '<g style="cursor:'+cur+'"'+evts+'>';
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+(r+4)+'" fill="transparent"/>';
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+r+'" fill="white" stroke="#1e40af" stroke-width="1.5"/>';
       out += '<line x1="'+(ex-r*1.3)+'" y1="'+ey+'" x2="'+(ex+r*1.3)+'" y2="'+ey+'" stroke="#1e40af" stroke-width="1"/>';
       out += '<line x1="'+ex+'" y1="'+(ey-r*1.3)+'" x2="'+ex+'" y2="'+(ey+r*1.3)+'" stroke="#1e40af" stroke-width="1"/>';
-      var lx=ex+r+4, ly=ey-r-4;
-      out += '<rect x="'+(lx-1)+'" y="'+(ly-fz)+'" width="62" height="'+(fz+3)+'" fill="white" rx="2"/>';
-      out += '<text x="'+lx+'" y="'+ly+'" font-size="'+fzSm+'" font-weight="700" fill="#1e40af" font-family="monospace">TP  \u00D8'+e.d+' mm</text>';
+      var lblW1 = 62;
+      var lx = sx>0 ? ex+r+4 : ex-r-4;
+      var ly = sy>0 ? ey+r+4+fz : ey-r-4;
+      var anchor1 = sx>0 ? 'start' : 'end';
+      var rectX1  = sx>0 ? lx-1 : lx-lblW1+1;
+      out += '<rect x="'+rectX1+'" y="'+(ly-fz)+'" width="'+lblW1+'" height="'+(fz+3)+'" fill="white" rx="2"/>';
+      out += '<text x="'+lx+'" y="'+ly+'" text-anchor="'+anchor1+'" font-size="'+fzSm+'" font-weight="700" fill="#1e40af" font-family="monospace">TP  \u00D8'+e.d+' mm</text>';
       out += '</g>';
     }
     if (e.tipo==='ta') {
-      var re=(e.de/2)*sc, ri=(e.di/2)*sc;
       var re=Math.max(5, (e.de/2)*sc), ri=Math.max(2, (e.di/2)*sc);
       out += '<g style="cursor:'+cur+'"'+evts+'>';
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+(re+4)+'" fill="transparent"/>';
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+re+'" fill="white" stroke="#7c3aed" stroke-width="1.5"/>';
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+ri+'" fill="none" stroke="#7c3aed" stroke-width="0.8" stroke-dasharray="2,1.5"/>';
-      var lx=ex+re+4, ly=ey-re-4;
-      out += '<rect x="'+(lx-1)+'" y="'+(ly-fz)+'" width="76" height="'+(fz+3)+'" fill="white" rx="2"/>';
-      out += '<text x="'+lx+'" y="'+ly+'" font-size="'+fzSm+'" font-weight="700" fill="#7c3aed" font-family="monospace">TA  \u00D8'+e.de+'/'+e.di+' mm</text>';
+      var lblW2 = 76;
+      var lx = sx>0 ? ex+re+4 : ex-re-4;
+      var ly = sy>0 ? ey+re+4+fz : ey-re-4;
+      var anchor2 = sx>0 ? 'start' : 'end';
+      var rectX2  = sx>0 ? lx-1 : lx-lblW2+1;
+      out += '<rect x="'+rectX2+'" y="'+(ly-fz)+'" width="'+lblW2+'" height="'+(fz+3)+'" fill="white" rx="2"/>';
+      out += '<text x="'+lx+'" y="'+ly+'" text-anchor="'+anchor2+'" font-size="'+fzSm+'" font-weight="700" fill="#7c3aed" font-family="monospace">TA  \u00D8'+e.de+'/'+e.di+' mm</text>';
       out += '</g>';
     }
     if (e.tipo==='rs') {
