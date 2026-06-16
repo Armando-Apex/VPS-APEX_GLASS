@@ -35,6 +35,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .field input:focus, .field select:focus { outline: none; border-color: #2563eb; }
 .field input[readonly] { background: #f8fafc; color: #64748b; }
 .field .hint { font-size: 11px; color: #94a3b8; }
+/* Toggle Factura genérica */
+.fact-toggle { display:flex; align-items:center; justify-content:center; gap:9px; height:42px; border:1.5px solid #e2e8f0; border-radius:8px; background:white; cursor:pointer; font-size:13px; font-weight:700; color:#374151; transition:all .15s; }
+.fact-toggle:hover { border-color:#cbd5e1; background:#f8fafc; }
+.fact-toggle input[type="checkbox"] { width:17px !important; height:17px !important; padding:0 !important; border:none !important; background:none !important; accent-color:#7c3aed; cursor:pointer; }
+.fact-toggle.is-on { border-color:#7c3aed; background:#f5f3ff; color:#5b21b6; }
 /* Partidas */
 .partidas-header { display: grid; grid-template-columns: 34px 190px 54px 72px 72px 115px 145px 50px 50px 50px 70px 125px 34px; gap: 5px; padding: 6px 8px; background: #f8fafc; border-radius: 8px; margin-bottom: 6px; }
 .partidas-header span { font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; }
@@ -336,11 +341,11 @@ function renderFormulario(data) {
   var ftEsGenerica = (ftVal === 'generica');
   html += '<div class="field"><label>Factura genérica</label>';
   if (editable) {
-    html += '<label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;padding-top:4px;">';
-    html += '<input type="checkbox" id="fFacturaGenerica" ' + (ftEsGenerica ? 'checked' : '') + '>';
-    html += 'Público en general</label>';
+    html += '<label class="fact-toggle' + (ftEsGenerica ? ' is-on' : '') + '" id="fFacturaToggleWrap">';
+    html += '<input type="checkbox" id="fFacturaGenerica" ' + (ftEsGenerica ? 'checked' : '') + ' onchange="document.getElementById(\'fFacturaToggleWrap\').classList.toggle(\'is-on\', this.checked)">';
+    html += '&#128196; Público en general</label>';
   } else {
-    html += '<input type="text" readonly value="' + (ftEsGenerica ? 'Público en general' : '—') + '">';
+    html += '<div class="fact-toggle' + (ftEsGenerica ? ' is-on' : '') + '" style="cursor:default">' + (ftEsGenerica ? '&#128196; Público en general' : '— No genérica —') + '</div>';
   }
   html += '</div>';
 
@@ -914,6 +919,14 @@ function _renderFormCorreccion() {
   html += '<div class="corr-field"><label>Alerta / Nota</label>';
   html += '<input type="text" id="ch_alerta" value="' + escHtml(d.alerta || '') + '"></div>';
 
+  html += '<div class="corr-field"><label>Razón Social (factura)</label>';
+  html += '<input type="text" id="ch_cliente_nombre" value="' + escHtml(d.cliente_nombre || '') + '"></div>';
+
+  html += '<div class="corr-field"><label>Factura genérica</label>';
+  html += '<label class="fact-toggle' + (d.factura_tipo === 'generica' ? ' is-on' : '') + '" id="chFacturaToggleWrap">';
+  html += '<input type="checkbox" id="ch_factura_tipo" ' + (d.factura_tipo === 'generica' ? 'checked' : '') + ' onchange="document.getElementById(\'chFacturaToggleWrap\').classList.toggle(\'is-on\', this.checked)">';
+  html += '&#128196; Público en general</label></div>';
+
   html += '</div></div>';
 
   // Partidas
@@ -993,6 +1006,8 @@ async function guardarCorreccion() {
     condicion_pago:  document.getElementById('ch_condicion_pago')?.value || _dataCot.condicion_pago,
     fecha_entrega:   document.getElementById('ch_fecha_entrega')?.value  || _dataCot.fecha_entrega,
     alerta:          document.getElementById('ch_alerta')?.value         ?? (_dataCot.alerta || ''),
+    cliente_nombre:  (document.getElementById('ch_cliente_nombre')?.value || '').trim() || _dataCot.cliente_nombre,
+    factura_tipo:    document.getElementById('ch_factura_tipo')?.checked ? 'generica' : '',
   };
 
   // Partidas

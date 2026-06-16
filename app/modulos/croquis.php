@@ -159,13 +159,19 @@ header('Content-Type: text/html; charset=utf-8');
                 <svg viewBox="0 0 38 28"><polygon points="9,3 29,3 35,25 3,25" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
                 Trapecio
               </button>
+              <button class="cq-shape-btn" onclick="CroquisMod._setForma('poligono')" id="cq-btn-poligono">
+                <svg viewBox="0 0 38 28"><polygon points="6,4 28,3 35,14 24,25 3,20" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+                Forma libre
+              </button>
             </div>
           </div>
 
           <div class="cq-panel-sec">
             <div class="cq-panel-title">Medidas</div>
+            <div id="cq-medidas-rect-fields">
             <div class="cq-field-row"><span class="cq-field-label">Ancho</span><input class="cq-fi" type="number" id="cq-ancho" value="800" min="50" max="3000" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
             <div class="cq-field-row"><span class="cq-field-label">Alto</span><input class="cq-fi" type="number" id="cq-alto" value="600" min="50" max="3000" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
+            </div>
             <div id="cq-extra-corte" style="display:none">
               <div class="cq-field-row"><span class="cq-field-label">Corte X</span><input class="cq-fi" type="number" id="cq-corte-x" value="150" min="10" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
               <div class="cq-field-row"><span class="cq-field-label">Corte Y</span><input class="cq-fi" type="number" id="cq-corte-y" value="150" min="10" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
@@ -176,6 +182,18 @@ header('Content-Type: text/html; charset=utf-8');
             </div>
             <div id="cq-extra-trap" style="display:none">
               <div class="cq-field-row"><span class="cq-field-label">Base menor</span><input class="cq-fi" type="number" id="cq-trap-b" value="500" min="10" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
+            </div>
+            <div id="cq-extra-poligono" style="display:none">
+              <div class="cq-hint" style="margin-top:0">Haz clic para ir colocando los puntos <b>en orden, siguiendo el contorno</b> (no saltes de un lado a otro). El punto naranja es el último — la línea punteada te muestra hacia dónde se conectará el siguiente clic. Arrastra un punto para moverlo, doble clic para borrarlo, o usa "Deshacer último" si te equivocaste.</div>
+              <div style="font-size:12px;color:#374151;font-weight:700;margin:8px 0 6px" id="cq-pol-contador">0 puntos</div>
+              <div style="display:flex;gap:6px">
+                <button class="cq-zoom-fit" style="flex:1" onclick="CroquisMod._deshacerPunto()" id="cq-pol-deshacer">Deshacer último</button>
+                <button class="cq-zoom-fit" style="flex:1" onclick="CroquisMod._resetPoligono()">Reiniciar</button>
+              </div>
+              <div style="margin-top:6px">
+                <button class="cq-zoom-fit" style="width:100%" onclick="CroquisMod._cerrarPoligono()" id="cq-pol-cerrar">Cerrar forma</button>
+              </div>
+              <div id="cq-pol-segmentos" style="margin-top:8px"></div>
             </div>
           </div>
 
@@ -226,7 +244,8 @@ header('Content-Type: text/html; charset=utf-8');
               ondrop="CroquisMod._onDrop(event)"
               onmousemove="CroquisMod._onMouseMove(event)"
               onmouseup="CroquisMod._onMouseUp(event)"
-              onmouseleave="CroquisMod._onMouseUp(event)">
+              onmouseleave="CroquisMod._onSvgMouseLeave()"
+              onclick="CroquisMod._onSvgClick(event)">
             </svg>
           </div>
           <div class="cq-nota-bar">
@@ -271,7 +290,16 @@ var _editingId = null;
 var _editingCroquis = null; // null = nuevo
 var _partidas  = []; // {num_partida, ancho, alto, cristal}
 
+// Polígono libre
+var _poligonoPuntos  = []; // [{x,y}] en mm, sistema CAD (0,0 abajo-izq)
+var _poligonoCerrado = false;
+var _draggingVert    = null; // índice del punto que se arrastra
+var _justDraggedVert = false; // evita que el click tras soltar agregue un punto extra
+var _polPreviewPt    = null; // {x,y} mm — posición actual del mouse, para línea de previsualización
+var POL_SNAP = 10; // mm
+
 var SVG_W = 450, SVG_H = 340, PAD = 44;
+var EL_BASE = 50; // px reservados debajo del vidrio para cota ancho + "Eje X" antes de que empiecen las filas de elementos
 var _zoom = 1.0; // 1.0 = fit, escala multiplicadora sobre el fit base
 var _panX = 0, _panY = 0;      // offset de pan en px
 var _panning = false, _panStartX = 0, _panStartY = 0, _panStartOX = 0, _panStartOY = 0;
@@ -354,7 +382,7 @@ function renderLista(croquis) {
     if (rsCnt) tags += '<span class="cq-tag cq-tag-rs">' + rsCnt + ' RS</span>';
     if (ladosCanteo.length) tags += '<span class="cq-tag cq-tag-ct">Cant: ' + ladosCanteo.join('+') + '</span>';
 
-    var formaLabel = {rect:'Rectángulo',corte:'Esq. cortada',L:'Forma L',trap:'Trapecio'}[c.forma] || c.forma;
+    var formaLabel = {rect:'Rectángulo',corte:'Esq. cortada',L:'Forma L',trap:'Trapecio',poligono:'Forma libre'}[c.forma] || c.forma;
     var editBtn    = PUEDE_EDITAR ? '<button class="cq-btn-edit" onclick="CroquisMod._editarCroquis(' + c.id + ')">&#9999;&#65039; Editar</button>' : '';
     var delBtn     = PUEDE_EDITAR ? '<button class="cq-btn-del" onclick="CroquisMod._eliminarCroquis(' + c.id + ')">&#128465;</button>' : '';
 
@@ -383,14 +411,22 @@ function abrirConstructor(croquis) {
     return Object.assign({}, e, {id: ++_elemCounter});
   }) : [];
 
+  var pfIn = (croquis && croquis.params_forma) || {};
+  _poligonoPuntos  = (_forma === 'poligono' && Array.isArray(pfIn.puntos)) ? pfIn.puntos.slice() : [];
+  _poligonoCerrado = _forma === 'poligono' && _poligonoPuntos.length >= 3;
+  _polPreviewPt    = null;
+
   // Resetear UI forma
-  ['rect','corte','L','trap'].forEach(function(f) {
+  ['rect','corte','L','trap','poligono'].forEach(function(f) {
     document.getElementById('cq-btn-' + f).classList.remove('active');
   });
   document.getElementById('cq-btn-' + _forma).classList.add('active');
-  document.getElementById('cq-extra-corte').style.display = _forma==='corte'?'block':'none';
-  document.getElementById('cq-extra-L').style.display     = _forma==='L'?'block':'none';
-  document.getElementById('cq-extra-trap').style.display  = _forma==='trap'?'block':'none';
+  document.getElementById('cq-extra-corte').style.display    = _forma==='corte'?'block':'none';
+  document.getElementById('cq-extra-L').style.display        = _forma==='L'?'block':'none';
+  document.getElementById('cq-extra-trap').style.display     = _forma==='trap'?'block':'none';
+  document.getElementById('cq-extra-poligono').style.display = _forma==='poligono'?'block':'none';
+  document.getElementById('cq-medidas-rect-fields').style.display = _forma==='poligono'?'none':'block';
+  _renderPolInfo();
 
   // Medidas
   if (croquis) {
@@ -470,14 +506,20 @@ async function _guardar() {
   var numPartida = sel ? parseInt(sel.value) : 0;
   if (!numPartida) { alert('Selecciona una partida'); return; }
 
+  if (_forma === 'poligono' && (!_poligonoCerrado || _poligonoPuntos.length < 3)) {
+    alert('Cierra la forma libre (mínimo 3 puntos) antes de guardar');
+    return;
+  }
+
   var ancho = parseFloat(document.getElementById('cq-ancho').value) || 0;
   var alto  = parseFloat(document.getElementById('cq-alto').value)  || 0;
   if (!ancho || !alto) { alert('Ingresa las medidas'); return; }
 
   var pf = {};
-  if (_forma === 'corte') { pf['corte-x'] = +document.getElementById('cq-corte-x').value; pf['corte-y'] = +document.getElementById('cq-corte-y').value; }
-  if (_forma === 'L')     { pf['l-cw']    = +document.getElementById('cq-l-cw').value;    pf['l-ch']    = +document.getElementById('cq-l-ch').value; }
-  if (_forma === 'trap')  { pf['trap-b']  = +document.getElementById('cq-trap-b').value; }
+  if (_forma === 'corte')    { pf['corte-x'] = +document.getElementById('cq-corte-x').value; pf['corte-y'] = +document.getElementById('cq-corte-y').value; }
+  if (_forma === 'L')        { pf['l-cw']    = +document.getElementById('cq-l-cw').value;    pf['l-ch']    = +document.getElementById('cq-l-ch').value; }
+  if (_forma === 'trap')     { pf['trap-b']  = +document.getElementById('cq-trap-b').value; }
+  if (_forma === 'poligono') { pf['puntos']  = _poligonoPuntos; }
 
   var payload = {
     cotizacion_id: ID_COT,
@@ -513,12 +555,77 @@ async function _guardar() {
 // ── Forma ──────────────────────────────────────────────────────────────────
 function _setForma(f) {
   _forma = f;
-  ['rect','corte','L','trap'].forEach(function(x) { document.getElementById('cq-btn-'+x).classList.remove('active'); });
+  ['rect','corte','L','trap','poligono'].forEach(function(x) { document.getElementById('cq-btn-'+x).classList.remove('active'); });
   document.getElementById('cq-btn-'+f).classList.add('active');
-  document.getElementById('cq-extra-corte').style.display = f==='corte'?'block':'none';
-  document.getElementById('cq-extra-L').style.display     = f==='L'?'block':'none';
-  document.getElementById('cq-extra-trap').style.display  = f==='trap'?'block':'none';
+  document.getElementById('cq-extra-corte').style.display    = f==='corte'?'block':'none';
+  document.getElementById('cq-extra-L').style.display        = f==='L'?'block':'none';
+  document.getElementById('cq-extra-trap').style.display     = f==='trap'?'block':'none';
+  document.getElementById('cq-extra-poligono').style.display = f==='poligono'?'block':'none';
+  document.getElementById('cq-medidas-rect-fields').style.display = f==='poligono'?'none':'block';
+  _renderPolInfo();
   _redraw();
+}
+
+function _renderPolInfo() {
+  var cont = document.getElementById('cq-pol-contador');
+  var cerrarBtn = document.getElementById('cq-pol-cerrar');
+  var deshacerBtn = document.getElementById('cq-pol-deshacer');
+  if (!cont) return;
+  cont.textContent = _poligonoPuntos.length + ' punto' + (_poligonoPuntos.length===1?'':'s') + (_poligonoCerrado ? ' — forma cerrada' : '');
+  if (cerrarBtn) cerrarBtn.disabled = _poligonoCerrado || _poligonoPuntos.length < 3;
+  if (deshacerBtn) deshacerBtn.disabled = _poligonoCerrado || !_poligonoPuntos.length;
+  var segCont = document.getElementById('cq-pol-segmentos');
+  if (!segCont) return;
+  if (_poligonoPuntos.length < 2) { segCont.innerHTML = ''; return; }
+  var n = _poligonoPuntos.length;
+  var html = '';
+  for (var i = 0; i < n; i++) {
+    if (i === n-1 && !_poligonoCerrado) break;
+    var a = _poligonoPuntos[i], b = _poligonoPuntos[(i+1) % n];
+    var dist = Math.round(Math.hypot(b.x-a.x, b.y-a.y));
+    html += '<div class="cq-placed-item"><span style="flex:1">Lado ' + (i+1) + '</span><span>' + dist + ' mm</span></div>';
+  }
+  segCont.innerHTML = html;
+}
+
+function _resetPoligono() {
+  _poligonoPuntos = [];
+  _poligonoCerrado = false;
+  _polPreviewPt = null;
+  _renderPolInfo();
+  _redraw();
+}
+
+function _deshacerPunto() {
+  if (_poligonoCerrado || !_poligonoPuntos.length) return;
+  _poligonoPuntos.pop();
+  _renderPolInfo();
+  _redraw();
+}
+
+function _cerrarPoligono() {
+  if (_poligonoPuntos.length < 3) { alert('Se necesitan al menos 3 puntos'); return; }
+  _poligonoCerrado = true;
+  _polPreviewPt = null;
+  _normalizarPoligono();
+  _renderPolInfo();
+  _redraw();
+}
+
+// Recorre el bounding box y desplaza los puntos para que min(x)=0, min(y)=0;
+// actualiza los campos ancho/alto que ya usa el resto del editor (grid, cotas, eje X/Y)
+function _normalizarPoligono() {
+  if (!_poligonoPuntos.length) return;
+  var minX = Math.min.apply(null, _poligonoPuntos.map(function(p){ return p.x; }));
+  var minY = Math.min.apply(null, _poligonoPuntos.map(function(p){ return p.y; }));
+  if (minX !== 0 || minY !== 0) {
+    _poligonoPuntos = _poligonoPuntos.map(function(p) { return {x: p.x - minX, y: p.y - minY}; });
+  }
+  var maxX = Math.max.apply(null, _poligonoPuntos.map(function(p){ return p.x; }));
+  var maxY = Math.max.apply(null, _poligonoPuntos.map(function(p){ return p.y; }));
+  document.getElementById('cq-ancho').value = Math.max(50, maxX);
+  document.getElementById('cq-alto').value  = Math.max(50, maxY);
+  document.getElementById('cq-medidas-hint').textContent = Math.max(50,maxX) + ' × ' + Math.max(50,maxY) + ' mm (calculado)';
 }
 
 function _toggleCanteo(lado) {
@@ -552,17 +659,80 @@ function _onDrop(event) {
 }
 
 function _onMouseMove(event) {
-  if (!_draggingElem) return;
-  var pt = _svgPoint(event);
-  var o  = _getOrigin();
-  var mm = _toMM(pt.x - _dragOffX, pt.y - _dragOffY, o);
-  mm.x = Math.max(0, Math.min(mm.x, o.ancho));
-  mm.y = Math.max(0, Math.min(mm.y, o.alto));
-  var el = _elementos.find(function(e){ return e.id === _draggingElem; });
-  if (el) { el.x = mm.x; el.y = mm.y; _redraw(); _renderPlacedList(); }
+  if (_draggingVert !== null) {
+    var pt = _svgPoint(event);
+    var o  = _getOrigin();
+    var mm = _toMM(pt.x, pt.y, o);
+    mm.x = _snap(Math.max(0, Math.min(mm.x, o.ancho)));
+    mm.y = _snap(Math.max(0, Math.min(mm.y, o.alto)));
+    _poligonoPuntos[_draggingVert] = mm;
+    _redraw(); _renderPolInfo();
+    return;
+  }
+  if (_draggingElem) {
+    var pt2 = _svgPoint(event);
+    var o2  = _getOrigin();
+    var mm2 = _toMM(pt2.x - _dragOffX, pt2.y - _dragOffY, o2);
+    mm2.x = Math.max(0, Math.min(mm2.x, o2.ancho));
+    mm2.y = Math.max(0, Math.min(mm2.y, o2.alto));
+    var el = _elementos.find(function(e){ return e.id === _draggingElem; });
+    if (el) { el.x = mm2.x; el.y = mm2.y; _redraw(); _renderPlacedList(); }
+    return;
+  }
+  if (_forma === 'poligono' && !_poligonoCerrado && _poligonoPuntos.length) {
+    var pt3 = _svgPoint(event);
+    var o3  = _getOrigin();
+    var mm3 = _toMM(pt3.x, pt3.y, o3);
+    mm3.x = Math.max(0, Math.min(mm3.x, o3.ancho));
+    mm3.y = Math.max(0, Math.min(mm3.y, o3.alto));
+    _polPreviewPt = mm3;
+    _redraw();
+  }
 }
 
-function _onMouseUp() { _draggingElem = null; }
+function _onMouseUp() {
+  _draggingElem = null;
+  if (_draggingVert !== null) {
+    _draggingVert = null;
+    _justDraggedVert = true;
+    if (_poligonoCerrado) _normalizarPoligono();
+    setTimeout(function(){ _justDraggedVert = false; }, 0);
+  }
+}
+
+function _onSvgMouseLeave() {
+  _polPreviewPt = null;
+  _onMouseUp();
+  _redraw();
+}
+
+function _snap(mm) { return Math.round(mm / POL_SNAP) * POL_SNAP; }
+
+function _onSvgClick(event) {
+  if (_forma !== 'poligono' || _poligonoCerrado || _justDraggedVert) return;
+  if (event.target && event.target.dataset && event.target.dataset.vert) return;
+  var pt = _svgPoint(event);
+  var o  = _getOrigin();
+  var mm = _toMM(pt.x, pt.y, o);
+  mm.x = _snap(Math.max(0, Math.min(mm.x, o.ancho)));
+  mm.y = _snap(Math.max(0, Math.min(mm.y, o.alto)));
+  _poligonoPuntos.push(mm);
+  _renderPolInfo();
+  _redraw();
+}
+
+function _vertMouseDown(idx, event) {
+  event.stopPropagation(); event.preventDefault();
+  _draggingVert = idx;
+}
+
+function _vertDblClick(idx, event) {
+  event.stopPropagation();
+  _poligonoPuntos.splice(idx, 1);
+  if (_poligonoPuntos.length < 3) _poligonoCerrado = false;
+  _renderPolInfo();
+  _redraw();
+}
 
 function _elemMouseDown(elemId, event) {
   event.stopPropagation(); event.preventDefault();
@@ -675,7 +845,11 @@ function _getOrigin() {
   var ancho = Math.max(50, +document.getElementById('cq-ancho').value || 800);
   var alto  = Math.max(50, +document.getElementById('cq-alto').value  || 600);
   // ML generoso: cota alto (22) + eje Y (14) + etiqueta rotada (~20) + margen = 80
-  var ML=80, MR=80, MT=20, MB=90;
+  // MB/MR crecen con el número de elementos especiales: cada uno usa su propia fila/columna de cota,
+  // reservando primero el espacio fijo de la cota ancho + etiqueta "Eje X" (EL_BASE) para no chocar con ellas
+  var extraFilas = Math.max(0, _elementos.length - 1);
+  var ML=80, MR=80+extraFilas*14, MT=20;
+  var MB = _elementos.length ? Math.max(90, EL_BASE + _elementos.length*14 + 16) : 90;
   var sc = Math.min((SVG_W-ML-MR)/ancho, (SVG_H-MT-MB)/alto);
   var gw = ancho*sc; var gh = alto*sc;
   // centrar el vidrio dentro del área disponible
@@ -763,6 +937,15 @@ function _buildPath(ox, oy, gw, gh) {
     var off = (gw-tb)/2;
     return 'M'+(ox+off)+' '+oy+' L'+(ox+gw-off)+' '+oy+' L'+(ox+gw)+' '+(oy+gh)+' L'+ox+' '+(oy+gh)+' Z';
   }
+  if (_forma === 'poligono') {
+    if (_poligonoPuntos.length < 3) return '';
+    var d = '';
+    _poligonoPuntos.forEach(function(p, i) {
+      var px = ox + p.x*sc, py = (oy+gh) - p.y*sc;
+      d += (i===0 ? 'M'+px+' '+py+' ' : 'L'+px+' '+py+' ');
+    });
+    return d + 'Z';
+  }
   return '';
 }
 
@@ -816,6 +999,39 @@ function _redraw() {
   out += '<rect x="'+ox+'" y="'+oy+'" width="'+gw+'" height="'+gh+'" fill="url(#g'+uid+')" clip-path="url(#cl'+uid+')"/>';
   out += '<path d="'+sp+'" fill="#e8f4fd" fill-opacity="0.65" stroke="#2563eb" stroke-width="1.5"/>';
 
+  // ── Vértices del polígono libre ────────────────────────────────
+  if (_forma === 'poligono') {
+    var n = _poligonoPuntos.length;
+    for (var pi = 0; pi < n; pi++) {
+      var p1 = _poligonoPuntos[pi];
+      var v1 = {x: ox + p1.x*sc, y: (oy+gh) - p1.y*sc};
+      if (pi < n-1) {
+        var p2 = _poligonoPuntos[pi+1];
+        var v2 = {x: ox + p2.x*sc, y: (oy+gh) - p2.y*sc};
+        out += '<line x1="'+v1.x+'" y1="'+v1.y+'" x2="'+v2.x+'" y2="'+v2.y+'" stroke="#2563eb" stroke-width="1.3" stroke-dasharray="'+(_poligonoCerrado?'0':'4,3')+'"/>';
+      } else if (_poligonoCerrado && n > 2) {
+        var p0 = _poligonoPuntos[0];
+        var v0 = {x: ox + p0.x*sc, y: (oy+gh) - p0.y*sc};
+        out += '<line x1="'+v1.x+'" y1="'+v1.y+'" x2="'+v0.x+'" y2="'+v0.y+'" stroke="#2563eb" stroke-width="1.3"/>';
+      }
+      // último punto colocado = naranja (de aquí sale el siguiente segmento); primero = verde; resto = azul
+      var esUltimo  = !_poligonoCerrado && pi === n-1 && n > 0;
+      var vCol = esUltimo ? '#f59e0b' : (pi===0 ? '#16a34a' : '#2563eb');
+      out += '<circle data-vert="'+pi+'" cx="'+v1.x+'" cy="'+v1.y+'" r="7" fill="'+vCol+'" stroke="white" stroke-width="1.5" style="cursor:'+(_draggingVert===pi?'grabbing':'grab')+'" onmousedown="CroquisMod._vertMouseDown('+pi+',event)" ondblclick="CroquisMod._vertDblClick('+pi+',event)"/>';
+      out += '<text x="'+v1.x+'" y="'+v1.y+'" text-anchor="middle" dominant-baseline="central" font-size="8" font-weight="700" fill="white" font-family="monospace" style="pointer-events:none">'+(pi+1)+'</text>';
+    }
+    // ── Línea de previsualización: del último punto al cursor ──────
+    if (!_poligonoCerrado && n > 0 && _polPreviewPt) {
+      var last = _poligonoPuntos[n-1];
+      var lv = {x: ox + last.x*sc, y: (oy+gh) - last.y*sc};
+      var pv = {x: ox + _polPreviewPt.x*sc, y: (oy+gh) - _polPreviewPt.y*sc};
+      out += '<line x1="'+lv.x+'" y1="'+lv.y+'" x2="'+pv.x+'" y2="'+pv.y+'" stroke="#f59e0b" stroke-width="1.1" stroke-dasharray="3,3" opacity="0.85"/>';
+      out += '<circle cx="'+pv.x+'" cy="'+pv.y+'" r="3" fill="#f59e0b" opacity="0.6"/>';
+      var pdist = Math.round(Math.hypot(_polPreviewPt.x-last.x, _polPreviewPt.y-last.y));
+      out += '<text x="'+((lv.x+pv.x)/2)+'" y="'+((lv.y+pv.y)/2-6)+'" text-anchor="middle" font-size="8" font-weight="700" fill="#f59e0b" font-family="monospace" style="pointer-events:none">'+pdist+' mm</text>';
+    }
+  }
+
   // ── Canteado ─────────────────────────────────────────────────
   var cs = 'stroke:#f59e0b;stroke-width:3;stroke-linecap:round';
   if (_canteo.sup) out += '<line x1="'+ox+'" y1="'+oy+'" x2="'+(ox+gw)+'" y2="'+oy+'" style="'+cs+'"/>';
@@ -858,7 +1074,7 @@ function _redraw() {
   out += '<text x="'+ejYX+'" y="'+(oy+gh/2)+'" text-anchor="middle" font-size="'+fz+'" font-weight="700" fill="#16a34a" font-family="monospace" transform="rotate(-90,'+ejYX+','+(oy+gh/2)+')">Eje Y</text>';
 
   // ── Elementos ─────────────────────────────────────────────────
-  _elementos.forEach(function(e) {
+  _elementos.forEach(function(e, idxEl) {
     var ep  = toPX(e.x, e.y);
     var ex  = ep.x, ey = ep.y;
     var cur = _draggingElem===e.id ? 'grabbing' : 'grab';
@@ -870,8 +1086,8 @@ function _redraw() {
     out += '<circle cx="'+ox+'" cy="'+ey+'" r="2.5" fill="#dc2626" opacity="0.7"/>';
     out += '<circle cx="'+ex+'" cy="'+oyBottom+'" r="2.5" fill="#16a34a" opacity="0.7"/>';
 
-    // ── Cota X debajo del vidrio ───────────────────────────────────
-    var cxPad = 6, cxLblW = 44, cxLblH = 12;
+    // ── Cota X debajo del vidrio (cada elemento usa su propia fila, después de la cota ancho + Eje X) ──
+    var cxPad = EL_BASE + idxEl*14, cxLblW = 44, cxLblH = 12;
     out += '<line x1="'+ox+'" y1="'+(oyBottom+cxPad)+'" x2="'+ex+'" y2="'+(oyBottom+cxPad)+'" stroke="#dc2626" stroke-width="'+sw+'"/>';
     out += '<line x1="'+ox+'" y1="'+(oyBottom+cxPad-tk/2)+'" x2="'+ox+'" y2="'+(oyBottom+cxPad+tk/2)+'" stroke="#dc2626" stroke-width="'+sw+'"/>';
     out += '<line x1="'+ex+'" y1="'+(oyBottom+cxPad-tk/2)+'" x2="'+ex+'" y2="'+(oyBottom+cxPad+tk/2)+'" stroke="#dc2626" stroke-width="'+sw+'"/>';
@@ -879,8 +1095,8 @@ function _redraw() {
     out += '<rect x="'+(lxMid-cxLblW/2)+'" y="'+(oyBottom+cxPad+2)+'" width="'+cxLblW+'" height="'+cxLblH+'" fill="white" rx="2"/>';
     out += '<text x="'+lxMid+'" y="'+(oyBottom+cxPad+cxLblH/2+fzSm/2)+'" text-anchor="middle" font-size="'+fzSm+'" font-weight="700" fill="#dc2626" font-family="monospace">X: '+e.x+' mm</text>';
 
-    // ── Cota Y a la derecha del vidrio ────────────────────────────
-    var cyPad = 6, cyLblW = 12, cyLblH = 44;
+    // ── Cota Y a la derecha del vidrio (cada elemento usa su propia columna) ──
+    var cyPad = 6 + idxEl*14, cyLblW = 12, cyLblH = 44;
     out += '<line x1="'+(ox+gw+cyPad)+'" y1="'+oyBottom+'" x2="'+(ox+gw+cyPad)+'" y2="'+ey+'" stroke="#16a34a" stroke-width="'+sw+'"/>';
     out += '<line x1="'+(ox+gw+cyPad-tk/2)+'" y1="'+oyBottom+'" x2="'+(ox+gw+cyPad+tk/2)+'" y2="'+oyBottom+'" stroke="#16a34a" stroke-width="'+sw+'"/>';
     out += '<line x1="'+(ox+gw+cyPad-tk/2)+'" y1="'+ey+'" x2="'+(ox+gw+cyPad+tk/2)+'" y2="'+ey+'" stroke="#16a34a" stroke-width="'+sw+'"/>';
@@ -982,6 +1198,13 @@ return {
   _zoomOut:        _zoomOut,
   _zoomReset:      _zoomReset,
   _initPan:        _initPan,
+  _onSvgClick:     _onSvgClick,
+  _vertMouseDown:  _vertMouseDown,
+  _vertDblClick:   _vertDblClick,
+  _cerrarPoligono: _cerrarPoligono,
+  _resetPoligono:  _resetPoligono,
+  _deshacerPunto:  _deshacerPunto,
+  _onSvgMouseLeave: _onSvgMouseLeave,
 };
 })();
 </script>

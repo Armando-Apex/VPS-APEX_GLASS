@@ -39,7 +39,13 @@ if (!is_array($canteo))    $canteo    = [];
 
 // ── Geometría (mismo cálculo que croquis.php _getOrigin) ──────────────────
 $SVG_W = 760; $SVG_H = 560;
-$ML = 80; $MR = 80; $MT = 20; $MB = 90;
+// MB/MR crecen con el número de elementos especiales: cada uno usa su propia fila/columna de cota
+// (rowStep/elBase escalados porque este canvas es más grande que el del editor: 760 vs 450)
+$rowStep    = 14 * ($SVG_W / 450);
+$elBase     = 50 * ($SVG_W / 450); // espacio reservado para cota ancho + "Eje X" antes de las filas de elementos
+$extraFilas = max(0, count($elementos) - 1);
+$ML = 80; $MR = 80 + $extraFilas*$rowStep; $MT = 20;
+$MB = count($elementos) ? max(90, $elBase + count($elementos)*$rowStep + 16*($SVG_W/450)) : 90;
 $sc = min(($SVG_W - $ML - $MR) / max($ancho, 1), ($SVG_H - $MT - $MB) / max($alto, 1));
 $gw = $ancho * $sc;
 $gh = $alto  * $sc;
@@ -56,19 +62,30 @@ function buildPath($forma, $params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc) {
         return "M$ox $oy L".($ox+$gw)." $oy L".($ox+$gw)." ".($oy+$gh)." L$ox ".($oy+$gh)." Z";
     }
     if ($forma === 'corte') {
-        $cx = min((float)($params['x'] ?? 150), $ancho*0.4) * $sc;
-        $cy = min((float)($params['y'] ?? 150), $alto*0.4)  * $sc;
+        $cx = min((float)($params['corte-x'] ?? 150), $ancho*0.4) * $sc;
+        $cy = min((float)($params['corte-y'] ?? 150), $alto*0.4)  * $sc;
         return "M".($ox+$cx)." $oy L".($ox+$gw)." $oy L".($ox+$gw)." ".($oy+$gh)." L$ox ".($oy+$gh)." L$ox ".($oy+$cy)." Z";
     }
     if ($forma === 'L') {
-        $lw = min((float)($params['cw'] ?? 200), $ancho*0.7) * $sc;
-        $lh = min((float)($params['ch'] ?? 200), $alto*0.7)  * $sc;
+        $lw = min((float)($params['l-cw'] ?? 200), $ancho*0.7) * $sc;
+        $lh = min((float)($params['l-ch'] ?? 200), $alto*0.7)  * $sc;
         return "M$ox $oy L".($ox+$lw)." $oy L".($ox+$lw)." ".($oy+$lh)." L".($ox+$gw)." ".($oy+$lh)." L".($ox+$gw)." ".($oy+$gh)." L$ox ".($oy+$gh)." Z";
     }
     if ($forma === 'trap') {
-        $tb  = min((float)($params['b'] ?? 500), $ancho-10) * $sc;
+        $tb  = min((float)($params['trap-b'] ?? 500), $ancho-10) * $sc;
         $off = ($gw - $tb) / 2;
         return "M".($ox+$off)." $oy L".($ox+$gw-$off)." $oy L".($ox+$gw)." ".($oy+$gh)." L$ox ".($oy+$gh)." Z";
+    }
+    if ($forma === 'poligono') {
+        $puntos = $params['puntos'] ?? [];
+        if (count($puntos) < 3) return '';
+        $d = '';
+        foreach ($puntos as $i => $p) {
+            $px = $ox + (float)$p['x'] * $sc;
+            $py = ($oy + $gh) - (float)$p['y'] * $sc;
+            $d .= ($i === 0 ? "M$px $py " : "L$px $py ");
+        }
+        return $d . 'Z';
     }
     return '';
 }
@@ -127,7 +144,7 @@ $svg .= '<rect x="'.($ejYX-$rotW/2).'" y="'.($oy+$gh/2-$rotH/2).'" width="'.$rot
 $svg .= '<text x="'.$ejYX.'" y="'.($oy+$gh/2).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#16a34a" font-family="monospace" transform="rotate(-90,'.$ejYX.','.($oy+$gh/2).')">Eje Y</text>';
 
 // Elementos
-foreach ($elementos as $e) {
+foreach ($elementos as $idxEl => $e) {
     $ep = toPX((float)$e['x'], (float)$e['y'], $ox, $oyBottom, $sc);
     $ex = $ep['x']; $ey = $ep['y'];
 
@@ -136,7 +153,8 @@ foreach ($elementos as $e) {
     $svg .= '<circle cx="'.$ox.'" cy="'.$ey.'" r="2.5" fill="#dc2626" opacity="0.7"/>';
     $svg .= '<circle cx="'.$ex.'" cy="'.$oyBottom.'" r="2.5" fill="#16a34a" opacity="0.7"/>';
 
-    $cxPad=6; $cxLblW=44; $cxLblH=12;
+    // cada elemento usa su propia fila de cota X, después de la cota ancho + Eje X
+    $cxPad=$elBase + $idxEl*$rowStep; $cxLblW=44; $cxLblH=12;
     $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cxPad).'" x2="'.$ex.'" y2="'.($oyBottom+$cxPad).'" stroke="#dc2626" stroke-width="'.$sw.'"/>';
     $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cxPad-$tk/2).'" x2="'.$ox.'" y2="'.($oyBottom+$cxPad+$tk/2).'" stroke="#dc2626" stroke-width="'.$sw.'"/>';
     $svg .= '<line x1="'.$ex.'" y1="'.($oyBottom+$cxPad-$tk/2).'" x2="'.$ex.'" y2="'.($oyBottom+$cxPad+$tk/2).'" stroke="#dc2626" stroke-width="'.$sw.'"/>';
@@ -144,7 +162,8 @@ foreach ($elementos as $e) {
     $svg .= '<rect x="'.($lxMid-$cxLblW/2).'" y="'.($oyBottom+$cxPad+2).'" width="'.$cxLblW.'" height="'.$cxLblH.'" fill="white" rx="2"/>';
     $svg .= '<text x="'.$lxMid.'" y="'.($oyBottom+$cxPad+$cxLblH/2+$fzSm/2).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#dc2626" font-family="monospace">X: '.$e['x'].' mm</text>';
 
-    $cyPad=6; $cyLblW=12; $cyLblH=44;
+    // cada elemento usa su propia columna de cota Y para no encimarse con los demás
+    $cyPad=6 + $idxEl*$rowStep; $cyLblW=12; $cyLblH=44;
     $svg .= '<line x1="'.($ox+$gw+$cyPad).'" y1="'.$oyBottom.'" x2="'.($ox+$gw+$cyPad).'" y2="'.$ey.'" stroke="#16a34a" stroke-width="'.$sw.'"/>';
     $svg .= '<line x1="'.($ox+$gw+$cyPad-$tk/2).'" y1="'.$oyBottom.'" x2="'.($ox+$gw+$cyPad+$tk/2).'" y2="'.$oyBottom.'" stroke="#16a34a" stroke-width="'.$sw.'"/>';
     $svg .= '<line x1="'.($ox+$gw+$cyPad-$tk/2).'" y1="'.$ey.'" x2="'.($ox+$gw+$cyPad+$tk/2).'" y2="'.$ey.'" stroke="#16a34a" stroke-width="'.$sw.'"/>';

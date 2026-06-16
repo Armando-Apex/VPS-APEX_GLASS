@@ -497,45 +497,6 @@ let lastQR     = '';
 let lastQRTime = 0;
 const DEBOUNCE = 3000;
 
-// ── Cooldown por pieza (30s) ───────────────────────────────
-const COOLDOWN_MS = 30000;
-const ESTACIONES_CON_COOLDOWN = ['corte'];
-const _cooldownMap = {}; // { qr_code: timestamp }
-let _cooldownTimer = null;
-
-function tieneCooldown(qrCode) {
-  if (!ESTACIONES_CON_COOLDOWN.includes(session.estacion)) return false;
-  const t = _cooldownMap[qrCode];
-  if (!t) return false;
-  return (Date.now() - t) < COOLDOWN_MS;
-}
-
-function segundosRestantes(qrCode) {
-  const t = _cooldownMap[qrCode];
-  if (!t) return 0;
-  return Math.max(0, Math.ceil((COOLDOWN_MS - (Date.now() - t)) / 1000));
-}
-
-function marcarCooldown(qrCode) {
-  _cooldownMap[qrCode] = Date.now();
-}
-
-function iniciarCountdown(btn, qrCode) {
-  if (_cooldownTimer) clearInterval(_cooldownTimer);
-  btn.disabled = true;
-  _cooldownTimer = setInterval(function() {
-    const segs = segundosRestantes(qrCode);
-    if (segs <= 0) {
-      clearInterval(_cooldownTimer);
-      _cooldownTimer = null;
-      setupButton(pieza);
-    } else {
-      btn.textContent = '⏳ Espera ' + segs + 's';
-      btn.style.background = '#64748b';
-    }
-  }, 1000);
-}
-
 // ── Sesion desde PHP ───────────────────────────────────────
 const session = {
   id:       <?= (int)$user['id'] ?? 0 ?>,
@@ -861,10 +822,6 @@ function setupButton(p) {
   // ── CORTE: dos acciones ─────────────────────────────────
   if (est === 'corte') {
     const wrap = document.getElementById('btnAction').parentElement;
-    if (tieneCooldown(p.qr_code)) {
-      iniciarCountdown(btn, p.qr_code);
-      return;
-    }
     if (p.estatus === 'pendiente') {
       btn.textContent = '▶ Registrar en CNC';
       btn.className   = 'btn-action go';
@@ -955,11 +912,6 @@ function setupButton(p) {
       return;
     }
 
-    if (tieneCooldown(p.qr_code)) {
-      iniciarCountdown(btn, p.qr_code);
-      return;
-    }
-
     if (p.estatus === reg) {
       btn.textContent = '✅ Ya registrado aquí';
       btn.className   = 'btn-action done';
@@ -1042,7 +994,6 @@ async function doUpdate(nuevoEstatus) {
     });
     const d = await r.json();
     if (d.ok) {
-      marcarCooldown(pieza.qr_code);
       pieza.estatus = nuevoEstatus;
       const inf = ESTATUS[nuevoEstatus];
       const sub = d.orden_completa

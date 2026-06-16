@@ -62,7 +62,7 @@ if ($method === 'POST') {
     try {
 
         // ── Cambios encabezado ────────────────────────────────────────────────
-        $campos_header  = ['descuento', 'condicion_pago', 'fecha_entrega', 'alerta'];
+        $campos_header  = ['descuento', 'condicion_pago', 'fecha_entrega', 'alerta', 'cliente_nombre', 'factura_tipo'];
         $updates_header = [];
         $params_header  = [];
         $cambio_descuento = null;
@@ -73,6 +73,14 @@ if ($method === 'POST') {
 
             $nuevo    = $hdr[$campo];
             $anterior = $cot[$campo] ?? '';
+
+            if ($campo === 'factura_tipo') {
+                $nuevo = ($nuevo === 'generica') ? 'generica' : '';
+            }
+            if ($campo === 'cliente_nombre') {
+                $nuevo = trim((string)$nuevo);
+                if ($nuevo === '') continue; // no permitir dejar la factura sin nombre
+            }
 
             if ((string)$anterior === (string)$nuevo) continue;
 

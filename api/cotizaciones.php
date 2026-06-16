@@ -290,7 +290,7 @@ if ($method === 'POST') {
     $tipo_entrega = in_array($body['tipo_entrega'] ?? '', ['domicilio','planta']) ? $body['tipo_entrega'] : 'domicilio';
     $localidad    = ($body['localidad'] ?? '') === 'foraneo' ? 'foraneo' : 'local';
     $ciudad       = trim($body['ciudad_destino']  ?? '');
-    $factura_tipo = trim($body['factura_tipo']     ?? 'generica') ?: 'generica';
+    $factura_tipo = trim($body['factura_tipo']     ?? ''); // 'generica' solo si el checkbox lo marca explícitamente; vacío = no es público en general
     $alerta       = trim($body['alerta']           ?? '');
     $partidas     = $body['partidas']              ?? [];
     $fecha_entrega_manual = trim($body['fecha_entrega'] ?? '');
@@ -453,7 +453,7 @@ if ($method === 'PUT') {
         $tipo_entrega = in_array($body['tipo_entrega'] ?? '', ['domicilio','planta']) ? $body['tipo_entrega'] : 'domicilio';
         $localidad    = ($body['localidad'] ?? '') === 'foraneo' ? 'foraneo' : 'local';
         $ciudad       = trim($body['ciudad_destino']  ?? '');
-        $factura_tipo = trim($body['factura_tipo']     ?? 'generica') ?: 'generica';
+        $factura_tipo = trim($body['factura_tipo']     ?? ''); // 'generica' solo si el checkbox lo marca explícitamente; vacío = no es público en general
         $alerta       = trim($body['alerta']           ?? '');
         $partidas     = $body['partidas']              ?? [];
         $fecha_entrega_manual = trim($body['fecha_entrega'] ?? '');
