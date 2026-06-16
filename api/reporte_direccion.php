@@ -149,9 +149,92 @@ $stmtC = $pdo->prepare("
 $stmtC->execute([$desde . ' 00:00:00', $hasta . ' 23:59:59']);
 $cots_resumen = $stmtC->fetch(PDO::FETCH_ASSOC);
 
+// ── Tasa de conversión cotizaciones (período) ──
+$stmtConv = $pdo->prepare("
+    SELECT
+        COUNT(*)                          AS total_cots,
+        SUM(orden_id IS NOT NULL)         AS convertidas
+    FROM cotizaciones
+    WHERE folio >= 'COT-0100'
+      AND estatus != 'cancelada'
+      AND created_at BETWEEN ? AND ?
+");
+$stmtConv->execute([$desde . ' 00:00:00', $hasta . ' 23:59:59']);
+$conversion = $stmtConv->fetch(PDO::FETCH_ASSOC);
+
+// ── Top 5 clientes por ventas (período) ──
+$stmtTop = $pdo->prepare("
+    SELECT cl.nombre, COUNT(o.id) AS ordenes, COALESCE(SUM(c.total), 0) AS total_ventas
+    FROM ordenes o
+    JOIN cotizaciones c ON c.orden_id = o.id
+    JOIN clientes cl ON cl.id = c.cliente_id
+    WHERE o.estado != 'cancelada' AND c.estatus != 'cancelada'
+      AND (o.fecha_pedido BETWEEN ? AND ?
+           OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
+    GROUP BY cl.id, cl.nombre
+    ORDER BY total_ventas DESC
+    LIMIT 5
+");
+$stmtTop->execute($params4);
+$top_clientes = $stmtTop->fetchAll(PDO::FETCH_ASSOC);
+
+// ── Órdenes y ventas por asesor (período) ──
+$stmtAsesor = $pdo->prepare("
+    SELECT c.asesor_nombre, COUNT(o.id) AS ordenes, COALESCE(SUM(c.total), 0) AS total_ventas
+    FROM cotizaciones c
+    JOIN ordenes o ON o.id = c.orden_id
+    WHERE o.estado != 'cancelada' AND c.estatus != 'cancelada'
+      AND LEFT(o.folio, 1) >= 'S'
+      AND (o.fecha_pedido BETWEEN ? AND ?
+           OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
+    GROUP BY c.asesor_nombre
+    ORDER BY total_ventas DESC
+");
+$stmtAsesor->execute($params4);
+$por_asesor = $stmtAsesor->fetchAll(PDO::FETCH_ASSOC);
+
+// ── Tasa de reproceso (período) ──
+$stmtRep = $pdo->prepare("
+    SELECT
+        (SELECT COUNT(DISTINCT r.pieza_id)
+         FROM reprocesos r JOIN ordenes o ON o.id = r.orden_id
+         WHERE o.fecha_pedido BETWEEN ? AND ?
+            OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?)
+        ) AS piezas_reproceso,
+        (SELECT COUNT(*) FROM piezas p
+         JOIN ordenes o ON o.id = p.orden_id
+         WHERE o.estado != 'cancelada'
+           AND (o.fecha_pedido BETWEEN ? AND ?
+                OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
+        ) AS total_piezas
+");
+$stmtRep->execute([$desde, $hasta, $desde.' 00:00:00', $hasta.' 23:59:59',
+                   $desde, $hasta, $desde.' 00:00:00', $hasta.' 23:59:59']);
+$reproceso = $stmtRep->fetch(PDO::FETCH_ASSOC);
+
+// ── Ocupación horno últimas 8 semanas ──
+$stmtHorno = $pdo->prepare("
+    SELECT
+        YEARWEEK(created_at, 1)               AS semana,
+        DATE_FORMAT(MIN(created_at), '%d %b') AS semana_inicio,
+        COUNT(*)                              AS piezas
+    FROM historial_estatus
+    WHERE estatus_nuevo = 'en_horno'
+      AND created_at >= DATE_SUB(CURDATE(), INTERVAL 8 WEEK)
+    GROUP BY semana
+    ORDER BY semana ASC
+");
+$stmtHorno->execute();
+$horno_semanas = $stmtHorno->fetchAll(PDO::FETCH_ASSOC);
+
 echo json_encode([
-    'resumen'      => $resumen,
-    'mensual'      => $mensual,
-    'finanzas'     => $finanzas,
-    'cots_resumen' => $cots_resumen,
+    'resumen'       => $resumen,
+    'mensual'       => $mensual,
+    'finanzas'      => $finanzas,
+    'cots_resumen'  => $cots_resumen,
+    'conversion'    => $conversion,
+    'top_clientes'  => $top_clientes,
+    'por_asesor'    => $por_asesor,
+    'reproceso'     => $reproceso,
+    'horno_semanas' => $horno_semanas,
 ]);

@@ -72,7 +72,7 @@ tfoot td { padding:10px 14px; font-size:13px; }
 .oi-folio   { font-size:15px; font-weight:700; color:#1d4ed8; margin-bottom:4px; }
 .oi-cliente { font-size:12px; color:var(--muted); margin-bottom:6px; }
 .oi-meta    { display:flex; justify-content:space-between; font-size:12px; }
-@media(max-width:900px){ .kpi-grid{grid-template-columns:repeat(2,1fr);} .metrics-grid{grid-template-columns:repeat(2,1fr);} }
+@media(max-width:900px){ .kpi-grid{grid-template-columns:repeat(2,1fr);} .metrics-grid{grid-template-columns:repeat(2,1fr) !important;} }
 .inv-row-grupo { background:#f0f4f8; cursor:pointer; font-weight:600; }
 .inv-row-grupo:hover { background:#dde3ea; }
 .kpi-ventas   { border-top:3px solid var(--blue); }
@@ -135,10 +135,15 @@ function fmtMXN(n) {
 }
 
 function rdRender(rep, dash, inv) {
-  const r       = rep.resumen     || {};
-  const fin     = rep.finanzas    || {};
-  const cot     = rep.cots_resumen|| {};
-  const mensual = rep.mensual     || [];
+  const r           = rep.resumen      || {};
+  const fin         = rep.finanzas     || {};
+  const cot         = rep.cots_resumen || {};
+  const mensual     = rep.mensual      || [];
+  const conv        = rep.conversion   || {};
+  const topClientes = rep.top_clientes || [];
+  const porAsesor   = rep.por_asesor   || [];
+  const repro       = rep.reproceso    || {};
+  const hornoSems   = rep.horno_semanas|| [];
   const pctTiempo  = r.total > 0 ? Math.round((r.a_tiempo / r.total) * 100) : 0;
   const pctColor   = pctTiempo >= 80 ? 'var(--green)' : pctTiempo >= 60 ? 'var(--yellow)' : 'var(--red)';
   const pctCobrado = parseFloat(fin.ventas||0) > 0 ? Math.round((parseFloat(fin.cobrado||0) / parseFloat(fin.ventas)) * 100) : 0;
@@ -159,19 +164,51 @@ function rdRender(rep, dash, inv) {
     <div class="kpi-card kpi-ticket"><div class="kpi-num-sm">${fmtMXN(fin.ticket_promedio)}</div><div class="kpi-label">&#x1F3F7;&#xFE0F; Ticket promedio</div><div class="kpi-sub">Por orden</div></div>
   </div>`;
 
-  html += `<div class="section-title">&#x1F4CB; Cotizaciones vigentes</div>
-  <div class="kpi-grid" style="margin-bottom:16px">
-    <div class="kpi-card kpi-total"><div class="kpi-num-sm">${parseInt(cot.total_cots||0)}</div><div class="kpi-label">&#x1F4C4; Cotizaciones</div><div class="kpi-sub">Pendientes de convertir a orden</div></div>
-    <div class="kpi-card kpi-ventas"><div class="kpi-num-sm">${fmtMXN(cot.total_cotizado)}</div><div class="kpi-label">&#x1F4B3; Total cotizado</div><div class="kpi-sub">Ticket prom: ${fmtMXN(cot.ticket_promedio)}</div></div>
-    <div class="kpi-card kpi-tiempo"><div class="kpi-num-sm">${fmtMXN(cot.bethy_total)}</div><div class="kpi-label">&#x1F9D1; Bethy Rocha</div><div class="kpi-sub">Total cotizado</div></div>
-    <div class="kpi-card kpi-proceso"><div class="kpi-num-sm">${fmtMXN(cot.cynthia_total)}</div><div class="kpi-label">&#x1F9D1; Cynthia Negrete</div><div class="kpi-sub">Total cotizado</div></div>
-  </div>`;
+  const convTotal = parseInt(conv.total_cots||0);
+  const convConv  = parseInt(conv.convertidas||0);
+  const convPct   = convTotal > 0 ? Math.round((convConv / convTotal) * 100) : 0;
+  const convColor = convPct >= 60 ? 'var(--green)' : convPct >= 40 ? 'var(--yellow)' : 'var(--red)';
 
-  html += `<div class="metrics-grid">
-    <div class="metric-card"><div class="metric-icon">&#x23F1;&#xFE0F;</div><div><div class="metric-num">${r.prom_dias ? parseFloat(r.prom_dias).toFixed(1) : '&#8212;'}</div><div class="metric-lbl">Promedio d&#237;as proceso</div></div></div>
-    <div class="metric-card"><div class="metric-icon">&#x1F3E0;</div><div><div class="metric-num">${r.local||0}</div><div class="metric-lbl">&#211;rdenes locales</div></div></div>
-    <div class="metric-card"><div class="metric-icon">&#x1F69A;</div><div><div class="metric-num">${r.foraneo||0}</div><div class="metric-lbl">&#211;rdenes for&#225;neas</div></div></div>
-  </div>`;
+  html += '<div class="section-title">&#x1F4CB; Cotizaciones del per&#237;odo</div>' +
+  '<div class="kpi-grid" style="margin-bottom:8px">' +
+    '<div class="kpi-card kpi-total"><div class="kpi-num-sm">' + convTotal + '</div><div class="kpi-label">&#x1F4C4; Cotizaciones</div><div class="kpi-sub">' + convConv + ' convertidas a orden</div></div>' +
+    '<div class="kpi-card" style="border-top:3px solid ' + convColor + '"><div class="kpi-num-sm" style="color:' + convColor + '">' + convPct + '%</div><div class="kpi-label">&#x1F3AF; Tasa conversi&#243;n</div><div class="kpi-sub">Cotizaciones que se convierten</div></div>' +
+    '<div class="kpi-card kpi-ventas"><div class="kpi-num-sm">' + fmtMXN(cot.total_cotizado) + '</div><div class="kpi-label">&#x1F4B3; Pipeline vigente</div><div class="kpi-sub">Ticket prom: ' + fmtMXN(cot.ticket_promedio) + '</div></div>' +
+    '<div class="kpi-card kpi-total"><div class="kpi-num-sm">' + parseInt(cot.total_cots||0) + '</div><div class="kpi-label">&#x23F3; Pendientes</div><div class="kpi-sub">Sin convertir a orden</div></div>' +
+  '</div>';
+
+  if (porAsesor.length > 0) {
+    html += '<div class="section-title">&#x1F9D1; Rendimiento por asesor</div>' +
+    '<div class="table-card"><table>' +
+    '<thead><tr><th>Asesor</th><th style="text-align:right">&#xD3;rdenes</th><th style="text-align:right">Ventas (&#xD3;rdenes)</th><th style="text-align:right">Cotizado (pipeline)</th></tr></thead><tbody>';
+    porAsesor.forEach(function(a) {
+      var bethyCot = a.asesor_nombre && a.asesor_nombre.indexOf('Bethy') >= 0 ? fmtMXN(cot.bethy_total) : (a.asesor_nombre && a.asesor_nombre.indexOf('Cynthia') >= 0 ? fmtMXN(cot.cynthia_total) : '&#8212;');
+      html += '<tr><td><strong>' + (a.asesor_nombre||'Sin asignar') + '</strong></td>' +
+        '<td style="text-align:right">' + a.ordenes + '</td>' +
+        '<td style="text-align:right;font-weight:700;color:var(--blue)">' + fmtMXN(a.total_ventas) + '</td>' +
+        '<td style="text-align:right;color:var(--muted)">' + bethyCot + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  const reproTotal = parseInt(repro.total_piezas||0);
+  const reproPct   = reproTotal > 0 ? ((parseInt(repro.piezas_reproceso||0) / reproTotal) * 100).toFixed(1) : '0.0';
+  const reproColor = parseFloat(reproPct) === 0 ? 'var(--green)' : parseFloat(reproPct) <= 5 ? 'var(--yellow)' : 'var(--red)';
+
+  var valorAlmacen = 0;
+  if (inv && inv.por_lamina) {
+    inv.por_lamina.forEach(function(l) {
+      valorAlmacen += (parseFloat(l.en_stock||0)) * (parseFloat(l.costo_prom_lamina||0));
+    });
+  }
+
+  html += '<div class="metrics-grid" style="grid-template-columns:repeat(5,1fr)">' +
+    '<div class="metric-card"><div class="metric-icon">&#x23F1;&#xFE0F;</div><div><div class="metric-num">' + (r.prom_dias ? parseFloat(r.prom_dias).toFixed(1) : '&#8212;') + '</div><div class="metric-lbl">Prom. d&#237;as proceso</div></div></div>' +
+    '<div class="metric-card"><div class="metric-icon">&#x1F3E0;</div><div><div class="metric-num">' + (r.local||0) + '</div><div class="metric-lbl">&#211;rdenes locales</div></div></div>' +
+    '<div class="metric-card"><div class="metric-icon">&#x1F69A;</div><div><div class="metric-num">' + (r.foraneo||0) + '</div><div class="metric-lbl">&#211;rdenes for&#225;neas</div></div></div>' +
+    '<div class="metric-card"><div class="metric-icon">&#x1F527;</div><div><div class="metric-num" style="color:' + reproColor + '">' + reproPct + '%</div><div class="metric-lbl">Tasa de reproceso</div><div style="font-size:10px;color:var(--muted)">' + (repro.piezas_reproceso||0) + ' de ' + reproTotal + ' piezas</div></div></div>' +
+    '<div class="metric-card"><div class="metric-icon">&#x1F4E6;</div><div><div class="metric-num" style="font-size:18px">' + fmtMXN(valorAlmacen) + '</div><div class="metric-lbl">Valor almac&#233;n</div></div></div>' +
+  '</div>';
 
   html += `<div class="efectividad-card">
     <div class="efect-header"><div class="efect-title">% Entrega a tiempo</div><div class="efect-pct" style="color:${pctColor}">${pctTiempo}%</div></div>
@@ -202,6 +239,37 @@ function rdRender(rep, dash, inv) {
       }).join('')}</tbody>
       ${totRow.total?`<tfoot><tr><td>TOTAL</td><td>${totRow.total}</td><td>${totRow.cerradas}</td><td>${totRow.abiertas}</td><td>${totRow.a_tiempo}</td><td>${totRow.con_retraso}</td><td>${totRow.en_proceso}</td><td>${totRow.total>0?Math.round((totRow.a_tiempo/totRow.total)*100)+'%':'&#8212;'}</td><td>${totRow.prom_dias?parseFloat(totRow.prom_dias).toFixed(1):'&#8212;'}</td><td>${totRow.local||0}</td><td>${totRow.foraneo||0}</td></tr></tfoot>`:''}
     </table></div>`;
+  }
+
+  if (topClientes.length > 0) {
+    html += '<div class="section-title">&#x1F3C6; Top 5 clientes del per&#237;odo</div>' +
+    '<div class="table-card"><table>' +
+    '<thead><tr><th>#</th><th>Cliente</th><th style="text-align:right">&#xD3;rdenes</th><th style="text-align:right">Total ventas</th></tr></thead><tbody>';
+    topClientes.forEach(function(cl, i) {
+      var medal = i === 0 ? '&#x1F947;' : i === 1 ? '&#x1F948;' : i === 2 ? '&#x1F949;' : (i+1) + '.';
+      html += '<tr>' +
+        '<td style="font-size:16px;text-align:center">' + medal + '</td>' +
+        '<td><strong>' + cl.nombre + '</strong></td>' +
+        '<td style="text-align:right">' + cl.ordenes + '</td>' +
+        '<td style="text-align:right;font-weight:800;color:var(--blue);font-size:15px">' + fmtMXN(cl.total_ventas) + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  if (hornoSems.length > 0) {
+    var maxPiezas = Math.max.apply(null, hornoSems.map(function(s){ return parseInt(s.piezas); }));
+    html += '<div class="section-title">&#x1F525; Ocupaci&#243;n horno &#8212; &#250;ltimas semanas</div>' +
+    '<div class="table-card" style="padding:16px 20px"><div style="display:flex;align-items:flex-end;gap:8px;height:100px">';
+    hornoSems.forEach(function(s) {
+      var h = maxPiezas > 0 ? Math.round((parseInt(s.piezas) / maxPiezas) * 90) : 4;
+      var isLast = s === hornoSems[hornoSems.length-1];
+      html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">' +
+        '<div style="font-size:11px;font-weight:700;color:var(--blue)">' + s.piezas + '</div>' +
+        '<div style="width:100%;height:' + h + 'px;background:' + (isLast ? 'var(--accent)' : 'var(--blue)') + ';border-radius:4px 4px 0 0;opacity:' + (isLast ? '1' : '0.7') + '"></div>' +
+        '<div style="font-size:10px;color:var(--muted);text-align:center">' + s.semana_inicio + '</div>' +
+      '</div>';
+    });
+    html += '</div></div>';
   }
 
   html += rdRenderAlmacen(inv);
