@@ -466,6 +466,7 @@ Próximo UPD disponible: **UPD-059**
 | UPD-079 | 15-jun | Mando | NUEVO app/imprimir_croquis.php: render SVG estático en PHP (puerto de la lógica JS de croquis.php) + botón "Guardar como PDF" vía window.print(); el croquis sigue editable en el módulo |
 | UPD-080 | 15-jun | Armando | Fix modulos/cotizaciones.php: limit 50→200 — COT-0138 y anteriores no aparecían por límite de paginación (52 cots más recientes la desplazaban) |
 | UPD-081 | 16-jun | Armando | produccion_estaciones.php: delay 2s al arranque antes de iniciar auto-scroll; pausa 3s al llegar al último registro ya estaba implementada (PAUSA_MS=3000) |
+| UPD-082 | 16-jun | Armando | Fix BD: ALTER TABLE cotizacion_pagos — agrega saldo_favor al ENUM forma_pago (omitido en UPD-057) |
 
 ---
 
@@ -476,4 +477,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-082**
+**Próximo UPD disponible: UPD-083**
