@@ -1,0 +1,250 @@
+<?php
+require_once __DIR__ . '/../api/config.php';
+require_once __DIR__ . '/../api/permisos.php';
+$user = requirePermiso('ver_ordenes');
+
+$id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+if (!$id) { echo "ID requerido"; exit; }
+
+$db = getDB();
+$stmt = $db->prepare("SELECT * FROM croquis_partidas WHERE id = ?");
+$stmt->execute([$id]);
+$cq = $stmt->fetch(PDO::FETCH_ASSOC);
+if (!$cq) { echo "Croquis no encontrado"; exit; }
+
+$stmt2 = $db->prepare("
+    SELECT c.folio, c.cliente_nombre, c.proyecto, o.folio AS orden_folio
+    FROM cotizaciones c
+    LEFT JOIN ordenes o ON o.id = c.orden_id
+    WHERE c.id = ?
+");
+$stmt2->execute([$cq['cotizacion_id']]);
+$cot = $stmt2->fetch(PDO::FETCH_ASSOC) ?: [];
+
+$stmt3 = $db->prepare("SELECT * FROM cotizaciones_partidas WHERE cotizacion_id = ? AND num_partida = ?");
+$stmt3->execute([$cq['cotizacion_id'], $cq['num_partida']]);
+$partida = $stmt3->fetch(PDO::FETCH_ASSOC) ?: [];
+
+$forma     = $cq['forma'];
+$ancho     = (float)$cq['ancho_mm'];
+$alto      = (float)$cq['alto_mm'];
+$params    = $cq['params_forma'] ? json_decode($cq['params_forma'], true) : [];
+$elementos = $cq['elementos']    ? json_decode($cq['elementos'], true)    : [];
+$canteo    = $cq['canteo']       ? json_decode($cq['canteo'], true)       : [];
+$notas     = $cq['notas'] ?? '';
+
+if (!is_array($params))    $params    = [];
+if (!is_array($elementos)) $elementos = [];
+if (!is_array($canteo))    $canteo    = [];
+
+// ── Geometría (mismo cálculo que croquis.php _getOrigin) ──────────────────
+$SVG_W = 760; $SVG_H = 560;
+$ML = 80; $MR = 80; $MT = 20; $MB = 90;
+$sc = min(($SVG_W - $ML - $MR) / max($ancho, 1), ($SVG_H - $MT - $MB) / max($alto, 1));
+$gw = $ancho * $sc;
+$gh = $alto  * $sc;
+$ox = $ML + ($SVG_W - $ML - $MR - $gw) / 2;
+$oy = $MT  + ($SVG_H - $MT - $MB - $gh) / 2;
+$oyBottom = $oy + $gh;
+
+function toPX($mmX, $mmY, $ox, $oyBottom, $sc) {
+    return ['x' => $ox + $mmX * $sc, 'y' => $oyBottom - $mmY * $sc];
+}
+
+function buildPath($forma, $params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc) {
+    if ($forma === 'rect') {
+        return "M$ox $oy L".($ox+$gw)." $oy L".($ox+$gw)." ".($oy+$gh)." L$ox ".($oy+$gh)." Z";
+    }
+    if ($forma === 'corte') {
+        $cx = min((float)($params['x'] ?? 150), $ancho*0.4) * $sc;
+        $cy = min((float)($params['y'] ?? 150), $alto*0.4)  * $sc;
+        return "M".($ox+$cx)." $oy L".($ox+$gw)." $oy L".($ox+$gw)." ".($oy+$gh)." L$ox ".($oy+$gh)." L$ox ".($oy+$cy)." Z";
+    }
+    if ($forma === 'L') {
+        $lw = min((float)($params['cw'] ?? 200), $ancho*0.7) * $sc;
+        $lh = min((float)($params['ch'] ?? 200), $alto*0.7)  * $sc;
+        return "M$ox $oy L".($ox+$lw)." $oy L".($ox+$lw)." ".($oy+$lh)." L".($ox+$gw)." ".($oy+$lh)." L".($ox+$gw)." ".($oy+$gh)." L$ox ".($oy+$gh)." Z";
+    }
+    if ($forma === 'trap') {
+        $tb  = min((float)($params['b'] ?? 500), $ancho-10) * $sc;
+        $off = ($gw - $tb) / 2;
+        return "M".($ox+$off)." $oy L".($ox+$gw-$off)." $oy L".($ox+$gw)." ".($oy+$gh)." L$ox ".($oy+$gh)." Z";
+    }
+    return '';
+}
+
+$fz=9; $fzSm=8; $sw='0.9'; $tk=4; $cOff=24; $cxOff=22;
+$arwSz=3.5; $arwLen=7; $lblW=36; $lblH=11; $lblWEj=36; $rotW=10; $rotH=36;
+
+$svg  = '';
+$uid  = 'cq' . $id;
+$svg .= '<defs><pattern id="g'.$uid.'" width="'.($sc*10).'" height="'.($sc*10).'" patternUnits="userSpaceOnUse" x="'.$ox.'" y="'.$oy.'"><path d="M '.($sc*10).' 0 L 0 0 0 '.($sc*10).'" fill="none" stroke="#e2e8f0" stroke-width="0.4"/></pattern></defs>';
+$svg .= '<rect width="'.$SVG_W.'" height="'.$SVG_H.'" fill="white"/>';
+
+$sp = buildPath($forma, $params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc);
+$svg .= '<clipPath id="cl'.$uid.'"><path d="'.$sp.'"/></clipPath>';
+$svg .= '<rect x="'.$ox.'" y="'.$oy.'" width="'.$gw.'" height="'.$gh.'" fill="url(#g'.$uid.')" clip-path="url(#cl'.$uid.')"/>';
+$svg .= '<path d="'.$sp.'" fill="#e8f4fd" fill-opacity="0.65" stroke="#2563eb" stroke-width="1.5"/>';
+
+$cs = 'stroke:#f59e0b;stroke-width:3;stroke-linecap:round';
+if (!empty($canteo['sup'])) $svg .= '<line x1="'.$ox.'" y1="'.$oy.'" x2="'.($ox+$gw).'" y2="'.$oy.'" style="'.$cs.'"/>';
+if (!empty($canteo['inf'])) $svg .= '<line x1="'.$ox.'" y1="'.$oyBottom.'" x2="'.($ox+$gw).'" y2="'.$oyBottom.'" style="'.$cs.'"/>';
+if (!empty($canteo['izq'])) $svg .= '<line x1="'.$ox.'" y1="'.$oy.'" x2="'.$ox.'" y2="'.$oyBottom.'" style="'.$cs.'"/>';
+if (!empty($canteo['der'])) $svg .= '<line x1="'.($ox+$gw).'" y1="'.$oy.'" x2="'.($ox+$gw).'" y2="'.$oyBottom.'" style="'.$cs.'"/>';
+
+// Cota ancho
+$svg .= '<line x1="'.$ox.'" y1="'.$oyBottom.'" x2="'.$ox.'" y2="'.($oyBottom+$cOff+2).'" stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="2,2"/>';
+$svg .= '<line x1="'.($ox+$gw).'" y1="'.$oyBottom.'" x2="'.($ox+$gw).'" y2="'.($oyBottom+$cOff+2).'" stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="2,2"/>';
+$svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cOff).'" x2="'.($ox+$gw).'" y2="'.($oyBottom+$cOff).'" stroke="#475569" stroke-width="'.$sw.'"/>';
+$svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cOff-$tk).'" x2="'.$ox.'" y2="'.($oyBottom+$cOff+$tk).'" stroke="#475569" stroke-width="'.$sw.'"/>';
+$svg .= '<line x1="'.($ox+$gw).'" y1="'.($oyBottom+$cOff-$tk).'" x2="'.($ox+$gw).'" y2="'.($oyBottom+$cOff+$tk).'" stroke="#475569" stroke-width="'.$sw.'"/>';
+$svg .= '<rect x="'.($ox+$gw/2-$lblW/2).'" y="'.($oyBottom+$cOff-$lblH/2).'" width="'.$lblW.'" height="'.$lblH.'" fill="white"/>';
+$svg .= '<text x="'.($ox+$gw/2).'" y="'.($oyBottom+$cOff+$fz/2-1).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#1e293b" font-family="monospace">'.$ancho.' mm</text>';
+
+// Cota alto
+$svg .= '<line x1="'.$ox.'" y1="'.$oy.'" x2="'.($ox-$cxOff-2).'" y2="'.$oy.'" stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="2,2"/>';
+$svg .= '<line x1="'.$ox.'" y1="'.$oyBottom.'" x2="'.($ox-$cxOff-2).'" y2="'.$oyBottom.'" stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="2,2"/>';
+$svg .= '<line x1="'.($ox-$cxOff).'" y1="'.$oy.'" x2="'.($ox-$cxOff).'" y2="'.$oyBottom.'" stroke="#475569" stroke-width="'.$sw.'"/>';
+$svg .= '<line x1="'.($ox-$cxOff-$tk).'" y1="'.$oy.'" x2="'.($ox-$cxOff+$tk).'" y2="'.$oy.'" stroke="#475569" stroke-width="'.$sw.'"/>';
+$svg .= '<line x1="'.($ox-$cxOff-$tk).'" y1="'.$oyBottom.'" x2="'.($ox-$cxOff+$tk).'" y2="'.$oyBottom.'" stroke="#475569" stroke-width="'.$sw.'"/>';
+$svg .= '<rect x="'.($ox-$cxOff-$rotW/2).'" y="'.($oy+$gh/2-$rotH/2).'" width="'.$rotW.'" height="'.$rotH.'" fill="white"/>';
+$svg .= '<text x="'.($ox-$cxOff).'" y="'.($oy+$gh/2).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#1e293b" font-family="monospace" transform="rotate(-90,'.($ox-$cxOff).','.($oy+$gh/2).')">'.$alto.' mm</text>';
+
+// Eje X
+$ejXY = $oyBottom + $cOff + 14;
+$svg .= '<line x1="'.$ox.'" y1="'.$ejXY.'" x2="'.($ox+$gw).'" y2="'.$ejXY.'" stroke="#dc2626" stroke-width="1.1"/>';
+$svg .= '<line x1="'.$ox.'" y1="'.($ejXY-$tk).'" x2="'.$ox.'" y2="'.($ejXY+$tk).'" stroke="#dc2626" stroke-width="1.1"/>';
+$svg .= '<polygon points="'.($ox+$gw).','.($ejXY-$arwSz).' '.($ox+$gw+$arwLen).','.$ejXY.' '.($ox+$gw).','.($ejXY+$arwSz).'" fill="#dc2626"/>';
+$svg .= '<rect x="'.($ox+$gw/2-$lblWEj/2).'" y="'.($ejXY-$lblH/2).'" width="'.$lblWEj.'" height="'.$lblH.'" fill="white"/>';
+$svg .= '<text x="'.($ox+$gw/2).'" y="'.($ejXY+$fz/2-1).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#dc2626" font-family="monospace">Eje X</text>';
+
+// Eje Y
+$ejYX = $ox - $cxOff - 14;
+$svg .= '<line x1="'.$ejYX.'" y1="'.$oyBottom.'" x2="'.$ejYX.'" y2="'.$oy.'" stroke="#16a34a" stroke-width="1.1"/>';
+$svg .= '<line x1="'.($ejYX-$tk).'" y1="'.$oyBottom.'" x2="'.($ejYX+$tk).'" y2="'.$oyBottom.'" stroke="#16a34a" stroke-width="1.1"/>';
+$svg .= '<polygon points="'.($ejYX-$arwSz).','.$oy.' '.$ejYX.','.($oy-$arwLen).' '.($ejYX+$arwSz).','.$oy.'" fill="#16a34a"/>';
+$svg .= '<rect x="'.($ejYX-$rotW/2).'" y="'.($oy+$gh/2-$rotH/2).'" width="'.$rotW.'" height="'.$rotH.'" fill="white"/>';
+$svg .= '<text x="'.$ejYX.'" y="'.($oy+$gh/2).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#16a34a" font-family="monospace" transform="rotate(-90,'.$ejYX.','.($oy+$gh/2).')">Eje Y</text>';
+
+// Elementos
+foreach ($elementos as $e) {
+    $ep = toPX((float)$e['x'], (float)$e['y'], $ox, $oyBottom, $sc);
+    $ex = $ep['x']; $ey = $ep['y'];
+
+    $svg .= '<line x1="'.$ox.'" y1="'.$ey.'" x2="'.$ex.'" y2="'.$ey.'" stroke="#dc2626" stroke-width="0.6" stroke-dasharray="4,3" opacity="0.6"/>';
+    $svg .= '<line x1="'.$ex.'" y1="'.$oyBottom.'" x2="'.$ex.'" y2="'.$ey.'" stroke="#16a34a" stroke-width="0.6" stroke-dasharray="4,3" opacity="0.6"/>';
+    $svg .= '<circle cx="'.$ox.'" cy="'.$ey.'" r="2.5" fill="#dc2626" opacity="0.7"/>';
+    $svg .= '<circle cx="'.$ex.'" cy="'.$oyBottom.'" r="2.5" fill="#16a34a" opacity="0.7"/>';
+
+    $cxPad=6; $cxLblW=44; $cxLblH=12;
+    $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cxPad).'" x2="'.$ex.'" y2="'.($oyBottom+$cxPad).'" stroke="#dc2626" stroke-width="'.$sw.'"/>';
+    $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cxPad-$tk/2).'" x2="'.$ox.'" y2="'.($oyBottom+$cxPad+$tk/2).'" stroke="#dc2626" stroke-width="'.$sw.'"/>';
+    $svg .= '<line x1="'.$ex.'" y1="'.($oyBottom+$cxPad-$tk/2).'" x2="'.$ex.'" y2="'.($oyBottom+$cxPad+$tk/2).'" stroke="#dc2626" stroke-width="'.$sw.'"/>';
+    $lxMid = $ox + ($ex-$ox)/2;
+    $svg .= '<rect x="'.($lxMid-$cxLblW/2).'" y="'.($oyBottom+$cxPad+2).'" width="'.$cxLblW.'" height="'.$cxLblH.'" fill="white" rx="2"/>';
+    $svg .= '<text x="'.$lxMid.'" y="'.($oyBottom+$cxPad+$cxLblH/2+$fzSm/2).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#dc2626" font-family="monospace">X: '.$e['x'].' mm</text>';
+
+    $cyPad=6; $cyLblW=12; $cyLblH=44;
+    $svg .= '<line x1="'.($ox+$gw+$cyPad).'" y1="'.$oyBottom.'" x2="'.($ox+$gw+$cyPad).'" y2="'.$ey.'" stroke="#16a34a" stroke-width="'.$sw.'"/>';
+    $svg .= '<line x1="'.($ox+$gw+$cyPad-$tk/2).'" y1="'.$oyBottom.'" x2="'.($ox+$gw+$cyPad+$tk/2).'" y2="'.$oyBottom.'" stroke="#16a34a" stroke-width="'.$sw.'"/>';
+    $svg .= '<line x1="'.($ox+$gw+$cyPad-$tk/2).'" y1="'.$ey.'" x2="'.($ox+$gw+$cyPad+$tk/2).'" y2="'.$ey.'" stroke="#16a34a" stroke-width="'.$sw.'"/>';
+    $lyMid = $ey + ($oyBottom-$ey)/2;
+    $svg .= '<rect x="'.($ox+$gw+$cyPad+2).'" y="'.($lyMid-$cyLblH/2).'" width="'.$cyLblW.'" height="'.$cyLblH.'" fill="white" rx="2"/>';
+    $svg .= '<text x="'.($ox+$gw+$cyPad+$cyLblW/2+2).'" y="'.$lyMid.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#16a34a" font-family="monospace" transform="rotate(-90,'.($ox+$gw+$cyPad+$cyLblW/2+2).','.$lyMid.')">Y: '.$e['y'].' mm</text>';
+
+    if ($e['tipo'] === 'tp') {
+        $r = max(4, ((float)$e['d']/2) * $sc);
+        $svg .= '<circle cx="'.$ex.'" cy="'.$ey.'" r="'.$r.'" fill="white" stroke="#1e40af" stroke-width="1.5"/>';
+        $svg .= '<line x1="'.($ex-$r*1.3).'" y1="'.$ey.'" x2="'.($ex+$r*1.3).'" y2="'.$ey.'" stroke="#1e40af" stroke-width="1"/>';
+        $svg .= '<line x1="'.$ex.'" y1="'.($ey-$r*1.3).'" x2="'.$ex.'" y2="'.($ey+$r*1.3).'" stroke="#1e40af" stroke-width="1"/>';
+        $lx=$ex+$r+4; $ly=$ey-$r-4;
+        $svg .= '<rect x="'.($lx-1).'" y="'.($ly-$fz).'" width="62" height="'.($fz+3).'" fill="white" rx="2"/>';
+        $svg .= '<text x="'.$lx.'" y="'.$ly.'" font-size="'.$fzSm.'" font-weight="700" fill="#1e40af" font-family="monospace">TP  &#216;'.$e['d'].' mm</text>';
+    }
+    if ($e['tipo'] === 'ta') {
+        $re = max(5, ((float)$e['de']/2) * $sc);
+        $ri = max(2, ((float)$e['di']/2) * $sc);
+        $svg .= '<circle cx="'.$ex.'" cy="'.$ey.'" r="'.$re.'" fill="white" stroke="#7c3aed" stroke-width="1.5"/>';
+        $svg .= '<circle cx="'.$ex.'" cy="'.$ey.'" r="'.$ri.'" fill="none" stroke="#7c3aed" stroke-width="0.8" stroke-dasharray="2,1.5"/>';
+        $lx=$ex+$re+4; $ly=$ey-$re-4;
+        $svg .= '<rect x="'.($lx-1).'" y="'.($ly-$fz).'" width="76" height="'.($fz+3).'" fill="white" rx="2"/>';
+        $svg .= '<text x="'.$lx.'" y="'.$ly.'" font-size="'.$fzSm.'" font-weight="700" fill="#7c3aed" font-family="monospace">TA  &#216;'.$e['de'].'/'.$e['di'].' mm</text>';
+    }
+    if ($e['tipo'] === 'rs') {
+        $rw = max(8, (float)$e['w']*$sc); $rh = max(4, (float)$e['h']*$sc);
+        $rySVG = $ey - $rh;
+        $svg .= '<rect x="'.$ex.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+        $svg .= '<line x1="'.$ex.'" y1="'.($rySVG-9).'" x2="'.($ex+$rw).'" y2="'.($rySVG-9).'" stroke="#854d0e" stroke-width="0.8"/>';
+        $svg .= '<line x1="'.$ex.'" y1="'.($rySVG-12).'" x2="'.$ex.'" y2="'.($rySVG-6).'" stroke="#854d0e" stroke-width="0.8"/>';
+        $svg .= '<line x1="'.($ex+$rw).'" y1="'.($rySVG-12).'" x2="'.($ex+$rw).'" y2="'.($rySVG-6).'" stroke="#854d0e" stroke-width="0.8"/>';
+        $svg .= '<rect x="'.($ex+$rw/2-18).'" y="'.($rySVG-20).'" width="36" height="10" fill="white" rx="2"/>';
+        $svg .= '<text x="'.($ex+$rw/2).'" y="'.($rySVG-12).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace">'.$e['w'].' mm</text>';
+        $svg .= '<line x1="'.($ex+$rw+9).'" y1="'.$rySVG.'" x2="'.($ex+$rw+9).'" y2="'.$ey.'" stroke="#854d0e" stroke-width="0.8"/>';
+        $svg .= '<line x1="'.($ex+$rw+6).'" y1="'.$rySVG.'" x2="'.($ex+$rw+12).'" y2="'.$rySVG.'" stroke="#854d0e" stroke-width="0.8"/>';
+        $svg .= '<line x1="'.($ex+$rw+6).'" y1="'.$ey.'" x2="'.($ex+$rw+12).'" y2="'.$ey.'" stroke="#854d0e" stroke-width="0.8"/>';
+        $lyRS = $rySVG + $rh/2;
+        $svg .= '<rect x="'.($ex+$rw+12).'" y="'.($lyRS-16).'" width="10" height="32" fill="white" rx="2"/>';
+        $svg .= '<text x="'.($ex+$rw+17).'" y="'.$lyRS.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace" transform="rotate(-90,'.($ex+$rw+17).','.$lyRS.')">'.$e['h'].' mm</text>';
+        $lxRS=$ex; $lyRS2=$rySVG-24;
+        $svg .= '<rect x="'.($lxRS-1).'" y="'.($lyRS2-$fz).'" width="52" height="'.($fz+3).'" fill="white" rx="2"/>';
+        $svg .= '<text x="'.$lxRS.'" y="'.$lyRS2.'" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace">RS  posici&#243;n</text>';
+    }
+}
+
+// Canteado label
+$lados = [];
+if (!empty($canteo['sup'])) $lados[] = 'Sup';
+if (!empty($canteo['inf'])) $lados[] = 'Inf';
+if (!empty($canteo['izq'])) $lados[] = 'Izq';
+if (!empty($canteo['der'])) $lados[] = 'Der';
+if ($lados) {
+    $svg .= '<text x="'.($SVG_W/2).'" y="'.($SVG_H-6).'" text-anchor="middle" font-size="'.$fz.'" fill="#92400e" font-family="monospace">Canteado: '.implode(' + ', $lados).'</text>';
+}
+if ($notas) {
+    $svg .= '<text x="'.($SVG_W/2).'" y="'.($SVG_H-($lados ? $fz*2 : 6)).'" text-anchor="middle" font-size="'.$fzSm.'" fill="#64748b" font-family="sans-serif">'.htmlspecialchars(mb_substr($notas, 0, 65)).'</text>';
+}
+
+$folioMostrar = $cot['orden_folio'] ?: ($cot['folio'] ?? '');
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Croquis P<?= (int)$cq['num_partida'] ?> — <?= htmlspecialchars($folioMostrar) ?> — APEX GLASS</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1e293b; background: #fff; }
+.page { width: 210mm; min-height: 148mm; margin: 0 auto; padding: 12mm; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a2e; padding-bottom: 8px; margin-bottom: 12px; }
+.header h1 { font-size: 16px; font-weight: 900; color: #1a1a2e; letter-spacing: .5px; }
+.header .sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+.meta { text-align: right; font-size: 11px; color: #334155; line-height: 1.5; }
+.meta b { color: #1a1a2e; }
+.svg-wrap { border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; display: flex; justify-content: center; }
+.footer-note { margin-top: 10px; font-size: 9px; color: #94a3b8; text-align: center; }
+.btn-print { position: fixed; top: 10px; right: 10px; background: #16a34a; color: #fff; border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
+@media print { .btn-print { display: none; } body { background: #fff; } }
+</style>
+</head>
+<body>
+<button class="btn-print" onclick="window.print()">&#128424; Guardar como PDF</button>
+<div class="page">
+  <div class="header">
+    <div>
+      <h1>APEX GLASS</h1>
+      <div class="sub">Croquis t&#233;cnico de corte</div>
+    </div>
+    <div class="meta">
+      <div><b>Orden/Cot.:</b> <?= htmlspecialchars($folioMostrar) ?></div>
+      <div><b>Cliente:</b> <?= htmlspecialchars($cot['cliente_nombre'] ?? '') ?></div>
+      <div><b>Partida:</b> P<?= (int)$cq['num_partida'] ?><?= !empty($partida['cristal_nombre']) ? ' — '.htmlspecialchars($partida['cristal_nombre']) : '' ?></div>
+      <div><b>Medidas:</b> <?= $ancho ?> &#215; <?= $alto ?> mm</div>
+    </div>
+  </div>
+  <div class="svg-wrap">
+    <svg width="<?= $SVG_W ?>" height="<?= $SVG_H ?>" viewBox="0 0 <?= $SVG_W ?> <?= $SVG_H ?>"><?= $svg ?></svg>
+  </div>
+  <div class="footer-note">Generado <?= date('d/m/Y H:i') ?> &mdash; Este croquis puede ser editado en el sistema, este PDF refleja la &#250;ltima versi&#243;n guardada.</div>
+</div>
+</body>
+</html>
