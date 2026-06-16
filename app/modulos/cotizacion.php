@@ -935,7 +935,7 @@ function _renderFormCorreccion() {
   html += '<div style="overflow-x:auto">';
   html += '<table class="corr-partidas-table">';
   html += '<thead><tr>';
-  html += '<th>#</th><th>Cristal / Medidas</th>';
+  html += '<th>#</th><th>Cristal</th><th>Ancho mm</th><th>Alto mm</th>';
   html += '<th>Precio/m²</th><th>Precio Unit.</th>';
   html += '<th>Cant.</th>';
   html += '<th>Detalles</th><th>CPB</th>';
@@ -953,8 +953,9 @@ function _renderFormCorreccion() {
     var idx = p.id;
     html += '<tr>';
     html += '<td class="corr-num">' + p.num_partida + '</td>';
-    html += '<td><div class="corr-ref">' + escHtml(p.cristal_nombre || '') + '</div>';
-    html += '<div style="font-size:11px;color:#94a3b8">' + (p.ancho || 0) + '×' + (p.alto || 0) + ' mm</div></td>';
+    html += '<td><div class="corr-ref">' + escHtml(p.cristal_nombre || '') + '</div></td>';
+    html += '<td><input type="number" id="cp_ancho_' + idx + '" value="' + (p.ancho || 0) + '" min="1" style="width:72px"></td>';
+    html += '<td><input type="number" id="cp_alto_'  + idx + '" value="' + (p.alto  || 0) + '" min="1" style="width:72px"></td>';
 
     html += '<td><input type="number" id="cp_pm2_'   + idx + '" value="' + (p.precio_m2_usado    || 0) + '" step="0.01" min="0" style="width:90px"></td>';
     html += '<td><input type="number" id="cp_pu_'    + idx + '" value="' + (p.precio_unitario    || 0) + '" step="0.01" min="0" style="width:90px"></td>';
@@ -1017,6 +1018,8 @@ async function guardarCorreccion() {
     var p   = pts[i];
     var idx = p.id;
     var pc  = { partida_id: idx };
+    var anEl  = document.getElementById('cp_ancho_'  + idx);
+    var alEl  = document.getElementById('cp_alto_'   + idx);
     var pmEl  = document.getElementById('cp_pm2_'   + idx);
     var puEl  = document.getElementById('cp_pu_'    + idx);
     var cEl   = document.getElementById('cp_cant_'  + idx);
@@ -1027,6 +1030,8 @@ async function guardarCorreccion() {
     var taEl  = document.getElementById('cp_ta_'    + idx);
     var tmEl  = document.getElementById('cp_templ_' + idx);
     var coEl  = document.getElementById('cp_com_'   + idx);
+    if (anEl)  pc.ancho                    = parseInt(anEl.value)   || 0;
+    if (alEl)  pc.alto                     = parseInt(alEl.value)   || 0;
     if (pmEl)  pc.precio_m2_usado          = parseFloat(pmEl.value);
     if (puEl)  pc.precio_unitario          = parseFloat(puEl.value);
     if (cEl && !cEl.disabled) pc.cantidad  = parseInt(cEl.value);

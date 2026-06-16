@@ -146,6 +146,7 @@ if ($method === 'POST') {
 
         // ── Cambios por partida ───────────────────────────────────────────────
         $campos_partida = [
+            'ancho', 'alto',
             'precio_unitario', 'precio_m2_usado', 'cantidad',
             'detalles', 'cpb', 'comentarios_etiqueta',
             'resaques', 'taladros_pasados', 'taladros_avellanados', 'requiere_templado',
@@ -190,11 +191,29 @@ if ($method === 'POST') {
             if ($updates_p) {
                 $descuento_cot = (float)($cot['descuento'] ?? 0);
                 $m2_partida    = (float)$partida['m2'];
+                $cambio_dim    = array_key_exists('ancho', $pc) || array_key_exists('alto', $pc);
+
+                // Si cambió ancho o alto → recalcular m2
+                if ($cambio_dim) {
+                    $nuevo_ancho = array_key_exists('ancho', $pc) ? (int)$pc['ancho'] : (int)$partida['ancho'];
+                    $nuevo_alto  = array_key_exists('alto',  $pc) ? (int)$pc['alto']  : (int)$partida['alto'];
+                    $m2_partida  = round(($nuevo_ancho / 1000) * ($nuevo_alto / 1000), 6);
+                    $updates_p[] = 'm2 = ?';
+                    $params_p[]  = $m2_partida;
+                }
 
                 // Si cambió precio_m2_usado → derivar precio_unitario = m2 × precio_m2 × (1 - desc%)
                 if (array_key_exists('precio_m2_usado', $pc)) {
                     $nuevo_m2_usado = (float)$pc['precio_m2_usado'];
                     $nuevo_unit     = round($m2_partida * $nuevo_m2_usado * (1 - $descuento_cot / 100), 4);
+                    if (!array_key_exists('precio_unitario', $pc)) {
+                        $updates_p[] = 'precio_unitario = ?';
+                        $params_p[]  = $nuevo_unit;
+                    }
+                } elseif ($cambio_dim) {
+                    // Recalcular precio_unitario con el nuevo m2 y el precio_m2_usado existente
+                    $precio_m2_actual = (float)$partida['precio_m2_usado'];
+                    $nuevo_unit       = round($m2_partida * $precio_m2_actual * (1 - $descuento_cot / 100), 4);
                     if (!array_key_exists('precio_unitario', $pc)) {
                         $updates_p[] = 'precio_unitario = ?';
                         $params_p[]  = $nuevo_unit;
@@ -220,6 +239,14 @@ if ($method === 'POST') {
 
                 $db->prepare("UPDATE cotizaciones_partidas SET " . implode(', ', $updates_p) . " WHERE id = ?")
                    ->execute($params_p);
+
+                // Propagar cambio de dimensiones a piezas en producción
+                if ($cambio_dim && $cot['orden_id']) {
+                    $db->prepare("
+                        UPDATE piezas SET ancho_mm = ?, alto_mm = ?, m2 = ?, updated_at = NOW()
+                        WHERE orden_id = ? AND partida = ?
+                    ")->execute([$nuevo_ancho, $nuevo_alto, $m2_partida, $cot['orden_id'], $partida['num_partida']]);
+                }
             }
         }
 

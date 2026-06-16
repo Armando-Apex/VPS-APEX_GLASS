@@ -468,6 +468,7 @@ Próximo UPD disponible: **UPD-059**
 | UPD-081 | 16-jun | Armando | produccion_estaciones.php: delay 2s al arranque antes de iniciar auto-scroll; pausa 3s al llegar al último registro ya estaba implementada (PAUSA_MS=3000) |
 | UPD-082 | 16-jun | Armando | Fix BD: ALTER TABLE cotizacion_pagos — agrega saldo_favor al ENUM forma_pago (omitido en UPD-057) |
 | UPD-083 | 16-jun | Armando | Fix api/finanzas.php: tipo 'cargo' → 'aplicacion' al insertar en clientes_saldo_favor al aplicar saldo a favor |
+| UPD-084 | 16-jun | Armando | Modal Corregir: agrega campos Ancho mm y Alto mm editables por partida; backend recalcula m2, precio_unitario y propaga a piezas |
 
 ---
 
@@ -478,4 +479,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-084**
+**Próximo UPD disponible: UPD-085**
