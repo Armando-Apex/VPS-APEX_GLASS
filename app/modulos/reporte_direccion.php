@@ -72,7 +72,8 @@ tfoot td { padding:10px 14px; font-size:13px; }
 .oi-folio   { font-size:15px; font-weight:700; color:#1d4ed8; margin-bottom:4px; }
 .oi-cliente { font-size:12px; color:var(--muted); margin-bottom:6px; }
 .oi-meta    { display:flex; justify-content:space-between; font-size:12px; }
-@media(max-width:900px){ .kpi-grid{grid-template-columns:repeat(2,1fr);} .metrics-grid{grid-template-columns:repeat(2,1fr) !important;} }
+@media(max-width:1100px){ .kpi-grid{grid-template-columns:repeat(3,1fr) !important;} }
+@media(max-width:700px){ .kpi-grid{grid-template-columns:repeat(2,1fr) !important;} .metrics-grid{grid-template-columns:repeat(2,1fr) !important;} }
 .inv-row-grupo { background:#f0f4f8; cursor:pointer; font-weight:600; }
 .inv-row-grupo:hover { background:#dde3ea; }
 .kpi-ventas   { border-top:3px solid var(--blue); }
@@ -155,12 +156,14 @@ function rdRender(rep, dash, inv) {
   const pctCobrado = parseFloat(fin.ventas||0) > 0 ? Math.round((parseFloat(fin.cobrado||0) / parseFloat(fin.ventas)) * 100) : 0;
   let html = '';
 
-  html += `<div class="kpi-grid">
-    <div class="kpi-card kpi-total"><div class="kpi-num">${r.total||0}</div><div class="kpi-label">Total &#243;rdenes</div><div class="kpi-sub">${r.cerradas||0} cerradas &#183; ${r.abiertas||0} abiertas</div></div>
-    <div class="kpi-card kpi-tiempo"><div class="kpi-num">${r.a_tiempo||0}</div><div class="kpi-label">&#x2705; A tiempo</div><div class="kpi-sub">${pctTiempo}% del total</div></div>
-    <div class="kpi-card kpi-retraso"><div class="kpi-num">${r.con_retraso||0}</div><div class="kpi-label">&#x26A0;&#xFE0F; Con retraso</div><div class="kpi-sub">${r.total>0?Math.round((r.con_retraso/r.total)*100):0}% del total</div></div>
-    <div class="kpi-card kpi-proceso"><div class="kpi-num">${r.en_proceso||0}</div><div class="kpi-label">&#x1F504; En proceso</div><div class="kpi-sub">${r.retraso_abierto||0} con retraso abierto</div></div>
-  </div>`;
+  html += '<div class="kpi-grid" style="grid-template-columns:repeat(6,1fr)">' +
+    '<div class="kpi-card kpi-total"><div class="kpi-num">' + (r.total||0) + '</div><div class="kpi-label">Total &#243;rdenes</div><div class="kpi-sub">' + (r.cerradas||0) + ' cerradas &#183; ' + (r.abiertas||0) + ' activas</div></div>' +
+    '<div class="kpi-card kpi-tiempo"><div class="kpi-num">' + (r.a_tiempo||0) + '</div><div class="kpi-label">&#x2705; A tiempo</div><div class="kpi-sub">' + pctTiempo + '% del total</div></div>' +
+    '<div class="kpi-card kpi-retraso"><div class="kpi-num">' + (r.con_retraso||0) + '</div><div class="kpi-label">&#x26A0;&#xFE0F; Con retraso</div><div class="kpi-sub">Cerradas fuera de fecha</div></div>' +
+    '<div class="kpi-card kpi-proceso"><div class="kpi-num">' + (r.en_proceso||0) + '</div><div class="kpi-label">&#x1F504; En proceso</div><div class="kpi-sub">Activas dentro de fecha</div></div>' +
+    '<div class="kpi-card" style="border-top:3px solid #dc2626"><div class="kpi-num" style="color:#dc2626">' + (r.retraso_abierto||0) + '</div><div class="kpi-label">&#x1F6A8; Retraso abierto</div><div class="kpi-sub">Activas vencidas</div></div>' +
+    '<div class="kpi-card" style="border-top:3px solid #7c3aed"><div class="kpi-num" style="color:#7c3aed">' + (r.vobo_pendientes||0) + '</div><div class="kpi-label">&#x23F3; VoBo pendiente</div><div class="kpi-sub">Esperando aprobaci&#243;n</div></div>' +
+  '</div>';
 
   html += `<div class="section-title">&#x1F4B0; &#211;rdenes</div>
   <div class="kpi-grid" style="margin-bottom:8px">

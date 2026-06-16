@@ -55,6 +55,7 @@ $stmt = $pdo->prepare("
         AVG(CASE WHEN estado = 'entregada'
                  THEN DATEDIFF(DATE(COALESCE(fecha_cierre, updated_at)), fecha_pedido)
             END)                                                                     AS prom_dias,
+        SUM(estado = 'pendiente_vobo')                                               AS vobo_pendientes,
         SUM(UPPER(COALESCE(ubicacion,'')) != 'FORANEO')                              AS local,
         SUM(UPPER(ubicacion) = 'FORANEO')                                           AS foraneo
     FROM ordenes
@@ -84,6 +85,7 @@ $stmtM = $pdo->prepare("
         AVG(CASE WHEN estado = 'entregada'
                  THEN DATEDIFF(DATE(COALESCE(fecha_cierre, updated_at)), fecha_pedido)
             END)                                                                     AS prom_dias,
+        SUM(estado = 'pendiente_vobo')                                               AS vobo_pendientes,
         SUM(UPPER(COALESCE(ubicacion,'')) != 'FORANEO')                              AS local,
         SUM(UPPER(ubicacion) = 'FORANEO')                                           AS foraneo
     FROM ordenes
@@ -107,6 +109,7 @@ $totales = [
     'con_retraso'     => array_sum(array_column($mensual, 'con_retraso')),
     'en_proceso'      => array_sum(array_column($mensual, 'en_proceso')),
     'retraso_abierto' => array_sum(array_column($mensual, 'retraso_abierto')),
+    'vobo_pendientes' => array_sum(array_column($mensual, 'vobo_pendientes')),
     'prom_dias'       => count($mensual) > 0
                          ? array_sum(array_column($mensual, 'prom_dias')) / count($mensual)
                          : null,
