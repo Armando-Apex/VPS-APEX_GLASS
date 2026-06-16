@@ -218,7 +218,7 @@ if ($method === 'POST') {
                 $ref  = $fila ? 'Aplicado a ' . $fila['folio'] : 'Aplicado a cot. #' . $cot_id;
                 $db->prepare("INSERT INTO clientes_saldo_favor
                     (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
-                    VALUES (?, 'cargo', ?, ?, ?, ?, ?, ?)
+                    VALUES (?, 'aplicacion', ?, ?, ?, ?, ?, ?)
                 ")->execute([$cliente_id, -$monto, $fecha, $ref, $notas, $cot_id, $usuario_nombre]);
             }
 
