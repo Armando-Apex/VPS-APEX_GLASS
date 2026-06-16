@@ -1002,8 +1002,9 @@ setInterval(cargar, 120000);
 const SCROLL_VPS = 28;    // px por segundo
 const PAUSA_MS   = 3000;  // ms de pausa al llegar al fondo
 
-let scrollRAF = null;
-let lastTime  = null;
+let scrollRAF     = null;
+let lastTime      = null;
+let scrollIniciado = false;
 
 // Por cada .est-ordenes-inner guardamos su estado
 // { pos, pausandoHasta }  usando el propio objeto como clave
@@ -1063,7 +1064,14 @@ function autoScroll(ts) {
 function iniciarScroll() {
   if (scrollRAF) cancelAnimationFrame(scrollRAF);
   lastTime = null;
-  scrollRAF = requestAnimationFrame(autoScroll);
+  if (!scrollIniciado) {
+    scrollIniciado = true;
+    setTimeout(function() {
+      scrollRAF = requestAnimationFrame(autoScroll);
+    }, 2000);
+  } else {
+    scrollRAF = requestAnimationFrame(autoScroll);
+  }
 }
 
 // ── Comunicados SmartTV ───────────────────────────────────
