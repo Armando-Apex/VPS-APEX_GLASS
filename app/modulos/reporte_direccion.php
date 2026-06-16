@@ -264,15 +264,21 @@ function rdRender(rep, dash, inv) {
 
   if (hornoSems.length > 0) {
     var maxPiezas = Math.max.apply(null, hornoSems.map(function(s){ return parseInt(s.piezas); }));
+    var CHART_H = 140;
+    var MIN_BAR = 12;
     html += '<div class="section-title">&#x1F525; Ocupaci&#243;n horno &#8212; &#250;ltimas semanas</div>' +
-    '<div class="table-card" style="padding:16px 20px"><div style="display:flex;align-items:flex-end;gap:8px;height:100px">';
+    '<div class="table-card" style="padding:20px 24px">' +
+    '<div style="display:flex;align-items:flex-end;gap:10px;height:' + (CHART_H + 50) + 'px;border-bottom:2px solid var(--border);padding-bottom:0">';
     hornoSems.forEach(function(s) {
-      var h = maxPiezas > 0 ? Math.round((parseInt(s.piezas) / maxPiezas) * 90) : 4;
-      var isLast = s === hornoSems[hornoSems.length-1];
-      html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">' +
-        '<div style="font-size:11px;font-weight:700;color:var(--blue)">' + s.piezas + '</div>' +
-        '<div style="width:100%;height:' + h + 'px;background:' + (isLast ? 'var(--accent)' : 'var(--blue)') + ';border-radius:4px 4px 0 0;opacity:' + (isLast ? '1' : '0.7') + '"></div>' +
-        '<div style="font-size:10px;color:var(--muted);text-align:center">' + esc(s.semana_inicio) + '</div>' +
+      var piezas  = parseInt(s.piezas);
+      var barH    = maxPiezas > 0 ? Math.max(MIN_BAR, Math.round((piezas / maxPiezas) * CHART_H)) : MIN_BAR;
+      var isLast  = s === hornoSems[hornoSems.length - 1];
+      var bgColor = isLast ? 'var(--accent)' : 'var(--blue)';
+      var opacity = isLast ? '1' : '0.65';
+      html += '<div style="flex:1;min-width:36px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px">' +
+        '<div style="font-size:13px;font-weight:800;color:' + (isLast ? 'var(--accent)' : 'var(--blue)') + '">' + piezas + '</div>' +
+        '<div style="width:100%;height:' + barH + 'px;background:' + bgColor + ';border-radius:6px 6px 0 0;opacity:' + opacity + '"></div>' +
+        '<div style="font-size:11px;font-weight:600;color:var(--muted);text-align:center;padding-bottom:4px;white-space:nowrap">' + esc(s.semana_inicio) + '</div>' +
       '</div>';
     });
     html += '</div></div>';

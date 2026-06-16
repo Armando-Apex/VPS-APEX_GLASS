@@ -9,7 +9,8 @@
       "Bash(npx -y @modelcontextprotocol/server-filesystem /home/apexglass2025/apex.glass/public_html/produccion)",
       "Bash(kill %1)",
       "Bash(python3 -m ensurepip --upgrade)",
-      "Bash(python3 -m pip install mcp-server-fetch)"
+      "Bash(python3 -m pip install mcp-server-fetch)",
+      "Bash(php *)"
     ]
   },
   "hooks": {
