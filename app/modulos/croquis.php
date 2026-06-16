@@ -1105,43 +1105,41 @@ function _redraw() {
     out += '<text x="'+(ox+gw+cyPad+cyLblW/2+2)+'" y="'+lyMid+'" text-anchor="middle" font-size="'+fzSm+'" font-weight="700" fill="#16a34a" font-family="monospace" transform="rotate(-90,'+(ox+gw+cyPad+cyLblW/2+2)+','+lyMid+')">Y: '+e.y+' mm</text>';
 
     // ── Dibujo del elemento ───────────────────────────────────────
-    // Gancho en L: renglón fijo apilado en borde derecho del vidrio + conector horizontal→vertical
-    var laneX  = ox + gw - 6;               // columna vertical del gancho (6px del borde der)
-    var laneY  = oy + 10 + idxEl * (fzSm + 6); // renglón fijo por índice — sin solapamiento
+    // Etiqueta siempre apunta hacia el centro del vidrio para no tapar los ejes ni otros elementos
+    var sx = (ex >= ox + gw/2) ? -1 : 1;   // derecha del vidrio → etiqueta a la izquierda; izquierda → a la derecha
+    var sy = (ey <= oy + gh/2) ? 1  : -1;  // mitad superior → etiqueta abajo; mitad inferior → arriba
 
     if (e.tipo==='tp') {
       var r = Math.max(4, (e.d/2)*sc);
-      var tpTxt = 'TP  \u00D8'+e.d+' mm';
-      var lblW1 = tpTxt.length * 5 + 4;
-      var col   = '#1e40af';
       out += '<g style="cursor:'+cur+'"'+evts+'>';
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+(r+4)+'" fill="transparent"/>';
-      out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+r+'" fill="white" stroke="'+col+'" stroke-width="1.5"/>';
-      out += '<line x1="'+(ex-r*1.3)+'" y1="'+ey+'" x2="'+(ex+r*1.3)+'" y2="'+ey+'" stroke="'+col+'" stroke-width="1"/>';
-      out += '<line x1="'+ex+'" y1="'+(ey-r*1.3)+'" x2="'+ex+'" y2="'+(ey+r*1.3)+'" stroke="'+col+'" stroke-width="1"/>';
-      // gancho L: horizontal del elemento al borde, luego vertical al renglón
-      out += '<line x1="'+ex+'" y1="'+ey+'" x2="'+laneX+'" y2="'+ey+'" stroke="'+col+'" stroke-width="0.7" stroke-dasharray="3,2" opacity="0.6"/>';
-      out += '<line x1="'+laneX+'" y1="'+ey+'" x2="'+laneX+'" y2="'+laneY+'" stroke="'+col+'" stroke-width="0.7" opacity="0.6"/>';
-      out += '<line x1="'+(laneX-lblW1)+'" y1="'+laneY+'" x2="'+laneX+'" y2="'+laneY+'" stroke="'+col+'" stroke-width="0.7" opacity="0.6"/>';
-      out += '<rect x="'+(laneX-lblW1)+'" y="'+(laneY-fzSm)+'" width="'+lblW1+'" height="'+(fzSm+3)+'" fill="#dbeafe" rx="2"/>';
-      out += '<text x="'+(laneX-2)+'" y="'+laneY+'" text-anchor="end" font-size="'+fzSm+'" font-weight="700" fill="'+col+'" font-family="monospace">'+tpTxt+'</text>';
+      out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+r+'" fill="white" stroke="#1e40af" stroke-width="1.5"/>';
+      out += '<line x1="'+(ex-r*1.3)+'" y1="'+ey+'" x2="'+(ex+r*1.3)+'" y2="'+ey+'" stroke="#1e40af" stroke-width="1"/>';
+      out += '<line x1="'+ex+'" y1="'+(ey-r*1.3)+'" x2="'+ex+'" y2="'+(ey+r*1.3)+'" stroke="#1e40af" stroke-width="1"/>';
+      var tpTxt = 'TP  \u00D8'+e.d+' mm';
+      var lblW1 = tpTxt.length * 5 + 4;
+      var lx = sx>0 ? ex+r+4 : ex-r-4;
+      var ly = sy>0 ? ey+r+4+fz + idxEl*(fzSm+3) : ey-r-4 - idxEl*(fzSm+3);
+      var anchor1 = sx>0 ? 'start' : 'end';
+      var rectX1  = sx>0 ? lx-1 : lx-lblW1+1;
+      out += '<rect x="'+rectX1+'" y="'+(ly-fz)+'" width="'+lblW1+'" height="'+(fzSm+3)+'" fill="#dbeafe" rx="2"/>';
+      out += '<text x="'+lx+'" y="'+ly+'" text-anchor="'+anchor1+'" font-size="'+fzSm+'" font-weight="700" fill="#1e40af" font-family="monospace">'+tpTxt+'</text>';
       out += '</g>';
     }
     if (e.tipo==='ta') {
       var re=Math.max(5, (e.de/2)*sc), ri=Math.max(2, (e.di/2)*sc);
-      var taTxt = 'TA  \u00D8'+e.de+'/'+e.di+' mm';
-      var lblW2 = taTxt.length * 5 + 4;
-      var col   = '#7c3aed';
       out += '<g style="cursor:'+cur+'"'+evts+'>';
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+(re+4)+'" fill="transparent"/>';
-      out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+re+'" fill="white" stroke="'+col+'" stroke-width="1.5"/>';
-      out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+ri+'" fill="none" stroke="'+col+'" stroke-width="0.8" stroke-dasharray="2,1.5"/>';
-      // gancho L
-      out += '<line x1="'+ex+'" y1="'+ey+'" x2="'+laneX+'" y2="'+ey+'" stroke="'+col+'" stroke-width="0.7" stroke-dasharray="3,2" opacity="0.6"/>';
-      out += '<line x1="'+laneX+'" y1="'+ey+'" x2="'+laneX+'" y2="'+laneY+'" stroke="'+col+'" stroke-width="0.7" opacity="0.6"/>';
-      out += '<line x1="'+(laneX-lblW2)+'" y1="'+laneY+'" x2="'+laneX+'" y2="'+laneY+'" stroke="'+col+'" stroke-width="0.7" opacity="0.6"/>';
-      out += '<rect x="'+(laneX-lblW2)+'" y="'+(laneY-fzSm)+'" width="'+lblW2+'" height="'+(fzSm+3)+'" fill="#f3e8ff" rx="2"/>';
-      out += '<text x="'+(laneX-2)+'" y="'+laneY+'" text-anchor="end" font-size="'+fzSm+'" font-weight="700" fill="'+col+'" font-family="monospace">'+taTxt+'</text>';
+      out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+re+'" fill="white" stroke="#7c3aed" stroke-width="1.5"/>';
+      out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+ri+'" fill="none" stroke="#7c3aed" stroke-width="0.8" stroke-dasharray="2,1.5"/>';
+      var taTxt = 'TA  \u00D8'+e.de+'/'+e.di+' mm';
+      var lblW2 = taTxt.length * 5 + 4;
+      var lx = sx>0 ? ex+re+4 : ex-re-4;
+      var ly = sy>0 ? ey+re+4+fz + idxEl*(fzSm+3) : ey-re-4 - idxEl*(fzSm+3);
+      var anchor2 = sx>0 ? 'start' : 'end';
+      var rectX2  = sx>0 ? lx-1 : lx-lblW2+1;
+      out += '<rect x="'+rectX2+'" y="'+(ly-fz)+'" width="'+lblW2+'" height="'+(fzSm+3)+'" fill="#f3e8ff" rx="2"/>';
+      out += '<text x="'+lx+'" y="'+ly+'" text-anchor="'+anchor2+'" font-size="'+fzSm+'" font-weight="700" fill="#7c3aed" font-family="monospace">'+taTxt+'</text>';
       out += '</g>';
     }
     if (e.tipo==='rs') {

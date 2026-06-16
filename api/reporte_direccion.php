@@ -44,15 +44,17 @@ $stmt = $pdo->prepare("
         SUM(o.estado = 'entregada')                                                   AS cerradas,
         SUM(o.estado = 'activa')                                                      AS abiertas,
         SUM(o.estado = 'entregada'
-            AND ft.fecha_terminado <= o.fecha_entrega)                                AS a_tiempo,
+            AND COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))) <= o.fecha_entrega) AS a_tiempo,
         SUM(o.estado = 'entregada'
-            AND ft.fecha_terminado >  o.fecha_entrega)                                AS con_retraso,
+            AND COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))) >  o.fecha_entrega) AS con_retraso,
         SUM(o.estado = 'activa'
             AND (o.fecha_entrega IS NULL OR o.fecha_entrega >= CURDATE()))            AS en_proceso,
         SUM(o.estado = 'activa'
             AND o.fecha_entrega < CURDATE())                                          AS retraso_abierto,
-        AVG(CASE WHEN o.estado = 'entregada' AND ft.fecha_terminado IS NOT NULL
-                 THEN DATEDIFF(ft.fecha_terminado, o.fecha_pedido)
+        AVG(CASE WHEN o.estado = 'entregada'
+                 THEN DATEDIFF(
+                     COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))),
+                     o.fecha_pedido)
             END)                                                                      AS prom_dias,
         SUM(o.estado = 'pendiente_vobo')                                              AS vobo_pendientes,
         SUM(UPPER(COALESCE(o.ubicacion,'')) != 'FORANEO')                             AS local,
@@ -81,15 +83,17 @@ $stmtM = $pdo->prepare("
         SUM(o.estado = 'entregada')                                                   AS cerradas,
         SUM(o.estado = 'activa')                                                      AS abiertas,
         SUM(o.estado = 'entregada'
-            AND ft.fecha_terminado <= o.fecha_entrega)                                AS a_tiempo,
+            AND COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))) <= o.fecha_entrega) AS a_tiempo,
         SUM(o.estado = 'entregada'
-            AND ft.fecha_terminado >  o.fecha_entrega)                                AS con_retraso,
+            AND COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))) >  o.fecha_entrega) AS con_retraso,
         SUM(o.estado = 'activa'
             AND (o.fecha_entrega IS NULL OR o.fecha_entrega >= CURDATE()))            AS en_proceso,
         SUM(o.estado = 'activa'
             AND o.fecha_entrega < CURDATE())                                          AS retraso_abierto,
-        AVG(CASE WHEN o.estado = 'entregada' AND ft.fecha_terminado IS NOT NULL
-                 THEN DATEDIFF(ft.fecha_terminado, o.fecha_pedido)
+        AVG(CASE WHEN o.estado = 'entregada'
+                 THEN DATEDIFF(
+                     COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))),
+                     o.fecha_pedido)
             END)                                                                      AS prom_dias,
         SUM(o.estado = 'pendiente_vobo')                                              AS vobo_pendientes,
         SUM(UPPER(COALESCE(o.ubicacion,'')) != 'FORANEO')                             AS local,
