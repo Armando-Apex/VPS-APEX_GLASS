@@ -21,6 +21,16 @@ $stmt2 = $db->prepare("SELECT * FROM cotizaciones_partidas WHERE cotizacion_id =
 $stmt2->execute([$id]);
 $partidas = $stmt2->fetchAll(PDO::FETCH_ASSOC);
 
+// Servicios adicionales por partida
+$stmtSrv = $db->prepare("SELECT cps.*, sc.nombre as servicio_nombre FROM cotizacion_partida_servicios cps LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id WHERE cps.cotizacion_id = ? ORDER BY cps.partida_id, cps.id");
+$stmtSrv->execute([$id]);
+$servicios_raw = $stmtSrv->fetchAll(PDO::FETCH_ASSOC);
+$servicios_por_partida = [];
+foreach ($servicios_raw as $srv) {
+    $servicios_por_partida[$srv['partida_id']][] = $srv;
+}
+$servicios_subtotal = (float)($c['servicios_subtotal'] ?? 0);
+
 // Datos del asesor — usa los de la BD o los del Excel como fallback
 $asesores_excel = [
     'Bethy Rocha'          => ['movil' => '81 3400 0145', 'email' => 'bethy.rocha@apex.glass'],
@@ -61,8 +71,9 @@ $subtotal = round($subtotal, 2);
 $subtotal_neto = ($descuento > 0 && $descuento < 100)
     ? round($subtotal * (1 - $descuento / 100), 2)
     : $subtotal;
-$iva   = round($subtotal_neto * 0.16, 2);
-$total = round($subtotal_neto * 1.16, 2);
+$base_gravable = round($subtotal_neto + $servicios_subtotal, 2);
+$iva   = round($base_gravable * 0.16, 2);
+$total = round($base_gravable * 1.16, 2);
 
 $fecha_formateada = '';
 if ($c['fecha']) {
@@ -271,6 +282,15 @@ tbody td.center { text-align: center; }
         <td class="right">$<?= number_format($p['precio_m2_usado'], 2) ?></td>
         <td class="right">$<?= number_format($p['subtotal'], 2) ?></td>
       </tr>
+      <?php foreach ($servicios_por_partida[$p['id']] ?? [] as $srv): ?>
+      <tr style="background:#f0fdf4;">
+        <td class="center" style="color:#16a34a;font-size:9px;font-weight:700;">+SRV</td>
+        <td colspan="5" style="color:#15803d;font-size:10px;padding-left:14px;">
+          <?= htmlspecialchars($srv['descripcion']) ?> &mdash; <?= (int)$srv['unidades_por_pieza'] ?> und &times; <?= (int)$srv['cantidad_piezas'] ?> pzs &times; $<?= number_format((float)$srv['precio_unitario'],2) ?>
+        </td>
+        <td class="right" style="color:#15803d;font-weight:700;">$<?= number_format((float)$srv['subtotal'],2) ?></td>
+      </tr>
+      <?php endforeach; ?>
     <?php endforeach; ?>
     </tbody>
   </table>
@@ -322,6 +342,12 @@ tbody td.center { text-align: center; }
       <div class="totales-row descuento">
         <span class="label">Descuento</span>
         <span class="val">-$<?= number_format($subtotal * $descuento / 100, 2) ?></span>
+      </div>
+      <?php endif; ?>
+      <?php if ($servicios_subtotal > 0): ?>
+      <div class="totales-row" style="color:#15803d;">
+        <span class="label">Servicios adicionales</span>
+        <span class="val">$<?= number_format($servicios_subtotal, 2) ?></span>
       </div>
       <?php endif; ?>
       <?php if ($iva > 0): ?>

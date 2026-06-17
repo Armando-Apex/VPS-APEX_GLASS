@@ -107,8 +107,9 @@ if ($method === 'GET') {
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { echo json_encode(['error' => 'No encontrada']); exit; }
 
-        // Recalcular total y saldo_pendiente aplicando el descuento
-        $cot['total'] = round((float)$cot['subtotal'] * (1 - (float)$cot['descuento']/100) * 1.16, 2);
+        // Recalcular total y saldo_pendiente aplicando el descuento + servicios (sin descuento)
+        $subtotal_neto = round((float)$cot['subtotal'] * (1 - (float)$cot['descuento']/100), 2);
+        $cot['total'] = round(($subtotal_neto + (float)$cot['servicios_subtotal']) * 1.16, 2);
         $cot['saldo_pendiente'] = max(0, round($cot['total'] - (float)$cot['saldo_pagado'], 2));
 
         $stmt2 = $db->prepare("
@@ -119,7 +120,23 @@ if ($method === 'GET') {
             ORDER BY cp.num_partida ASC
         ");
         $stmt2->execute([$id]);
-        $cot['partidas'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+        $partidas = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+        // Adjuntar servicios a cada partida
+        $stmtSrv = $db->prepare("
+            SELECT cps.*, sc.nombre as servicio_nombre
+            FROM cotizacion_partida_servicios cps
+            LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id
+            WHERE cps.partida_id = ?
+            ORDER BY cps.id ASC
+        ");
+        foreach ($partidas as &$par) {
+            $stmtSrv->execute([$par['id']]);
+            $par['servicios'] = $stmtSrv->fetchAll(PDO::FETCH_ASSOC);
+        }
+        unset($par);
+
+        $cot['partidas'] = $partidas;
         echo json_encode($cot); exit;
     }
 
@@ -141,9 +158,9 @@ if ($method === 'GET') {
     $stmt = $db->prepare("
         SELECT c.id, c.folio, c.fecha, c.cliente_nombre, c.asesor_nombre,
                c.proyecto, c.estatus,
-               ROUND(COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) * 1.16, 2) AS total,
+               ROUND((COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) AS total,
                c.fecha_entrega, c.localidad, c.ciudad_destino, c.condicion_pago,
-               GREATEST(0, ROUND(COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+               GREATEST(0, ROUND((COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                c.entrega_bloqueada,
                o.folio AS orden_folio
         FROM cotizaciones c
@@ -285,6 +302,84 @@ if ($method === 'POST') {
             $db->rollBack();
             echo json_encode(['error' => $e->getMessage()]); exit;
         }
+    }
+
+    // ── Agregar servicio a partida ───────────────────────────────────────────────
+    if ($accion === 'agregar_servicio') {
+        $cot_id         = (int)($body['cotizacion_id']    ?? 0);
+        $partida_id     = (int)($body['partida_id']       ?? 0);
+        $servicio_id    = (int)($body['servicio_id']      ?? 0);
+        $und_x_pieza    = max(1, (int)($body['unidades_por_pieza'] ?? 1));
+        $cant_piezas    = max(1, (int)($body['cantidad_piezas']    ?? 1));
+
+        if (!$cot_id || !$partida_id || !$servicio_id) {
+            echo json_encode(['error' => 'Datos incompletos']); exit;
+        }
+
+        $stmtS = $db->prepare("SELECT id, nombre, precio_default FROM servicios_catalogo WHERE id = ? AND activo = 1");
+        $stmtS->execute([$servicio_id]);
+        $srv = $stmtS->fetch(PDO::FETCH_ASSOC);
+        if (!$srv) { echo json_encode(['error' => 'Servicio no encontrado']); exit; }
+
+        // Verificar que la partida pertenece a la cotización
+        $stmtP = $db->prepare("SELECT id FROM cotizaciones_partidas WHERE id = ? AND cotizacion_id = ?");
+        $stmtP->execute([$partida_id, $cot_id]);
+        if (!$stmtP->fetch()) { echo json_encode(['error' => 'Partida no pertenece a la cotización']); exit; }
+
+        $precio    = (float)$srv['precio_default'];
+        $subtotal  = round($precio * $und_x_pieza * $cant_piezas, 2);
+
+        $db->beginTransaction();
+        try {
+            $db->prepare("INSERT INTO cotizacion_partida_servicios
+                (cotizacion_id, partida_id, servicio_id, descripcion, precio_unitario, unidades_por_pieza, cantidad_piezas, subtotal)
+                VALUES (?,?,?,?,?,?,?,?)
+            ")->execute([$cot_id, $partida_id, $servicio_id, $srv['nombre'], $precio, $und_x_pieza, $cant_piezas, $subtotal]);
+
+            // Recalcular servicios_subtotal de la cotización
+            $st = $db->prepare("SELECT COALESCE(SUM(subtotal),0) as srv_total FROM cotizacion_partida_servicios WHERE cotizacion_id = ?");
+            $st->execute([$cot_id]);
+            $srv_total = (float)$st->fetchColumn();
+            $db->prepare("UPDATE cotizaciones SET servicios_subtotal = ?, updated_at = NOW() WHERE id = ?")
+               ->execute([$srv_total, $cot_id]);
+
+            $db->commit();
+            echo json_encode(['ok' => true, 'servicios_subtotal' => $srv_total, 'nuevo_servicio' => [
+                'id' => (int)$db->lastInsertId(), 'descripcion' => $srv['nombre'],
+                'precio_unitario' => $precio, 'unidades_por_pieza' => $und_x_pieza,
+                'cantidad_piezas' => $cant_piezas, 'subtotal' => $subtotal,
+            ]]);
+        } catch (Exception $e) {
+            $db->rollBack();
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    // ── Eliminar servicio de partida ──────────────────────────────────────────
+    if ($accion === 'eliminar_servicio') {
+        $srv_partida_id = (int)($body['servicio_partida_id'] ?? 0);
+        $cot_id         = (int)($body['cotizacion_id']       ?? 0);
+        if (!$srv_partida_id || !$cot_id) { echo json_encode(['error' => 'Datos incompletos']); exit; }
+
+        $db->beginTransaction();
+        try {
+            $db->prepare("DELETE FROM cotizacion_partida_servicios WHERE id = ? AND cotizacion_id = ?")
+               ->execute([$srv_partida_id, $cot_id]);
+
+            $st = $db->prepare("SELECT COALESCE(SUM(subtotal),0) as srv_total FROM cotizacion_partida_servicios WHERE cotizacion_id = ?");
+            $st->execute([$cot_id]);
+            $srv_total = (float)$st->fetchColumn();
+            $db->prepare("UPDATE cotizaciones SET servicios_subtotal = ?, updated_at = NOW() WHERE id = ?")
+               ->execute([$srv_total, $cot_id]);
+
+            $db->commit();
+            echo json_encode(['ok' => true, 'servicios_subtotal' => $srv_total]);
+        } catch (Exception $e) {
+            $db->rollBack();
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+        exit;
     }
 
     // Crear cotización nueva
@@ -549,6 +644,17 @@ if ($method === 'PUT') {
                 $id
             ]);
 
+            // Preservar servicios antes de borrar partidas (mapeados por num_partida)
+            $stmtSrvBak = $db->prepare("
+                SELECT cps.*, cp.num_partida
+                FROM cotizacion_partida_servicios cps
+                JOIN cotizaciones_partidas cp ON cp.id = cps.partida_id
+                WHERE cps.cotizacion_id = ?
+            ");
+            $stmtSrvBak->execute([$id]);
+            $srvBackup = $stmtSrvBak->fetchAll(PDO::FETCH_ASSOC);
+            $db->prepare("DELETE FROM cotizacion_partida_servicios WHERE cotizacion_id = ?")->execute([$id]);
+
             // Reemplazar partidas
             $db->prepare("DELETE FROM cotizaciones_partidas WHERE cotizacion_id = ?")->execute([$id]);
 
@@ -559,9 +665,11 @@ if ($method === 'PUT') {
                  precio_unitario, subtotal, iva, total, comentarios_etiqueta)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ");
+            $nuevosIdsPorNumPartida = [];
             foreach ($partidas_data as $i => $p) {
+                $numPart = $i + 1;
                 $stmtP->execute([
-                    $id, $i + 1,
+                    $id, $numPart,
                     $p['cristal_id'], $p['cristal_nombre'], $p['cristal_etiqueta'],
                     $p['precio_m2_usado'], $p['cantidad'], $p['ancho'], $p['alto'], $p['m2'],
                     $p['detalles'], $p['cpb'], $p['resaques'],
@@ -569,6 +677,30 @@ if ($method === 'PUT') {
                     $p['precio_unitario'], $p['subtotal'], $p['iva'], $p['total'],
                     $p['comentarios_etiqueta']
                 ]);
+                $nuevosIdsPorNumPartida[$numPart] = (int)$db->lastInsertId();
+            }
+
+            // Restaurar servicios con nuevos partida_ids
+            $srv_restaurado = 0;
+            if (!empty($srvBackup)) {
+                $stmtSrvIns = $db->prepare("INSERT INTO cotizacion_partida_servicios
+                    (cotizacion_id, partida_id, servicio_id, descripcion, precio_unitario, unidades_por_pieza, cantidad_piezas, subtotal)
+                    VALUES (?,?,?,?,?,?,?,?)");
+                foreach ($srvBackup as $s) {
+                    $nuevoPartidaId = $nuevosIdsPorNumPartida[$s['num_partida']] ?? null;
+                    if (!$nuevoPartidaId) continue;
+                    $stmtSrvIns->execute([
+                        $id, $nuevoPartidaId, $s['servicio_id'] ?: null, $s['descripcion'],
+                        $s['precio_unitario'], $s['unidades_por_pieza'], $s['cantidad_piezas'], $s['subtotal'],
+                    ]);
+                    $srv_restaurado += (float)$s['subtotal'];
+                }
+                // Actualizar servicios_subtotal si cambió (partidas eliminadas pierden sus servicios)
+                $stSrv = $db->prepare("SELECT COALESCE(SUM(subtotal),0) FROM cotizacion_partida_servicios WHERE cotizacion_id = ?");
+                $stSrv->execute([$id]);
+                $srv_total_real = (float)$stSrv->fetchColumn();
+                $db->prepare("UPDATE cotizaciones SET servicios_subtotal = ? WHERE id = ?")
+                   ->execute([$srv_total_real, $id]);
             }
 
             $db->commit();

@@ -15,6 +15,7 @@ header('Content-Type: text/html; charset=utf-8');
 $es_admin      = in_array($_rol, ['dir_admin','dueno']);
 $puede_editar  = in_array($_rol, ['dir_admin','dueno','comercial']);
 $es_dir_admin  = ($_rol === 'dir_admin');
+$puede_archivos = in_array($_rol, ['dir_admin','dueno','comercial','administracion']);
 $modo         = $id_php ? 'ver' : 'nuevo';
 $id_cot       = $id_php;
 ?>
@@ -53,6 +54,29 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .totales-box { background: #f8fafc; border-radius: 12px; padding: 20px; margin-top: 16px; max-width: 380px; margin-left: auto; }
 .totales-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 14px; color: #374151; }
 .totales-row.total-final { font-size: 20px; font-weight: 800; color: #1e293b; border-top: 2px solid #e2e8f0; padding-top: 12px; margin-top: 4px; }
+/* Servicios adicionales por partida */
+.srv-wrap { margin: -2px 0 8px 34px; }
+.srv-row { display: flex; align-items: center; gap: 8px; padding: 5px 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; margin-bottom: 4px; font-size: 12px; }
+.srv-badge { font-size: 10px; font-weight: 700; background: #16a34a; color: white; padding: 2px 7px; border-radius: 99px; white-space: nowrap; }
+.srv-desc { font-weight: 600; color: #15803d; flex: 1; }
+.srv-qty { color: #64748b; white-space: nowrap; }
+.srv-precio { color: #64748b; white-space: nowrap; }
+.srv-sub { font-weight: 700; color: #15803d; white-space: nowrap; }
+.srv-del-btn { background: none; border: none; color: #dc2626; cursor: pointer; font-size: 15px; padding: 0 4px; line-height: 1; }
+.srv-del-btn:hover { color: #b91c1c; }
+.btn-add-srv { background: none; border: 1.5px dashed #16a34a; color: #16a34a; padding: 3px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; margin-top: 2px; }
+.btn-add-srv:hover { background: #f0fdf4; }
+.srv-form { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-top: 6px; }
+.srv-form-inner { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.srv-form select { padding: 6px 8px; border: 1.5px solid #e2e8f0; border-radius: 6px; font-size: 12px; min-width: 180px; }
+.srv-form-fields { display: flex; gap: 10px; align-items: center; font-size: 12px; }
+.srv-form-fields label { display: flex; flex-direction: column; gap: 2px; font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; }
+.srv-form-fields input { padding: 5px 6px; border: 1.5px solid #e2e8f0; border-radius: 6px; font-size: 12px; width: 60px; }
+.srv-total-preview { font-size: 12px; font-weight: 700; color: #1e293b; }
+.srv-form-btns { display: flex; gap: 6px; align-items: center; }
+.btn-srv-guardar { background: #16a34a; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.btn-srv-guardar:hover { background: #15803d; }
+.btn-srv-cancelar { background: none; border: 1px solid #e2e8f0; color: #64748b; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; }
 /* Botones */
 .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: opacity .15s; }
 .btn:hover { opacity: .85; }
@@ -131,6 +155,28 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .motivo-box textarea { width: 100%; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 13px; resize: vertical; outline: none; }
 .motivo-box textarea:focus { border-color: #6366f1; }
 .banner-saldo-favor.show { display: flex; }
+/* Archivos adjuntos */
+.arch-card { background: white; border-radius: 14px; padding: 20px 24px; box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 20px; }
+.arch-card-title { font-size: 15px; font-weight: 800; color: #1e293b; margin-bottom: 16px; }
+.arch-upload-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; }
+.arch-upload-row select, .arch-upload-row input[type=file] { padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; background: white; outline: none; }
+.arch-upload-row select:focus { border-color: #2563eb; }
+.btn-arch-subir { padding: 8px 18px; background: #16a34a; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.btn-arch-subir:disabled { opacity: .5; cursor: not-allowed; }
+.arch-msg-inline { font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 6px; display: none; }
+.arch-msg-inline.ok  { background: #dcfce7; color: #16a34a; }
+.arch-msg-inline.err { background: #fee2e2; color: #dc2626; }
+.arch-file-list { display: flex; flex-direction: column; gap: 8px; }
+.arch-file-row { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: 1px solid #f1f5f9; border-radius: 8px; font-size: 13px; }
+.arch-file-cat { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.arch-cat-factura             { background: #dbeafe; color: #1d4ed8; }
+.arch-cat-comprobante_de_pago { background: #dcfce7; color: #15803d; }
+.arch-cat-croquis             { background: #fef3c7; color: #b45309; }
+.arch-file-name { flex: 1; color: #374151; }
+.arch-file-meta { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.btn-arch-ver { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0; background: white; color: #2563eb; cursor: pointer; }
+.btn-arch-ver:hover { background: #eff6ff; }
+.arch-empty { text-align: center; padding: 20px; color: #94a3b8; font-size: 13px; }
 /* Autocomplete cliente */
 .autocomplete-wrap { position: relative; }
 .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 100; max-height: 240px; overflow-y: auto; }
@@ -161,11 +207,17 @@ var partidas            = [];
 var _buscarTimer        = null;
 var _dataCot            = null;
 var _authStatus         = null;
+var _srvCatalogo        = [];
+var _canAddSrv          = false;
 
 // ── Inicializar ────────────────────────────────────────────────────────────────
 async function init() {
   var res = await fetch(API_CRIS + '?activos=1');
   cristales = await res.json();
+  try {
+    var resSrv = await fetch('../api/servicios_catalogo.php');
+    _srvCatalogo = await resSrv.json();
+  } catch(e) { _srvCatalogo = []; }
 
   if (MODO === 'nuevo') {
     renderFormulario(null);
@@ -198,6 +250,8 @@ function renderFormulario(data) {
   _dataCot = data;
   // Cargar partidas en el array local
   partidas = (data && data.partidas) ? data.partidas.slice() : [];
+  // Servicios: se pueden agregar en cotizaciones existentes no canceladas
+  _canAddSrv = !!(PUEDE_EDITAR && data && data.id && data.estatus === 'cotizacion');
 
   var html = '';
 
@@ -376,8 +430,9 @@ function renderFormulario(data) {
 
   // Totales
   html += '<div class="totales-box" id="totalesBox">';
-  html += '<div class="totales-row"><span>Subtotal</span><span id="tSubtotal">$0.00</span></div>';
+  html += '<div class="totales-row"><span>Subtotal cristales</span><span id="tSubtotal">$0.00</span></div>';
   html += '<div class="totales-row"><span>Descuento</span><span id="tDescuento" style="color:#dc2626">-$0.00</span></div>';
+  html += '<div class="totales-row" id="tSrvRow" style="display:none"><span>Servicios adicionales</span><span id="tServicios" style="color:#16a34a">$0.00</span></div>';
   html += '<div class="totales-row"><span>Base gravable</span><span id="tBase">$0.00</span></div>';
   html += '<div class="totales-row"><span>IVA 16%</span><span id="tIva">$0.00</span></div>';
   html += '<div class="totales-row total-final"><span>TOTAL</span><span id="tTotal">$0.00</span></div>';
@@ -397,6 +452,11 @@ function renderFormulario(data) {
     html += '<div id="cq-container"></div>';
   }
 
+  // Archivos adjuntos — solo cuando ya es orden
+  if (!esNuevo && (estatus === 'orden' || estatus === 'entregada')) {
+    html += '<div id="arch-container"></div>';
+  }
+
   document.getElementById('mainContent').innerHTML = html;
   renderPartidas(editable);
   recalcular();
@@ -404,6 +464,11 @@ function renderFormulario(data) {
   // Cargar banner de autorización si hay descuento > 10%
   if (!esNuevo && data && parseFloat(data.descuento || 0) > 10) {
     _cargarAuthStatus();
+  }
+
+  // Cargar archivos adjuntos si ya es orden
+  if (!esNuevo && (estatus === 'orden' || estatus === 'entregada') && data.orden_folio) {
+    cargarArchivos(data.orden_folio);
   }
 
   // Cargar módulo croquis técnicos
@@ -518,6 +583,49 @@ function renderPartidas(editable) {
       html += '<span></span>';
     }
     html += '</div>';
+
+    // Sección de servicios (solo cotizaciones existentes)
+    if (_dataCot && _dataCot.id) {
+      var srvs = p.servicios || [];
+      html += '<div class="srv-wrap" id="srv-wrap-' + i + '">';
+      for (var s = 0; s < srvs.length; s++) {
+        var srv = srvs[s];
+        html += '<div class="srv-row">';
+        html += '<span class="srv-badge">+ Servicio</span>';
+        html += '<span class="srv-desc">' + escHtml(srv.descripcion) + '</span>';
+        html += '<span class="srv-qty">' + srv.unidades_por_pieza + ' und &times; ' + srv.cantidad_piezas + ' pzs</span>';
+        html += '<span class="srv-precio">$' + parseFloat(srv.precio_unitario).toFixed(2) + '/und</span>';
+        html += '<span class="srv-sub">= $' + parseFloat(srv.subtotal).toFixed(2) + '</span>';
+        if (_canAddSrv) {
+          html += '<button class="srv-del-btn" onclick="window.cotEliminarServicio(' + srv.id + ', ' + _dataCot.id + ', ' + i + ')">&#215;</button>';
+        }
+        html += '</div>';
+      }
+      if (_canAddSrv) {
+        html += '<div class="srv-form" id="srv-form-' + i + '" style="display:none">';
+        html += '<div class="srv-form-inner">';
+        html += '<select id="srv-cat-' + i + '" onchange="window.cotSrvCalc(' + i + ', ' + (p.cantidad || 1) + ')">';
+        html += '<option value="">-- Seleccionar servicio --</option>';
+        for (var k = 0; k < _srvCatalogo.length; k++) {
+          var sc = _srvCatalogo[k];
+          html += '<option value="' + sc.id + '" data-precio="' + sc.precio_default + '">' + escHtml(sc.nombre) + ' ($' + parseFloat(sc.precio_default).toFixed(2) + ')</option>';
+        }
+        html += '</select>';
+        html += '<div class="srv-form-fields">';
+        html += '<label>Und/pieza<input type="number" id="srv-und-' + i + '" value="1" min="1" onchange="window.cotSrvCalc(' + i + ', ' + (p.cantidad || 1) + ')"></label>';
+        html += '<label>Piezas<input type="number" id="srv-pzs-' + i + '" value="' + (p.cantidad || 1) + '" min="1" onchange="window.cotSrvCalc(' + i + ', ' + (p.cantidad || 1) + ')"></label>';
+        html += '<span class="srv-total-preview">= <strong id="srv-total-' + i + '">$0.00</strong></span>';
+        html += '</div>';
+        html += '<div class="srv-form-btns">';
+        html += '<button class="btn-srv-guardar" onclick="window.cotGuardarServicio(' + i + ', ' + (p.id || 0) + ', ' + _dataCot.id + ')">Agregar</button>';
+        html += '<button class="btn-srv-cancelar" onclick="document.getElementById(\'srv-form-' + i + '\').style.display=\'none\'">Cancelar</button>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        html += '<button class="btn-add-srv" onclick="window.cotToggleSrvForm(' + i + ')">+ Servicio</button>';
+      }
+      html += '</div>';
+    }
   }
   cont.innerHTML = html;
 }
@@ -582,15 +690,20 @@ function recalcular() {
     var precio  = parseFloat(cris.precio_m2 || cris.precio_m2_usado || 0);
     subtotal   += cantidad * m2 * precio;
   }
-  var pctDesc  = parseFloat(document.getElementById('fDescuento')?.value || 0);
+  var pctDesc   = parseFloat(document.getElementById('fDescuento')?.value || 0);
   var descuento = subtotal * pctDesc / 100;
-  var base     = subtotal - descuento;
-  var iva      = base * 0.16;
-  var total    = base + iva;
+  var baseNeta  = subtotal - descuento;
+  var srvTotal  = _dataCot ? parseFloat(_dataCot.servicios_subtotal || 0) : 0;
+  var base      = baseNeta + srvTotal;
+  var iva       = base * 0.16;
+  var total     = base + iva;
 
   function fmt(n) { return '$' + n.toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); }
   if (document.getElementById('tSubtotal'))  document.getElementById('tSubtotal').textContent  = fmt(subtotal);
   if (document.getElementById('tDescuento')) document.getElementById('tDescuento').textContent = '-' + fmt(descuento);
+  var srvRow = document.getElementById('tSrvRow');
+  if (srvRow) srvRow.style.display = srvTotal > 0 ? '' : 'none';
+  if (document.getElementById('tServicios')) document.getElementById('tServicios').textContent = fmt(srvTotal);
   if (document.getElementById('tBase'))      document.getElementById('tBase').textContent      = fmt(base);
   if (document.getElementById('tIva'))       document.getElementById('tIva').textContent       = fmt(iva);
   if (document.getElementById('tTotal'))     document.getElementById('tTotal').textContent     = fmt(total);
@@ -1210,6 +1323,168 @@ function pedirMotivoDescuento(pct) {
   });
 }
 
+// ── Gestión de servicios adicionales ─────────────────────────────────────────
+function cotToggleSrvForm(idx) {
+  var el = document.getElementById('srv-form-' + idx);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function cotSrvCalc(idx, defaultPzs) {
+  var catEl = document.getElementById('srv-cat-' + idx);
+  var undEl = document.getElementById('srv-und-' + idx);
+  var pzsEl = document.getElementById('srv-pzs-' + idx);
+  var totEl = document.getElementById('srv-total-' + idx);
+  if (!catEl || !totEl) return;
+  var opt    = catEl.options[catEl.selectedIndex];
+  var precio = opt ? parseFloat(opt.getAttribute('data-precio') || 0) : 0;
+  var und    = parseInt(undEl ? undEl.value : 1) || 1;
+  var pzs    = parseInt(pzsEl ? pzsEl.value : defaultPzs) || 1;
+  var total  = precio * und * pzs;
+  totEl.textContent = '$' + total.toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+async function cotGuardarServicio(idx, partidaId, cotId) {
+  var catEl = document.getElementById('srv-cat-' + idx);
+  var undEl = document.getElementById('srv-und-' + idx);
+  var pzsEl = document.getElementById('srv-pzs-' + idx);
+  if (!catEl || !catEl.value) { alert('Selecciona un servicio'); return; }
+  if (!partidaId) { alert('Error: partida sin ID. Guarda la cotización primero.'); return; }
+  var btn = document.querySelector('#srv-form-' + idx + ' .btn-srv-guardar');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+  try {
+    var res = await fetch('../api/cotizaciones.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        accion:            'agregar_servicio',
+        cotizacion_id:     cotId,
+        partida_id:        partidaId,
+        servicio_id:       parseInt(catEl.value),
+        unidades_por_pieza: parseInt(undEl ? undEl.value : 1) || 1,
+        cantidad_piezas:    parseInt(pzsEl ? pzsEl.value : 1) || 1,
+      }),
+    });
+    var data = await res.json();
+    if (data.ok) {
+      var res2 = await fetch('../api/cotizaciones.php?id=' + cotId);
+      var cot  = await res2.json();
+      _dataCot = cot;
+      partidas = cot.partidas ? cot.partidas.slice() : [];
+      renderPartidas(_canAddSrv);
+      recalcular();
+    } else {
+      alert(data.error || 'Error al agregar servicio');
+    }
+  } catch(e) { alert('Error de conexión'); }
+  if (btn) { btn.disabled = false; btn.textContent = 'Agregar'; }
+}
+
+async function cotEliminarServicio(srvId, cotId, idx) {
+  if (!confirm('¿Eliminar este servicio?')) return;
+  try {
+    var res = await fetch('../api/cotizaciones.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        accion:              'eliminar_servicio',
+        servicio_partida_id: srvId,
+        cotizacion_id:       cotId,
+      }),
+    });
+    var data = await res.json();
+    if (data.ok) {
+      var res2 = await fetch('../api/cotizaciones.php?id=' + cotId);
+      var cot  = await res2.json();
+      _dataCot = cot;
+      partidas = cot.partidas ? cot.partidas.slice() : [];
+      renderPartidas(_canAddSrv);
+      recalcular();
+    } else {
+      alert(data.error || 'Error al eliminar');
+    }
+  } catch(e) { alert('Error de conexión'); }
+}
+
+window.cotToggleSrvForm    = cotToggleSrvForm;
+window.cotSrvCalc          = cotSrvCalc;
+window.cotGuardarServicio  = cotGuardarServicio;
+window.cotEliminarServicio = cotEliminarServicio;
+
+// ── Archivos adjuntos ─────────────────────────────────────────────────────────
+var API_ARCH       = '../api/archivos_ordenes.php';
+var PUEDE_ARCHIVOS = <?= $puede_archivos ? 'true' : 'false' ?>;
+
+function cargarArchivos(folioOrden) {
+  if (!folioOrden) return;
+  fetch(API_ARCH + '?accion=listar&folio=' + encodeURIComponent(folioOrden))
+    .then(function(r) { return r.json(); })
+    .then(function(data) { renderArchivos(folioOrden, Array.isArray(data) ? data : []); })
+    .catch(function() { renderArchivos(folioOrden, []); });
+}
+
+function renderArchivos(folioOrden, lista) {
+  var cont = document.getElementById('arch-container');
+  if (!cont) return;
+  var CATS = { factura:'Factura', comprobante_de_pago:'Comprobante de pago', croquis:'Croquis' };
+  var uploadHtml = '';
+  if (PUEDE_ARCHIVOS) {
+    uploadHtml = '<div class="arch-upload-row">'
+      + '<select id="cot-arch-cat"><option value="">— Categoría —</option>'
+      + '<option value="factura">Factura</option>'
+      + '<option value="comprobante_de_pago">Comprobante de pago</option>'
+      + '<option value="croquis">Croquis</option></select>'
+      + '<input type="file" id="cot-arch-file" accept=".jpg,.jpeg,.png,.pdf">'
+      + '<button class="btn-arch-subir" id="cot-arch-btn" onclick="ModCotizacion._subirArchivo(\'' + escJs(folioOrden) + '\')">&#8679; Subir</button>'
+      + '<span class="arch-msg-inline" id="cot-arch-msg"></span>'
+      + '</div>';
+  }
+  var listaHtml = lista.length
+    ? '<div class="arch-file-list">' + lista.map(function(a) {
+        var cat   = CATS[a.categoria] || a.categoria;
+        var ext   = (a.nombre_servidor.split('.').pop() || '').toLowerCase();
+        var icono = ext === 'pdf' ? '&#128196;' : '&#128444;&#65039;';
+        return '<div class="arch-file-row">'
+          + '<span class="arch-file-cat arch-cat-' + a.categoria + '">' + cat + '</span>'
+          + '<span class="arch-file-name">' + icono + ' ' + escHtml(a.nombre_original || '') + '</span>'
+          + '<span class="arch-file-meta">' + escHtml(a.subido_por || '') + '</span>'
+          + '<button class="btn-arch-ver" onclick="window.open(\'' + API_ARCH + '?accion=descargar&id=' + a.id + '\',\'_blank\')">&#128065; Ver</button>'
+          + '</div>';
+      }).join('') + '</div>'
+    : '<div class="arch-empty">Sin archivos adjuntos</div>';
+  cont.innerHTML = '<div class="arch-card"><div class="arch-card-title">&#128193; Archivos adjuntos</div>' + uploadHtml + listaHtml + '</div>';
+}
+
+function subirArchivo(folioOrden) {
+  var cat  = (document.getElementById('cot-arch-cat').value || '').trim();
+  var file = document.getElementById('cot-arch-file').files[0];
+  var msg  = document.getElementById('cot-arch-msg');
+  var btn  = document.getElementById('cot-arch-btn');
+  if (!cat)  { msg.textContent = 'Selecciona categoría'; msg.className = 'arch-msg-inline err'; msg.style.display = 'inline'; return; }
+  if (!file) { msg.textContent = 'Selecciona un archivo'; msg.className = 'arch-msg-inline err'; msg.style.display = 'inline'; return; }
+  btn.disabled = true; btn.textContent = 'Subiendo...';
+  msg.style.display = 'none';
+  var fd = new FormData();
+  fd.append('folio',     folioOrden);
+  fd.append('categoria', cat);
+  fd.append('archivo',   file);
+  fetch(API_ARCH + '?accion=subir', { method: 'POST', body: fd })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        msg.textContent = 'Archivo subido'; msg.className = 'arch-msg-inline ok'; msg.style.display = 'inline';
+        document.getElementById('cot-arch-cat').value  = '';
+        document.getElementById('cot-arch-file').value = '';
+        setTimeout(function() { msg.style.display = 'none'; }, 3000);
+        cargarArchivos(folioOrden);
+      } else {
+        msg.textContent = d.error || 'Error al subir'; msg.className = 'arch-msg-inline err'; msg.style.display = 'inline';
+      }
+    })
+    .catch(function() { msg.textContent = 'Error de conexión'; msg.className = 'arch-msg-inline err'; msg.style.display = 'inline'; })
+    .finally(function() { btn.disabled = false; btn.textContent = '&#8679; Subir'; });
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function etiquetaEstatus(s) {
   var map = { cotizacion:'Cotización', orden:'Orden de Producción', entregada:'Entregada', cancelada:'Cancelada' };
@@ -1241,6 +1516,7 @@ return {
   _imprimirRemision:  imprimirRemision,
   _imprimirEtiquetas:  imprimirEtiquetas,
   _imprimirSalida:     imprimirSalida,
+  _subirArchivo:       subirArchivo,
   _abrirCorreccion:    abrirCorreccion,
   _cerrarCorreccion:   cerrarCorreccion,
   _corrTab:            corrTab,

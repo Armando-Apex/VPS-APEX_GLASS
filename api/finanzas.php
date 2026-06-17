@@ -83,8 +83,8 @@ if ($method === 'GET') {
             SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_pedido,
                    c.localidad, c.ciudad_destino, c.tipo_entrega,
                    c.id as cot_id,
-                   ROUND(COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) * 1.16, 2) AS total,
-                   GREATEST(0, ROUND(COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+                   ROUND((COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) AS total,
+                   GREATEST(0, ROUND((COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                    c.saldo_pagado,
                    c.condicion_pago, c.folio as cot_folio
             FROM ordenes o
@@ -101,8 +101,8 @@ if ($method === 'GET') {
 
         $stmt = $db->prepare("
             SELECT o.*, c.localidad, c.id as cot_id,
-                   ROUND(COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) * 1.16, 2) AS total,
-                   GREATEST(0, ROUND(COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+                   ROUND((COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) AS total,
+                   GREATEST(0, ROUND((COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                    c.saldo_pagado,
                    c.condicion_pago, c.folio as cot_folio, c.vobo_por, c.vobo_at, c.cliente_id
             FROM ordenes o
@@ -134,8 +134,8 @@ if ($method === 'GET') {
             SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_pedido,
                    o.estado, c.localidad, c.ciudad_destino, c.tipo_entrega,
                    c.id as cot_id,
-                   ROUND(COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) * 1.16, 2) AS total,
-                   GREATEST(0, ROUND(COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+                   ROUND((COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) AS total,
+                   GREATEST(0, ROUND((COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                    c.saldo_pagado,
                    c.condicion_pago, c.folio as cot_folio, c.vobo_por, c.vobo_at,
                    COALESCE(c.estatus_pago, 'pendiente') as estatus_pago
@@ -234,10 +234,10 @@ if ($method === 'POST') {
             $db->commit();
 
             // Devolver saldo actualizado
-            $stmt = $db->prepare("SELECT saldo_pagado, subtotal, descuento FROM cotizaciones WHERE id = ?");
+            $stmt = $db->prepare("SELECT saldo_pagado, subtotal, descuento, servicios_subtotal FROM cotizaciones WHERE id = ?");
             $stmt->execute([$cot_id]);
             $cot = $stmt->fetch(PDO::FETCH_ASSOC);
-            $total_real = round((float)$cot['subtotal'] * (1 - (float)$cot['descuento']/100) * 1.16, 2);
+            $total_real = round(((float)$cot['subtotal'] * (1 - (float)$cot['descuento']/100) + (float)$cot['servicios_subtotal']) * 1.16, 2);
 
             echo json_encode([
                 'ok'           => true,
