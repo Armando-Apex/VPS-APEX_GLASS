@@ -471,6 +471,7 @@ Próximo UPD disponible: **UPD-059**
 | UPD-084 | 16-jun | Armando | Modal Corregir: agrega campos Ancho mm y Alto mm editables por partida; backend recalcula m2, precio_unitario y propaga a piezas |
 | UPD-085 | 16-jun | Armando | Reporte Dirección: 6 KPIs nuevos — tasa conversión cotizaciones, rendimiento por asesor (órdenes+ventas), top 5 clientes, tasa de reproceso, valor total almacén, ocupación horno por semana |
 | UPD-086 | 16-jun | Armando | Fix retraso: ahora se mide por fecha_terminado (última pieza en 'terminado') no por fecha_cierre — el cliente puede recoger tarde sin generar retraso de producción |
+| UPD-087 | 17-jun | Mando | Reporte Dirección: barra "% Entrega a tiempo" ahora es apilada con 3 segmentos (verde=A tiempo, rojo=Con retraso, naranja=En proceso) proporcionales al total |
 
 ---
 
@@ -481,4 +482,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-087**
+**Próximo UPD disponible: UPD-088**

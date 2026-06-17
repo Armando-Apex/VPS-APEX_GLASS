@@ -219,15 +219,27 @@ function rdRender(rep, dash, inv) {
     '<div class="metric-card"><div class="metric-icon">&#x1F4E6;</div><div><div class="metric-num" style="font-size:18px">' + fmtMXN(valorAlmacen) + '</div><div class="metric-lbl">Valor almac&#233;n</div></div></div>' +
   '</div>';
 
-  html += `<div class="efectividad-card">
-    <div class="efect-header"><div class="efect-title">% Entrega a tiempo</div><div class="efect-pct" style="color:${pctColor}">${pctTiempo}%</div></div>
-    <div class="efect-bar"><div class="efect-fill" style="width:${pctTiempo}%"></div></div>
-    <div class="efect-legend">
-      <span><span class="leg-dot" style="background:#16a34a"></span>${r.a_tiempo||0} A tiempo</span>
-      <span><span class="leg-dot" style="background:#dc2626"></span>${r.con_retraso||0} Con retraso</span>
-      <span><span class="leg-dot" style="background:#d97706"></span>${r.en_proceso||0} En proceso</span>
-    </div>
-  </div>`;
+  var bATiempo   = parseInt(r.a_tiempo||0);
+  var bRetraso   = parseInt(r.con_retraso||0);
+  var bEnProceso = parseInt(r.en_proceso||0);
+  var totalBarra   = bATiempo + bRetraso + bEnProceso;
+  var pctATiempo   = totalBarra > 0 ? (bATiempo   / totalBarra * 100).toFixed(1) : 0;
+  var pctRetraso   = totalBarra > 0 ? (bRetraso   / totalBarra * 100).toFixed(1) : 0;
+  var pctEnProceso = totalBarra > 0 ? (bEnProceso / totalBarra * 100).toFixed(1) : 0;
+
+  html += '<div class="efectividad-card">' +
+    '<div class="efect-header"><div class="efect-title">% Entrega a tiempo</div><div class="efect-pct" style="color:' + pctColor + '">' + pctTiempo + '%</div></div>' +
+    '<div class="efect-bar" style="display:flex;border-radius:6px;overflow:hidden;height:18px">' +
+      (pctATiempo   > 0 ? '<div style="width:' + pctATiempo   + '%;background:#16a34a;transition:width .4s"></div>' : '') +
+      (pctRetraso   > 0 ? '<div style="width:' + pctRetraso   + '%;background:#dc2626;transition:width .4s"></div>' : '') +
+      (pctEnProceso > 0 ? '<div style="width:' + pctEnProceso + '%;background:#d97706;transition:width .4s"></div>' : '') +
+    '</div>' +
+    '<div class="efect-legend">' +
+      '<span><span class="leg-dot" style="background:#16a34a"></span>' + (r.a_tiempo||0) + ' A tiempo (' + pctATiempo + '%)</span>' +
+      '<span><span class="leg-dot" style="background:#dc2626"></span>' + (r.con_retraso||0) + ' Con retraso (' + pctRetraso + '%)</span>' +
+      '<span><span class="leg-dot" style="background:#d97706"></span>' + (r.en_proceso||0) + ' En proceso (' + pctEnProceso + '%)</span>' +
+    '</div>' +
+  '</div>';
 
   if (mensual.length > 0) {
     const totRow = mensual.find(m => m.es_total) || {};

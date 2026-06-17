@@ -236,10 +236,13 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
       if (!empty($p['resaques']) && $p['resaques'] > 0) $specs[] = 'Res: ' . $p['resaques'];
       if (!empty($p['taladros_pasados']) && $p['taladros_pasados'] > 0) $specs[] = 'TP: ' . $p['taladros_pasados'];
       if (!empty($p['taladros_avellanados']) && $p['taladros_avellanados'] > 0) $specs[] = 'TA: ' . $p['taladros_avellanados'];
+      $specs[] = $p['requiere_templado'] ? 'Templado' : 'No Templado';
     ?>
       <tr>
         <td style="font-weight:700;color:#1d4ed8"><?= $p['num_partida'] ?></td>
-        <td class="cristal-cell"><?= htmlspecialchars($p['cristal_nombre'] ?? '—') ?></td>
+        <td class="cristal-cell">
+          <?= htmlspecialchars($p['cristal_nombre'] ?? '—') ?>
+        </td>
         <td><?= number_format($p['ancho']) ?></td>
         <td><?= number_format($p['alto']) ?></td>
         <td><?= $p['cantidad'] ?></td>

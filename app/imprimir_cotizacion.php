@@ -254,6 +254,7 @@ tbody td.center { text-align: center; }
             $p['taladros_pasados'] > 0 ? $p['taladros_pasados'].' TP' : '',
             $p['taladros_avellanados'] > 0 ? $p['taladros_avellanados'].' TA' : '',
             $p['comentarios_etiqueta'] ?? '',
+            $p['requiere_templado'] ? 'Templado' : 'No Templado',
         ]);
     ?>
       <tr>
