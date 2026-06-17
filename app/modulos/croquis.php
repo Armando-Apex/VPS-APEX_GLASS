@@ -1104,10 +1104,8 @@ function _redraw() {
     out += '<rect x="'+(ox+gw+cyPad+2)+'" y="'+(lyMid-cyLblH/2)+'" width="'+cyLblW+'" height="'+cyLblH+'" fill="white" rx="2"/>';
     out += '<text x="'+(ox+gw+cyPad+cyLblW/2+2)+'" y="'+lyMid+'" text-anchor="middle" font-size="'+fzSm+'" font-weight="700" fill="#16a34a" font-family="monospace" transform="rotate(-90,'+(ox+gw+cyPad+cyLblW/2+2)+','+lyMid+')">Y: '+e.y+' mm</text>';
 
-    // ── Dibujo del elemento ───────────────────────────────────────
-    // Etiqueta siempre apunta hacia el centro del vidrio para no tapar los ejes ni otros elementos
-    var sx = (ex >= ox + gw/2) ? -1 : 1;   // derecha del vidrio → etiqueta a la izquierda; izquierda → a la derecha
-    var sy = (ey <= oy + gh/2) ? 1  : -1;  // mitad superior → etiqueta abajo; mitad inferior → arriba
+    // ── Dibujo del elemento — número dentro del círculo ──────────
+    var numLabel = (idxEl + 1) + '';  // 1, 2, 3...
 
     if (e.tipo==='tp') {
       var r = Math.max(4, (e.d/2)*sc);
@@ -1116,14 +1114,9 @@ function _redraw() {
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+r+'" fill="white" stroke="#1e40af" stroke-width="1.5"/>';
       out += '<line x1="'+(ex-r*1.3)+'" y1="'+ey+'" x2="'+(ex+r*1.3)+'" y2="'+ey+'" stroke="#1e40af" stroke-width="1"/>';
       out += '<line x1="'+ex+'" y1="'+(ey-r*1.3)+'" x2="'+ex+'" y2="'+(ey+r*1.3)+'" stroke="#1e40af" stroke-width="1"/>';
-      var tpTxt = 'TP  \u00D8'+e.d+' mm';
-      var lblW1 = tpTxt.length * 5 + 4;
-      var lx = sx>0 ? ex+r+4 : ex-r-4;
-      var ly = sy>0 ? ey+r+4+fz + idxEl*(fzSm+3) : ey-r-4 - idxEl*(fzSm+3);
-      var anchor1 = sx>0 ? 'start' : 'end';
-      var rectX1  = sx>0 ? lx-1 : lx-lblW1+1;
-      out += '<rect x="'+rectX1+'" y="'+(ly-fz)+'" width="'+lblW1+'" height="'+(fzSm+3)+'" fill="#dbeafe" rx="2"/>';
-      out += '<text x="'+lx+'" y="'+ly+'" text-anchor="'+anchor1+'" font-size="'+fzSm+'" font-weight="700" fill="#1e40af" font-family="monospace">'+tpTxt+'</text>';
+      // número en esquina superior derecha del círculo
+      out += '<circle cx="'+(ex+r)+'" cy="'+(ey-r)+'" r="5" fill="#1e40af"/>';
+      out += '<text x="'+(ex+r)+'" y="'+(ey-r+3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }
     if (e.tipo==='ta') {
@@ -1132,41 +1125,47 @@ function _redraw() {
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+(re+4)+'" fill="transparent"/>';
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+re+'" fill="white" stroke="#7c3aed" stroke-width="1.5"/>';
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+ri+'" fill="none" stroke="#7c3aed" stroke-width="0.8" stroke-dasharray="2,1.5"/>';
-      var taTxt = 'TA  \u00D8'+e.de+'/'+e.di+' mm';
-      var lblW2 = taTxt.length * 5 + 4;
-      var lx = sx>0 ? ex+re+4 : ex-re-4;
-      var ly = sy>0 ? ey+re+4+fz + idxEl*(fzSm+3) : ey-re-4 - idxEl*(fzSm+3);
-      var anchor2 = sx>0 ? 'start' : 'end';
-      var rectX2  = sx>0 ? lx-1 : lx-lblW2+1;
-      out += '<rect x="'+rectX2+'" y="'+(ly-fz)+'" width="'+lblW2+'" height="'+(fzSm+3)+'" fill="#f3e8ff" rx="2"/>';
-      out += '<text x="'+lx+'" y="'+ly+'" text-anchor="'+anchor2+'" font-size="'+fzSm+'" font-weight="700" fill="#7c3aed" font-family="monospace">'+taTxt+'</text>';
+      // número en esquina superior derecha
+      out += '<circle cx="'+(ex+re)+'" cy="'+(ey-re)+'" r="5" fill="#7c3aed"/>';
+      out += '<text x="'+(ex+re)+'" y="'+(ey-re+3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }
     if (e.tipo==='rs') {
       var rw=Math.max(8,e.w*sc), rh=Math.max(4,e.h*sc);
-      var rySVG = ey - rh; // Y crece hacia arriba en CAD
+      var rySVG = ey - rh;
       out += '<g style="cursor:'+cur+'"'+evts+'>';
       out += '<rect x="'+(ex-3)+'" y="'+(rySVG-3)+'" width="'+(rw+6)+'" height="'+(rh+6)+'" fill="transparent"/>';
       out += '<rect x="'+ex+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
-      // cota ancho resaque
-      out += '<line x1="'+ex+'" y1="'+(rySVG-9)+'" x2="'+(ex+rw)+'" y2="'+(rySVG-9)+'" stroke="#854d0e" stroke-width="0.8"/>';
-      out += '<line x1="'+ex+'" y1="'+(rySVG-12)+'" x2="'+ex+'" y2="'+(rySVG-6)+'" stroke="#854d0e" stroke-width="0.8"/>';
-      out += '<line x1="'+(ex+rw)+'" y1="'+(rySVG-12)+'" x2="'+(ex+rw)+'" y2="'+(rySVG-6)+'" stroke="#854d0e" stroke-width="0.8"/>';
-      out += '<rect x="'+(ex+rw/2-18)+'" y="'+(rySVG-20)+'" width="36" height="10" fill="#dcfce7" rx="2"/>';
-      out += '<text x="'+(ex+rw/2)+'" y="'+(rySVG-12)+'" text-anchor="middle" font-size="'+fzSm+'" font-weight="700" fill="#854d0e" font-family="monospace">'+e.w+' mm</text>';
-      // cota alto resaque
-      out += '<line x1="'+(ex+rw+9)+'" y1="'+rySVG+'" x2="'+(ex+rw+9)+'" y2="'+ey+'" stroke="#854d0e" stroke-width="0.8"/>';
-      out += '<line x1="'+(ex+rw+6)+'" y1="'+rySVG+'" x2="'+(ex+rw+12)+'" y2="'+rySVG+'" stroke="#854d0e" stroke-width="0.8"/>';
-      out += '<line x1="'+(ex+rw+6)+'" y1="'+ey+'" x2="'+(ex+rw+12)+'" y2="'+ey+'" stroke="#854d0e" stroke-width="0.8"/>';
-      var lyRS = rySVG + rh/2;
-      out += '<rect x="'+(ex+rw+12)+'" y="'+(lyRS-16)+'" width="10" height="32" fill="#dcfce7" rx="2"/>';
-      out += '<text x="'+(ex+rw+17)+'" y="'+lyRS+'" text-anchor="middle" font-size="'+fzSm+'" font-weight="700" fill="#854d0e" font-family="monospace" transform="rotate(-90,'+(ex+rw+17)+','+lyRS+')">'+e.h+' mm</text>';
-      var lxRS=ex, lyRS2=rySVG-24;
-      out += '<rect x="'+(lxRS-1)+'" y="'+(lyRS2-fz)+'" width="52" height="'+(fz+3)+'" fill="#dcfce7" rx="2"/>';
-      out += '<text x="'+lxRS+'" y="'+lyRS2+'" font-size="'+fzSm+'" font-weight="700" fill="#854d0e" font-family="monospace">RS  posición</text>';
+      // número en esquina superior derecha del resaque
+      out += '<circle cx="'+(ex+rw)+'" cy="'+rySVG+'" r="5" fill="#854d0e"/>';
+      out += '<text x="'+(ex+rw)+'" y="'+(rySVG+3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }
   });
+
+  // ── Tabla de elementos debajo del canvas ──────────────────────
+  if (_elementos.length) {
+    var tbX = ox, tbY = o.canvH - 6 - (_elementos.length * (fzSm+5));
+    // empujar la tabla arriba si hay canteado/nota
+    var notaLines = (nota ? 1 : 0) + (_canteo.sup||_canteo.inf||_canteo.izq||_canteo.der ? 1 : 0);
+    tbY -= notaLines * (fzSm + 4);
+    _elementos.forEach(function(el, i) {
+      var cols   = {'tp':'#1e40af','ta':'#7c3aed','rs':'#854d0e'};
+      var fills  = {'tp':'#dbeafe','ta':'#f3e8ff','rs':'#dcfce7'};
+      var c = cols[el.tipo] || '#374151';
+      var f = fills[el.tipo] || '#f1f5f9';
+      var desc = '';
+      if (el.tipo==='tp') desc = 'TP  Ø'+el.d+' mm   X:'+el.x+'  Y:'+el.y;
+      if (el.tipo==='ta') desc = 'TA  Ø'+el.de+'/'+el.di+' mm   X:'+el.x+'  Y:'+el.y;
+      if (el.tipo==='rs') desc = 'RS  '+el.w+'×'+el.h+' mm   X:'+el.x+'  Y:'+el.y;
+      var rowW = desc.length * 5 + 24;
+      var rowY = tbY + i*(fzSm+5);
+      out += '<rect x="'+tbX+'" y="'+(rowY-fzSm)+'" width="'+rowW+'" height="'+(fzSm+4)+'" fill="'+f+'" rx="3"/>';
+      out += '<circle cx="'+(tbX+8)+'" cy="'+(rowY-fzSm/2+1)+'" r="5" fill="'+c+'"/>';
+      out += '<text x="'+(tbX+8)+'" y="'+(rowY-fzSm/2+4)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+(i+1)+'</text>';
+      out += '<text x="'+(tbX+17)+'" y="'+rowY+'" font-size="'+fzSm+'" font-weight="700" fill="'+c+'" font-family="monospace">'+desc+'</text>';
+    });
+  }
 
   // ── Canteado label ────────────────────────────────────────────
   var lados = [];
