@@ -54,6 +54,29 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .totales-box { background: #f8fafc; border-radius: 12px; padding: 20px; margin-top: 16px; max-width: 380px; margin-left: auto; }
 .totales-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 14px; color: #374151; }
 .totales-row.total-final { font-size: 20px; font-weight: 800; color: #1e293b; border-top: 2px solid #e2e8f0; padding-top: 12px; margin-top: 4px; }
+/* Modal catálogo servicios */
+.cat-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1400; align-items:center; justify-content:center; }
+.cat-bg.open { display:flex; }
+.cat-modal { background:white; border-radius:16px; width:100%; max-width:560px; margin:16px; box-shadow:0 20px 60px rgba(0,0,0,.2); overflow:hidden; max-height:90vh; display:flex; flex-direction:column; }
+.cat-head { background:#0f172a; color:white; padding:18px 22px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+.cat-head h3 { font-size:15px; font-weight:700; margin:0; }
+.cat-close { background:none; border:none; color:white; font-size:20px; cursor:pointer; padding:0; }
+.cat-body { padding:20px; overflow-y:auto; flex:1; }
+.cat-form { display:flex; gap:8px; align-items:flex-end; margin-bottom:18px; padding-bottom:16px; border-bottom:1px solid #f1f5f9; }
+.cat-form input { flex:1; padding:8px 12px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:13px; }
+.cat-form input:focus { outline:none; border-color:#2563eb; }
+.cat-form .cat-precio-input { max-width:110px; }
+.cat-form .btn-cat-add { background:#2563eb; color:white; border:none; padding:9px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.cat-form .btn-cat-add:hover { background:#1d4ed8; }
+.cat-list { display:flex; flex-direction:column; gap:6px; }
+.cat-item { display:flex; align-items:center; gap:10px; padding:9px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; }
+.cat-item-nombre { flex:1; font-size:13px; font-weight:600; color:#1e293b; }
+.cat-item-precio { font-size:13px; font-weight:700; color:#2563eb; min-width:70px; text-align:right; }
+.cat-item input { padding:5px 8px; border:1.5px solid #e2e8f0; border-radius:6px; font-size:12px; }
+.cat-item input:focus { outline:none; border-color:#2563eb; }
+.btn-cat-save { background:#16a34a; color:white; border:none; padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; }
+.btn-cat-del  { background:none; border:none; color:#dc2626; font-size:16px; cursor:pointer; padding:0 2px; }
+.btn-cat-del:hover { color:#b91c1c; }
 /* Servicios adicionales por partida */
 .srv-wrap { margin: -2px 0 8px 34px; }
 .srv-row { display: flex; align-items: center; gap: 8px; padding: 5px 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; margin-bottom: 4px; font-size: 12px; }
@@ -177,6 +200,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .btn-arch-ver { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0; background: white; color: #2563eb; cursor: pointer; }
 .btn-arch-ver:hover { background: #eff6ff; }
 .arch-empty { text-align: center; padding: 20px; color: #94a3b8; font-size: 13px; }
+/* Modal archivos */
+.arch-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1500; align-items:center; justify-content:center; padding:20px; }
+.arch-overlay.open { display:flex; }
+.arch-modal { background:white; border-radius:16px; width:100%; max-width:560px; box-shadow:0 24px 64px rgba(0,0,0,.22); overflow:hidden; }
+.arch-modal-head { background:#1a1a2e; color:white; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; }
+.arch-modal-head h3 { font-size:14px; font-weight:800; }
+.arch-modal-close { background:none; border:none; color:#94a3b8; font-size:20px; cursor:pointer; line-height:1; padding:2px 6px; }
+.arch-modal-close:hover { color:white; }
+.arch-modal-body { padding:20px; max-height:70vh; overflow-y:auto; }
 /* Autocomplete cliente */
 .autocomplete-wrap { position: relative; }
 .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 100; max-height: 240px; overflow-y: auto; }
@@ -302,6 +334,9 @@ function renderFormulario(data) {
     if (estatus === 'orden' && PUEDE_EDITAR) {
       html += '<button class="btn btn-ghost btn-sm" onclick="ModCotizacion._imprimirOrden()">&#128424;&#65039; Orden de Producci&#243;n</button>';
     }
+    if (estatus === 'orden' || estatus === 'entregada') {
+      html += '<button class="btn btn-ghost btn-sm" onclick="ModCotizacion._abrirArchivos()">&#128206; Archivos</button>';
+    }
     if (estatus === 'orden' && ES_ADMIN) {
       html += '<button class="btn btn-success btn-sm" onclick="ModCotizacion._marcarEntregada()">&#9989; Marcar Entregada</button>';
     }
@@ -421,6 +456,9 @@ function renderFormulario(data) {
   if (editable) {
     html += ' <button class="btn btn-ghost btn-sm" onclick="ModCotizacion._agregarPartida()">+ Agregar partida</button>';
   }
+  if (ES_DIR_ADMIN) {
+    html += ' <button class="btn btn-ghost btn-sm" style="color:#7c3aed;border-color:#ede9fe" onclick="window.cotAbrirCatalogo()">&#9881; Cat&#225;logo servicios</button>';
+  }
   html += '</div>';
 
   html += '<div class="partidas-header">';
@@ -452,11 +490,6 @@ function renderFormulario(data) {
     html += '<div id="cq-container"></div>';
   }
 
-  // Archivos adjuntos — solo cuando ya es orden
-  if (!esNuevo && (estatus === 'orden' || estatus === 'entregada')) {
-    html += '<div id="arch-container"></div>';
-  }
-
   document.getElementById('mainContent').innerHTML = html;
   renderPartidas(editable);
   recalcular();
@@ -464,11 +497,6 @@ function renderFormulario(data) {
   // Cargar banner de autorización si hay descuento > 10%
   if (!esNuevo && data && parseFloat(data.descuento || 0) > 10) {
     _cargarAuthStatus();
-  }
-
-  // Cargar archivos adjuntos si ya es orden
-  if (!esNuevo && (estatus === 'orden' || estatus === 'entregada') && data.orden_folio) {
-    cargarArchivos(data.orden_folio);
   }
 
   // Cargar módulo croquis técnicos
@@ -1406,6 +1434,123 @@ async function cotEliminarServicio(srvId, cotId, idx) {
   } catch(e) { alert('Error de conexión'); }
 }
 
+// ── Catálogo de servicios (dir_admin) ────────────────────────────────────────
+function cotAbrirCatalogo() {
+  _inyectarModalCatalogo();
+  _renderCatalogo();
+  document.getElementById('catModal').classList.add('open');
+}
+
+function cotCerrarCatalogo() {
+  var m = document.getElementById('catModal');
+  if (m) m.classList.remove('open');
+}
+
+function _inyectarModalCatalogo() {
+  if (document.getElementById('catModal')) return;
+  var d = document.createElement('div');
+  d.id = 'catModal';
+  d.className = 'cat-bg';
+  d.innerHTML =
+    '<div class="cat-modal">' +
+      '<div class="cat-head">' +
+        '<h3>&#9881; Cat&#225;logo de Servicios</h3>' +
+        '<button class="cat-close" onclick="window.cotCerrarCatalogo()">&#10005;</button>' +
+      '</div>' +
+      '<div class="cat-body">' +
+        '<div class="cat-form">' +
+          '<input type="text" id="catNombre" placeholder="Nombre del servicio (ej: Radio)" />' +
+          '<input type="number" id="catPrecio" placeholder="Precio $" class="cat-precio-input" min="0" step="0.01" />' +
+          '<button class="btn-cat-add" onclick="window.cotCrearServicioCat()">+ Agregar</button>' +
+        '</div>' +
+        '<div class="cat-list" id="catList"><div style="text-align:center;color:#94a3b8;padding:20px">Cargando...</div></div>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(d);
+}
+
+async function _renderCatalogo() {
+  var listEl = document.getElementById('catList');
+  if (!listEl) return;
+  try {
+    var res  = await fetch('../api/servicios_catalogo.php?todos=1');
+    var data = await res.json();
+    _srvCatalogo = data.filter(function(s) { return s.activo == 1; });
+    if (!data.length) {
+      listEl.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px">Sin servicios en cat&#225;logo</div>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < data.length; i++) {
+      var s = data[i];
+      var inactivo = s.activo == 0;
+      html += '<div class="cat-item" style="' + (inactivo ? 'opacity:.45' : '') + '" id="cat-item-' + s.id + '">';
+      html += '<input type="text" id="cat-nom-' + s.id + '" value="' + escHtml(s.nombre) + '" style="flex:1">';
+      html += '<input type="number" id="cat-pre-' + s.id + '" value="' + parseFloat(s.precio_default).toFixed(2) + '" class="cat-precio-input" min="0" step="0.01">';
+      html += '<button class="btn-cat-save" onclick="window.cotEditarServicioCat(' + s.id + ')">&#10003;</button>';
+      if (!inactivo) {
+        html += '<button class="btn-cat-del" title="Desactivar" onclick="window.cotDesactivarServicioCat(' + s.id + ')">&#128465;</button>';
+      }
+      html += '</div>';
+    }
+    listEl.innerHTML = html;
+  } catch(e) {
+    listEl.innerHTML = '<div style="color:#dc2626;padding:10px">Error al cargar</div>';
+  }
+}
+
+async function cotCrearServicioCat() {
+  var nombre = (document.getElementById('catNombre')?.value || '').trim();
+  var precio = parseFloat(document.getElementById('catPrecio')?.value || 0);
+  if (!nombre || precio <= 0) { alert('Escribe el nombre y un precio mayor a 0'); return; }
+  try {
+    var res  = await fetch('../api/servicios_catalogo.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({nombre: nombre, precio_default: precio}),
+    });
+    var data = await res.json();
+    if (data.ok) {
+      document.getElementById('catNombre').value = '';
+      document.getElementById('catPrecio').value = '';
+      _renderCatalogo();
+    } else { alert(data.error || 'Error'); }
+  } catch(e) { alert('Error de conexión'); }
+}
+
+async function cotEditarServicioCat(id) {
+  var nombre = (document.getElementById('cat-nom-' + id)?.value || '').trim();
+  var precio = parseFloat(document.getElementById('cat-pre-' + id)?.value || 0);
+  if (!nombre || precio <= 0) { alert('Nombre y precio son requeridos'); return; }
+  try {
+    var res  = await fetch('../api/servicios_catalogo.php', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: id, nombre: nombre, precio_default: precio}),
+    });
+    var data = await res.json();
+    if (data.ok) {
+      _renderCatalogo();
+    } else { alert(data.error || 'Error'); }
+  } catch(e) { alert('Error de conexión'); }
+}
+
+async function cotDesactivarServicioCat(id) {
+  if (!confirm('¿Desactivar este servicio del catálogo?')) return;
+  try {
+    var res  = await fetch('../api/servicios_catalogo.php?id=' + id, { method: 'DELETE' });
+    var data = await res.json();
+    if (data.ok) { _renderCatalogo(); }
+    else { alert(data.error || 'Error'); }
+  } catch(e) { alert('Error de conexión'); }
+}
+
+window.cotAbrirCatalogo       = cotAbrirCatalogo;
+window.cotCerrarCatalogo      = cotCerrarCatalogo;
+window.cotCrearServicioCat    = cotCrearServicioCat;
+window.cotEditarServicioCat   = cotEditarServicioCat;
+window.cotDesactivarServicioCat = cotDesactivarServicioCat;
+
 window.cotToggleSrvForm    = cotToggleSrvForm;
 window.cotSrvCalc          = cotSrvCalc;
 window.cotGuardarServicio  = cotGuardarServicio;
@@ -1423,8 +1568,35 @@ function cargarArchivos(folioOrden) {
     .catch(function() { renderArchivos(folioOrden, []); });
 }
 
+function abrirArchivos() {
+  if (!_dataCot || !_dataCot.orden_folio) return;
+  var folio = _dataCot.orden_folio;
+  var el = document.getElementById('archModal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'archModal';
+    el.className = 'arch-overlay';
+    el.innerHTML =
+      '<div class="arch-modal">'
+      + '<div class="arch-modal-head">'
+      +   '<h3>&#128193; Archivos adjuntos</h3>'
+      +   '<button class="arch-modal-close" onclick="ModCotizacion._cerrarArchivos()">&#10005;</button>'
+      + '</div>'
+      + '<div class="arch-modal-body" id="arch-modal-body"><div class="arch-empty">Cargando&#8230;</div></div>'
+      + '</div>';
+    document.body.appendChild(el);
+  }
+  el.classList.add('open');
+  cargarArchivos(folio);
+}
+
+function cerrarArchivos() {
+  var el = document.getElementById('archModal');
+  if (el) el.classList.remove('open');
+}
+
 function renderArchivos(folioOrden, lista) {
-  var cont = document.getElementById('arch-container');
+  var cont = document.getElementById('arch-modal-body');
   if (!cont) return;
   var CATS = { factura:'Factura', comprobante_de_pago:'Comprobante de pago', croquis:'Croquis' };
   var uploadHtml = '';
@@ -1452,7 +1624,7 @@ function renderArchivos(folioOrden, lista) {
           + '</div>';
       }).join('') + '</div>'
     : '<div class="arch-empty">Sin archivos adjuntos</div>';
-  cont.innerHTML = '<div class="arch-card"><div class="arch-card-title">&#128193; Archivos adjuntos</div>' + uploadHtml + listaHtml + '</div>';
+  cont.innerHTML = uploadHtml + listaHtml;
 }
 
 function subirArchivo(folioOrden) {
@@ -1517,6 +1689,8 @@ return {
   _imprimirEtiquetas:  imprimirEtiquetas,
   _imprimirSalida:     imprimirSalida,
   _subirArchivo:       subirArchivo,
+  _abrirArchivos:      abrirArchivos,
+  _cerrarArchivos:     cerrarArchivos,
   _abrirCorreccion:    abrirCorreccion,
   _cerrarCorreccion:   cerrarCorreccion,
   _corrTab:            corrTab,

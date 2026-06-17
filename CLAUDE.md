@@ -476,6 +476,7 @@ Próximo UPD disponible: **UPD-059**
 | UPD-089 | 17-jun | Armando | Fix api/cotizaciones.php: mismo bug de total bruto — detalle (SELECT c.*) corregido en PHP post-fetch; lista corregida en SQL. Botón "Imprimir Salida" ya aparece cuando saldo_pagado >= total real |
 | UPD-090 | 17-jun | Armando | NUEVO Feature: Servicios adicionales por partida — tabla servicios_catalogo + cotizacion_partida_servicios + servicios_subtotal en cotizaciones; UI en cotizacion.php bajo cada partida; PDF cotización muestra sub-filas verdes + línea en totales; servicios sin descuento, con IVA; se preservan al editar cotización. 6 servicios iniciales cargados (Radio $80, Biselado $120, etc.) |
 | UPD-090 | 17-jun | Mando | Cobranza: auto-refresh al registrar pago y al cambiar estatus de pago — llama a cargar() para traer datos frescos del servidor |
+| UPD-091 | 17-jun | Mando | Archivos en cotización: módulo archivos_ordenes removido del sidebar; botón "Archivos" integrado en barra de acciones de cotizacion.php (visible cuando es orden/entregada); abre modal con lista + subida de archivos (roles: comercial, administracion, dir_admin, dueno) |
 
 ---
 
@@ -486,4 +487,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-091**
+**Próximo UPD disponible: UPD-092**
