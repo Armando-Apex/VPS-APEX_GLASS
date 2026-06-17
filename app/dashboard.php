@@ -239,14 +239,6 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
       </button>
     </div>
     <?php endif; ?>
-    <?php if ($esArchivos): ?>
-    <div class="sidebar-section">
-      <div class="sidebar-label">Archivos</div>
-      <button class="sidebar-link" data-modulo="archivos_ordenes" onclick="cargarModulo('archivos_ordenes')">
-        <span class="sidebar-icon">&#128193;</span>Archivos &Oacute;rdenes
-      </button>
-    </div>
-    <?php endif; ?>
     <?php if ($esLogistica): ?>
     <div class="sidebar-section">
       <div class="sidebar-label">Log&iacute;stica</div>
@@ -297,7 +289,6 @@ const MODULOS = {
   finanzas_cobranza:'modulos/finanzas_cobranza.php',
   logistica_rutas:'modulos/logistica_rutas.php', chofer_ruta:'modulos/chofer_ruta.php',
   orden:'modulos/orden.php', cotizacion:'modulos/cotizacion.php',
-  archivos_ordenes:'modulos/archivos_ordenes.php',
 };
 
 let _moduloActivo = null;

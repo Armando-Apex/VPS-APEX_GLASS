@@ -474,6 +474,7 @@ Próximo UPD disponible: **UPD-059**
 | UPD-087 | 17-jun | Mando | Reporte Dirección: barra "% Entrega a tiempo" ahora es apilada con 3 segmentos (verde=A tiempo, rojo=Con retraso, naranja=En proceso) proporcionales al total |
 | UPD-088 | 17-jun | Armando | Fix api/finanzas.php: total y saldo_pendiente se calculaban con valor bruto (sin descuento). Las 3 queries (lista_vobo, detalle, cobranza) ahora computan ROUND(subtotal*(1-descuento/100)*1.16,2) — sin tocar BD |
 | UPD-089 | 17-jun | Armando | Fix api/cotizaciones.php: mismo bug de total bruto — detalle (SELECT c.*) corregido en PHP post-fetch; lista corregida en SQL. Botón "Imprimir Salida" ya aparece cuando saldo_pagado >= total real |
+| UPD-090 | 17-jun | Mando | Cobranza: auto-refresh al registrar pago y al cambiar estatus de pago — llama a cargar() para traer datos frescos del servidor |
 
 ---
 
@@ -484,4 +485,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-090**
+**Próximo UPD disponible: UPD-091**

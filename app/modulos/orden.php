@@ -1,7 +1,8 @@
 <?php
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
-requirePermiso('ver_dashboard');
+$user = requirePermiso('ver_dashboard');
+$puedeSubirArchivos = in_array($user['rol'], ['comercial', 'administracion', 'dir_admin']);
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     $f = isset($_GET['folio']) ? '&folio='.urlencode($_GET['folio']) : '';
     header('Location: ../dashboard.php?m=orden'.$f); exit;
@@ -135,6 +136,29 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .tiempo-chip.urgente { background: #fef2f2; color: #dc2626; }
 .qr-code { font-family: monospace; font-size: 11px; color: #94a3b8; }
 .loading { text-align: center; padding: 60px; color: #94a3b8; }
+
+/* Sección archivos */
+.arch-section { background: white; border-radius: 14px; padding: 20px 24px; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+.arch-section-title { font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 16px; }
+.arch-upload-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #f1f5f9; }
+.arch-upload-row select, .arch-upload-row input[type=file] { padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; background: white; outline: none; }
+.arch-upload-row select:focus, .arch-upload-row input[type=file]:focus { border-color: #2563eb; }
+.btn-arch-subir { padding: 8px 18px; background: #16a34a; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.btn-arch-subir:disabled { opacity: .5; cursor: not-allowed; }
+.arch-msg-inline { font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 6px; display: none; }
+.arch-msg-inline.ok  { background: #dcfce7; color: #16a34a; }
+.arch-msg-inline.err { background: #fee2e2; color: #dc2626; }
+.arch-file-list { display: flex; flex-direction: column; gap: 8px; }
+.arch-file-row { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: 1px solid #f1f5f9; border-radius: 8px; font-size: 13px; }
+.arch-file-cat { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.arch-cat-factura             { background: #dbeafe; color: #1d4ed8; }
+.arch-cat-comprobante_de_pago { background: #dcfce7; color: #15803d; }
+.arch-cat-croquis             { background: #fef3c7; color: #b45309; }
+.arch-file-name { flex: 1; color: #374151; }
+.arch-file-meta { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.btn-arch-ver { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0; background: white; color: #2563eb; cursor: pointer; white-space: nowrap; }
+.btn-arch-ver:hover { background: #eff6ff; }
+.arch-empty { text-align: center; padding: 24px; color: #94a3b8; font-size: 13px; }
 
 @media (max-width: 768px) {
   .orden-meta { grid-template-columns: 1fr 1fr; }

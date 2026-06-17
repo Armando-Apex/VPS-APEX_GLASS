@@ -609,18 +609,8 @@ async function registrarPago(cot_id) {
   });
   var data = await res.json();
   if (data.ok) {
-    // Actualizar saldo en _data y re-renderizar
-    var o = _data.find(function(x){ return x.cot_id == cot_id; });
-    if (o) {
-      o.saldo_pagado = data.saldo_pagado;
-      if (!o.pagos) o.pagos = [];
-      o.pagos.push({fecha_pago: fecha, hora_pago: hora, monto: monto, forma_pago: forma, notas: notas, registrado_por: '<?= htmlspecialchars($user["nombre"]) ?>'});
-    }
-    filtrar();
-    // Re-abrir el panel
     _abiertos[cot_id] = true;
-    var panel = document.getElementById('panel-' + cot_id);
-    if (panel) panel.classList.add('open');
+    await cargar();
   } else {
     alert(data.error || 'Error al registrar pago');
   }
@@ -638,24 +628,8 @@ async function cambiarEpago(cot_id, sel) {
   });
   var data = await res.json();
   if (data.ok) {
-    // Actualizar en _data para que el botón salida se refleje sin recargar
-    var o = _data.find(function(x){ return x.cot_id == cot_id; });
-    if (o) o.estatus_pago = nuevo;
-    // Actualizar el botón salida de esa fila
-    var tr = sel.closest('tr');
-    if (tr) {
-      var btnSalida = tr.querySelector('.btn-salida');
-      if (btnSalida) {
-        var puede = parseFloat(o ? o.saldo_pagado||0 : 0) >= parseFloat(o ? o.total||0 : 1)
-                  || ['en_proceso','pago_entrega','pagado'].indexOf(nuevo) !== -1;
-        btnSalida.disabled = !puede;
-        if (puede) {
-          btnSalida.onclick = function() { window.open('imprimir_salida.php?id=' + cot_id, '_blank'); };
-        } else {
-          btnSalida.onclick = null;
-        }
-      }
-    }
+    _abiertos[cot_id] = true;
+    await cargar();
   } else {
     alert(data.error || 'Error al actualizar');
     sel.value = sel.dataset.prev || 'pendiente';
