@@ -107,8 +107,11 @@ if ($method === 'GET') {
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { echo json_encode(['error' => 'No encontrada']); exit; }
 
-        // Recalcular total y saldo_pendiente aplicando el descuento + servicios (sin descuento)
-        $subtotal_neto = round((float)$cot['subtotal'] * (1 - (float)$cot['descuento']/100), 2);
+        // Recalcular total desde partidas (c.subtotal puede ser bruto o neto según antigüedad del registro)
+        $stBruto = $db->prepare("SELECT COALESCE(SUM(precio_m2_usado*m2*cantidad),0) FROM cotizaciones_partidas WHERE cotizacion_id=?");
+        $stBruto->execute([$id]);
+        $bruto_partidas = (float)$stBruto->fetchColumn();
+        $subtotal_neto = round($bruto_partidas * (1 - (float)$cot['descuento']/100), 2);
         $cot['total'] = round(($subtotal_neto + (float)$cot['servicios_subtotal']) * 1.16, 2);
         $cot['saldo_pendiente'] = max(0, round($cot['total'] - (float)$cot['saldo_pagado'], 2));
 
@@ -158,9 +161,9 @@ if ($method === 'GET') {
     $stmt = $db->prepare("
         SELECT c.id, c.folio, c.fecha, c.cliente_nombre, c.asesor_nombre,
                c.proyecto, c.estatus,
-               ROUND((COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) AS total,
+               ROUND((COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) AS total,
                c.fecha_entrega, c.localidad, c.ciudad_destino, c.condicion_pago,
-               GREATEST(0, ROUND((COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+               GREATEST(0, ROUND((COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                c.entrega_bloqueada,
                o.folio AS orden_folio
         FROM cotizaciones c
