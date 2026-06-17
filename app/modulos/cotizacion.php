@@ -181,8 +181,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 /* Archivos adjuntos */
 .arch-card { background: white; border-radius: 14px; padding: 20px 24px; box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 20px; }
 .arch-card-title { font-size: 15px; font-weight: 800; color: #1e293b; margin-bottom: 16px; }
-.arch-upload-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; }
-.arch-upload-row select, .arch-upload-row input[type=file] { padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; background: white; outline: none; }
+.arch-upload-row { display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; }
+.arch-upload-row select { padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; background: white; outline: none; flex-shrink: 0; }
+.arch-upload-row input[type=file] { padding: 8px 6px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; background: white; outline: none; flex: 1; min-width: 0; }
 .arch-upload-row select:focus { border-color: #2563eb; }
 .btn-arch-subir { padding: 8px 18px; background: #16a34a; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .btn-arch-subir:disabled { opacity: .5; cursor: not-allowed; }
