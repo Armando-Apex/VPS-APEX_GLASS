@@ -107,6 +107,10 @@ if ($method === 'GET') {
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { echo json_encode(['error' => 'No encontrada']); exit; }
 
+        // Recalcular total y saldo_pendiente aplicando el descuento
+        $cot['total'] = round((float)$cot['subtotal'] * (1 - (float)$cot['descuento']/100) * 1.16, 2);
+        $cot['saldo_pendiente'] = max(0, round($cot['total'] - (float)$cot['saldo_pagado'], 2));
+
         $stmt2 = $db->prepare("
             SELECT cp.*, cr.nombre as cristal_nombre_actual
             FROM cotizaciones_partidas cp
@@ -136,9 +140,11 @@ if ($method === 'GET') {
     $where_str = implode(' AND ', $where);
     $stmt = $db->prepare("
         SELECT c.id, c.folio, c.fecha, c.cliente_nombre, c.asesor_nombre,
-               c.proyecto, c.estatus, c.total, c.fecha_entrega,
-               c.localidad, c.ciudad_destino, c.condicion_pago,
-               c.saldo_pendiente, c.entrega_bloqueada,
+               c.proyecto, c.estatus,
+               ROUND(COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) * 1.16, 2) AS total,
+               c.fecha_entrega, c.localidad, c.ciudad_destino, c.condicion_pago,
+               GREATEST(0, ROUND(COALESCE(c.subtotal,0) * (1 - COALESCE(c.descuento,0)/100) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+               c.entrega_bloqueada,
                o.folio AS orden_folio
         FROM cotizaciones c
         LEFT JOIN ordenes o ON o.id = c.orden_id
