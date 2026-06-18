@@ -241,8 +241,8 @@ if ($method === 'POST') {
             $cot = $stmt->fetch(PDO::FETCH_ASSOC);
             $total_real = round(((float)$cot['bruto_partidas'] * (1 - (float)$cot['descuento']/100) + (float)$cot['servicios_subtotal']) * 1.16, 2);
 
-            // Marcar como pagado automáticamente si el saldo cubre el total
-            if ((float)$cot['saldo_pagado'] >= $total_real && $total_real > 0) {
+            // Marcar como pagado automáticamente si el saldo cubre el total (tolerancia $0.99)
+            if ($total_real > 0 && ($total_real - (float)$cot['saldo_pagado']) <= 0.99) {
                 $db->prepare("UPDATE cotizaciones SET estatus_pago = 'pagado', updated_at = NOW() WHERE id = ?")
                    ->execute([$cot_id]);
             }
