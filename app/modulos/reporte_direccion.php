@@ -413,6 +413,7 @@ function rdRenderRentabilidad(inv) {
     var precio  = cristal && parseFloat(cristal.precio_m2) ? parseFloat(cristal.precio_m2) : null;
     var costoSinIva = parseFloat(g.costo_prom_m2);
     var costoConIva = parseFloat((costoSinIva * 1.16).toFixed(4));
+    if (precio !== null) precio = parseFloat((precio * 0.90).toFixed(4));
     var utilidad    = precio !== null ? parseFloat((precio - costoConIva).toFixed(4)) : null;
     var markup      = (precio !== null && costoConIva > 0) ? (utilidad / costoConIva) * 100 : null;
     var margen      = (precio !== null && precio > 0)      ? (utilidad / precio) * 100       : null;
@@ -432,7 +433,7 @@ function rdRenderRentabilidad(inv) {
   var clrMargen = function(m) { return m === null ? '#94a3b8' : m >= 55 ? '#16a34a' : m >= 40 ? '#ca8a04' : '#dc2626'; };
 
   var html = '<div class="section-title" style="margin-top:24px">&#x1F4CA; Rentabilidad por M&#178; de Vidrio</div>' +
-  '<div style="font-size:11px;color:var(--muted);margin:-6px 0 10px">Costo c/IVA = costo compra &times; 1.16 &mdash; Precio venta = cat&#225;logo p&#250;blico &mdash; Sin incluir mano de obra ni proceso</div>' +
+  '<div style="font-size:11px;color:var(--muted);margin:-6px 0 10px">Costo c/IVA = costo compra &times; 1.16 &mdash; Precio venta = cat&#225;logo &times; 0.90 (descuento estratégico 10%) &mdash; Sin incluir mano de obra ni proceso</div>' +
   '<div class="table-card"><table>' +
   '<thead><tr>' +
   '<th>Tipo de vidrio</th>' +
