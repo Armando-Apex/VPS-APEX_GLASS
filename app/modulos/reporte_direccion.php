@@ -408,7 +408,7 @@ function rdRenderRentabilidad(inv) {
   var rows = [];
   porTipo.forEach(function(g) {
     if (!g.costo_prom_m2) return;
-    var nombreNorm = ((tipoLbl[g.tipo] || g.tipo) + g.espesor_mm + 'mm').toLowerCase().replace(/\s+/g, '');
+    var nombreNorm = ((tipoLbl[g.tipo] || g.tipo) + parseInt(g.espesor_mm) + 'mm').toLowerCase().replace(/\s+/g, '');
     var cristal = cristalMap[nombreNorm];
     var precio  = cristal && parseFloat(cristal.precio_m2) ? parseFloat(cristal.precio_m2) : null;
     var costoSinIva = parseFloat(g.costo_prom_m2);
