@@ -390,68 +390,85 @@ function rdRenderAlmacen(inv) {
 }
 
 function rdRenderRentabilidad(inv) {
-  const porTipo  = (inv && inv.por_tipo)  ? inv.por_tipo  : [];
-  const cristales = (inv && inv.cristales) ? inv.cristales : [];
+  var porTipo   = (inv && inv.por_tipo)   ? inv.por_tipo   : [];
+  var cristales = (inv && inv.cristales)  ? inv.cristales  : [];
   if (!porTipo.length || !cristales.length) return '';
 
-  const tipoLbl = {
+  var tipoLbl = {
     claro:'Claro', claro_zafiro:'Claro Zafiro', filtrasol:'Filtrasol',
     espejo:'Espejo', espejo_aluminio:'Espejo Aluminio', laminado_claro:'Laminado Claro',
     reflecta:'Reflecta', satinado:'Satinado', tintex:'Tintex'
   };
 
-  // Índice de cristales por nombre normalizado: "Claro 9mm" → "claro9mm"
-  const cristalMap = {};
-  cristales.forEach(c => {
+  var cristalMap = {};
+  cristales.forEach(function(c) {
     cristalMap[c.nombre.toLowerCase().replace(/\s+/g, '')] = c;
   });
 
-  const rows = [];
-  porTipo.forEach(g => {
+  var rows = [];
+  porTipo.forEach(function(g) {
     if (!g.costo_prom_m2) return;
-    const nombreNorm = ((tipoLbl[g.tipo] || g.tipo) + g.espesor_mm + 'mm').toLowerCase().replace(/\s+/g, '');
-    const cristal = cristalMap[nombreNorm];
-    if (!cristal || !parseFloat(cristal.precio_m2)) return;
-    const costo    = parseFloat(g.costo_prom_m2);
-    const precio   = parseFloat(cristal.precio_m2);
-    const utilidad = precio - costo;
-    const markup   = costo > 0 ? (utilidad / costo) * 100 : null;
-    const margen   = precio > 0 ? (utilidad / precio) * 100 : null;
-    rows.push({ tipo: g.tipo, espesor: g.espesor_mm, costo, precio, utilidad, markup, margen });
+    var nombreNorm = ((tipoLbl[g.tipo] || g.tipo) + g.espesor_mm + 'mm').toLowerCase().replace(/\s+/g, '');
+    var cristal = cristalMap[nombreNorm];
+    var precio  = cristal && parseFloat(cristal.precio_m2) ? parseFloat(cristal.precio_m2) : null;
+    var costoSinIva = parseFloat(g.costo_prom_m2);
+    var costoConIva = parseFloat((costoSinIva * 1.16).toFixed(4));
+    var utilidad    = precio !== null ? parseFloat((precio - costoConIva).toFixed(4)) : null;
+    var markup      = (precio !== null && costoConIva > 0) ? (utilidad / costoConIva) * 100 : null;
+    var margen      = (precio !== null && precio > 0)      ? (utilidad / precio) * 100       : null;
+    rows.push({ tipo: g.tipo, espesor: g.espesor_mm, costoSinIva: costoSinIva, costoConIva: costoConIva, precio: precio, utilidad: utilidad, markup: markup, margen: margen });
   });
 
   if (!rows.length) return '';
-  rows.sort((a, b) => b.margen - a.margen);
-
-  const fmt    = n => n != null ? '$' + parseFloat(n).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}) : '&#8212;';
-  const fmtPct = n => n != null ? parseFloat(n).toFixed(1) + '%' : '&#8212;';
-  const clrMargen = m => m >= 40 ? '#16a34a' : m >= 25 ? '#ca8a04' : '#dc2626';
-
-  let html = `<div class="section-title" style="margin-top:24px">&#x1F4CA; An&#225;lisis de Rentabilidad</div>
-  <div class="table-card"><table>
-    <thead><tr>
-      <th>Tipo de vidrio</th>
-      <th>Espesor</th>
-      <th style="text-align:right">Costo prom./m&#178;</th>
-      <th style="text-align:right">Precio venta/m&#178;</th>
-      <th style="text-align:right">Utilidad bruta/m&#178;</th>
-      <th style="text-align:right">Mark-up</th>
-      <th style="text-align:right">Margen %</th>
-    </tr></thead><tbody>`;
-
-  rows.forEach(r => {
-    html += `<tr>
-      <td><strong>${r.tipo}</strong></td>
-      <td>${r.espesor} mm</td>
-      <td style="text-align:right">${fmt(r.costo)}</td>
-      <td style="text-align:right">${fmt(r.precio)}</td>
-      <td style="text-align:right;color:#16a34a"><strong>${fmt(r.utilidad)}</strong></td>
-      <td style="text-align:right">${fmtPct(r.markup)}</td>
-      <td style="text-align:right;font-weight:800;font-size:14px;color:${clrMargen(r.margen)}">${fmtPct(r.margen)}</td>
-    </tr>`;
+  rows.sort(function(a, b) {
+    if (a.margen === null && b.margen === null) return 0;
+    if (a.margen === null) return 1;
+    if (b.margen === null) return -1;
+    return b.margen - a.margen;
   });
 
-  html += `</tbody></table></div>`;
+  var fmt    = function(n) { return n != null ? '$' + parseFloat(n).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}) : '&#8212;'; };
+  var fmtPct = function(n) { return n != null ? parseFloat(n).toFixed(1) + '%' : '&#8212;'; };
+  var clrMargen = function(m) { return m === null ? '#94a3b8' : m >= 55 ? '#16a34a' : m >= 40 ? '#ca8a04' : '#dc2626'; };
+
+  var html = '<div class="section-title" style="margin-top:24px">&#x1F4CA; Rentabilidad por M&#178; de Vidrio</div>' +
+  '<div style="font-size:11px;color:var(--muted);margin:-6px 0 10px">Costo c/IVA = costo compra &times; 1.16 &mdash; Precio venta = cat&#225;logo p&#250;blico &mdash; Sin incluir mano de obra ni proceso</div>' +
+  '<div class="table-card"><table>' +
+  '<thead><tr>' +
+  '<th>Tipo de vidrio</th>' +
+  '<th>Espesor</th>' +
+  '<th style="text-align:right">Costo s/IVA /m&#178;</th>' +
+  '<th style="text-align:right">Costo c/IVA /m&#178;</th>' +
+  '<th style="text-align:right">Precio venta /m&#178;</th>' +
+  '<th style="text-align:right">Utilidad /m&#178;</th>' +
+  '<th style="text-align:right">Markup</th>' +
+  '<th style="text-align:right">Margen %</th>' +
+  '</tr></thead><tbody>';
+
+  rows.forEach(function(r) {
+    var clr = clrMargen(r.margen);
+    var barW = r.margen !== null ? Math.min(100, Math.max(0, parseFloat(r.margen.toFixed(0)))) : 0;
+    var margenCell = r.margen !== null
+      ? '<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">' +
+          '<div style="width:48px;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden">' +
+            '<div style="width:' + barW + '%;height:100%;background:' + clr + ';border-radius:3px"></div>' +
+          '</div>' +
+          '<span style="font-weight:800;font-size:14px;color:' + clr + ';min-width:44px;text-align:right">' + fmtPct(r.margen) + '</span>' +
+        '</div>'
+      : '<span style="color:#94a3b8;font-size:11px">Sin precio</span>';
+    html += '<tr>' +
+      '<td><strong>' + esc(r.tipo) + '</strong></td>' +
+      '<td>' + r.espesor + ' mm</td>' +
+      '<td style="text-align:right;color:var(--muted)">' + fmt(r.costoSinIva) + '</td>' +
+      '<td style="text-align:right;color:#7c3aed">' + fmt(r.costoConIva) + '</td>' +
+      '<td style="text-align:right">' + (r.precio !== null ? fmt(r.precio) : '<span style="color:#94a3b8;font-size:11px">Sin precio</span>') + '</td>' +
+      '<td style="text-align:right;color:#16a34a"><strong>' + fmt(r.utilidad) + '</strong></td>' +
+      '<td style="text-align:right;color:var(--muted)">' + fmtPct(r.markup) + '</td>' +
+      '<td style="text-align:right">' + margenCell + '</td>' +
+    '</tr>';
+  });
+
+  html += '</tbody></table></div>';
   return html;
 }
 
