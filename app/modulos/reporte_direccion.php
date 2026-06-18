@@ -422,10 +422,9 @@ function rdRenderRentabilidad(inv) {
 
   if (!rows.length) return '';
   rows.sort(function(a, b) {
-    if (a.margen === null && b.margen === null) return 0;
-    if (a.margen === null) return 1;
-    if (b.margen === null) return -1;
-    return b.margen - a.margen;
+    if (a.tipo < b.tipo) return -1;
+    if (a.tipo > b.tipo) return 1;
+    return parseFloat(a.espesor) - parseFloat(b.espesor);
   });
 
   var fmt    = function(n) { return n != null ? '$' + parseFloat(n).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}) : '&#8212;'; };
