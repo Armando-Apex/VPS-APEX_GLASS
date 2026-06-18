@@ -488,6 +488,7 @@ Próximo UPD disponible: **UPD-059**
 | UPD-100 | 18-jun | Armando | BD: ordenes_compra += tipo ENUM(material,suministro) DEFAULT material + categoria VARCHAR(100) |
 | UPD-101 | 18-jun | Armando | api/ordenes_compra.php: filtro ?tipo=, campos tipo/categoria en crear/actualizar, fix tipo_check en registrar_entrega para suministros (tipo='otro') |
 | UPD-102 | 18-jun | Armando | NUEVO modulos/compras.php: tabs Suministros + OC Material, KPIs, CRUD completo (crear OC, partidas, pagos, recepción, cambio estado); sidebar dashboard += Compras bajo Inventario |
+| UPD-103 | 18-jun | Armando | Reporte Dirección: sección Top Clientes expandida a 3 paneles lado a lado — Por Monto ($), Por Pedidos (órdenes) y Por M²; función mkTopPanel reutilizable; 2 queries nuevas en api/reporte_direccion.php |
 
 ---
 
@@ -498,4 +499,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-103**
+**Próximo UPD disponible: UPD-104**
