@@ -53,6 +53,12 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 .btn-rec { background: #dc2626; color: white; border: none; padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
 .btn-rec:hover { background: #b91c1c; }
 
+.pager-inner { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 16px; border-top: 1px solid #f1f5f9; }
+.pager-btn { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer; color: #374151; }
+.pager-btn:hover:not([disabled]) { background: #e2e8f0; }
+.pager-btn[disabled] { opacity: .4; cursor: default; }
+.pager-info { font-size: 12px; color: #6b7280; }
+
 @media(max-width:768px){
   .cot-wrap { padding: 12px; }
 
@@ -97,7 +103,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
   <?php endif; ?>
 
   <div class="cot-toolbar">
-    <input type="text" class="cot-search" id="cot-q" placeholder="&#128269; Buscar por folio o cliente&#8230;" oninput="ModCotizaciones._filtrar()">
+    <input type="text" class="cot-search" id="cot-q" placeholder="&#128269; Buscar por folio, orden, cliente o proyecto&#8230;" oninput="ModCotizaciones._filtrar()">
     <button class="btn-nueva" onclick="irA('cotizacion',{nuevo:'1'})">+ Nueva Cotizaci&#243;n</button>
   </div>
 
@@ -115,6 +121,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
       </tr></thead>
       <tbody id="cot-tbody"><tr><td colspan="7" class="loading-msg">Cargando&#8230;</td></tr></tbody>
     </table>
+    <div id="cot-pager"></div>
   </div>
 </div>
 
@@ -123,9 +130,11 @@ var ES_DIR_ADMIN_COTS = <?= $es_dir_admin_cots ? 'true' : 'false' ?>;
 
 var ModCotizaciones = (function() {
 
-var _cotData    = [];
-var _cotTab     = 'cotizacion';
+var _cotData      = [];
+var _cotTab       = 'cotizacion';
+var _cotPage      = 1;
 var _authPendOpen = false;
+var _COT_PER_PAGE = 25;
 
 async function cotCargar() {
   try {
@@ -141,19 +150,53 @@ async function cotCargar() {
 }
 
 function cotTab(tab) {
-  _cotTab = tab;
+  _cotTab  = tab;
+  _cotPage = 1;
   document.querySelectorAll('.cot-tab').forEach(function(b, i) {
     b.classList.toggle('active', ['cotizacion','orden','cancelada'][i] === tab);
   });
   cotFiltrar();
 }
 
+function cotMatchSearch(c, q) {
+  if (!q) return true;
+  return (c.folio||'').toLowerCase().indexOf(q) >= 0
+      || (c.cliente_nombre||'').toLowerCase().indexOf(q) >= 0
+      || (c.orden_folio||'').toLowerCase().indexOf(q) >= 0
+      || (c.proyecto||'').toLowerCase().indexOf(q) >= 0;
+}
+
+function cotPaginar(dir) {
+  _cotPage += dir;
+  cotFiltrar();
+}
+window.cotPaginar = cotPaginar;
+
 function cotFiltrar() {
-  var q = (document.getElementById('cot-q') ? document.getElementById('cot-q').value : '').toLowerCase();
-  var lista = _cotData.filter(function(c) {
-    return c.estatus === _cotTab &&
-      (!q || (c.folio||'').toLowerCase().includes(q) || (c.cliente_nombre||'').toLowerCase().includes(q));
-  });
+  var q = ((document.getElementById('cot-q') || {}).value || '').toLowerCase().trim();
+
+  // Auto-switch tab si la búsqueda no tiene resultados en el tab actual pero sí en otro
+  if (q) {
+    var enActual = _cotData.filter(function(c) { return c.estatus === _cotTab && cotMatchSearch(c, q); });
+    if (enActual.length === 0) {
+      var tabs = ['cotizacion', 'orden', 'cancelada'];
+      for (var ti = 0; ti < tabs.length; ti++) {
+        if (tabs[ti] === _cotTab) continue;
+        var tabCheck = tabs[ti];
+        var enOtro = _cotData.filter(function(c) { return c.estatus === tabCheck && cotMatchSearch(c, q); });
+        if (enOtro.length > 0) {
+          _cotTab  = tabCheck;
+          _cotPage = 1;
+          document.querySelectorAll('.cot-tab').forEach(function(b, i) {
+            b.classList.toggle('active', ['cotizacion','orden','cancelada'][i] === _cotTab);
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  var lista = _cotData.filter(function(c) { return c.estatus === _cotTab && cotMatchSearch(c, q); });
 
   var cots = _cotData.filter(function(c){ return c.estatus==='cotizacion'; }).length;
   var ords = _cotData.filter(function(c){ return c.estatus==='orden'; }).length;
@@ -162,12 +205,20 @@ function cotFiltrar() {
   document.getElementById('cot-cnt-ord').textContent = ords;
   document.getElementById('cot-cnt-can').textContent = cans;
 
+  var totalPags = Math.max(1, Math.ceil(lista.length / _COT_PER_PAGE));
+  if (_cotPage > totalPags) _cotPage = totalPags;
+  if (_cotPage < 1)         _cotPage = 1;
+  var pagina = lista.slice((_cotPage - 1) * _COT_PER_PAGE, _cotPage * _COT_PER_PAGE);
+
+  var pagerEl = document.getElementById('cot-pager');
+
   if (!lista.length) {
     document.getElementById('cot-tbody').innerHTML = '<tr><td colspan="7" class="loading-msg">No hay registros</td></tr>';
+    if (pagerEl) pagerEl.innerHTML = '';
     return;
   }
 
-  document.getElementById('cot-tbody').innerHTML = lista.map(function(c) {
+  document.getElementById('cot-tbody').innerHTML = pagina.map(function(c) {
     var fecha   = c.fecha        ? new Date(c.fecha+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '&#8212;';
     var entrega = c.fecha_entrega? new Date(c.fecha_entrega+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '&#8212;';
     var total   = c.total ? '$'+parseFloat(c.total).toLocaleString('es-MX',{minimumFractionDigits:2}) : '&#8212;';
@@ -186,6 +237,18 @@ function cotFiltrar() {
       +'<td><span class="est-badge '+badgeClass+'">'+badgeLabel+'</span></td>'
       +'</tr>';
   }).join('');
+
+  if (pagerEl) {
+    if (totalPags <= 1) {
+      pagerEl.innerHTML = '';
+    } else {
+      pagerEl.innerHTML = '<div class="pager-inner">'
+        + '<button class="pager-btn" onclick="cotPaginar(-1)"' + (_cotPage <= 1 ? ' disabled' : '') + '>&#8592; Ant</button>'
+        + '<span class="pager-info">P&#225;g. ' + _cotPage + ' / ' + totalPags + ' &nbsp;&middot;&nbsp; ' + lista.length + ' registros</span>'
+        + '<button class="pager-btn" onclick="cotPaginar(1)"' + (_cotPage >= totalPags ? ' disabled' : '') + '>Sig &#8594;</button>'
+        + '</div>';
+    }
+  }
 }
 
 // ── Autorizaciones pendientes (dir_admin) ─────────────────────────────────────

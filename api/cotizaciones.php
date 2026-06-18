@@ -153,9 +153,9 @@ if ($method === 'GET') {
     }
     if ($estatus) { $where[] = 'c.estatus = ?'; $params[] = $estatus; }
     if ($q) {
-        $where[]  = '(c.folio LIKE ? OR c.cliente_nombre LIKE ? OR c.proyecto LIKE ?)';
+        $where[]  = '(c.folio LIKE ? OR c.cliente_nombre LIKE ? OR c.proyecto LIKE ? OR o.folio LIKE ?)';
         $like     = "%$q%";
-        $params   = array_merge($params, [$like, $like, $like]);
+        $params   = array_merge($params, [$like, $like, $like, $like]);
     }
     $where_str = implode(' AND ', $where);
     $stmt = $db->prepare("

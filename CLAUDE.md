@@ -480,6 +480,8 @@ Próximo UPD disponible: **UPD-059**
 | UPD-091 | 17-jun | Mando | Archivos en cotización: módulo archivos_ordenes removido del sidebar; botón "Archivos" integrado en barra de acciones de cotizacion.php (visible cuando es orden/entregada); abre modal con lista + subida de archivos (roles: comercial, administracion, dir_admin, dueno) |
 | UPD-093 | 17-jun | Mando | Backup automático BD VPS: backup_runner.php actualizado con credenciales VPS (host ::1, apexglass2025_prod); cron configurado 0 6 * * * (12:00 AM Monterrey / UTC-6); backups en produccion/_backups/, retención 15 días, log en backup.log |
 | UPD-094 | 17-jun | Mando | Seguridad _backups/: permisos carpeta 750, archivos 640; .htaccess actualizado con Require all denied + Deny from all (Apache 2.4); backup verificado: 39 tablas, 35 INSERT, 179.6 KB. Para revertir: chmod 755 _backups/ && chmod 644 _backups/*.sql.gz |
+| UPD-095 | 18-jun | Armando | HostGator cancelado — servidor único ahora es VPS Hostinger |
+| UPD-096 | 18-jun | Armando | modulos/cotizaciones.php + api/cotizaciones.php: search ahora busca en folio orden (S-XXX), cliente, folio cot y proyecto; auto-switch de tab si resultado está en tab distinto; paginación 25 registros por tab con controles Ant/Sig |
 
 ---
 
@@ -490,4 +492,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-094**
+**Próximo UPD disponible: UPD-096**
