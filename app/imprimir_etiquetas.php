@@ -41,6 +41,25 @@ if (empty($piezas)) {
     die('<p>No hay piezas para este folio.</p>');
 }
 
+// Servicios adicionales por partida
+$serviciosPorPartida = [];
+$stmtSrv = $db->prepare("
+    SELECT cps.descripcion, sc.nombre AS servicio_nombre, cp.num_partida
+    FROM cotizacion_partida_servicios cps
+    JOIN cotizaciones_partidas cp ON cp.id = cps.partida_id
+    JOIN cotizaciones c ON c.id = cp.cotizacion_id
+    LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id
+    WHERE c.orden_id = ?
+    ORDER BY cp.num_partida, cps.id
+");
+$stmtSrv->execute([$orden['id']]);
+foreach ($stmtSrv->fetchAll() as $srv) {
+    $label = trim($srv['descripcion'] ?: ($srv['servicio_nombre'] ?? ''));
+    if ($label !== '') {
+        $serviciosPorPartida[(int)$srv['num_partida']][] = $label;
+    }
+}
+
 // Fecha de entrega formateada
 $fechaEntrega = '';
 if ($orden['fecha_entrega']) {
@@ -162,6 +181,13 @@ body {
     border: 1px solid #000; line-height: 1.3;
 }
 
+/* Badge servicio adicional */
+.badge-srv {
+    background: #000; border-radius: 2px;
+    padding: 2px 6px; display: inline-block; margin-bottom: 2px;
+}
+.badge-srv span { font-size: 9.5px; font-weight: 700; color: #fff; letter-spacing: .2px; }
+
 /* Detalle */
 .detalle {
     background: #fff; border: 1.5px solid #000;
@@ -203,7 +229,7 @@ body {
     .partida { font-size: 3.5mm; }
     .cristal-val { font-size: 3.5mm; }
     .medidas-val { font-size: 4mm; }
-    .badge-cpb span, .badge-fm span { font-size: 3mm; }
+    .badge-cpb span, .badge-fm span, .badge-srv span { font-size: 3mm; }
     .chip    { font-size: 2.8mm; }
     .detalle span { font-size: 2.8mm; }
     .footer-val { font-size: 3mm; }
@@ -296,6 +322,11 @@ body {
         <?php if ($esFM): ?>
             <div class="badge-fm"><span>FILO MUERTO</span></div>
         <?php endif; ?>
+
+        <!-- Servicios adicionales -->
+        <?php foreach ($serviciosPorPartida[(int)$p['partida']] ?? [] as $srvLabel): ?>
+            <div class="badge-srv"><span><?= strtoupper(htmlspecialchars($srvLabel)) ?></span></div>
+        <?php endforeach; ?>
 
         <!-- Chips trabajos -->
         <?php if (!empty($chips)): ?>

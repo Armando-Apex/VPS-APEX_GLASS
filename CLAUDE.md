@@ -483,6 +483,7 @@ Próximo UPD disponible: **UPD-059**
 | UPD-095 | 18-jun | Armando | HostGator cancelado — servidor único ahora es VPS Hostinger |
 | UPD-096 | 18-jun | Armando | modulos/cotizaciones.php + api/cotizaciones.php: search ahora busca en folio orden (S-XXX), cliente, folio cot y proyecto; auto-switch de tab si resultado está en tab distinto; paginación 25 registros por tab con controles Ant/Sig |
 | UPD-097 | 18-jun | Armando | api/finanzas.php: estatus_pago se actualiza automáticamente a 'pagado' al registrar pago si (total - saldo_pagado) <= $0.99; BD: UPDATE retroactivo a 39 órdenes ya pagadas; modulos/finanzas_cobranza.php: estadoPago() usa misma tolerancia $0.99 |
+| UPD-098 | 18-jun | Armando | imprimir_etiquetas.php: muestra servicios adicionales de la partida (badge negro fondo, texto blanco) debajo del badge CPB/FILO MUERTO |
 
 ---
 
@@ -493,4 +494,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-097**
+**Próximo UPD disponible: UPD-099**
