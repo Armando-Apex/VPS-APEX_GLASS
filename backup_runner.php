@@ -31,13 +31,13 @@ define('DRIVE_FOLDER_ID_FILE', __DIR__ . '/../_backups/drive_folder_id.txt');
 define('DIAS_RETENER', 15);
 
 // Carpeta local donde se guardan los backups
-define('BACKUP_DIR', __DIR__ . '/../_backups');
+define('BACKUP_DIR', __DIR__ . '/_backups');
 
 // Base de datos
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'a3026051_apexglass_prod');
-define('DB_USER', 'a3026051_apexglass_adm001_usr');
-define('DB_PASS', '%-5988Arey%$*2026');  // ← PON TU CONTRASEÑA AQUÍ
+define('DB_HOST', '::1');
+define('DB_NAME', 'apexglass2025_prod');
+define('DB_USER', 'apexglass2025_usr');
+define('DB_PASS', 'tNGlass-Apex2025*2');  // ← PON TU CONTRASEÑA AQUÍ
 
 // Token de seguridad para llamadas HTTP manuales
 define('TOKEN_SECRETO', 'apex_bk_2026_xK9mTr_9N8VABUvCoiOcAk7HIZkawPyO');  // ← PON TU TOKEN AQUÍ

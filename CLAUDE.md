@@ -478,6 +478,8 @@ Próximo UPD disponible: **UPD-059**
 | UPD-092 | 17-jun | Armando | Fix definitivo total cotizaciones: cotizaciones.subtotal es inconsistente (bruto en registros viejos, neto en nuevos) — todas las queries ahora usan SUM(precio_m2_usado×m2×cantidad) FROM cotizaciones_partidas como bruto canónico. Afecta api/finanzas.php (lista_vobo, detalle, cobranza, registrar_pago) y api/cotizaciones.php (GET detalle + GET lista). Detectado en S-078: subtotal almacenado como neto causaba doble descuento en VoBo |
 | UPD-090 | 17-jun | Mando | Cobranza: auto-refresh al registrar pago y al cambiar estatus de pago — llama a cargar() para traer datos frescos del servidor |
 | UPD-091 | 17-jun | Mando | Archivos en cotización: módulo archivos_ordenes removido del sidebar; botón "Archivos" integrado en barra de acciones de cotizacion.php (visible cuando es orden/entregada); abre modal con lista + subida de archivos (roles: comercial, administracion, dir_admin, dueno) |
+| UPD-093 | 17-jun | Mando | Backup automático BD VPS: backup_runner.php actualizado con credenciales VPS (host ::1, apexglass2025_prod); cron configurado 0 6 * * * (12:00 AM Monterrey / UTC-6); backups en produccion/_backups/, retención 15 días, log en backup.log |
+| UPD-094 | 17-jun | Mando | Seguridad _backups/: permisos carpeta 750, archivos 640; .htaccess actualizado con Require all denied + Deny from all (Apache 2.4); backup verificado: 39 tablas, 35 INSERT, 179.6 KB. Para revertir: chmod 755 _backups/ && chmod 644 _backups/*.sql.gz |
 
 ---
 
@@ -488,4 +490,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-092**
+**Próximo UPD disponible: UPD-094**
