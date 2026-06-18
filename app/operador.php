@@ -418,6 +418,21 @@ body {
   </div>
 </div>
 
+<!-- ── Modal Omisión ────────────────────────────────────── -->
+<div class="modal-bg" id="modalOmision">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" style="color:#f5a623">&#9888;&#65039; Omisi&oacute;n detectada</div>
+    <div class="modal-sub" id="omisionSub">—</div>
+    <div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.25);border-radius:12px;padding:14px;margin-bottom:18px;font-size:13px;line-height:1.6;color:#f0f0f0">
+      Si confirmas, la omisi&oacute;n quedar&aacute; registrada y podr&aacute;s continuar con tu proceso.<br>
+      <strong style="color:#f5a623">La supervisi&oacute;n podr&aacute; ver este registro.</strong>
+    </div>
+    <button class="btn-confirmar" style="background:#f5a623;color:#000" onclick="confirmarOmision()">&#10003; Confirmar y continuar</button>
+    <button class="btn-cancelar" onclick="cerrarModalOmision()">Cancelar</button>
+  </div>
+</div>
+
 <!-- ── Modal Retrabajo ──────────────────────────────────── -->
 <div class="modal-bg" id="modalRetrabajo">
   <div class="modal-sheet">
@@ -879,6 +894,12 @@ function setupButton(p) {
       btn.textContent = '✅ Ya terminado';
       btn.className   = 'btn-action done';
       btn.onclick     = null;
+    } else if (parseInt(p.requiere_templado) === 1 && ['taladro','canteado'].indexOf(p.estatus) !== -1) {
+      btn.textContent   = '⚠️ TEMPLADO no marcó entrada al horno — Confirmar omisión';
+      btn.className     = 'btn-action';
+      btn.style.cssText = 'background:#d97706;color:#000;font-size:14px;';
+      var _pe2 = p.estatus;
+      btn.onclick = function() { abrirModalOmision('terminado', _pe2, 'terminado'); };
     } else {
       btn.textContent   = '⛔ Pieza no está en horno aún';
       btn.className     = 'btn-action done';
@@ -904,11 +925,16 @@ function setupButton(p) {
     const piezaLista = previosOk.includes(p.estatus) || p.estatus === reg;
 
     if (!piezaLista) {
-      const labelEstatus = {'pendiente':'⏳ Pendiente','en_corte':'⚙️ En CNC','cortado':'✂️ Cortado','canteado':'🔨 Canteado','trazo':'✎️ Trazo','taladro':'🔧 Taladro','en_horno':'🔥 En Horno','terminado':'📦 Terminado'};
-      btn.textContent      = '⛔ No disponible — pieza en: ' + (labelEstatus[p.estatus] || p.estatus || '—');
-      btn.className        = 'btn-action done';
-      btn.style.cssText    = 'background:#334155;color:#94a3b8;cursor:not-allowed;font-size:14px;opacity:1';
-      btn.onclick          = null;
+      var omisionMsg = {
+        canteado: 'CORTE no marcó la pieza como cortada',
+        trazo:    'CANTEADO no marcó la pieza',
+        taladro:  'TRAZO no marcó la pieza',
+      };
+      btn.textContent   = '⚠️ ' + (omisionMsg[est] || 'Estación anterior no marcó') + ' — Confirmar omisión';
+      btn.className     = 'btn-action';
+      btn.style.cssText = 'background:#d97706;color:#000;font-size:14px;';
+      var _est = est, _pe = p.estatus, _re = reg;
+      btn.onclick = function() { abrirModalOmision(_est, _pe, _re); };
       return;
     }
 
@@ -981,8 +1007,36 @@ async function doReproceso() {
   btn.disabled = false;
 }
 
+// ── Modal Omisión ─────────────────────────────────────────
+var _omisionNuevoEstatus = null;
+
+function abrirModalOmision(est, estatusActual, nuevoEstatus) {
+  var msgs = {
+    canteado:  'CORTE (pieza no marcada como cortada)',
+    trazo:     'CANTEADO (pieza no marcada)',
+    taladro:   'TRAZO (pieza no marcada)',
+    terminado: 'TEMPLADO (pieza no entró al horno)',
+  };
+  _omisionNuevoEstatus = nuevoEstatus;
+  document.getElementById('omisionSub').textContent =
+    'La pieza está en "' + estatusActual.toUpperCase() + '". Estación ' + (msgs[est] || est) + '.';
+  document.getElementById('modalOmision').classList.add('open');
+}
+
+function cerrarModalOmision() {
+  document.getElementById('modalOmision').classList.remove('open');
+  _omisionNuevoEstatus = null;
+}
+
+async function confirmarOmision() {
+  if (!pieza || !_omisionNuevoEstatus) return;
+  var est = _omisionNuevoEstatus;
+  cerrarModalOmision();
+  await doUpdate(est, true);
+}
+
 // ── Actualizar estatus ────────────────────────────────────
-async function doUpdate(nuevoEstatus) {
+async function doUpdate(nuevoEstatus, esOmision) {
   if (!pieza) return;
   const btn  = document.getElementById('btnAction');
   const orig = btn.textContent;
@@ -990,7 +1044,7 @@ async function doUpdate(nuevoEstatus) {
   try {
     const r = await fetch(API + 'actualizar_estatus.php', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qr_code: pieza.qr_code, estatus: nuevoEstatus, usuario_id: session.id })
+      body: JSON.stringify({ qr_code: pieza.qr_code, estatus: nuevoEstatus, usuario_id: session.id, omision: esOmision ? 1 : 0 })
     });
     const d = await r.json();
     if (d.ok) {

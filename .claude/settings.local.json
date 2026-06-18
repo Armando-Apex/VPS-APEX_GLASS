@@ -11,7 +11,8 @@
       "Bash(python3 -m ensurepip --upgrade)",
       "Bash(python3 -m pip install mcp-server-fetch)",
       "Bash(php *)",
-      "Bash(mysql *)"
+      "Bash(mysql *)",
+      "Bash(python3 *)"
     ]
   },
   "hooks": {

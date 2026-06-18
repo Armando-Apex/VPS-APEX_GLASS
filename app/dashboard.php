@@ -11,6 +11,7 @@ $esAdmin      = $_rol === 'dir_admin';
 $esInventario = in_array($_rol, ['dir_admin','administracion']);
 $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 $esLogistica  = in_array($_rol, ['dir_admin','administracion','dueno','chofer']);
+$esJefe       = in_array($_rol, ['jefe_piso','dir_admin','dueno','director']);
 $esArchivos   = in_array($_rol, ['dir_admin','administracion','comercial']);
 ?>
 <!DOCTYPE html>
@@ -180,6 +181,11 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
       <button class="sidebar-link" data-modulo="retrabajo" onclick="cargarModulo('retrabajo')">
         <span class="sidebar-icon">&#9888;&#65039;</span>Retrabajo
       </button>
+      <?php if ($esJefe): ?>
+      <button class="sidebar-link" data-modulo="omisiones" onclick="cargarModulo('omisiones')">
+        <span class="sidebar-icon">&#128683;</span>Omisiones
+      </button>
+      <?php endif; ?>
     </div>
     <?php if ($esComercial): ?>
     <div class="sidebar-section">
@@ -292,6 +298,7 @@ const MODULOS = {
   finanzas_vobo:'modulos/finanzas_vobo.php',
   finanzas_cobranza:'modulos/finanzas_cobranza.php',
   logistica_rutas:'modulos/logistica_rutas.php', chofer_ruta:'modulos/chofer_ruta.php',
+  omisiones:'modulos/omisiones.php',
   orden:'modulos/orden.php', cotizacion:'modulos/cotizacion.php',
 };
 

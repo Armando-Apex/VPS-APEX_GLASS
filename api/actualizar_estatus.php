@@ -50,6 +50,8 @@ $userId  = intval($input['usuario_id'] ?? 0);
 
 $notas   = trim($input['notas']      ?? '');
 
+$omision = !empty($input['omision']) ? 1 : 0;
+
 
 
 $estatusValidos = [
@@ -113,7 +115,7 @@ $FLUJO_PREVIO = [
     'pendiente' => ['canteado','trazo','taladro','en_horno'],
 ];
 $estatusActual = $pieza['estatus'];
-if (isset($FLUJO_PREVIO[$estatus]) && !in_array($estatusActual, $FLUJO_PREVIO[$estatus])) {
+if (!$omision && isset($FLUJO_PREVIO[$estatus]) && !in_array($estatusActual, $FLUJO_PREVIO[$estatus])) {
     jsonResponse(['error' => 'La pieza est&#225; en "' . $estatusActual . '" y no puede pasar a "' . $estatus . '"'], 400);
 }
 
@@ -159,9 +161,9 @@ $db->prepare('
 
     INSERT INTO historial_estatus
 
-        (pieza_id, estatus_anterior, estatus_nuevo, usuario_id, usuario_nombre, notas)
+        (pieza_id, estatus_anterior, estatus_nuevo, usuario_id, usuario_nombre, notas, omision)
 
-    VALUES (?,?,?,?,?,?)
+    VALUES (?,?,?,?,?,?,?)
 
 ')->execute([
 
@@ -175,7 +177,9 @@ $db->prepare('
 
     $nombreUsuario,
 
-    $notas
+    $notas,
+
+    $omision
 
 ]);
 
