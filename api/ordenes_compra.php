@@ -185,16 +185,22 @@ if ($method === 'GET') {
 
     // Lista de OCs
     $estado_raw  = $_GET['estado'] ?? '';
+    $tipo_raw    = $_GET['tipo']   ?? '';
     $estados_ok  = ['borrador', 'abierta', 'cerrada', 'pagada', 'cancelada'];
-    $where       = '';
+    $where_parts = [];
     $params      = [];
     if ($estado_raw !== '' && in_array($estado_raw, $estados_ok, true)) {
-        $where    = 'WHERE oc.estado = ?';
-        $params[] = $estado_raw;
+        $where_parts[] = 'oc.estado = ?';
+        $params[]      = $estado_raw;
     }
+    if ($tipo_raw !== '' && in_array($tipo_raw, ['material', 'suministro'], true)) {
+        $where_parts[] = 'oc.tipo = ?';
+        $params[]      = $tipo_raw;
+    }
+    $where = $where_parts ? 'WHERE ' . implode(' AND ', $where_parts) : '';
     $s = $db->prepare("
         SELECT
-            oc.id, oc.numero_oc, oc.fecha_oc, oc.dias_credito,
+            oc.id, oc.tipo, oc.categoria, oc.numero_oc, oc.fecha_oc, oc.dias_credito,
             oc.estado, oc.fecha_pago_programada, oc.notas,
             p.nombre                            AS proveedor,
             COUNT(DISTINCT op.id)               AS num_partidas,
@@ -232,6 +238,8 @@ if ($method === 'POST') {
         $dias_credito = (int)($body['dias_credito'] ?? 0);
         $notas        = trim($body['notas'] ?? '');
         $numero_oc    = trim($body['numero_oc'] ?? '');
+        $tipo         = in_array($body['tipo'] ?? '', ['material','suministro']) ? $body['tipo'] : 'material';
+        $categoria    = trim($body['categoria'] ?? '') ?: null;
 
         if (!$proveedor_id) jsonResponse(['error' => 'Proveedor requerido'], 422);
 
@@ -245,10 +253,10 @@ if ($method === 'POST') {
         }
 
         $s = $db->prepare("INSERT INTO ordenes_compra
-            (numero_oc, proveedor_id, fecha_oc, dias_credito, notas, created_by)
-            VALUES (?,?,?,?,?,?)");
+            (tipo, categoria, numero_oc, proveedor_id, fecha_oc, dias_credito, notas, created_by)
+            VALUES (?,?,?,?,?,?,?,?)");
         try {
-            $s->execute([$numero_oc, $proveedor_id, $fecha_oc, $dias_credito, $notas, $user['id']]);
+            $s->execute([$tipo, $categoria, $numero_oc, $proveedor_id, $fecha_oc, $dias_credito, $notas, $user['id']]);
         } catch (PDOException $e) {
             if ($e->getCode() == 23000)
                 jsonResponse(['error' => 'Ya existe una OC con ese número'], 422);
@@ -398,7 +406,10 @@ if ($method === 'POST') {
             }
 
             // Verificar si la OC quedo completa
-            $tipo_check = $es_oc_flete ? 'flete' : 'lamina';
+            $stype = $db->prepare("SELECT tipo FROM ordenes_compra WHERE id = ?");
+            $stype->execute([$oc_id]);
+            $oc_tipo    = $stype->fetchColumn() ?: 'material';
+            $tipo_check = ($oc_tipo === 'suministro') ? 'otro' : ($es_oc_flete ? 'flete' : 'lamina');
             $sc = $db->prepare("
                 SELECT SUM(cantidad) - SUM(cantidad_recibida) AS pendiente
                 FROM oc_partidas WHERE orden_compra_id = ? AND tipo = ?
@@ -566,10 +577,11 @@ if ($method === 'PUT') {
         $notas        = trim($body['notas'] ?? '');
         if (!$proveedor_id || !$fecha_oc)
             jsonResponse(['error' => 'Faltan datos'], 422);
+        $categoria = trim($body['categoria'] ?? '') ?: null;
         $db->prepare("UPDATE ordenes_compra SET
-            proveedor_id=?, fecha_oc=?, dias_credito=?, notas=?
+            proveedor_id=?, fecha_oc=?, dias_credito=?, notas=?, categoria=?
             WHERE id=?")
-           ->execute([$proveedor_id, $fecha_oc, $dias_credito, $notas, $id]);
+           ->execute([$proveedor_id, $fecha_oc, $dias_credito, $notas, $categoria, $id]);
         jsonResponse(['ok' => true]);
     }
 

@@ -485,6 +485,9 @@ Próximo UPD disponible: **UPD-059**
 | UPD-097 | 18-jun | Armando | api/finanzas.php: estatus_pago se actualiza automáticamente a 'pagado' al registrar pago si (total - saldo_pagado) <= $0.99; BD: UPDATE retroactivo a 39 órdenes ya pagadas; modulos/finanzas_cobranza.php: estadoPago() usa misma tolerancia $0.99 |
 | UPD-098 | 18-jun | Armando | imprimir_etiquetas.php: muestra servicios adicionales de la partida debajo del badge CPB/FILO MUERTO |
 | UPD-099 | 18-jun | Armando | imprimir_etiquetas.php: badge servicio ajustado a fondo blanco + borde negro + texto negro; formato "DESCRIPCION - N" usando unidades_por_pieza (ej. RADIO - 4) |
+| UPD-100 | 18-jun | Armando | BD: ordenes_compra += tipo ENUM(material,suministro) DEFAULT material + categoria VARCHAR(100) |
+| UPD-101 | 18-jun | Armando | api/ordenes_compra.php: filtro ?tipo=, campos tipo/categoria en crear/actualizar, fix tipo_check en registrar_entrega para suministros (tipo='otro') |
+| UPD-102 | 18-jun | Armando | NUEVO modulos/compras.php: tabs Suministros + OC Material, KPIs, CRUD completo (crear OC, partidas, pagos, recepción, cambio estado); sidebar dashboard += Compras bajo Inventario |
 
 ---
 
@@ -495,4 +498,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-100**
+**Próximo UPD disponible: UPD-103**

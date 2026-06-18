@@ -226,6 +226,9 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
       <button class="sidebar-link" data-modulo="inventario" onclick="cargarModulo('inventario')">
         <span class="sidebar-icon">&#128230;</span>Inventario
       </button>
+      <button class="sidebar-link" data-modulo="compras" onclick="cargarModulo('compras')">
+        <span class="sidebar-icon">&#128722;</span>Compras
+      </button>
     </div>
     <?php endif; ?>
     <?php if ($esFinanzas): ?>
@@ -285,7 +288,8 @@ const MODULOS = {
   cristales:'modulos/cristales.php', optimizador:'modulos/optimizador.php',
   reporte_direccion:'modulos/reporte_direccion.php', productividad:'modulos/productividad.php',
   admin_ordenes:'modulos/admin_ordenes.php', admin_comunicados:'modulos/admin_comunicados.php',
-  inventario:'modulos/inventario.php', finanzas_vobo:'modulos/finanzas_vobo.php',
+  inventario:'modulos/inventario.php', compras:'modulos/compras.php',
+  finanzas_vobo:'modulos/finanzas_vobo.php',
   finanzas_cobranza:'modulos/finanzas_cobranza.php',
   logistica_rutas:'modulos/logistica_rutas.php', chofer_ruta:'modulos/chofer_ruta.php',
   orden:'modulos/orden.php', cotizacion:'modulos/cotizacion.php',
@@ -343,7 +347,7 @@ async function cargarModulo(nombre, params = {}) {
         await new Promise(r => { ns.onload = r; ns.onerror = r; });
       } else {
         let code = s.textContent
-          .replace(/\bconst\s+(?!ModResumen|ModOrdenes|ModEstaciones|ModCotizaciones|ModClientes|ModCristales|ModProductividad|ModReporte|ModAdminOrdenes|ModAdminComunicados|ModInventario|ModRetrabajo|ModCotizacion|ModFinanzasVobo|ModFinanzasCobranza|ModArchivos|LR|CR\b)/g, 'var ')
+          .replace(/\bconst\s+(?!ModResumen|ModOrdenes|ModEstaciones|ModCotizaciones|ModClientes|ModCristales|ModProductividad|ModReporte|ModAdminOrdenes|ModAdminComunicados|ModInventario|ModCompras|ModRetrabajo|ModCotizacion|ModFinanzasVobo|ModFinanzasCobranza|ModArchivos|LR|CR\b)/g, 'var ')
           .replace(/\blet\s+/g, 'var ');
         const ns = document.createElement('script');
         ns.textContent = code;
