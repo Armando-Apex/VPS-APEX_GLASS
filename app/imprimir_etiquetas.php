@@ -44,7 +44,7 @@ if (empty($piezas)) {
 // Servicios adicionales por partida
 $serviciosPorPartida = [];
 $stmtSrv = $db->prepare("
-    SELECT cps.descripcion, sc.nombre AS servicio_nombre, cp.num_partida
+    SELECT cps.descripcion, cps.unidades_por_pieza, sc.nombre AS servicio_nombre, cp.num_partida
     FROM cotizacion_partida_servicios cps
     JOIN cotizaciones_partidas cp ON cp.id = cps.partida_id
     JOIN cotizaciones c ON c.id = cp.cotizacion_id
@@ -56,6 +56,8 @@ $stmtSrv->execute([$orden['id']]);
 foreach ($stmtSrv->fetchAll() as $srv) {
     $label = trim($srv['descripcion'] ?: ($srv['servicio_nombre'] ?? ''));
     if ($label !== '') {
+        $uni = (int)($srv['unidades_por_pieza'] ?? 0);
+        if ($uni > 0) $label .= ' - ' . $uni;
         $serviciosPorPartida[(int)$srv['num_partida']][] = $label;
     }
 }
@@ -183,10 +185,10 @@ body {
 
 /* Badge servicio adicional */
 .badge-srv {
-    background: #000; border-radius: 2px;
+    background: #fff; border: 1.5px solid #000; border-radius: 2px;
     padding: 2px 6px; display: inline-block; margin-bottom: 2px;
 }
-.badge-srv span { font-size: 9.5px; font-weight: 700; color: #fff; letter-spacing: .2px; }
+.badge-srv span { font-size: 9.5px; font-weight: 700; color: #000; letter-spacing: .2px; }
 
 /* Detalle */
 .detalle {
