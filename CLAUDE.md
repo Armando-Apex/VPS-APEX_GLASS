@@ -122,7 +122,7 @@ El SPA loader del dashboard agrega scripts al head sin limpiarlos entre navegaci
 - Proyecto: `/home/apexglass2025/apex.glass/public_html/produccion/`
 - Config MCP: `MYSQL_HOST=::1`, `MYSQL_PORT=3306`, `MYSQL_USER=apexglass2025_usr`, `MYSQL_DB=apexglass2025_prod`
 
-### HostGator (mantener ~1 semana como respaldo, luego cancelar)
+### HostGator (CANCELADO 18-jun-2026)
 - Ruta: `/home3/a3026051/apex_tnglass/apex.glass/produccion/`
 - BD: `a3026051_apexglass_prod`
 - PHP: 8.3 | MySQL: 5.7.44 (Percona)
@@ -359,7 +359,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | Prioridad | Resp. | Tarea | Estado |
 |---|---|---|---|
 | URGENTE | Ambos | Operador horno: 2 acciones separadas (en_horno + terminado/reproceso) | HECHO UPD-076 |
-| ALTA | Armando | Cancelar HostGator (~1 semana margen desde 14-jun) | Pendiente |
+| ALTA | Armando | Cancelar HostGator (~1 semana margen desde 14-jun) | HECHO 18-jun |
 | ALTA | Armando | Seguridad HTTP (CORS, CSRF, headers, session regenerate) | Pendiente |
 | ALTA | Armando | Agregar UPDs 059+ al Google Doc (cambios 12-14 jun) | Pendiente |
 | MEDIA | Armando | Mover DB_PASS a .env fuera del webroot | Pendiente |
