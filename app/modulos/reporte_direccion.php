@@ -416,8 +416,9 @@ function rdRenderRentabilidad(inv) {
     if (precio !== null) precio = parseFloat((precio * 0.90).toFixed(4));
     var utilidad    = precio !== null ? parseFloat((precio - costoConIva).toFixed(4)) : null;
     var markup      = (precio !== null && costoConIva > 0) ? (utilidad / costoConIva) * 100 : null;
+    var utilidadPct = (precio !== null && precio > 0)      ? ((precio - costoSinIva) / precio) * 100 : null;
     var margen      = (precio !== null && precio > 0)      ? (utilidad / precio) * 100       : null;
-    rows.push({ tipo: g.tipo, espesor: g.espesor_mm, costoSinIva: costoSinIva, costoConIva: costoConIva, precio: precio, utilidad: utilidad, markup: markup, margen: margen });
+    rows.push({ tipo: g.tipo, espesor: g.espesor_mm, costoSinIva: costoSinIva, costoConIva: costoConIva, precio: precio, utilidad: utilidad, markup: markup, utilidadPct: utilidadPct, margen: margen });
   });
 
   if (!rows.length) return '';
@@ -441,6 +442,7 @@ function rdRenderRentabilidad(inv) {
   '<th style="text-align:right">Precio venta /m&#178;</th>' +
   '<th style="text-align:right">Utilidad /m&#178;</th>' +
   '<th style="text-align:right">Markup</th>' +
+  '<th style="text-align:right">% Utilidad</th>' +
   '<th style="text-align:right">Margen %</th>' +
   '</tr></thead><tbody>';
 
@@ -463,6 +465,7 @@ function rdRenderRentabilidad(inv) {
       '<td style="text-align:right">' + (r.precio !== null ? fmt(r.precio) : '<span style="color:#94a3b8;font-size:11px">Sin precio</span>') + '</td>' +
       '<td style="text-align:right;color:#16a34a"><strong>' + fmt(r.utilidad) + '</strong></td>' +
       '<td style="text-align:right;color:var(--muted)">' + fmtPct(r.markup) + '</td>' +
+      '<td style="text-align:right;font-weight:700;color:#0369a1">' + fmtPct(r.utilidadPct) + '</td>' +
       '<td style="text-align:right">' + margenCell + '</td>' +
     '</tr>';
   });
