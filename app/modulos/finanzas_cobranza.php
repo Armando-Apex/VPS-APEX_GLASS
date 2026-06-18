@@ -455,7 +455,7 @@ function filtrar() {
 function estadoPago(total, pagado) {
   if (!total || total <= 0) return 'sin_pago';
   if (pagado <= 0) return 'sin_pago';
-  if (pagado >= total) return 'completo';
+  if ((total - pagado) <= 0.99) return 'completo';
   return 'parcial';
 }
 

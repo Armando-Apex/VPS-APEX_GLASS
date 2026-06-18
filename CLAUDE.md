@@ -482,7 +482,7 @@ Próximo UPD disponible: **UPD-059**
 | UPD-094 | 17-jun | Mando | Seguridad _backups/: permisos carpeta 750, archivos 640; .htaccess actualizado con Require all denied + Deny from all (Apache 2.4); backup verificado: 39 tablas, 35 INSERT, 179.6 KB. Para revertir: chmod 755 _backups/ && chmod 644 _backups/*.sql.gz |
 | UPD-095 | 18-jun | Armando | HostGator cancelado — servidor único ahora es VPS Hostinger |
 | UPD-096 | 18-jun | Armando | modulos/cotizaciones.php + api/cotizaciones.php: search ahora busca en folio orden (S-XXX), cliente, folio cot y proyecto; auto-switch de tab si resultado está en tab distinto; paginación 25 registros por tab con controles Ant/Sig |
-| UPD-097 | 18-jun | Armando | api/finanzas.php: estatus_pago se actualiza automáticamente a 'pagado' al registrar pago si saldo_pagado >= total real |
+| UPD-097 | 18-jun | Armando | api/finanzas.php: estatus_pago se actualiza automáticamente a 'pagado' al registrar pago si (total - saldo_pagado) <= $0.99; BD: UPDATE retroactivo a 39 órdenes ya pagadas; modulos/finanzas_cobranza.php: estadoPago() usa misma tolerancia $0.99 |
 
 ---
 
