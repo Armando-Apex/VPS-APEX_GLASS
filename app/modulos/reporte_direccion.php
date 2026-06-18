@@ -141,14 +141,34 @@ function fmtMXN(n) {
   return '$' + parseFloat(n).toLocaleString('es-MX', {minimumFractionDigits:0, maximumFractionDigits:0});
 }
 
+function mkTopPanel(titulo, icono, lista, valFn) {
+  var rows = '';
+  if (lista.length === 0) {
+    rows = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:16px;font-size:12px">Sin datos en el per&#237;odo</td></tr>';
+  } else {
+    lista.forEach(function(cl, i) {
+      var medal = i === 0 ? '&#x1F947;' : i === 1 ? '&#x1F948;' : i === 2 ? '&#x1F949;' : (i + 1) + '.';
+      rows += '<tr>' +
+        '<td style="text-align:center;font-size:15px;width:32px">' + medal + '</td>' +
+        '<td style="font-size:12px;padding:8px 10px"><strong>' + esc(cl.nombre) + '</strong></td>' +
+        '<td style="text-align:right;white-space:nowrap;padding:8px 10px">' + valFn(cl) + '</td></tr>';
+    });
+  }
+  return '<div class="table-card" style="margin-bottom:0">' +
+    '<div style="padding:10px 14px;background:var(--navy);color:white;font-weight:700;font-size:11px;letter-spacing:.5px;text-transform:uppercase">' + icono + ' ' + titulo + '</div>' +
+    '<table><tbody>' + rows + '</tbody></table></div>';
+}
+
 function rdRender(rep, dash, inv) {
   const r           = rep.resumen      || {};
   const fin         = rep.finanzas     || {};
   const cot         = rep.cots_resumen || {};
   const mensual     = rep.mensual      || [];
   const conv        = rep.conversion   || {};
-  const topClientes = rep.top_clientes || [];
-  const porAsesor   = rep.por_asesor   || [];
+  const topClientes = rep.top_clientes          || [];
+  const topPedidos  = rep.top_clientes_pedidos  || [];
+  const topM2       = rep.top_clientes_m2       || [];
+  const porAsesor   = rep.por_asesor            || [];
   const repro       = rep.reproceso    || {};
   const hornoSems   = rep.horno_semanas|| [];
   const pctTiempo  = r.total > 0 ? Math.round((r.a_tiempo / r.total) * 100) : 0;
@@ -262,19 +282,13 @@ function rdRender(rep, dash, inv) {
     </table></div>`;
   }
 
-  if (topClientes.length > 0) {
-    html += '<div class="section-title">&#x1F3C6; Top 5 clientes del per&#237;odo</div>' +
-    '<div class="table-card"><table>' +
-    '<thead><tr><th>#</th><th>Cliente</th><th style="text-align:right">&#xD3;rdenes</th><th style="text-align:right">Total ventas</th></tr></thead><tbody>';
-    topClientes.forEach(function(cl, i) {
-      var medal = i === 0 ? '&#x1F947;' : i === 1 ? '&#x1F948;' : i === 2 ? '&#x1F949;' : (i+1) + '.';
-      html += '<tr>' +
-        '<td style="font-size:16px;text-align:center">' + medal + '</td>' +
-        '<td><strong>' + esc(cl.nombre) + '</strong></td>' +
-        '<td style="text-align:right">' + cl.ordenes + '</td>' +
-        '<td style="text-align:right;font-weight:800;color:var(--blue);font-size:15px">' + fmtMXN(cl.total_ventas) + '</td></tr>';
-    });
-    html += '</tbody></table></div>';
+  if (topClientes.length > 0 || topPedidos.length > 0 || topM2.length > 0) {
+    html += '<div class="section-title">&#x1F3C6; Top 5 Clientes del per&#237;odo</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">' +
+      mkTopPanel('Por Monto ($)', '&#x1F4B0;', topClientes, function(cl) { return '<span style="font-weight:800;color:var(--blue);font-size:14px">' + fmtMXN(cl.total_ventas) + '</span>'; }) +
+      mkTopPanel('Por Pedidos', '&#x1F4E6;', topPedidos, function(cl) { return '<span style="font-weight:700;color:var(--green)">' + cl.ordenes + ' &#243;rdenes</span>'; }) +
+      mkTopPanel('Por M&#178;', '&#x1F4D0;', topM2, function(cl) { return '<span style="font-weight:700;color:var(--accent)">' + parseFloat(cl.total_m2).toFixed(1) + ' m&#178;</span>'; }) +
+    '</div>';
   }
 
   if (hornoSems.length > 0) {

@@ -198,6 +198,39 @@ $stmtTop = $pdo->prepare("
 $stmtTop->execute($params4);
 $top_clientes = $stmtTop->fetchAll(PDO::FETCH_ASSOC);
 
+// ── Top 5 clientes por número de pedidos (período) ──
+$stmtTopPed = $pdo->prepare("
+    SELECT cl.nombre, COUNT(o.id) AS ordenes
+    FROM ordenes o
+    JOIN cotizaciones c ON c.orden_id = o.id
+    JOIN clientes cl ON cl.id = c.cliente_id
+    WHERE o.estado != 'cancelada' AND c.estatus != 'cancelada'
+      AND (o.fecha_pedido BETWEEN ? AND ?
+           OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
+    GROUP BY cl.id, cl.nombre
+    ORDER BY ordenes DESC
+    LIMIT 5
+");
+$stmtTopPed->execute($params4);
+$top_clientes_pedidos = $stmtTopPed->fetchAll(PDO::FETCH_ASSOC);
+
+// ── Top 5 clientes por M² ordenado (período) ──
+$stmtTopM2 = $pdo->prepare("
+    SELECT cl.nombre, COALESCE(SUM(cp.m2 * cp.cantidad), 0) AS total_m2, COUNT(DISTINCT o.id) AS ordenes
+    FROM ordenes o
+    JOIN cotizaciones c ON c.orden_id = o.id
+    JOIN clientes cl ON cl.id = c.cliente_id
+    JOIN cotizaciones_partidas cp ON cp.cotizacion_id = c.id
+    WHERE o.estado != 'cancelada' AND c.estatus != 'cancelada'
+      AND (o.fecha_pedido BETWEEN ? AND ?
+           OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
+    GROUP BY cl.id, cl.nombre
+    ORDER BY total_m2 DESC
+    LIMIT 5
+");
+$stmtTopM2->execute($params4);
+$top_clientes_m2 = $stmtTopM2->fetchAll(PDO::FETCH_ASSOC);
+
 // ── Órdenes y ventas por asesor (período) ──
 $stmtAsesor = $pdo->prepare("
     SELECT c.asesor_nombre, COUNT(o.id) AS ordenes, COALESCE(SUM(c.total), 0) AS total_ventas
@@ -248,13 +281,15 @@ $stmtHorno->execute();
 $horno_semanas = $stmtHorno->fetchAll(PDO::FETCH_ASSOC);
 
 echo json_encode([
-    'resumen'       => $resumen,
-    'mensual'       => $mensual,
-    'finanzas'      => $finanzas,
-    'cots_resumen'  => $cots_resumen,
-    'conversion'    => $conversion,
-    'top_clientes'  => $top_clientes,
-    'por_asesor'    => $por_asesor,
-    'reproceso'     => $reproceso,
-    'horno_semanas' => $horno_semanas,
+    'resumen'               => $resumen,
+    'mensual'               => $mensual,
+    'finanzas'              => $finanzas,
+    'cots_resumen'          => $cots_resumen,
+    'conversion'            => $conversion,
+    'top_clientes'          => $top_clientes,
+    'top_clientes_pedidos'  => $top_clientes_pedidos,
+    'top_clientes_m2'       => $top_clientes_m2,
+    'por_asesor'            => $por_asesor,
+    'reproceso'             => $reproceso,
+    'horno_semanas'         => $horno_semanas,
 ]);
