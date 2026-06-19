@@ -313,8 +313,10 @@ function renderFormulario(data) {
 
   // Acciones
   if (!esNuevo) {
+    html += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">';
+
     // ── Fila 1: botones visibles a asesores ──
-    html += '<div class="acciones">';
+    html += '<div class="acciones" style="justify-content:flex-end;">';
     if (estatus === 'cotizacion' && editable) {
       html += '<button class="btn btn-warning" onclick="ModCotizacion._convertirOrden()">&#127981; Convertir a Orden</button>';
     }
@@ -342,10 +344,10 @@ function renderFormulario(data) {
     }
     html += '</div>';
 
-    // ── Fila 2: botones exclusivos dir_admin / admin ──
+    // ── Fila 2: botones exclusivos dir_admin / admin (solo si hay alguno visible) ──
     var hayBotonesAdmin = ES_ADMIN && estatus !== 'cancelada' && estatus !== 'rechazada';
     if (hayBotonesAdmin) {
-      html += '<div class="acciones" style="margin-top:6px;padding-top:6px;border-top:1px dashed #e2e8f0;">';
+      html += '<div class="acciones" style="justify-content:flex-end;padding-top:6px;border-top:1px dashed #e2e8f0;width:100%;">';
       if (estatus === 'orden' && ES_ADMIN) {
         html += '<button class="btn btn-success btn-sm" onclick="ModCotizacion._marcarEntregada()">&#9989; Marcar Entregada</button>';
       }
@@ -363,6 +365,8 @@ function renderFormulario(data) {
       }
       html += '</div>';
     }
+
+    html += '</div>'; // columna acciones
   }
   html += '</div>'; // flex header
 
@@ -1765,17 +1769,19 @@ async function confirmarRechazo() {
   var btn = document.getElementById('rechazoConfirmBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; }
 
+  var cotId = (window._cotData && window._cotData.id) ? window._cotData.id : 0;
+
   try {
-    var res  = await fetch(API_COT, {
+    var res  = await fetch('../api/cotizaciones.php', {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({accion:'rechazar', id: ID_COT, motivo: motivo})
+      body: JSON.stringify({accion:'rechazar', id: cotId, motivo: motivo})
     });
     var data = await res.json();
     if (data.ok) {
       cerrarRechazo();
       alert('Orden rechazada correctamente. $' + parseFloat(data.monto_devuelto).toFixed(2) + ' transferidos a Saldo a Favor del cliente.');
-      cargar();
+      location.reload();
     } else {
       alert('Error: ' + (data.error || 'desconocido'));
       if (btn) { btn.disabled = false; btn.textContent = 'Confirmar rechazo'; }

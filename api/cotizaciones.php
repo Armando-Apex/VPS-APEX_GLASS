@@ -773,7 +773,6 @@ if ($method === 'PUT') {
     // ── Rechazar por calidad ──────────────────────────────────────────────────
     if ($accion === 'rechazar') {
         if (!$es_admin) { echo json_encode(['error' => 'Solo dir_admin puede registrar rechazos']); exit; }
-        $body  = json_decode(file_get_contents('php://input'), true) ?? [];
         $motivo = trim($body['motivo'] ?? '');
         if (!$motivo) { echo json_encode(['error' => 'El motivo del rechazo es obligatorio']); exit; }
 
