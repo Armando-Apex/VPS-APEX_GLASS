@@ -16,7 +16,9 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(curl -s \"https://apex.glass/produccion/api/whatsapp_webhook.php?hub.mode=subscribe&hub.verify_token=apex_wh_2026&hub.challenge=TESTCHALLENGE123\")",
-      "Bash(curl -s \"https://apex.glass/produccion/api/campanas.php?accion=listar\" -b \"PHPSESSID=test\")"
+      "Bash(curl -s \"https://apex.glass/produccion/api/campanas.php?accion=listar\" -b \"PHPSESSID=test\")",
+      "Read(//home/apexglass2025/logs/**)",
+      "Read(//var/log/httpd/users/apexglass2025/apex.glass/**)"
     ]
   },
   "hooks": {

@@ -302,6 +302,7 @@ const MODULOS = {
   finanzas_cobranza:'modulos/finanzas_cobranza.php',
   logistica_rutas:'modulos/logistica_rutas.php', chofer_ruta:'modulos/chofer_ruta.php',
   omisiones:'modulos/omisiones.php',
+  campanas:'modulos/campanas.php',
   orden:'modulos/orden.php', cotizacion:'modulos/cotizacion.php',
 };
 
