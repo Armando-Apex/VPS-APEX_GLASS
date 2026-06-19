@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $token     = $_GET['hub_verify_token'] ?? $_GET['hub.verify_token'] ?? '';
     $challenge = $_GET['hub_challenge']    ?? $_GET['hub.challenge']    ?? '';
 
-    if ($mode === 'subscribe' && $token === WA_VERIFY_TOKEN) {
+    if ($mode === 'subscribe' && $token === WA_VERIFY_TOKEN && preg_match('/^\w+$/', $challenge)) {
         http_response_code(200);
         echo $challenge;
         exit;
@@ -40,10 +40,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // ── Mensajes inbound (cliente escribió) ──────────
             foreach (($value['messages'] ?? []) as $msg) {
-                $telefono  = $msg['from'] ?? '';
-                $waId      = $msg['id']   ?? '';
+                $telefono  = preg_replace('/\D/', '', $msg['from'] ?? '');
+                $waId      = $msg['id'] ?? '';
                 $tipo      = $msg['type'] ?? 'texto';
                 $contenido = '';
+
+                // Validar teléfono y wa_message_id
+                if (!$telefono || strlen($telefono) < 10 || strlen($telefono) > 15) continue;
+                if (!$waId) continue;
+
+                // Protección anti-replay: ignorar wa_message_id ya procesado
+                $stmtDup = $db->prepare("SELECT id FROM whatsapp_mensajes WHERE wa_message_id = ? LIMIT 1");
+                $stmtDup->execute([$waId]);
+                if ($stmtDup->fetch()) continue;
 
                 if ($tipo === 'text') {
                     $contenido = $msg['text']['body'] ?? '';
@@ -110,17 +119,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $nuevoIdx  = $orden[$nuevoEstado] ?? 0;
                 if ($nuevoIdx <= $actualIdx && $nuevoEstado !== 'fallido') continue;
 
-                $campoFecha = ['entregado'=>'entregado_at','leido'=>'leido_at'];
-                $sqlFecha   = isset($campoFecha[$nuevoEstado]) ? ', ' . $campoFecha[$nuevoEstado] . '=NOW()' : '';
-
-                $db->prepare("UPDATE campana_envios SET estado=?" . $sqlFecha . " WHERE id=?")
-                   ->execute([$nuevoEstado, $envio['id']]);
-
-                $campoContador = ['entregado'=>'entregados','leido'=>'leidos'];
-                if (isset($campoContador[$nuevoEstado])) {
-                    $col = $campoContador[$nuevoEstado];
-                    $db->prepare("UPDATE campanas SET $col = $col + 1 WHERE id=?")
+                // Queries explícitas por estado — sin interpolación dinámica de columnas
+                if ($nuevoEstado === 'entregado') {
+                    $db->prepare("UPDATE campana_envios SET estado='entregado', entregado_at=NOW() WHERE id=?")
+                       ->execute([$envio['id']]);
+                    $db->prepare("UPDATE campanas SET entregados = entregados + 1 WHERE id=?")
                        ->execute([$envio['campana_id']]);
+                } elseif ($nuevoEstado === 'leido') {
+                    $db->prepare("UPDATE campana_envios SET estado='leido', leido_at=NOW() WHERE id=?")
+                       ->execute([$envio['id']]);
+                    $db->prepare("UPDATE campanas SET leidos = leidos + 1 WHERE id=?")
+                       ->execute([$envio['campana_id']]);
+                } elseif ($nuevoEstado === 'enviado') {
+                    $db->prepare("UPDATE campana_envios SET estado='enviado' WHERE id=?")
+                       ->execute([$envio['id']]);
+                } elseif ($nuevoEstado === 'fallido') {
+                    $db->prepare("UPDATE campana_envios SET estado='fallido' WHERE id=?")
+                       ->execute([$envio['id']]);
                 }
             }
         }

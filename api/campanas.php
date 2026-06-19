@@ -46,8 +46,10 @@ function enviarMensajeWA($payload) {
         'Content-Type: application/json'
     ]);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
     $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $code = curl_errno($ch) ? 0 : curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     $data = json_decode($resp, true);
     return ['code' => $code, 'data' => $data];
@@ -250,6 +252,9 @@ if ($metodo === 'POST' && $accion === 'enviar') {
             if ($var === '{{nombre_cliente}}') {
                 $valor = $envio['nombre_cliente'] ?? 'Cliente';
             }
+            // Sanitizar: solo texto plano, máx 1024 chars (límite Meta)
+            $valor = strip_tags((string)$valor);
+            $valor = substr($valor, 0, 1024);
             $parametros[] = ['type' => 'text', 'text' => $valor];
         }
 
