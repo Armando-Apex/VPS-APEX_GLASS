@@ -15,7 +15,8 @@
       "Bash(python3 *)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(curl -s \"https://apex.glass/produccion/api/whatsapp_webhook.php?hub.mode=subscribe&hub.verify_token=apex_wh_2026&hub.challenge=TESTCHALLENGE123\")"
+      "Bash(curl -s \"https://apex.glass/produccion/api/whatsapp_webhook.php?hub.mode=subscribe&hub.verify_token=apex_wh_2026&hub.challenge=TESTCHALLENGE123\")",
+      "Bash(curl -s \"https://apex.glass/produccion/api/campanas.php?accion=listar\" -b \"PHPSESSID=test\")"
     ]
   },
   "hooks": {
