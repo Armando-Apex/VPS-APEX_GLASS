@@ -770,6 +770,49 @@ if ($method === 'PUT') {
         echo json_encode(['ok' => true]); exit;
     }
 
+    // ── Rechazar por calidad ──────────────────────────────────────────────────
+    if ($accion === 'rechazar') {
+        if (!$es_admin) { echo json_encode(['error' => 'Solo dir_admin puede registrar rechazos']); exit; }
+        $body  = json_decode(file_get_contents('php://input'), true) ?? [];
+        $motivo = trim($body['motivo'] ?? '');
+        if (!$motivo) { echo json_encode(['error' => 'El motivo del rechazo es obligatorio']); exit; }
+
+        $stmtCot = $db->prepare("SELECT id, orden_id, cliente_id, saldo_pagado, folio FROM cotizaciones WHERE id = ?");
+        $stmtCot->execute([$id]);
+        $cot = $stmtCot->fetch(PDO::FETCH_ASSOC);
+        if (!$cot) { echo json_encode(['error' => 'Cotización no encontrada']); exit; }
+        if (!$cot['orden_id']) { echo json_encode(['error' => 'Esta cotización no tiene una orden generada']); exit; }
+
+        $montoDevuelto = (float)($cot['saldo_pagado'] ?? 0);
+        $db->beginTransaction();
+
+        // 1. Marcar orden como rechazada
+        $db->prepare("UPDATE ordenes SET estado='rechazada', updated_at=NOW() WHERE id=?")
+           ->execute([$cot['orden_id']]);
+
+        // 2. Insertar en bitácora de rechazos
+        $db->prepare("INSERT INTO rechazo_calidad (cotizacion_id, orden_id, cliente_id, motivo, monto_devuelto, registrado_por)
+                      VALUES (?, ?, ?, ?, ?, ?)")
+           ->execute([$id, $cot['orden_id'], $cot['cliente_id'], $motivo, $montoDevuelto, $user['nombre']]);
+
+        // 3. Mover saldo_pagado a saldo a favor del cliente
+        if ($montoDevuelto > 0) {
+            $db->prepare("INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
+                          VALUES (?, 'deposito', ?, CURDATE(), ?, ?, ?, ?)")
+               ->execute([
+                   $cot['cliente_id'],
+                   $montoDevuelto,
+                   'Rechazo ' . $cot['folio'],
+                   'Rechazo por calidad: ' . mb_substr($motivo, 0, 150),
+                   $id,
+                   $user['nombre']
+               ]);
+        }
+
+        $db->commit();
+        echo json_encode(['ok' => true, 'monto_devuelto' => $montoDevuelto]); exit;
+    }
+
     echo json_encode(['error' => 'Acción no reconocida']); exit;
 }
 

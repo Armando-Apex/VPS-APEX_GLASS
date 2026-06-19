@@ -281,6 +281,7 @@ function renderFormulario(data) {
 
   // Guardar data para el modal de correcciones
   _dataCot = data;
+  window._cotData = data;
   // Cargar partidas en el array local
   partidas = (data && data.partidas) ? data.partidas.slice() : [];
   // Servicios: se pueden agregar en cotizaciones existentes no canceladas
@@ -349,6 +350,9 @@ function renderFormulario(data) {
     }
     if (ES_DIR_ADMIN && estatus !== 'cancelada') {
       html += '<button class="btn btn-corregir btn-sm" onclick="ModCotizacion._abrirCorreccion()">&#9998; Corregir</button>';
+    }
+    if (ES_DIR_ADMIN && (estatus === 'orden' || estatus === 'entregada')) {
+      html += '<button class="btn btn-sm" style="background:#7f1d1d;color:#fff;" onclick="ModCotizacion._abrirRechazo()">&#9940; Rechazar</button>';
     }
     html += '</div>';
   }
@@ -1697,6 +1701,80 @@ return {
   _corrTab:            corrTab,
   _guardarCorreccion:  guardarCorreccion,
   _resolverAuth:       _resolverAuth,
+  _abrirRechazo:       abrirRechazo,
+  _cerrarRechazo:      cerrarRechazo,
+  _confirmarRechazo:   confirmarRechazo,
 };
 })();
+</script>
+
+<!-- Modal Rechazo por Calidad -->
+<div id="modalRechazoCalidad" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:10px;width:520px;max-width:95vw;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="margin:0;font-size:16px;color:#7f1d1d;">&#9940; Rechazo por calidad</h3>
+      <button onclick="ModCotizacion._cerrarRechazo()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;">&#10005;</button>
+    </div>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;color:#7f1d1d;">
+      <strong>Atenci&oacute;n:</strong> Esta acci&oacute;n marcar&aacute; la orden como rechazada y mover&aacute; el saldo pagado a <strong>Saldo a Favor</strong> del cliente.
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">Motivo del rechazo *</label>
+      <textarea id="rechazoMotivoInput" placeholder="Describe los errores de producci&oacute;n: medidas incorrectas, calidad del vidrio, etc." maxlength="1000"
+        style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;height:120px;resize:vertical;font-family:inherit;"></textarea>
+    </div>
+    <div id="rechazoMontoInfo" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#166534;"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button onclick="ModCotizacion._cerrarRechazo()" style="padding:9px 20px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;font-size:13px;cursor:pointer;">Cancelar</button>
+      <button id="rechazoConfirmBtn" onclick="ModCotizacion._confirmarRechazo()" style="padding:9px 20px;background:#7f1d1d;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Confirmar rechazo</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function abrirRechazo() {
+  var modal = document.getElementById('modalRechazoCalidad');
+  var info  = document.getElementById('rechazoMontoInfo');
+  var input = document.getElementById('rechazoMotivoInput');
+  if (input) input.value = '';
+  if (info && window._cotData) {
+    var sp = parseFloat(window._cotData.saldo_pagado || 0).toFixed(2);
+    info.innerHTML = 'Saldo a transferir como saldo a favor: <strong>$' + sp + '</strong>';
+  }
+  if (modal) modal.style.display = 'flex';
+}
+
+function cerrarRechazo() {
+  var modal = document.getElementById('modalRechazoCalidad');
+  if (modal) modal.style.display = 'none';
+}
+
+async function confirmarRechazo() {
+  var motivo = (document.getElementById('rechazoMotivoInput') || {}).value || '';
+  motivo = motivo.trim();
+  if (!motivo) { alert('Escribe el motivo del rechazo'); return; }
+
+  var btn = document.getElementById('rechazoConfirmBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; }
+
+  try {
+    var res  = await fetch(API_COT, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'rechazar', id: ID_COT, motivo: motivo})
+    });
+    var data = await res.json();
+    if (data.ok) {
+      cerrarRechazo();
+      alert('Orden rechazada correctamente. $' + parseFloat(data.monto_devuelto).toFixed(2) + ' transferidos a Saldo a Favor del cliente.');
+      cargar();
+    } else {
+      alert('Error: ' + (data.error || 'desconocido'));
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirmar rechazo'; }
+    }
+  } catch(e) {
+    alert('Error de red');
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar rechazo'; }
+  }
+}
 </script>

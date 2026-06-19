@@ -510,4 +510,6 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-114**
+| UPD-114 | 19-jun | Armando | NUEVO flujo Rechazo por Calidad: BD ordenes.estado += 'rechazada' + tabla rechazo_calidad; api/cotizaciones.php acción 'rechazar' (marca orden rechazada + bitácora + mueve saldo_pagado a clientes_saldo_favor tipo deposito); botón rojo "Rechazar" en modulos/cotizacion.php para dir_admin cuando estatus=orden o entregada; modal con campo motivo + monto a transferir |
+
+**Próximo UPD disponible: UPD-115**
