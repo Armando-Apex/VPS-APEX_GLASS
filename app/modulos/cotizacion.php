@@ -313,6 +313,7 @@ function renderFormulario(data) {
 
   // Acciones
   if (!esNuevo) {
+    // ── Fila 1: botones visibles a asesores ──
     html += '<div class="acciones">';
     if (estatus === 'cotizacion' && editable) {
       html += '<button class="btn btn-warning" onclick="ModCotizacion._convertirOrden()">&#127981; Convertir a Orden</button>';
@@ -339,22 +340,29 @@ function renderFormulario(data) {
     if (estatus === 'orden' || estatus === 'entregada') {
       html += '<button class="btn btn-ghost btn-sm" onclick="ModCotizacion._abrirArchivos()">&#128206; Archivos</button>';
     }
-    if (estatus === 'orden' && ES_ADMIN) {
-      html += '<button class="btn btn-success btn-sm" onclick="ModCotizacion._marcarEntregada()">&#9989; Marcar Entregada</button>';
-    }
-    if (estatus === 'orden' && bloqueada && ES_ADMIN) {
-      html += '<button class="btn btn-danger btn-sm" onclick="ModCotizacion._autorizarEntrega()">&#128275; Autorizar Entrega</button>';
-    }
-    if (estatus !== 'cancelada' && ES_ADMIN) {
-      html += '<button class="btn btn-ghost btn-sm" onclick="ModCotizacion._cancelar()">&#10005; Cancelar</button>';
-    }
-    if (ES_DIR_ADMIN && estatus !== 'cancelada') {
-      html += '<button class="btn btn-corregir btn-sm" onclick="ModCotizacion._abrirCorreccion()">&#9998; Corregir</button>';
-    }
-    if (ES_DIR_ADMIN && (estatus === 'orden' || estatus === 'entregada')) {
-      html += '<button class="btn btn-sm" style="background:#7f1d1d;color:#fff;" onclick="ModCotizacion._abrirRechazo()">&#9940; Rechazar</button>';
-    }
     html += '</div>';
+
+    // ── Fila 2: botones exclusivos dir_admin / admin ──
+    var hayBotonesAdmin = ES_ADMIN && estatus !== 'cancelada' && estatus !== 'rechazada';
+    if (hayBotonesAdmin) {
+      html += '<div class="acciones" style="margin-top:6px;padding-top:6px;border-top:1px dashed #e2e8f0;">';
+      if (estatus === 'orden' && ES_ADMIN) {
+        html += '<button class="btn btn-success btn-sm" onclick="ModCotizacion._marcarEntregada()">&#9989; Marcar Entregada</button>';
+      }
+      if (estatus === 'orden' && bloqueada && ES_ADMIN) {
+        html += '<button class="btn btn-danger btn-sm" onclick="ModCotizacion._autorizarEntrega()">&#128275; Autorizar Entrega</button>';
+      }
+      if (ES_ADMIN) {
+        html += '<button class="btn btn-ghost btn-sm" onclick="ModCotizacion._cancelar()">&#10005; Cancelar</button>';
+      }
+      if (ES_DIR_ADMIN) {
+        html += '<button class="btn btn-corregir btn-sm" onclick="ModCotizacion._abrirCorreccion()">&#9998; Corregir</button>';
+      }
+      if (ES_DIR_ADMIN && (estatus === 'orden' || estatus === 'entregada')) {
+        html += '<button class="btn btn-sm" style="background:#7f1d1d;color:#fff;" onclick="abrirRechazo()">&#9940; Rechazar</button>';
+      }
+      html += '</div>';
+    }
   }
   html += '</div>'; // flex header
 
@@ -1713,7 +1721,7 @@ return {
   <div style="background:#fff;border-radius:10px;width:520px;max-width:95vw;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <h3 style="margin:0;font-size:16px;color:#7f1d1d;">&#9940; Rechazo por calidad</h3>
-      <button onclick="ModCotizacion._cerrarRechazo()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;">&#10005;</button>
+      <button onclick="cerrarRechazo()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;">&#10005;</button>
     </div>
     <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;color:#7f1d1d;">
       <strong>Atenci&oacute;n:</strong> Esta acci&oacute;n marcar&aacute; la orden como rechazada y mover&aacute; el saldo pagado a <strong>Saldo a Favor</strong> del cliente.
@@ -1725,8 +1733,8 @@ return {
     </div>
     <div id="rechazoMontoInfo" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#166534;"></div>
     <div style="display:flex;justify-content:flex-end;gap:10px;">
-      <button onclick="ModCotizacion._cerrarRechazo()" style="padding:9px 20px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;font-size:13px;cursor:pointer;">Cancelar</button>
-      <button id="rechazoConfirmBtn" onclick="ModCotizacion._confirmarRechazo()" style="padding:9px 20px;background:#7f1d1d;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Confirmar rechazo</button>
+      <button onclick="cerrarRechazo()" style="padding:9px 20px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;font-size:13px;cursor:pointer;">Cancelar</button>
+      <button id="rechazoConfirmBtn" onclick="confirmarRechazo()" style="padding:9px 20px;background:#7f1d1d;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Confirmar rechazo</button>
     </div>
   </div>
 </div>
