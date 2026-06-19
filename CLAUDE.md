@@ -490,6 +490,10 @@ Próximo UPD disponible: **UPD-059**
 | UPD-102 | 18-jun | Armando | NUEVO modulos/compras.php: tabs Suministros + OC Material, KPIs, CRUD completo (crear OC, partidas, pagos, recepción, cambio estado); sidebar dashboard += Compras bajo Inventario |
 | UPD-103 | 18-jun | Armando | Reporte Dirección: sección Top Clientes expandida a 3 paneles lado a lado — Por Monto ($), Por Pedidos (órdenes) y Por M²; función mkTopPanel reutilizable; 2 queries nuevas en api/reporte_direccion.php |
 | UPD-104 | 18-jun | Armando | Reporte Dirección: tabla "Rentabilidad por M² de Vidrio" — columnas Costo s/IVA, Costo c/IVA (×1.16), Precio venta (catálogo ×0.90), Utilidad $, Markup, % Utilidad ((P-CostoSinIVA)/P), Margen % ((P-CostoConIVA)/P) con barra color; orden alfabético por tipo + espesor asc |
+| UPD-105 | 19-jun | Armando | BD: ALTER TABLE historial_estatus ADD COLUMN omision TINYINT(1) NOT NULL DEFAULT 0 |
+| UPD-106 | 19-jun | Armando | api/actualizar_estatus.php: acepta flag omision=1, salta validación de flujo, registra en historial con omision=1 |
+| UPD-107 | 19-jun | Armando | app/operador.php: modal ámbar confirmación de omisión en lugar de bloqueo para estaciones canteado/trazo/taladro/terminado; funciones abrirModalOmision/cerrarModalOmision/confirmarOmision |
+| UPD-108 | 19-jun | Armando | NUEVO api/omisiones.php + modulos/omisiones.php: tablero de omisiones con KPIs (hoy/semana/período), barras por estación omitida, tabla detalle; visible a jefe_piso/dir_admin/dueno/director en sidebar bajo Producción |
 
 ---
 
@@ -500,4 +504,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-105**
+**Próximo UPD disponible: UPD-108**
