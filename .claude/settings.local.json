@@ -12,7 +12,9 @@
       "Bash(python3 -m pip install mcp-server-fetch)",
       "Bash(php *)",
       "Bash(mysql *)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   },
   "hooks": {
