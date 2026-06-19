@@ -249,6 +249,7 @@ Sin templado (requiere_templado=0): salta en_horno.
 | Archivos Órdenes | modulos/archivos_ordenes.php | ModArchivosOrdenes | Mando |
 | Croquis Técnicos | modulos/croquis.php | ModCroquis | Mando |
 | Orden detalle | modulos/orden.php | — | Armando |
+| Campañas WhatsApp | modulos/campanas.php | ModCampanas | Armando |
 
 ---
 
@@ -496,6 +497,7 @@ Próximo UPD disponible: **UPD-059**
 | UPD-108 | 19-jun | Armando | NUEVO api/omisiones.php + modulos/omisiones.php: tablero de omisiones con KPIs (hoy/semana/período), barras por estación omitida, tabla detalle; visible a jefe_piso/dir_admin/dueno/director en sidebar bajo Producción |
 | UPD-109 | 19-jun | Armando | Fix omisiones múltiples: api/actualizar_estatus.php auto-inserta un registro por cada paso saltado cuando omision=1 (ej: en_corte→en_horno genera 4 registros individuales) |
 | UPD-110 | 19-jun | Armando | Fix operador.php estación horno: muestra botón ámbar de omisión cuando pieza viene en trazo/cortado/en_corte con mensaje específico por cuántas estaciones saltó |
+| UPD-111 | 19-jun | Armando | NUEVO módulo Campañas WhatsApp: Meta Cloud API v20.0, 4 tablas BD, api/campanas.php (10 acciones), api/whatsapp_webhook.php, modulos/campanas.php (ModCampanas) con wizard 3 pasos + inbox conversaciones; permisos dir_admin/dueno crean campañas, comercial responde chats; 6 fixes de seguridad aplicados |
 
 ---
 
@@ -506,4 +508,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-111**
+**Próximo UPD disponible: UPD-112**

@@ -202,6 +202,9 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
       <button class="sidebar-link" data-modulo="optimizador" onclick="cargarModulo('optimizador')">
         <span class="sidebar-icon">&#9986;</span>Optimizador
       </button>
+      <button class="sidebar-link" data-modulo="campanas" onclick="cargarModulo('campanas')">
+        <span class="sidebar-icon">&#128241;</span>Campa&ntilde;as WA
+      </button>
     </div>
     <?php endif; ?>
     <?php if ($esDir): ?>
