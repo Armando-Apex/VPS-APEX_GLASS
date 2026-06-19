@@ -476,6 +476,13 @@ var ModCampanas = (function() {
         var imgSection = document.getElementById('cmpHeaderImgSection');
         if (imgSection) {
             imgSection.style.display = _templateHeaderFormat === 'IMAGE' ? '' : 'none';
+            // Auto-rellenar con imagen de ejemplo de Meta si existe
+            var imgInput = document.getElementById('cmpHeaderImgUrl');
+            if (imgInput && _templateHeaderFormat === 'IMAGE') {
+                if (!imgInput.value) {
+                    imgInput.value = plantilla.header_example || '';
+                }
+            }
         }
 
         // Detectar cuántas variables {{N}} tiene el body
