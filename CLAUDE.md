@@ -511,5 +511,10 @@ Al terminar cualquier sesión con cambios:
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
 | UPD-114 | 19-jun | Armando | NUEVO flujo Rechazo por Calidad: BD ordenes.estado += 'rechazada' + tabla rechazo_calidad; api/cotizaciones.php acción 'rechazar' (marca orden rechazada + bitácora + mueve saldo_pagado a clientes_saldo_favor tipo deposito); botón rojo "Rechazar" en modulos/cotizacion.php para dir_admin cuando estatus=orden o entregada; modal con campo motivo + monto a transferir |
+| UPD-115 | 19-jun | Armando | Fix modal rechazo: confirmarRechazo() usaba API_COT/ID_COT/cargar() del IIFE — inaccesibles desde script externo; corregido a URL hardcoded + window._cotData.id + location.reload(); php://input re-leído en rechazar eliminado (ya consumido en línea 184) |
+| UPD-116 | 19-jun | Armando | UI cotizacion.php: botones en 2 filas — fila 1 visible a asesores, fila 2 (Marcar Entregada, Cancelar, Corregir, Rechazar) solo admins con separador punteado; contenedor flex-direction:column |
+| UPD-117 | 19-jun | Armando | BD: cotizaciones.estatus ENUM += 'rechazada'; api/cotizaciones.php rechazar actualiza también cotizaciones.estatus; badge-rechazada rojo + etiqueta "Rechazada por Calidad" en cotizacion.php |
+| UPD-118 | 19-jun | Armando | modulos/cotizaciones.php: tab "Rechazadas" con contador; badge-rech rojo; auto-switch de tab incluye rechazada; badge-canc corregido a gris |
+| UPD-119 | 19-jun | Armando | Banner rechazo en detalle cotizacion: api devuelve rechazo_calidad (motivo, monto, registrado_por, fecha) cuando estatus=rechazada; banner rojo visible debajo del header con motivo completo |
 
-**Próximo UPD disponible: UPD-115**
+**Próximo UPD disponible: UPD-120**
