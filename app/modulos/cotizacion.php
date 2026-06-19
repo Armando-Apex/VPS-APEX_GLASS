@@ -116,6 +116,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .badge-orden      { background: #fef3c7; color: #d97706; }
 .badge-entregada  { background: #dcfce7; color: #16a34a; }
 .badge-cancelada  { background: #f1f5f9; color: #94a3b8; }
+.badge-rechazada  { background: #fee2e2; color: #991b1b; }
 /* Alerta saldo */
 .alerta-saldo { background: #fee2e2; border: 1.5px solid #fca5a5; border-radius: 10px; padding: 14px 18px; color: #dc2626; font-weight: 700; margin-bottom: 16px; display: none; }
 .alerta-saldo.show { display: flex; align-items: center; gap: 10px; }
@@ -1676,7 +1677,7 @@ function subirArchivo(folioOrden) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function etiquetaEstatus(s) {
-  var map = { cotizacion:'Cotización', orden:'Orden de Producción', entregada:'Entregada', cancelada:'Cancelada' };
+  var map = { cotizacion:'Cotización', orden:'Orden de Producción', entregada:'Entregada', cancelada:'Cancelada', rechazada:'Rechazada por Calidad' };
   return map[s] || s;
 }
 function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }

@@ -785,9 +785,11 @@ if ($method === 'PUT') {
         $montoDevuelto = (float)($cot['saldo_pagado'] ?? 0);
         $db->beginTransaction();
 
-        // 1. Marcar orden como rechazada
+        // 1. Marcar orden y cotización como rechazadas
         $db->prepare("UPDATE ordenes SET estado='rechazada', updated_at=NOW() WHERE id=?")
            ->execute([$cot['orden_id']]);
+        $db->prepare("UPDATE cotizaciones SET estatus='rechazada', updated_at=NOW() WHERE id=?")
+           ->execute([$id]);
 
         // 2. Insertar en bitácora de rechazos
         $db->prepare("INSERT INTO rechazo_calidad (cotizacion_id, orden_id, cliente_id, motivo, monto_devuelto, registrado_por)
