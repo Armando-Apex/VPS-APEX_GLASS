@@ -6,7 +6,7 @@
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
 $user = requireSession();
-$rol  = $_SESSION['rol'] ?? '';
+$rol  = $user['rol'];
 $puedeEnviar = in_array($rol, ['dir_admin','dueno']);
 ?>
 <style>
