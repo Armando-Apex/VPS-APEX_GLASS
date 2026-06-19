@@ -132,7 +132,7 @@ CREATE TABLE whatsapp_mensajes (
 
 **Paso 3 — Confirmar**
 - Tabla: cliente | teléfono | mensaje personalizado completo
-- Botón **"Enviar campaña"** → dispara envíos a razón de máx 30/min
+- Botón **"Enviar campaña"** → dispara envíos a razón de máx 25/min
 - Barra de progreso en tiempo real (polling cada 3s a `api/campanas.php?accion=progreso`)
 
 ### Tab Conversaciones
