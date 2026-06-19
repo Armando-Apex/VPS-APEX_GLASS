@@ -865,6 +865,17 @@ function setupButton(p) {
       btn.textContent = '⏳ En horno — espera estación Terminado';
       btn.className   = 'btn-action done';
       btn.onclick     = null;
+    } else if (['trazo','cortado','en_corte'].indexOf(p.estatus) !== -1) {
+      var omisionHornoMsg = {
+        trazo:    'TALADRO no marcó la pieza',
+        cortado:  'CANTEADO y TALADRO no marcaron',
+        en_corte: 'CORTE, CANTEADO y TALADRO no marcaron',
+      };
+      btn.textContent   = '⚠️ ' + (omisionHornoMsg[p.estatus] || 'Estaciones anteriores no marcaron') + ' — Confirmar omisión';
+      btn.className     = 'btn-action';
+      btn.style.cssText = 'background:#d97706;color:#000;font-size:14px;';
+      var _pe3 = p.estatus;
+      btn.onclick = function() { abrirModalOmision('templado', _pe3, 'en_horno'); };
     } else {
       btn.textContent = '✅ Ya procesado';
       btn.className   = 'btn-action done';

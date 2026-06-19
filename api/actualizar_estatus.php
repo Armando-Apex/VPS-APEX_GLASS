@@ -123,11 +123,12 @@ if (!$omision && isset($FLUJO_PREVIO[$estatus]) && !in_array($estatusActual, $FL
 
 $estatusAnterior = $pieza['estatus'];
 
-
+$FLUJO_ORDEN = ['pendiente','en_corte','cortado','canteado','trazo','taladro','en_horno','terminado','entregado'];
 
 // Obtener nombre de usuario
 
 $nombreUsuario = 'Desconocido';
+
 
 if ($userId) {
 
@@ -156,6 +157,29 @@ $db->prepare('UPDATE piezas SET estatus = ?, updated_at = NOW() WHERE qr_code = 
 
 
 // Registrar en historial
+// Si es omisión con salto de múltiples pasos, insertar un registro por cada paso saltado
+if ($omision) {
+    $idxAnterior = array_search($estatusAnterior, $FLUJO_ORDEN);
+    $idxNuevo    = array_search($estatus,          $FLUJO_ORDEN);
+    if ($idxAnterior !== false && $idxNuevo !== false && ($idxNuevo - $idxAnterior) > 1) {
+        for ($i = $idxAnterior; $i < $idxNuevo - 1; $i++) {
+            $db->prepare('
+                INSERT INTO historial_estatus
+                    (pieza_id, estatus_anterior, estatus_nuevo, usuario_id, usuario_nombre, notas, omision)
+                VALUES (?,?,?,?,?,?,1)
+            ')->execute([
+                $pieza['id'],
+                $FLUJO_ORDEN[$i],
+                $FLUJO_ORDEN[$i + 1],
+                $userId ?: null,
+                $nombreUsuario,
+                'OMISIÓN AUTOMÁTICA'
+            ]);
+        }
+        // El registro final cubre solo el último paso
+        $estatusAnterior = $FLUJO_ORDEN[$idxNuevo - 1];
+    }
+}
 
 $db->prepare('
 
