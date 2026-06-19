@@ -31,7 +31,8 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 .cot-folio { font-weight: 700; color: #2563eb; }
 .badge-cot   { background: #dbeafe; color: #1d4ed8; }
 .badge-orden { background: #dcfce7; color: #15803d; }
-.badge-canc  { background: #fee2e2; color: #b91c1c; }
+.badge-canc  { background: #f1f5f9; color: #94a3b8; }
+.badge-rech  { background: #fee2e2; color: #991b1b; }
 .est-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
 .loading-msg { text-align: center; padding: 48px; color: #9ca3af; font-size: 14px; }
 
@@ -111,6 +112,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
     <button class="cot-tab active" onclick="ModCotizaciones._tab('cotizacion')">Cotizaciones <span class="cot-cnt" id="cot-cnt-cot">&#8212;</span></button>
     <button class="cot-tab"        onclick="ModCotizaciones._tab('orden')"      >&#211;rdenes <span class="cot-cnt" id="cot-cnt-ord">&#8212;</span></button>
     <button class="cot-tab"        onclick="ModCotizaciones._tab('cancelada')"  >Canceladas <span class="cot-cnt" id="cot-cnt-can">&#8212;</span></button>
+    <button class="cot-tab"        onclick="ModCotizaciones._tab('rechazada')"  >Rechazadas <span class="cot-cnt" id="cot-cnt-rech">&#8212;</span></button>
   </div>
 
   <div class="cot-table">
@@ -153,7 +155,7 @@ function cotTab(tab) {
   _cotTab  = tab;
   _cotPage = 1;
   document.querySelectorAll('.cot-tab').forEach(function(b, i) {
-    b.classList.toggle('active', ['cotizacion','orden','cancelada'][i] === tab);
+    b.classList.toggle('active', ['cotizacion','orden','cancelada','rechazada'][i] === tab);
   });
   cotFiltrar();
 }
@@ -179,7 +181,7 @@ function cotFiltrar() {
   if (q) {
     var enActual = _cotData.filter(function(c) { return c.estatus === _cotTab && cotMatchSearch(c, q); });
     if (enActual.length === 0) {
-      var tabs = ['cotizacion', 'orden', 'cancelada'];
+      var tabs = ['cotizacion', 'orden', 'cancelada', 'rechazada'];
       for (var ti = 0; ti < tabs.length; ti++) {
         if (tabs[ti] === _cotTab) continue;
         var tabCheck = tabs[ti];
@@ -188,7 +190,7 @@ function cotFiltrar() {
           _cotTab  = tabCheck;
           _cotPage = 1;
           document.querySelectorAll('.cot-tab').forEach(function(b, i) {
-            b.classList.toggle('active', ['cotizacion','orden','cancelada'][i] === _cotTab);
+            b.classList.toggle('active', ['cotizacion','orden','cancelada','rechazada'][i] === _cotTab);
           });
           break;
         }
@@ -198,12 +200,14 @@ function cotFiltrar() {
 
   var lista = _cotData.filter(function(c) { return c.estatus === _cotTab && cotMatchSearch(c, q); });
 
-  var cots = _cotData.filter(function(c){ return c.estatus==='cotizacion'; }).length;
-  var ords = _cotData.filter(function(c){ return c.estatus==='orden'; }).length;
-  var cans = _cotData.filter(function(c){ return c.estatus==='cancelada'; }).length;
-  document.getElementById('cot-cnt-cot').textContent = cots;
-  document.getElementById('cot-cnt-ord').textContent = ords;
-  document.getElementById('cot-cnt-can').textContent = cans;
+  var cots  = _cotData.filter(function(c){ return c.estatus==='cotizacion'; }).length;
+  var ords  = _cotData.filter(function(c){ return c.estatus==='orden'; }).length;
+  var cans  = _cotData.filter(function(c){ return c.estatus==='cancelada'; }).length;
+  var rechs = _cotData.filter(function(c){ return c.estatus==='rechazada'; }).length;
+  document.getElementById('cot-cnt-cot').textContent  = cots;
+  document.getElementById('cot-cnt-ord').textContent  = ords;
+  document.getElementById('cot-cnt-can').textContent  = cans;
+  document.getElementById('cot-cnt-rech').textContent = rechs;
 
   var totalPags = Math.max(1, Math.ceil(lista.length / _COT_PER_PAGE));
   if (_cotPage > totalPags) _cotPage = totalPags;
@@ -222,8 +226,8 @@ function cotFiltrar() {
     var fecha   = c.fecha        ? new Date(c.fecha+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '&#8212;';
     var entrega = c.fecha_entrega? new Date(c.fecha_entrega+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '&#8212;';
     var total   = c.total ? '$'+parseFloat(c.total).toLocaleString('es-MX',{minimumFractionDigits:2}) : '&#8212;';
-    var badgeClass = c.estatus==='cotizacion'?'badge-cot':c.estatus==='orden'?'badge-orden':'badge-canc';
-    var badgeLabel = c.estatus==='cotizacion'?'Cotizaci&#243;n':c.estatus==='orden'?'Orden':'Cancelada';
+    var badgeClass = c.estatus==='cotizacion'?'badge-cot':c.estatus==='orden'?'badge-orden':c.estatus==='rechazada'?'badge-rech':'badge-canc';
+    var badgeLabel = c.estatus==='cotizacion'?'Cotizaci&#243;n':c.estatus==='orden'?'Orden':c.estatus==='rechazada'?'Rechazada':'Cancelada';
     var folioCell = c.orden_folio
       ? '<span class="cot-folio">'+c.orden_folio+'</span><br><span style="font-size:11px;color:#94a3b8">'+c.folio+'</span>'
       : '<span class="cot-folio">'+(c.folio||'&#8212;')+'</span>';
