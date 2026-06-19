@@ -371,6 +371,24 @@ function renderFormulario(data) {
   }
   html += '</div>'; // flex header
 
+  // ── Banner rechazo por calidad ──
+  if (estatus === 'rechazada' && data.rechazo) {
+    var r = data.rechazo;
+    var fechaR = r.created_at ? new Date(r.created_at).toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
+    html += '<div style="background:#fff1f2;border:1.5px solid #fecaca;border-radius:10px;padding:16px 20px;margin-bottom:18px;">';
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">';
+    html += '<span style="font-size:18px;">&#9940;</span>';
+    html += '<span style="font-weight:800;font-size:14px;color:#991b1b;text-transform:uppercase;letter-spacing:.4px;">Rechazada por Calidad</span>';
+    html += '</div>';
+    html += '<div style="font-size:13px;color:#7f1d1d;white-space:pre-wrap;line-height:1.6;margin-bottom:10px;">' + escHtml(r.motivo) + '</div>';
+    html += '<div style="display:flex;gap:20px;font-size:12px;color:#b91c1c;border-top:1px solid #fecaca;padding-top:8px;">';
+    html += '<span><strong>Saldo devuelto:</strong> $' + parseFloat(r.monto_devuelto).toLocaleString('es-MX', {minimumFractionDigits:2}) + ' a Saldo a Favor</span>';
+    html += '<span><strong>Registrado por:</strong> ' + escHtml(r.registrado_por) + '</span>';
+    html += '<span>' + fechaR + '</span>';
+    html += '</div>';
+    html += '</div>';
+  }
+
   // ── Campos ──
   html += '<div class="form-grid">';
 

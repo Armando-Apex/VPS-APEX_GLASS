@@ -140,6 +140,14 @@ if ($method === 'GET') {
         unset($par);
 
         $cot['partidas'] = $partidas;
+
+        // Datos de rechazo si aplica
+        if ($cot['estatus'] === 'rechazada') {
+            $stmtR = $db->prepare("SELECT motivo, monto_devuelto, registrado_por, created_at FROM rechazo_calidad WHERE cotizacion_id = ? ORDER BY id DESC LIMIT 1");
+            $stmtR->execute([$id]);
+            $cot['rechazo'] = $stmtR->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
+
         echo json_encode($cot); exit;
     }
 
