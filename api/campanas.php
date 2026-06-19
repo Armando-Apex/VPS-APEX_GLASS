@@ -220,7 +220,7 @@ if ($metodo === 'POST' && $accion === 'crear') {
     $stmt = $db->prepare("INSERT INTO campanas
         (nombre, template_nombre, template_vars_json, segmento_json, creado_por, total_destinatarios)
         VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$nombre, $template, $varsJson, $segmentoJson, $user['username'], count($clienteIds)]);
+    $stmt->execute([$nombre, $template, $varsJson, $segmentoJson, $user['nombre'], count($clienteIds)]);
     $campanaId = $db->lastInsertId();
 
     $stmtCli = $db->prepare("SELECT id, nombre, telefono FROM clientes WHERE id = ?");
@@ -360,7 +360,7 @@ if ($metodo === 'POST' && $accion === 'responder') {
     $db->prepare("INSERT INTO whatsapp_mensajes
         (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por)
         VALUES (?, 'outbound', ?, 'texto', ?, ?)")
-       ->execute([$convId, $mensaje, $waId, $user['username']]);
+       ->execute([$convId, $mensaje, $waId, $user['nombre']]);
 
     $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
        ->execute([$convId]);

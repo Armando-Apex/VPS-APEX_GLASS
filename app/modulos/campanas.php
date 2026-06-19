@@ -606,11 +606,14 @@ var ModCampanas = (function() {
                 cliente_ids:      clienteIds
             })
         })
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+            if (!r.ok) { return r.text().then(function(t) { throw new Error('HTTP ' + r.status + ': ' + t.substring(0, 200)); }); }
+            return r.json();
+        })
         .then(function(data) {
             if (!data.ok) {
                 alert('Error al crear: ' + (data.error || 'desconocido'));
-                if (btnEnviar) { btnEnviar.disabled = false; btnEnviar.textContent = '\u{1F4F1} Enviar campaña'; }
+                if (btnEnviar) { btnEnviar.disabled = false; btnEnviar.textContent = '&#128241; Enviar campaña'; }
                 if (btnAtras)  { btnAtras.disabled = false; }
                 return;
             }
@@ -649,6 +652,11 @@ var ModCampanas = (function() {
                 clearInterval(_pollTimer);
                 if (btnEnviar) { btnEnviar.textContent = 'Error de red'; }
             });
+        })
+        .catch(function(err) {
+            if (btnEnviar) { btnEnviar.disabled = false; btnEnviar.textContent = '&#128241; Enviar campaña'; }
+            if (btnAtras)  { btnAtras.disabled = false; }
+            alert('Error al guardar campaña: ' + (err.message || 'desconocido'));
         });
     }
 
