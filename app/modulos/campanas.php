@@ -580,8 +580,7 @@ var ModCampanas = (function() {
             if (!_nombreCampana) { alert('Ingresa el nombre de la campaña'); return; }
             if (_clientesSeleccionados.length === 0) { alert('Selecciona al menos un cliente'); return; }
         } else if (_step === 2) {
-            _templateNombre = ((document.getElementById('cmpTemplate') || {}).value || '').trim();
-            if (!_templateNombre) { alert('Ingresa el nombre del template'); return; }
+            if (!_templateNombre) { alert('Selecciona una plantilla de la lista'); return; }
         }
         if (_step < 3) { _step++; renderStep(); }
     }
