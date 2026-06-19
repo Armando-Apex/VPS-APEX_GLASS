@@ -360,19 +360,41 @@ var ModCampanas = (function() {
     }
 
     function renderVars() {
-        var html = '';
-        _templateVars.forEach(function(v, i) {
-            html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">' +
-                '<span style="font-size:12px;color:#94a3b8;width:32px;flex-shrink:0;">{{' + (i+1) + '}}</span>' +
-                '<input type="text" value="' + esc(v) + '" placeholder="{{nombre_cliente}} o texto fijo" maxlength="200" ' +
-                'oninput="window.cmpActualizarVar(' + i + ',this.value)" ' +
-                'style="flex:1;padding:7px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;">' +
-                '<button onclick="window.cmpEliminarVar(' + i + ')" title="Eliminar" ' +
-                'style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px;padding:2px 6px;">&#10005;</button>' +
-                '</div>';
-        });
         var el = document.getElementById('cmpVarsLista');
-        if (el) { el.innerHTML = html; }
+        if (!el) return;
+        el.innerHTML = '';
+        _templateVars.forEach(function(v, i) {
+            var wrap  = document.createElement('div');
+            wrap.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;';
+
+            var lbl = document.createElement('span');
+            lbl.style.cssText = 'font-size:12px;color:#94a3b8;width:32px;flex-shrink:0;';
+            lbl.textContent = '{{' + (i+1) + '}}';
+
+            var inp = document.createElement('input');
+            inp.type = 'text';
+            inp.value = v;
+            inp.placeholder = '{{nombre_cliente}} o texto fijo';
+            inp.maxLength = 200;
+            inp.style.cssText = 'flex:1;padding:7px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;';
+            // Closure captura i correctamente — sin datos de usuario en atributos JS
+            (function(idx) {
+                inp.addEventListener('input', function() { actualizarVar(idx, this.value); });
+            })(i);
+
+            var btn = document.createElement('button');
+            btn.title = 'Eliminar';
+            btn.style.cssText = 'background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px;padding:2px 6px;';
+            btn.innerHTML = '&#10005;';
+            (function(idx) {
+                btn.addEventListener('click', function() { eliminarVar(idx); });
+            })(i);
+
+            wrap.appendChild(lbl);
+            wrap.appendChild(inp);
+            wrap.appendChild(btn);
+            el.appendChild(wrap);
+        });
         actualizarPreview();
     }
 
@@ -393,6 +415,9 @@ var ModCampanas = (function() {
     }
 
     // ── Filtrar/cargar clientes ───────────────────────────────
+    // Mapa id→objeto cliente para event delegation (evita JS en atributos HTML)
+    var _clientesMap = {};
+
     function cmpFiltrarClientes() {
         var loc    = (document.getElementById('cmpLocalidad') || {}).value || '';
         var ciudad = (document.getElementById('cmpCiudad')    || {}).value || '';
@@ -404,19 +429,32 @@ var ModCampanas = (function() {
           .then(function(r) { return r.json(); })
           .then(function(data) {
             var clientes = data.clientes || [];
+            _clientesMap = {};
             var filas = '';
             clientes.forEach(function(c) {
+                // Guardar objeto completo en mapa — nunca interpolar en JS inline
+                _clientesMap[c.id] = {id: c.id, nombre: c.nombre, telefono: normTel(c.telefono || '')};
                 var seleccionado = _clientesSeleccionados.some(function(x) { return x.id === c.id; });
+                // data-id es entero seguro; no hay datos de usuario en atributos JS
                 filas += '<tr>' +
-                    '<td style="padding:6px 10px;"><input type="checkbox" ' + (seleccionado ? 'checked' : '') +
-                    ' onchange="window.cmpToggleCliente(' + c.id + ',\'' + esc(c.nombre).replace(/'/g,"&#39;") + '\',\'' + normTel(c.telefono || '') + '\',this.checked)"></td>' +
+                    '<td style="padding:6px 10px;"><input type="checkbox" data-id="' + parseInt(c.id) + '" ' + (seleccionado ? 'checked' : '') + '></td>' +
                     '<td style="padding:6px 10px;">' + esc(c.nombre) + '</td>' +
                     '<td style="padding:6px 10px;">' + esc(c.telefono || '') + '</td>' +
                     '<td style="padding:6px 10px;">' + esc(c.ciudad || '') + '</td>' +
                     '</tr>';
             });
             var body = document.getElementById('cmpTablaBody');
-            if (body) { body.innerHTML = filas || '<tr><td colspan="4" style="padding:12px;color:#64748b;font-size:12px;">Sin resultados</td></tr>'; }
+            if (body) {
+                body.innerHTML = filas || '<tr><td colspan="4" style="padding:12px;color:#64748b;font-size:12px;">Sin resultados</td></tr>';
+                // Event delegation: un solo listener en tbody
+                body.addEventListener('change', function(e) {
+                    if (e.target.type === 'checkbox' && e.target.dataset.id) {
+                        var id  = parseInt(e.target.dataset.id);
+                        var obj = _clientesMap[id];
+                        if (obj) { toggleCliente(id, obj.nombre, obj.telefono, e.target.checked); }
+                    }
+                });
+            }
             var cnt = document.getElementById('cmpContador');
             if (cnt) { cnt.textContent = _clientesSeleccionados.length + ' seleccionados de ' + clientes.length; }
           });
