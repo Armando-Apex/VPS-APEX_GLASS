@@ -55,6 +55,43 @@ function enviarMensajeWA($payload) {
     return ['code' => $code, 'data' => $data];
 }
 
+// ── GET listar plantillas aprobadas desde Meta ───────────────
+if ($metodo === 'GET' && $accion === 'listar_plantillas') {
+    $url = 'https://graph.facebook.com/v20.0/' . WA_WABA_ID .
+           '/message_templates?fields=name,status,category,language,components&limit=100&access_token=' . WA_TOKEN;
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+    $resp = curl_exec($ch);
+    $code = curl_errno($ch) ? 0 : curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($code !== 200) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Error al consultar Meta API', 'code' => $code]);
+        exit;
+    }
+    $data = json_decode($resp, true);
+    $plantillas = [];
+    foreach (($data['data'] ?? []) as $t) {
+        if (($t['status'] ?? '') !== 'APPROVED') continue;
+        $body = '';
+        foreach (($t['components'] ?? []) as $comp) {
+            if (($comp['type'] ?? '') === 'BODY') { $body = $comp['text'] ?? ''; break; }
+        }
+        $plantillas[] = [
+            'name'     => $t['name'],
+            'category' => $t['category'] ?? '',
+            'language' => $t['language'] ?? '',
+            'body'     => $body,
+        ];
+    }
+    usort($plantillas, function($a, $b) { return strcmp($a['name'], $b['name']); });
+    echo json_encode(['plantillas' => $plantillas]);
+    exit;
+}
+
 // ── GET listar campañas ──────────────────────────────────────
 if ($metodo === 'GET' && $accion === 'listar') {
     $stmt = $db->query("SELECT id, nombre, template_nombre, estado,

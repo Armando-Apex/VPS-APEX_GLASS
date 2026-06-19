@@ -124,7 +124,9 @@ var ModCampanas = (function() {
     var _step = 1;
     var _clientesSeleccionados = [];
     var _templateNombre = '';
+    var _templateBody = '';
     var _templateVars = [];
+    var _plantillas = [];
     var _nombreCampana = '';
     var _convActiva = null;
     var _convActivaNombre = '';
@@ -303,24 +305,35 @@ var ModCampanas = (function() {
         } else if (_step === 2) {
             cont.innerHTML =
                 '<div style="margin-bottom:14px;">' +
-                '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Nombre del template en Meta *</label>' +
-                '<input id="cmpTemplate" type="text" placeholder="Ej: promo_julio_2026" maxlength="100" value="' + esc(_templateNombre) + '" ' +
-                'style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">' +
-                '<p style="font-size:11px;color:#64748b;margin:5px 0 0;">Debe coincidir exactamente con el nombre aprobado en Meta Business Manager (min&uacute;sculas, sin espacios).</p>' +
+                '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">Plantilla aprobada *</label>' +
+                '<select id="cmpSelectTemplate" style="width:100%;padding:9px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;background:#fff;">' +
+                '<option value="">-- Cargando plantillas... --</option>' +
+                '</select>' +
                 '</div>' +
-                '<div style="margin-bottom:14px;">' +
-                '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Variables del template</label>' +
-                '<p style="font-size:11px;color:#64748b;margin:0 0 8px;">Usa <code>{{nombre_cliente}}</code> para personalizar con el nombre del cliente. Agrega las variables en el mismo orden del template aprobado.</p>' +
+                '<div id="cmpBodyPlantilla" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:#166534;white-space:pre-wrap;line-height:1.6;">' +
+                '</div>' +
+                '<div id="cmpVarsSection" style="display:none;margin-bottom:14px;">' +
+                '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Variables del mensaje</label>' +
+                '<p style="font-size:11px;color:#64748b;margin:0 0 8px;">Escribe <code>{{nombre_cliente}}</code> para personalizar con el nombre de cada destinatario.</p>' +
                 '<div id="cmpVarsLista"></div>' +
-                '<button onclick="window.cmpAgregarVar()" style="font-size:12px;padding:6px 14px;border:1px solid #2563eb;border-radius:5px;color:#2563eb;background:#fff;cursor:pointer;margin-top:6px;">+ Agregar variable</button>' +
                 '</div>' +
                 '<div id="cmpPreviewArea"></div>' +
                 '<div style="display:flex;justify-content:space-between;margin-top:18px;">' +
                 '<button onclick="window.cmpAnterior()" style="background:#f1f5f9;color:#1e293b;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;">&#8592; Atr&aacute;s</button>' +
                 '<button onclick="window.cmpSiguiente()" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:9px 22px;font-size:13px;font-weight:600;cursor:pointer;">Siguiente &#8594;</button>' +
                 '</div>';
-            if (_templateVars.length > 0) { renderVars(); }
-            actualizarPreview();
+
+            // Asignar evento al select sin inline handler
+            var selEl = document.getElementById('cmpSelectTemplate');
+            if (selEl) {
+                selEl.addEventListener('change', function() { window.cmpSeleccionarTemplate(this.value); });
+            }
+
+            if (_plantillas.length > 0) {
+                renderPlantillasSelect();
+            } else {
+                cargarPlantillas();
+            }
 
         } else if (_step === 3) {
             var filas = '';
@@ -398,11 +411,86 @@ var ModCampanas = (function() {
         actualizarPreview();
     }
 
-    function construirPreview(nombreCliente) {
-        var vars = _templateVars.map(function(v) {
-            return v === '{{nombre_cliente}}' ? (nombreCliente || 'Cliente') : v;
+    // ── Plantillas Meta ───────────────────────────────────────
+    function cargarPlantillas() {
+        var sel = document.getElementById('cmpSelectTemplate');
+        if (sel) sel.innerHTML = '<option value="">Cargando plantillas...</option>';
+        fetch('/produccion/api/campanas.php?accion=listar_plantillas')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.error) {
+                if (sel) sel.innerHTML = '<option value="">Error: ' + esc(data.error) + '</option>';
+                return;
+            }
+            _plantillas = data.plantillas || [];
+            renderPlantillasSelect();
+          })
+          .catch(function() {
+            if (sel) sel.innerHTML = '<option value="">Error de red al cargar plantillas</option>';
+          });
+    }
+
+    function renderPlantillasSelect() {
+        var sel = document.getElementById('cmpSelectTemplate');
+        if (!sel) return;
+        var html = '<option value="">-- Selecciona una plantilla --</option>';
+        _plantillas.forEach(function(p) {
+            var sel2 = p.name === _templateNombre ? ' selected' : '';
+            html += '<option value="' + esc(p.name) + '"' + sel2 + '>' + esc(p.name) + ' &mdash; ' + esc(p.category) + '</option>';
         });
-        return 'Template: ' + _templateNombre + (vars.length ? ' | ' + vars.join(', ') : '');
+        sel.innerHTML = html;
+        if (_templateNombre) { seleccionarTemplate(_templateNombre); }
+    }
+
+    function seleccionarTemplate(nombre) {
+        _templateNombre = nombre;
+        var plantilla = null;
+        for (var i = 0; i < _plantillas.length; i++) {
+            if (_plantillas[i].name === nombre) { plantilla = _plantillas[i]; break; }
+        }
+        var bodyEl    = document.getElementById('cmpBodyPlantilla');
+        var varsSection = document.getElementById('cmpVarsSection');
+
+        if (!plantilla || !nombre) {
+            _templateBody = '';
+            if (bodyEl)      { bodyEl.style.display = 'none'; bodyEl.textContent = ''; }
+            if (varsSection) { varsSection.style.display = 'none'; }
+            return;
+        }
+        _templateBody = plantilla.body || '';
+        if (bodyEl) { bodyEl.style.display = ''; bodyEl.textContent = _templateBody; }
+
+        // Detectar cuántas variables {{N}} tiene el body
+        var matches  = _templateBody.match(/\{\{\d+\}\}/g) || [];
+        var maxVar = 0;
+        for (var j = 0; j < matches.length; j++) {
+            var n = parseInt(matches[j].replace(/\D/g, ''));
+            if (n > maxVar) maxVar = n;
+        }
+
+        // Ajustar array de vars solo si cambia la cantidad
+        if (_templateVars.length !== maxVar) {
+            _templateVars = [];
+            for (var k = 0; k < maxVar; k++) { _templateVars.push(''); }
+        }
+
+        if (varsSection) { varsSection.style.display = maxVar > 0 ? '' : 'none'; }
+        if (maxVar > 0)  { renderVars(); }
+        actualizarPreview();
+    }
+
+    function construirPreview(nombreCliente) {
+        if (!_templateBody) return _templateNombre ? 'Template: ' + _templateNombre : '(selecciona una plantilla)';
+        var texto = _templateBody;
+        for (var i = 0; i < _templateVars.length; i++) {
+            var val = _templateVars[i] === '{{nombre_cliente}}' ? (nombreCliente || 'Cliente') : (_templateVars[i] || '...');
+            // Reemplazar todas las ocurrencias de {{i+1}}
+            var token = '{{' + (i + 1) + '}}';
+            while (texto.indexOf(token) !== -1) {
+                texto = texto.replace(token, val);
+            }
+        }
+        return texto;
     }
 
     function actualizarPreview() {
@@ -410,8 +498,8 @@ var ModCampanas = (function() {
         if (!area || !_templateNombre) return;
         var nombre = (_clientesSeleccionados[0] || {nombre: 'Ramón'}).nombre;
         area.innerHTML =
-            '<label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Preview (primer cliente):</label>' +
-            '<div class="cmp-preview">' + esc(construirPreview(nombre)) + '</div>';
+            '<label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Vista previa (primer cliente):</label>' +
+            '<div class="cmp-preview" style="white-space:pre-wrap;">' + esc(construirPreview(nombre)) + '</div>';
     }
 
     // ── Filtrar/cargar clientes ───────────────────────────────
@@ -689,22 +777,23 @@ var ModCampanas = (function() {
     }
 
     // ── Exposición global (requerida por SPA) ─────────────────
-    window.cmpTab             = tab;
-    window.cmpNuevaCampana    = nuevaCampana;
-    window.cmpCerrarWizard    = cerrarWizard;
-    window.cmpSiguiente       = siguiente;
-    window.cmpAnterior        = anterior;
-    window.cmpEnviarCampana   = enviarCampana;
-    window.cmpVerDetalle      = verDetalle;
-    window.cmpCerrarDetalle   = cerrarDetalle;
-    window.cmpFiltrarClientes = cmpFiltrarClientes;
-    window.cmpToggleCliente   = toggleCliente;
-    window.cmpToggleTodos     = toggleTodos;
-    window.cmpAgregarVar      = agregarVar;
-    window.cmpActualizarVar   = actualizarVar;
-    window.cmpEliminarVar     = eliminarVar;
-    window.cmpAbrirConv       = abrirConv;
-    window.cmpEnviarMensaje   = enviarMensaje;
+    window.cmpTab                = tab;
+    window.cmpNuevaCampana       = nuevaCampana;
+    window.cmpCerrarWizard       = cerrarWizard;
+    window.cmpSiguiente          = siguiente;
+    window.cmpAnterior           = anterior;
+    window.cmpEnviarCampana      = enviarCampana;
+    window.cmpVerDetalle         = verDetalle;
+    window.cmpCerrarDetalle      = cerrarDetalle;
+    window.cmpFiltrarClientes    = cmpFiltrarClientes;
+    window.cmpToggleCliente      = toggleCliente;
+    window.cmpToggleTodos        = toggleTodos;
+    window.cmpAgregarVar         = agregarVar;
+    window.cmpActualizarVar      = actualizarVar;
+    window.cmpEliminarVar        = eliminarVar;
+    window.cmpAbrirConv          = abrirConv;
+    window.cmpEnviarMensaje      = enviarMensaje;
+    window.cmpSeleccionarTemplate = seleccionarTemplate;
 
     return { init: init };
 })();
