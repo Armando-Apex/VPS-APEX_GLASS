@@ -76,15 +76,21 @@ if ($metodo === 'GET' && $accion === 'listar_plantillas') {
     $plantillas = [];
     foreach (($data['data'] ?? []) as $t) {
         if (($t['status'] ?? '') !== 'APPROVED') continue;
-        $body = '';
+        $body = ''; $headerFormat = ''; $headerExample = '';
         foreach (($t['components'] ?? []) as $comp) {
-            if (($comp['type'] ?? '') === 'BODY') { $body = $comp['text'] ?? ''; break; }
+            if (($comp['type'] ?? '') === 'BODY') { $body = $comp['text'] ?? ''; }
+            if (($comp['type'] ?? '') === 'HEADER') {
+                $headerFormat  = $comp['format'] ?? '';
+                $headerExample = $comp['example']['header_handle'][0] ?? '';
+            }
         }
         $plantillas[] = [
-            'name'     => $t['name'],
-            'category' => $t['category'] ?? '',
-            'language' => $t['language'] ?? '',
-            'body'     => $body,
+            'name'           => $t['name'],
+            'category'       => $t['category'] ?? '',
+            'language'       => $t['language'] ?? '',
+            'body'           => $body,
+            'header_format'  => $headerFormat,
+            'header_example' => $headerExample,
         ];
     }
     usort($plantillas, function($a, $b) { return strcmp($a['name'], $b['name']); });
@@ -204,11 +210,12 @@ if ($metodo === 'POST' && $accion === 'crear') {
     }
     $body = json_decode(file_get_contents('php://input'), true);
 
-    $nombre       = trim($body['nombre'] ?? '');
-    $template     = trim($body['template_nombre'] ?? '');
-    $varsJson     = json_encode($body['template_vars'] ?? []);
-    $segmentoJson = json_encode($body['segmento'] ?? []);
-    $clienteIds   = $body['cliente_ids'] ?? [];
+    $nombre         = trim($body['nombre'] ?? '');
+    $template       = trim($body['template_nombre'] ?? '');
+    $varsJson       = json_encode($body['template_vars'] ?? []);
+    $segmentoJson   = json_encode($body['segmento'] ?? []);
+    $clienteIds     = $body['cliente_ids'] ?? [];
+    $headerImageUrl = trim($body['header_image_url'] ?? '');
 
     if (!$nombre || !$template || !$clienteIds) {
         http_response_code(400);
@@ -218,9 +225,9 @@ if ($metodo === 'POST' && $accion === 'crear') {
 
     $db->beginTransaction();
     $stmt = $db->prepare("INSERT INTO campanas
-        (nombre, template_nombre, template_vars_json, segmento_json, creado_por, total_destinatarios)
-        VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$nombre, $template, $varsJson, $segmentoJson, $user['nombre'], count($clienteIds)]);
+        (nombre, template_nombre, template_vars_json, header_image_url, segmento_json, creado_por, total_destinatarios)
+        VALUES (?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$nombre, $template, $varsJson, $headerImageUrl ?: null, $segmentoJson, $user['nombre'], count($clienteIds)]);
     $campanaId = $db->lastInsertId();
 
     $stmtCli = $db->prepare("SELECT id, nombre, telefono FROM clientes WHERE id = ?");
@@ -295,6 +302,17 @@ if ($metodo === 'POST' && $accion === 'enviar') {
             $parametros[] = ['type' => 'text', 'text' => $valor];
         }
 
+        $components = [];
+        if (!empty($campana['header_image_url'])) {
+            $components[] = [
+                'type'       => 'header',
+                'parameters' => [['type' => 'image', 'image' => ['link' => $campana['header_image_url']]]]
+            ];
+        }
+        if (!empty($parametros)) {
+            $components[] = ['type' => 'body', 'parameters' => $parametros];
+        }
+
         $payload = [
             'messaging_product' => 'whatsapp',
             'to'                => $envio['telefono'],
@@ -302,7 +320,7 @@ if ($metodo === 'POST' && $accion === 'enviar') {
             'template'          => [
                 'name'       => $campana['template_nombre'],
                 'language'   => ['code' => 'es_MX'],
-                'components' => [['type' => 'body', 'parameters' => $parametros]]
+                'components' => $components
             ]
         ];
 

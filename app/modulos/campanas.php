@@ -125,7 +125,9 @@ var ModCampanas = (function() {
     var _clientesSeleccionados = [];
     var _templateNombre = '';
     var _templateBody = '';
+    var _templateHeaderFormat = '';
     var _templateVars = [];
+    var _headerImageUrl = '';
     var _plantillas = [];
     var _nombreCampana = '';
     var _convActiva = null;
@@ -248,6 +250,9 @@ var ModCampanas = (function() {
         _step = 1;
         _clientesSeleccionados = [];
         _templateNombre = '';
+        _templateBody = '';
+        _templateHeaderFormat = '';
+        _headerImageUrl = '';
         _templateVars = [];
         _nombreCampana = '';
         document.getElementById('cmpModalWizard').style.display = 'flex';
@@ -311,6 +316,12 @@ var ModCampanas = (function() {
                 '</select>' +
                 '</div>' +
                 '<div id="cmpBodyPlantilla" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:#166534;white-space:pre-wrap;line-height:1.6;">' +
+                '</div>' +
+                '<div id="cmpHeaderImgSection" style="display:none;margin-bottom:14px;">' +
+                '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">URL de imagen del encabezado *</label>' +
+                '<input id="cmpHeaderImgUrl" type="url" placeholder="https://tu-servidor.com/imagen.jpg" maxlength="500" ' +
+                'style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">' +
+                '<p style="font-size:11px;color:#64748b;margin:5px 0 0;">La imagen debe ser p&uacute;blica (URL accesible desde internet). Formatos: JPG, PNG. M&iacute;n. 300px ancho.</p>' +
                 '</div>' +
                 '<div id="cmpVarsSection" style="display:none;margin-bottom:14px;">' +
                 '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Variables del mensaje</label>' +
@@ -457,8 +468,15 @@ var ModCampanas = (function() {
             if (varsSection) { varsSection.style.display = 'none'; }
             return;
         }
-        _templateBody = plantilla.body || '';
+        _templateBody        = plantilla.body || '';
+        _templateHeaderFormat = plantilla.header_format || '';
         if (bodyEl) { bodyEl.style.display = ''; bodyEl.textContent = _templateBody; }
+
+        // Campo imagen si el header es IMAGE
+        var imgSection = document.getElementById('cmpHeaderImgSection');
+        if (imgSection) {
+            imgSection.style.display = _templateHeaderFormat === 'IMAGE' ? '' : 'none';
+        }
 
         // Detectar cuántas variables {{N}} tiene el body
         var matches  = _templateBody.match(/\{\{\d+\}\}/g) || [];
@@ -581,6 +599,11 @@ var ModCampanas = (function() {
             if (_clientesSeleccionados.length === 0) { alert('Selecciona al menos un cliente'); return; }
         } else if (_step === 2) {
             if (!_templateNombre) { alert('Selecciona una plantilla de la lista'); return; }
+            _headerImageUrl = ((document.getElementById('cmpHeaderImgUrl') || {}).value || '').trim();
+            if (_templateHeaderFormat === 'IMAGE' && !_headerImageUrl) {
+                alert('Esta plantilla requiere una imagen de encabezado. Ingresa la URL de la imagen.');
+                return;
+            }
         }
         if (_step < 3) { _step++; renderStep(); }
     }
@@ -602,6 +625,7 @@ var ModCampanas = (function() {
                 nombre:           _nombreCampana,
                 template_nombre:  _templateNombre,
                 template_vars:    _templateVars,
+                header_image_url: _headerImageUrl,
                 segmento:         {},
                 cliente_ids:      clienteIds
             })
