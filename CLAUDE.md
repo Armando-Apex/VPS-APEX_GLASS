@@ -499,6 +499,7 @@ Próximo UPD disponible: **UPD-059**
 | UPD-110 | 19-jun | Armando | Fix operador.php estación horno: muestra botón ámbar de omisión cuando pieza viene en trazo/cortado/en_corte con mensaje específico por cuántas estaciones saltó |
 | UPD-111 | 19-jun | Armando | NUEVO módulo Campañas WhatsApp: Meta Cloud API v20.0, 4 tablas BD, api/campanas.php (10 acciones), api/whatsapp_webhook.php, modulos/campanas.php (ModCampanas) con wizard 3 pasos + inbox conversaciones; permisos dir_admin/dueno crean campañas, comercial responde chats; 6 fixes de seguridad aplicados |
 | UPD-112 | 19-jun | Armando | Fix campanas: módulo faltaba en mapa MODULOS dashboard; $user['username']→$user['nombre'] (fatal error al crear campaña); $rol leía $_SESSION['rol'] incorrecto→$user['rol']; fetch crear sin .catch(); Step 2 wizard reemplaza input manual por dropdown de plantillas aprobadas desde Meta API (listar_plantillas); WA_WABA_ID=1517799296194687 agregado a config.php |
+| UPD-113 | 19-jun | Armando | Campañas: soporte header imagen — BD ALTER TABLE campanas ADD header_image_url; listar_plantillas devuelve header_format+header_example; wizard Step 2 muestra campo URL imagen auto-rellenado con ejemplo Meta cuando template tiene IMAGE header; enviar construye components dinámicamente (header+body); 24/30 plantillas tienen imagen |
 
 ---
 
@@ -509,4 +510,4 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-**Próximo UPD disponible: UPD-113**
+**Próximo UPD disponible: UPD-114**
