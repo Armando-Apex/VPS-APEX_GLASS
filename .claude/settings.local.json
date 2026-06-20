@@ -24,7 +24,15 @@
       "Bash(xargs -I{} head -5 {})",
       "Bash(python3.10 --version)",
       "Bash(python3.11 --version)",
-      "Bash(python3.12 --version)"
+      "Bash(python3.12 --version)",
+      "Bash(grep -E '\\\\$[a-zA-Z_]+\\\\s*=\\\\s*\\\\$_\\(GET|POST|REQUEST\\)')",
+      "Bash(grep '\\\\$')",
+      "Bash(grep -rn \"echo\\\\s*\\\\$\\\\|print\\\\s*\\\\$\\\\|echo\\\\s*\\\\\"\\\\.\\\\$\\\\|echo\\\\s*'\\\\.\\\\$\" /home/apexglass2025/apex.glass/public_html/produccion/app/ --include=\"*.php\")",
+      "Bash(grep -v 'htmlspecialchars\\\\|htmlentities\\\\|esc\\(\\\\|json_encode\\\\|intval\\\\|number_format\\\\|date\\\\|//\\\\|<?php echo $_')",
+      "Bash(grep -rn \"<?= \\\\$\\\\|echo \\\\$\\\\|print \\\\$\" /home/apexglass2025/apex.glass/public_html/produccion/app/ --include=\"*.php\")",
+      "Bash(grep \"\\\\$\")",
+      "Bash(grep -n \"implode.*where\\\\|WHERE.*\\\\$\" /home/apexglass2025/apex.glass/public_html/produccion/api/campanas.php)",
+      "Bash(xargs ls -la)"
     ]
   },
   "hooks": {
