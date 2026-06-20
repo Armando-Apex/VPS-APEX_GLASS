@@ -34,7 +34,9 @@
       "Bash(grep -n \"implode.*where\\\\|WHERE.*\\\\$\" /home/apexglass2025/apex.glass/public_html/produccion/api/campanas.php)",
       "Bash(xargs ls -la)",
       "Bash(python3.11 /root/.claude/plugins/cache/claude-plugins-official/security-guidance/2.0.6/hooks/security_reminder_hook.py)",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(python3.11 -c \"import claude_agent_sdk\")",
+      "Bash(python3.11 *)"
     ]
   },
   "hooks": {
