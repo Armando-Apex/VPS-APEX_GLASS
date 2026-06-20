@@ -6,6 +6,8 @@
 //  local/foraneo: campo ubicacion ('LOCAL' / 'FORANEO')
 // ============================================================
 require_once 'config.php';
+require_once 'permisos.php';
+requirePermisoApi('ver_reportes');
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 

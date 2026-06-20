@@ -5,6 +5,8 @@
 //  M�1�7�1�7todo: GET  ?folio=R-801
 // ============================================================
 require_once 'config.php';
+require_once 'permisos.php';
+requireSessionApi();
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');

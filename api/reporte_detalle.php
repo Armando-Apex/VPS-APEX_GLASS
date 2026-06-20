@@ -1,11 +1,13 @@
 <?php
 // ============================================================
-//  APEX GLASS - API: Detalle de KPI reporte dirección
+//  APEX GLASS - API: Detalle de KPI reporte direcci锟斤拷n
 //  GET ?tipo=a_tiempo|con_retraso|en_proceso&periodo=mes_actual|...
-//  Usa misma lógica que api/reporte_direccion.php:
+//  Usa misma l锟斤拷gica que api/reporte_direccion.php:
 //  fecha_cierre = MAX(historial_estatus) con fallback a updated_at
 // ============================================================
 require_once 'config.php';
+require_once 'permisos.php';
+requirePermisoApi('ver_reportes');
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
@@ -27,7 +29,7 @@ switch ($periodo) {
     case '6meses':
         $desde = (clone $hoy)->modify('-6 months')->format('Y-m-d');
         $hasta = $hoy->format('Y-m-d'); break;
-    case 'año':
+    case 'a锟�0锟�9o':
     case 'anio':
         $desde = $hoy->format('Y-01-01');
         $hasta = $hoy->format('Y-m-d'); break;
@@ -103,7 +105,7 @@ if ($tipo === 'a_tiempo') {
     $stmt->execute($params4);
 
 } else {
-    jsonResponse(['error' => 'Tipo no válido'], 400);
+    jsonResponse(['error' => 'Tipo no v锟斤拷lido'], 400);
     exit;
 }
 

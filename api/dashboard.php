@@ -4,6 +4,8 @@
 //  GET ?pagina=1&por_pagina=25
 // ============================================================
 require_once 'config.php';
+require_once 'permisos.php';
+requireSessionApi();
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
