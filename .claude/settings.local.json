@@ -45,7 +45,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "D=/home/apexglass2025/apex.glass/public_html/produccion; git -C \"$D\" add -A && git -C \"$D\" diff --cached --quiet || (git -C \"$D\" commit -m \"Auto-sync $(date '+%Y-%m-%d %H:%M')\" && git -C \"$D\" push origin main 2>&1)",
+            "command": "D=/home/apexglass2025/apex.glass/public_html/produccion; git -C \"$D\" add -A && git -C \"$D\" diff --cached --quiet || git -C \"$D\" commit -m \"Auto-sync $(date '+%Y-%m-%d %H:%M')\"; git -C \"$D\" pull --rebase origin main 2>&1 && git -C \"$D\" push origin main 2>&1",
             "timeout": 60,
             "statusMessage": "Guardando cambios en GitHub..."
           }
