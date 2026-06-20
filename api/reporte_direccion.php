@@ -65,7 +65,7 @@ $stmt = $pdo->prepare("
         SUM(o.estado = 'activa'
             AND (pt.todas_terminadas IS NULL OR pt.todas_terminadas = 0)
             AND o.fecha_entrega < CURDATE())                                          AS retraso_abierto,
-        AVG(CASE WHEN o.estado = 'entregada'
+        AVG(CASE WHEN o.estado = 'entregada' OR (o.estado = 'activa' AND pt.todas_terminadas = 1)
                  THEN DATEDIFF(
                      COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))),
                      o.fecha_pedido)
@@ -120,7 +120,7 @@ $stmtM = $pdo->prepare("
         SUM(o.estado = 'activa'
             AND (pt.todas_terminadas IS NULL OR pt.todas_terminadas = 0)
             AND o.fecha_entrega < CURDATE())                                          AS retraso_abierto,
-        AVG(CASE WHEN o.estado = 'entregada'
+        AVG(CASE WHEN o.estado = 'entregada' OR (o.estado = 'activa' AND pt.todas_terminadas = 1)
                  THEN DATEDIFF(
                      COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))),
                      o.fecha_pedido)
