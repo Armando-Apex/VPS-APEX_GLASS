@@ -21,7 +21,10 @@
       "Read(//var/log/httpd/users/apexglass2025/apex.glass/**)",
       "Bash(grep -n 'rechazo\\\\|SELECT.*FROM cotizaciones.*WHERE\\\\|c\\\\.id.*=.*$id\\\\|detalle' /home/apexglass2025/apex.glass/public_html/produccion/api/cotizaciones.php)",
       "Read(//root/.claude/**)",
-      "Bash(xargs -I{} head -5 {})"
+      "Bash(xargs -I{} head -5 {})",
+      "Bash(python3.10 --version)",
+      "Bash(python3.11 --version)",
+      "Bash(python3.12 --version)"
     ]
   },
   "hooks": {
