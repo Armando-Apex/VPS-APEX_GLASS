@@ -40,18 +40,30 @@ $params4 = [$desde, $hasta, $desde.' 00:00:00', $hasta.' 23:59:59'];
 
 // Retraso se mide por fecha_terminado (cuando la última pieza llegó a 'terminado'),
 // NO por fecha_cierre — el cliente puede recoger tarde y eso no es retraso de producción.
+// Órdenes 'activa' con TODAS las piezas en terminado/entregado también se clasifican
+// como a_tiempo o con_retraso (no en_proceso/retraso_abierto) — pt.todas_terminadas.
 $stmt = $pdo->prepare("
     SELECT
         COUNT(*)                                                                      AS total,
         SUM(o.estado = 'entregada')                                                   AS cerradas,
         SUM(o.estado = 'activa')                                                      AS abiertas,
-        SUM(o.estado = 'entregada'
-            AND COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))) <= o.fecha_entrega) AS a_tiempo,
-        SUM(o.estado = 'entregada'
-            AND COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))) >  o.fecha_entrega) AS con_retraso,
+        SUM(
+            (o.estado = 'entregada'
+                AND COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))) <= o.fecha_entrega)
+            OR (o.estado = 'activa' AND pt.todas_terminadas = 1
+                AND ft.fecha_terminado <= DATE(o.fecha_entrega))
+        )                                                                             AS a_tiempo,
+        SUM(
+            (o.estado = 'entregada'
+                AND COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))) > o.fecha_entrega)
+            OR (o.estado = 'activa' AND pt.todas_terminadas = 1
+                AND ft.fecha_terminado > DATE(o.fecha_entrega))
+        )                                                                             AS con_retraso,
         SUM(o.estado = 'activa'
+            AND (pt.todas_terminadas IS NULL OR pt.todas_terminadas = 0)
             AND (o.fecha_entrega IS NULL OR o.fecha_entrega >= CURDATE()))            AS en_proceso,
         SUM(o.estado = 'activa'
+            AND (pt.todas_terminadas IS NULL OR pt.todas_terminadas = 0)
             AND o.fecha_entrega < CURDATE())                                          AS retraso_abierto,
         AVG(CASE WHEN o.estado = 'entregada'
                  THEN DATEDIFF(
@@ -69,6 +81,12 @@ $stmt = $pdo->prepare("
         WHERE h.estatus_nuevo = 'terminado'
         GROUP BY p.orden_id
     ) ft ON ft.orden_id = o.id
+    LEFT JOIN (
+        SELECT orden_id,
+            CASE WHEN SUM(estatus NOT IN ('terminado','entregado')) = 0 THEN 1 ELSE 0 END AS todas_terminadas
+        FROM piezas
+        GROUP BY orden_id
+    ) pt ON pt.orden_id = o.id
     WHERE o.estado != 'cancelada'
       AND (o.fecha_pedido BETWEEN ? AND ?
            OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
@@ -84,13 +102,23 @@ $stmtM = $pdo->prepare("
         COUNT(*)                                                                      AS total,
         SUM(o.estado = 'entregada')                                                   AS cerradas,
         SUM(o.estado = 'activa')                                                      AS abiertas,
-        SUM(o.estado = 'entregada'
-            AND COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))) <= o.fecha_entrega) AS a_tiempo,
-        SUM(o.estado = 'entregada'
-            AND COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))) >  o.fecha_entrega) AS con_retraso,
+        SUM(
+            (o.estado = 'entregada'
+                AND COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))) <= o.fecha_entrega)
+            OR (o.estado = 'activa' AND pt.todas_terminadas = 1
+                AND ft.fecha_terminado <= DATE(o.fecha_entrega))
+        )                                                                             AS a_tiempo,
+        SUM(
+            (o.estado = 'entregada'
+                AND COALESCE(ft.fecha_terminado, DATE(COALESCE(o.fecha_cierre, o.updated_at))) > o.fecha_entrega)
+            OR (o.estado = 'activa' AND pt.todas_terminadas = 1
+                AND ft.fecha_terminado > DATE(o.fecha_entrega))
+        )                                                                             AS con_retraso,
         SUM(o.estado = 'activa'
+            AND (pt.todas_terminadas IS NULL OR pt.todas_terminadas = 0)
             AND (o.fecha_entrega IS NULL OR o.fecha_entrega >= CURDATE()))            AS en_proceso,
         SUM(o.estado = 'activa'
+            AND (pt.todas_terminadas IS NULL OR pt.todas_terminadas = 0)
             AND o.fecha_entrega < CURDATE())                                          AS retraso_abierto,
         AVG(CASE WHEN o.estado = 'entregada'
                  THEN DATEDIFF(
@@ -108,6 +136,12 @@ $stmtM = $pdo->prepare("
         WHERE h.estatus_nuevo = 'terminado'
         GROUP BY p.orden_id
     ) ft ON ft.orden_id = o.id
+    LEFT JOIN (
+        SELECT orden_id,
+            CASE WHEN SUM(estatus NOT IN ('terminado','entregado')) = 0 THEN 1 ELSE 0 END AS todas_terminadas
+        FROM piezas
+        GROUP BY orden_id
+    ) pt ON pt.orden_id = o.id
     WHERE o.estado != 'cancelada'
       AND (o.fecha_pedido BETWEEN ? AND ?
            OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
