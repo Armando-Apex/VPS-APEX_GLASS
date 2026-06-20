@@ -240,7 +240,7 @@ function rdRender(rep, dash, inv) {
   /* ─── KPIs Producción ─── */
   html += '<div class="section-title">&#211;rdenes del per&#237;odo</div>';
   html += '<div class="kpi-grid" style="grid-template-columns:repeat(6,1fr)">' +
-    '<div class="kpi-card"><div class="kpi-num">' + (r.total||0) + '</div><div class="kpi-label">Total</div><div class="kpi-sub">' + (r.cerradas||0) + ' cerradas &#183; ' + (r.abiertas||0) + ' activas</div></div>' +
+    '<div class="kpi-card"><div class="kpi-num">' + (r.total||0) + '</div><div class="kpi-label">Total</div></div>' +
     '<div class="kpi-card"><div class="kpi-num" style="color:var(--green)">' + (r.a_tiempo||0) + '</div><div class="kpi-label">A tiempo</div><div class="kpi-sub">' + pctTiempo + '% del total</div></div>' +
     '<div class="kpi-card"><div class="kpi-num" style="color:var(--red)">' + (r.con_retraso||0) + '</div><div class="kpi-label">Con retraso</div><div class="kpi-sub">Cerradas fuera de fecha</div></div>' +
     '<div class="kpi-card"><div class="kpi-num" style="color:var(--amber)">' + (r.en_proceso||0) + '</div><div class="kpi-label">En proceso</div><div class="kpi-sub">Activas dentro de fecha</div></div>' +
