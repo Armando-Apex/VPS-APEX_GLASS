@@ -517,4 +517,9 @@ Al terminar cualquier sesión con cambios:
 | UPD-118 | 19-jun | Armando | modulos/cotizaciones.php: tab "Rechazadas" con contador; badge-rech rojo; auto-switch de tab incluye rechazada; badge-canc corregido a gris |
 | UPD-119 | 19-jun | Armando | Banner rechazo en detalle cotizacion: api devuelve rechazo_calidad (motivo, monto, registrado_por, fecha) cuando estatus=rechazada; banner rojo visible debajo del header con motivo completo |
 
-**Próximo UPD disponible: UPD-120**
+| UPD-120 | 20-jun | Armando | Fix api/omisiones.php: require_once 'permisos.php' faltante causaba Fatal Error (requirePermiso undefined) — tablero de omisiones no cargaba datos |
+| UPD-121 | 20-jun | Armando | VPS: dnf install python3.11 — resuelve error stop hook security-guidance que requería Python 3.10+ (servidor tenía solo 3.9.25) |
+| UPD-122 | 20-jun | Armando | SEGURIDAD login.php: (1) IP spoofing corregido — usa solo REMOTE_ADDR en lugar de HTTP_X_FORWARDED_FOR falsificable; (2) session_regenerate_id(true) agregado al login exitoso para prevenir session fixation; (3) test.php eliminado de producción (tenía display_errors=On) |
+| UPD-123 | 20-jun | Armando | SEGURIDAD autenticación APIs: 8 endpoints sin protección ahora requieren sesión activa — buscar_orden.php, pieza.php, orden.php, actualizar_estatus.php, ordenes.php, dashboard.php → requireSessionApi(); reporte_direccion.php + reporte_detalle.php → requirePermisoApi('ver_reportes'); archivos_ordenes/.htaccess creado (Deny from all). Único endpoint público intencional: estaciones.php (SmartTV sin login) |
+
+**Próximo UPD disponible: UPD-124**
