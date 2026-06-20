@@ -31,7 +31,7 @@ $password = trim($input["password"] ?? "");
 if (!$usuario || !$password) jsonResponse(["error" => "Campos requeridos"], 400);
 
 $db = getDB();
-$ip = $_SERVER["HTTP_X_FORWARDED_FOR"] ?? $_SERVER["REMOTE_ADDR"] ?? "unknown";
+$ip = $_SERVER["REMOTE_ADDR"] ?? "unknown";
 
 // Verificar bloqueo por IP + usuario
 $stmt = $db->prepare("SELECT intentos, bloqueado, updated_at FROM login_intentos WHERE ip = ? AND usuario = ?");
@@ -68,12 +68,13 @@ if (!$user || !$user["activo"] || !password_verify($password, $user["password"])
 // Login exitoso - limpiar intentos
 $db->prepare("DELETE FROM login_intentos WHERE ip=? AND usuario=?")->execute([$ip, $usuario]);
 
+session_regenerate_id(true);
 $_SESSION["user_id"]       = $user["id"];
 $_SESSION["user_name"]     = $user["nombre"];
 $_SESSION["user_rol"]      = $user["rol"];
 $_SESSION["user_estacion"] = $user["estacion"];
 
-// Redirecci¨®n especial por estaci¨®n
+// Redirecciï¿½ï¿½n especial por estaciï¿½ï¿½n
 if ($user["rol"] === 'operador' && $user["estacion"] === 'corte') {
     $redireccion = 'corte_dashboard.php';
 } else {
