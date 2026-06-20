@@ -242,12 +242,18 @@ function ordFiltrar() {
       return;
     }
 
-    // Etiquetar cada orden con su estado para contexto visual
-    const etiquetaEstado = o => {
-      if ((_ordData.entregadas||[]).find(x=>x.folio===o.folio)) return '<span style="background:#e0f2fe;color:#0891b2;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">Entregada</span>';
-      if ((_ordData.listas||[]).find(x=>x.folio===o.folio))     return '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">Lista para entregar</span>';
-      if ((_ordData.en_proceso||[]).find(x=>x.folio===o.folio))  return '<span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">En proceso</span>';
-      return '<span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">Por iniciar</span>';
+    // Etiquetar cada orden con su estado usando el campo devuelto por el API
+    const etiquetaEstado = function(o) {
+      var est = o.estado || '';
+      if (est === 'entregada')     return '<span style="background:#e0f2fe;color:#0891b2;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">Entregada</span>';
+      if (est === 'cancelada')     return '<span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">Cancelada</span>';
+      if (est === 'pendiente_vobo')return '<span style="background:#f3e8ff;color:#7c3aed;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">VoBo pendiente</span>';
+      if (est === 'activa') {
+        if ((_ordData.listas||[]).find(function(x){return x.folio===o.folio;}))      return '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">Lista para entregar</span>';
+        if ((_ordData.en_proceso||[]).find(function(x){return x.folio===o.folio;}))  return '<span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">En proceso</span>';
+        return '<span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">Por iniciar</span>';
+      }
+      return '<span style="background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">' + est + '</span>';
     };
 
     secBuq.innerHTML = '<div class="loading-msg" style="text-align:left;padding:8px 0 14px;color:#6b7280">'+todos.length+' resultado'+(todos.length!==1?'s':'')+'</div>' +
