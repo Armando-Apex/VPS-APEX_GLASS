@@ -523,4 +523,9 @@ Al terminar cualquier sesión con cambios:
 | UPD-123 | 20-jun | Armando | SEGURIDAD autenticación APIs: 8 endpoints sin protección ahora requieren sesión activa — buscar_orden.php, pieza.php, orden.php, actualizar_estatus.php, ordenes.php, dashboard.php → requireSessionApi(); reporte_direccion.php + reporte_detalle.php → requirePermisoApi('ver_reportes'); archivos_ordenes/.htaccess creado (Deny from all). Único endpoint público intencional: estaciones.php (SmartTV sin login) |
 | UPD-124 | 20-jun | Armando | Rediseño visual modulos/reporte_direccion.php: estilo minimal profesional — emojis eliminados, headers tabla gris claro (no navy), KPI cards sin borde de color superior (color en número), tokens CSS unificados (--muted-lt, --border-lt, --amber), section titles compactos con border-bottom, metric cards sin ícono emoji, mkTopPanel con rank numérico, var en lugar de const/let (SPA pattern) |
 
-**Próximo UPD disponible: UPD-125**
+| UPD-125 | 20-jun | Armando | Fix clasificación reporte dirección: órdenes activas con TODAS las piezas en terminado/entregado ahora se clasifican como a_tiempo o con_retraso (no en_proceso/retraso_abierto); JOIN pt (todas_terminadas) en ambas queries resumen + mensual |
+| UPD-126 | 20-jun | Armando | Reporte Dirección: quita subtexto "X cerradas · Y activas" de tarjeta Total — datos redundantes ya visibles en las otras tarjetas |
+| UPD-127 | 20-jun | Armando | prom_dias incluye órdenes activas con producción terminada — consistente con nueva clasificación a_tiempo/con_retraso |
+| UPD-128 | 20-jun | Armando | Fix badge búsqueda módulo Órdenes: etiquetaEstado() usaba arrays locales paginados; órdenes antiguas caían a "Por iniciar" aunque fueran entregadas. Ahora usa o.estado del API directamente |
+
+**Próximo UPD disponible: UPD-129**
