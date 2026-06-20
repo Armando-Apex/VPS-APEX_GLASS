@@ -20,7 +20,8 @@
       "Read(//home/apexglass2025/logs/**)",
       "Read(//var/log/httpd/users/apexglass2025/apex.glass/**)",
       "Bash(grep -n 'rechazo\\\\|SELECT.*FROM cotizaciones.*WHERE\\\\|c\\\\.id.*=.*$id\\\\|detalle' /home/apexglass2025/apex.glass/public_html/produccion/api/cotizaciones.php)",
-      "Read(//root/.claude/**)"
+      "Read(//root/.claude/**)",
+      "Bash(xargs -I{} head -5 {})"
     ]
   },
   "hooks": {
