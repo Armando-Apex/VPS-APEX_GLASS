@@ -521,5 +521,6 @@ Al terminar cualquier sesión con cambios:
 | UPD-121 | 20-jun | Armando | VPS: dnf install python3.11 — resuelve error stop hook security-guidance que requería Python 3.10+ (servidor tenía solo 3.9.25) |
 | UPD-122 | 20-jun | Armando | SEGURIDAD login.php: (1) IP spoofing corregido — usa solo REMOTE_ADDR en lugar de HTTP_X_FORWARDED_FOR falsificable; (2) session_regenerate_id(true) agregado al login exitoso para prevenir session fixation; (3) test.php eliminado de producción (tenía display_errors=On) |
 | UPD-123 | 20-jun | Armando | SEGURIDAD autenticación APIs: 8 endpoints sin protección ahora requieren sesión activa — buscar_orden.php, pieza.php, orden.php, actualizar_estatus.php, ordenes.php, dashboard.php → requireSessionApi(); reporte_direccion.php + reporte_detalle.php → requirePermisoApi('ver_reportes'); archivos_ordenes/.htaccess creado (Deny from all). Único endpoint público intencional: estaciones.php (SmartTV sin login) |
+| UPD-124 | 20-jun | Armando | Rediseño visual modulos/reporte_direccion.php: estilo minimal profesional — emojis eliminados, headers tabla gris claro (no navy), KPI cards sin borde de color superior (color en número), tokens CSS unificados (--muted-lt, --border-lt, --amber), section titles compactos con border-bottom, metric cards sin ícono emoji, mkTopPanel con rank numérico, var en lugar de const/let (SPA pattern) |
 
-**Próximo UPD disponible: UPD-124**
+**Próximo UPD disponible: UPD-125**
