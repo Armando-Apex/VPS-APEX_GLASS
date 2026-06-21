@@ -527,5 +527,9 @@ Al terminar cualquier sesión con cambios:
 | UPD-126 | 20-jun | Armando | Reporte Dirección: quita subtexto "X cerradas · Y activas" de tarjeta Total — datos redundantes ya visibles en las otras tarjetas |
 | UPD-127 | 20-jun | Armando | prom_dias incluye órdenes activas con producción terminada — consistente con nueva clasificación a_tiempo/con_retraso |
 | UPD-128 | 20-jun | Armando | Fix badge búsqueda módulo Órdenes: etiquetaEstado() usaba arrays locales paginados; órdenes antiguas caían a "Por iniciar" aunque fueran entregadas. Ahora usa o.estado del API directamente |
+| UPD-129 | 21-jun | Armando | WhatsApp: token permanente via System User tnwapp (sin expiración); app Meta en modo Producción; WaNotifier desconectado del WABA — mensajes ahora llegan a APEX GLASS |
+| UPD-130 | 21-jun | Armando | Inbox conversaciones: pegar imagen con Ctrl+V + subir archivos con botón 📎 (imágenes/PDF/docs); acción enviar_media en api/campanas.php — sube a Meta Media API y envía con media_id |
+| UPD-131 | 21-jun | Armando | Fix envío media: BD ALTER TABLE whatsapp_mensajes ENUM tipo += 'documento'; fix paste handler llamaba window.cmpSetMedia (no expuesto) → corregido a cmpSetMedia directo por closure |
+| UPD-132 | 21-jun | Armando | Badge mensajes WA sin leer en sidebar dashboard: polling 30s via api/campanas.php?accion=sin_leer; badge rojo desaparece inmediatamente al abrir conversación (window.actualizarBadgeWA expuesto globalmente) |
 
-**Próximo UPD disponible: UPD-129**
+**Próximo UPD disponible: UPD-133**
