@@ -744,7 +744,7 @@ var ModCampanas = (function() {
             '<button class="prev-quitar" onclick="window.cmpQuitarMedia()">&#x2715;</button>' +
             '</div>' +
             '<div class="conv-input-row">' +
-            '<input type="file" id="cmpFileInput" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none;" onchange="window.cmpArchivoSeleccionado(this)">' +
+            '<input type="file" id="cmpFileInput" accept="image/*,.pdf" style="display:none;" onchange="window.cmpArchivoSeleccionado(this)">' +
             '<button class="conv-btn-clip" onclick="document.getElementById(\'cmpFileInput\').click()" title="Adjuntar archivo">&#128206;</button>' +
             '<textarea id="cmpMsgInput" placeholder="Escribe tu respuesta... (Ctrl+V para pegar imagen)" maxlength="4096"></textarea>' +
             '<button onclick="window.cmpEnviarMensaje()">Enviar</button>' +

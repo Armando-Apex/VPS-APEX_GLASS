@@ -419,13 +419,9 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
 
     // Determinar tipo WA
     $tiposImagen = ['image/jpeg','image/png','image/gif','image/webp'];
-    $tiposDoc    = ['application/pdf','application/msword',
-                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                    'application/vnd.ms-excel',
-                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
     if (in_array($mime, $tiposImagen)) {
         $waType = 'image';
-    } elseif (in_array($mime, $tiposDoc)) {
+    } elseif ($mime === 'application/pdf') {
         $waType = 'document';
     } else {
         http_response_code(415);
@@ -438,10 +434,6 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
         'jpg'  => 'image/jpeg', 'jpeg' => 'image/jpeg',
         'png'  => 'image/png',  'gif'  => 'image/gif',
         'webp' => 'image/webp', 'pdf'  => 'application/pdf',
-        'doc'  => 'application/msword',
-        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'xls'  => 'application/vnd.ms-excel',
-        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ];
     $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
     if (!isset($extAllowed[$ext])) {
