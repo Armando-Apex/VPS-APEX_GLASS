@@ -767,7 +767,7 @@ var ModCampanas = (function() {
                     if (items[i].type.indexOf('image') !== -1) {
                         e.preventDefault();
                         var blob = items[i].getAsFile();
-                        window.cmpSetMedia(blob, 'imagen_pegada.png');
+                        cmpSetMedia(blob, 'imagen_pegada.png');
                         break;
                     }
                 }
