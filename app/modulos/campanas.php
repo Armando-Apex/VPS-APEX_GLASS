@@ -78,8 +78,8 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno']);
   </div>
 
   <div class="cmp-tabs">
-    <button class="cmp-tab active" id="cmpTabBtnCampanas" onclick="window.cmpTab('campanas',this)">Campa&ntilde;as</button>
-    <button class="cmp-tab" id="cmpTabBtnConv" onclick="window.cmpTab('conversaciones',this)">Conversaciones <span id="cmpBadgeTot" style="display:none;background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;"></span></button>
+    <button class="cmp-tab active" id="cmpTabBtnConv" onclick="window.cmpTab('conversaciones',this)">Conversaciones <span id="cmpBadgeTot" style="display:none;background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;"></span></button>
+    <button class="cmp-tab" id="cmpTabBtnCampanas" onclick="window.cmpTab('campanas',this)">Campa&ntilde;as</button>
   </div>
 
   <div id="cmpPanelCampanas">
@@ -916,7 +916,7 @@ var ModCampanas = (function() {
 
     // ── Init ──────────────────────────────────────────────────
     function init() {
-        cargarCampanas();
+        cargarConversaciones();
     }
 
     // ── Exposición global (requerida por SPA) ─────────────────
