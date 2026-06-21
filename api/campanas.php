@@ -433,14 +433,35 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
         exit;
     }
 
-    // Guardar copia local con nombre único
-    $ext       = pathinfo($origName, PATHINFO_EXTENSION) ?: 'bin';
+    // Guardar copia local con nombre único — extensión validada por whitelist + MIME real
+    $extAllowed = [
+        'jpg'  => 'image/jpeg', 'jpeg' => 'image/jpeg',
+        'png'  => 'image/png',  'gif'  => 'image/gif',
+        'webp' => 'image/webp', 'pdf'  => 'application/pdf',
+        'doc'  => 'application/msword',
+        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls'  => 'application/vnd.ms-excel',
+        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ];
+    $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+    if (!isset($extAllowed[$ext])) {
+        http_response_code(415);
+        echo json_encode(['error' => 'Extensión de archivo no permitida']);
+        exit;
+    }
+    $finfo    = new finfo(FILEINFO_MIME_TYPE);
+    $mimeReal = $finfo->file($tmpPath);
+    if ($mimeReal !== $extAllowed[$ext]) {
+        http_response_code(415);
+        echo json_encode(['error' => 'Tipo de archivo no coincide con la extensión']);
+        exit;
+    }
     $localName = uniqid('wa_', true) . '.' . $ext;
     $localDir  = dirname(__DIR__) . '/archivos_campanas/wa_media/';
     $localPath = $localDir . $localName;
     $localUrl  = '/produccion/archivos_campanas/wa_media/' . $localName;
     move_uploaded_file($tmpPath, $localPath);
-    $tmpPath = $localPath; // usar copia local para subir a Meta
+    $tmpPath = $localPath;
 
     // Subir a Meta Media API
     $urlMedia = 'https://graph.facebook.com/v20.0/' . WA_PHONE_ID . '/media';
