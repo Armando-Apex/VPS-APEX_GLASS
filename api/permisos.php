@@ -94,7 +94,12 @@ function tienePermiso($rol, $permiso) {
 // Verificar sesion activa y retornar datos del usuario
 // Si no hay sesion redirige al login
 function requireSession() {
-    if (session_status() === PHP_SESSION_NONE) session_start();
+    if (session_status() === PHP_SESSION_NONE) {
+        ini_set('session.cookie_httponly', 1);
+        ini_set('session.cookie_secure', 1);
+        ini_set('session.cookie_samesite', 'Lax');
+        session_start();
+    }
     if (empty($_SESSION['user_id'])) {
         header('Location: login.php');
         exit;
@@ -121,7 +126,12 @@ function requirePermiso($permiso) {
 
 // Para APIs: verificar sesion via JSON
 function requireSessionApi() {
-    if (session_status() === PHP_SESSION_NONE) session_start();
+    if (session_status() === PHP_SESSION_NONE) {
+        ini_set('session.cookie_httponly', 1);
+        ini_set('session.cookie_secure', 1);
+        ini_set('session.cookie_samesite', 'Lax');
+        session_start();
+    }
     if (empty($_SESSION['user_id'])) {
         http_response_code(401);
         echo json_encode(['error' => 'Sesion requerida']);

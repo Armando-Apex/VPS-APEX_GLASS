@@ -69,17 +69,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $metaRes = json_decode(curl_exec($chMeta), true);
                         curl_close($chMeta);
                         $downloadUrl = $metaRes['url'] ?? '';
-                        if ($downloadUrl) {
-                            // Descargar imagen
+                        // Validar dominio Meta (anti-SSRF)
+                        $urlHost = parse_url($downloadUrl, PHP_URL_HOST) ?? '';
+                        $metaDomains = ['lookaside.fbsbx.com','scontent.whatsapp.net','mmg.whatsapp.net','media.fbcdn.net'];
+                        $dominioValido = false;
+                        foreach ($metaDomains as $d) {
+                            if ($urlHost === $d || substr($urlHost, -(strlen($d)+1)) === '.'.$d) {
+                                $dominioValido = true; break;
+                            }
+                        }
+                        if ($downloadUrl && $dominioValido) {
+                            // Descargar imagen — límite 5MB
                             $chImg = curl_init($downloadUrl);
                             curl_setopt($chImg, CURLOPT_RETURNTRANSFER, true);
                             curl_setopt($chImg, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . WA_TOKEN]);
                             curl_setopt($chImg, CURLOPT_TIMEOUT, 20);
+                            curl_setopt($chImg, CURLOPT_MAXFILESIZE, 5 * 1024 * 1024);
+                            curl_setopt($chImg, CURLOPT_NOPROGRESS, false);
+                            curl_setopt($chImg, CURLOPT_PROGRESSFUNCTION, function($res, $dlTotal, $dlNow) {
+                                return ($dlNow > 5 * 1024 * 1024) ? 1 : 0;
+                            });
                             $imgData = curl_exec($chImg);
                             curl_close($chImg);
-                            if ($imgData) {
+                            if ($imgData && strlen($imgData) <= 5 * 1024 * 1024) {
                                 $mime      = $metaRes['mime_type'] ?? 'image/jpeg';
-                                $ext       = (strpos($mime, 'png') !== false) ? 'png' : ((strpos($mime, 'gif') !== false) ? 'gif' : 'jpg');
+                                $extMap    = ['image/png'=>'png','image/gif'=>'gif','image/webp'=>'webp'];
+                                $ext       = $extMap[$mime] ?? 'jpg';
                                 $localName = uniqid('wa_in_', true) . '.' . $ext;
                                 $localDir  = dirname(__DIR__) . '/archivos_campanas/wa_media/';
                                 file_put_contents($localDir . $localName, $imgData);

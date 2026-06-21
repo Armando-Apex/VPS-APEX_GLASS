@@ -38,7 +38,11 @@
       "Bash(python3.11 -c \"import claude_agent_sdk\")",
       "Bash(python3.11 *)",
       "Bash(curl -s \"https://graph.facebook.com/v20.0/*\")",
-      "Bash(curl -s -X POST https://graph.facebook.com/v20.0/* *)"
+      "Bash(curl -s -X POST https://graph.facebook.com/v20.0/* *)",
+      "Bash(grep -n 'sql\\\\|$_GET\\\\|$_POST\\\\|$_REQUEST\\\\|prepare\\\\|query\\\\|execute' /home/apexglass2025/apex.glass/public_html/produccion/api/campanas.php)",
+      "Bash(grep -n '$_GET\\\\|$_POST\\\\|$_REQUEST\\\\|$_FILES' /home/apexglass2025/apex.glass/public_html/produccion/api/whatsapp_webhook.php)",
+      "Bash(grep -n \"implode\\\\|WHERE.*\\\\$\\\\|query\\(\\\\\"SELECT\\\\|query\\(\\\\\"UPDATE\\\\|query\\(\\\\\"DELETE\\\\|query\\(\\\\\"INSERT\" /home/apexglass2025/apex.glass/public_html/produccion/api/campanas.php)",
+      "Bash(grep -n \"echo\\\\s*\\\\$\\\\|print\\\\s*\\\\$\" /home/apexglass2025/apex.glass/public_html/produccion/api/campanas.php)"
     ]
   },
   "hooks": {
