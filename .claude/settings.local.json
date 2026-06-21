@@ -37,8 +37,8 @@
       "Bash(echo \"EXIT: $?\")",
       "Bash(python3.11 -c \"import claude_agent_sdk\")",
       "Bash(python3.11 *)",
-      "Bash(curl -s \"https://graph.facebook.com/v20.0/1517799296194687/message_templates?name=incremento_19_junio&fields=name,components&access_token=EAAK7UVAEdYoBRZC9ZC7S6rvSA652PyyizlhzyLSgE2FSh7YMIJj6wHsSBpZCIGfHpu1ZBF2trKJUsZA0ZAih7bzU9rcuXeV8fTVsA8E0R7OfzBkPLwhYLHvQR4uGE1P8aD16scDLIs49DBWz7gIWmnDOGjrMPg2ZAnVBMmTKUXjPGupeeLH5yZBesFomye0EVQZDZD\")",
-      "Bash(curl -s -X POST https://graph.facebook.com/v20.0/831255636739756/messages -H 'Authorization: Bearer EAAK7UVAEdYoBRZC9ZC7S6rvSA652PyyizlhzyLSgE2FSh7YMIJj6wHsSBpZCIGfHpu1ZBF2trKJUsZA0ZAih7bzU9rcuXeV8fTVsA8E0R7OfzBkPLwhYLHvQR4uGE1P8aD16scDLIs49DBWz7gIWmnDOGjrMPg2ZAnVBMmTKUXjPGupeeLH5yZBesFomye0EVQZDZD' -H 'Content-Type: application/json' -d '{ *)"
+      "Bash(curl -s \"https://graph.facebook.com/v20.0/*\")",
+      "Bash(curl -s -X POST https://graph.facebook.com/v20.0/* *)"
     ]
   },
   "hooks": {
