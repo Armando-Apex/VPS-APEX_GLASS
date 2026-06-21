@@ -532,4 +532,9 @@ Al terminar cualquier sesión con cambios:
 | UPD-131 | 21-jun | Armando | Fix envío media: BD ALTER TABLE whatsapp_mensajes ENUM tipo += 'documento'; fix paste handler llamaba window.cmpSetMedia (no expuesto) → corregido a cmpSetMedia directo por closure |
 | UPD-132 | 21-jun | Armando | Badge mensajes WA sin leer en sidebar dashboard: polling 30s via api/campanas.php?accion=sin_leer; badge rojo desaparece inmediatamente al abrir conversación (window.actualizarBadgeWA expuesto globalmente) |
 
-**Próximo UPD disponible: UPD-133**
+| UPD-133 | 21-jun | Armando | Campañas WA: tab Conversaciones pasa a primer lugar (más usada); init() llama tab() para mostrar panel correcto al cargar |
+| UPD-134 | 21-jun | Armando | Imágenes en chat: enviadas se guardan en archivos_campanas/wa_media/ con nombre único; recibidas el webhook descarga de Meta y guarda localmente; se muestran como thumbnail clickable en el chat |
+| UPD-135 | 21-jun | Armando | SEGURIDAD enviar_media: whitelist extensiones + validación MIME real con finfo; .htaccess en wa_media/ desactiva ejecución PHP (RemoveHandler/RemoveType); fix php_flag engine off incompatible con PHP-FPM |
+| UPD-136 | 21-jun | Armando | Limitar adjuntos chat WA a imágenes y PDF solamente — frontend accept + backend whitelist reducidos |
+
+**Próximo UPD disponible: UPD-137**
