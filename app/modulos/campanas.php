@@ -801,7 +801,11 @@ var ModCampanas = (function() {
                 }
                 var contenidoHtml = '';
                 if (m.tipo === 'imagen') {
-                    contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128247; ' + esc(m.contenido) + '</div>';
+                    if (m.contenido && m.contenido.indexOf('/produccion/') === 0) {
+                        contenidoHtml = '<img src="' + esc(m.contenido) + '" style="max-width:220px;max-height:220px;border-radius:6px;display:block;cursor:pointer;" onclick="window.open(this.src,\'_blank\')">';
+                    } else {
+                        contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128247; Imagen</div>';
+                    }
                 } else if (m.tipo === 'documento') {
                     contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128196; ' + esc(m.contenido) + '</div>';
                 } else {

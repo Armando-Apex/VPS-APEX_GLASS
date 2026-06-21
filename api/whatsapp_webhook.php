@@ -58,8 +58,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $contenido = $msg['text']['body'] ?? '';
                     $tipo = 'texto';
                 } elseif ($tipo === 'image') {
+                    $mediaId = $msg['image']['id'] ?? '';
                     $contenido = '[Imagen recibida]';
+                    if ($mediaId) {
+                        // Obtener URL de descarga de Meta
+                        $chMeta = curl_init('https://graph.facebook.com/v20.0/' . $mediaId);
+                        curl_setopt($chMeta, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($chMeta, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . WA_TOKEN]);
+                        curl_setopt($chMeta, CURLOPT_TIMEOUT, 10);
+                        $metaRes = json_decode(curl_exec($chMeta), true);
+                        curl_close($chMeta);
+                        $downloadUrl = $metaRes['url'] ?? '';
+                        if ($downloadUrl) {
+                            // Descargar imagen
+                            $chImg = curl_init($downloadUrl);
+                            curl_setopt($chImg, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($chImg, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . WA_TOKEN]);
+                            curl_setopt($chImg, CURLOPT_TIMEOUT, 20);
+                            $imgData = curl_exec($chImg);
+                            curl_close($chImg);
+                            if ($imgData) {
+                                $mime      = $metaRes['mime_type'] ?? 'image/jpeg';
+                                $ext       = (strpos($mime, 'png') !== false) ? 'png' : ((strpos($mime, 'gif') !== false) ? 'gif' : 'jpg');
+                                $localName = uniqid('wa_in_', true) . '.' . $ext;
+                                $localDir  = dirname(__DIR__) . '/archivos_campanas/wa_media/';
+                                file_put_contents($localDir . $localName, $imgData);
+                                $contenido = '/produccion/archivos_campanas/wa_media/' . $localName;
+                            }
+                        }
+                    }
                     $tipo = 'imagen';
+                } elseif ($tipo === 'document') {
+                    $contenido = $msg['document']['filename'] ?? 'documento';
+                    $tipo = 'documento';
                 } else {
                     $contenido = '[Mensaje tipo: ' . $tipo . ']';
                     $tipo = 'texto';

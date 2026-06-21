@@ -433,6 +433,15 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
         exit;
     }
 
+    // Guardar copia local con nombre único
+    $ext       = pathinfo($origName, PATHINFO_EXTENSION) ?: 'bin';
+    $localName = uniqid('wa_', true) . '.' . $ext;
+    $localDir  = dirname(__DIR__) . '/archivos_campanas/wa_media/';
+    $localPath = $localDir . $localName;
+    $localUrl  = '/produccion/archivos_campanas/wa_media/' . $localName;
+    move_uploaded_file($tmpPath, $localPath);
+    $tmpPath = $localPath; // usar copia local para subir a Meta
+
     // Subir a Meta Media API
     $urlMedia = 'https://graph.facebook.com/v20.0/' . WA_PHONE_ID . '/media';
     $ch = curl_init($urlMedia);
@@ -482,11 +491,12 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
     }
 
     $waId    = $res['data']['messages'][0]['id'] ?? null;
-    $tipoMsg = ($waType === 'image') ? 'imagen' : 'documento';
+    $tipoMsg   = ($waType === 'image') ? 'imagen' : 'documento';
+    $contenido = ($waType === 'image') ? $localUrl : $origName;
     $db->prepare("INSERT INTO whatsapp_mensajes
         (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por)
         VALUES (?, 'outbound', ?, ?, ?, ?)")
-       ->execute([$convId, $origName, $tipoMsg, $waId, $user['nombre']]);
+       ->execute([$convId, $contenido, $tipoMsg, $waId, $user['nombre']]);
 
     $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
        ->execute([$convId]);
