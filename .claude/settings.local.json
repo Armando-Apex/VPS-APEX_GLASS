@@ -44,7 +44,8 @@
       "Bash(grep -n \"implode\\\\|WHERE.*\\\\$\\\\|query\\(\\\\\"SELECT\\\\|query\\(\\\\\"UPDATE\\\\|query\\(\\\\\"DELETE\\\\|query\\(\\\\\"INSERT\" /home/apexglass2025/apex.glass/public_html/produccion/api/campanas.php)",
       "Bash(grep -n \"echo\\\\s*\\\\$\\\\|print\\\\s*\\\\$\" /home/apexglass2025/apex.glass/public_html/produccion/api/campanas.php)",
       "Bash(chmod 640 /home/apexglass2025/apex.glass/.env)",
-      "Bash(chown apexglass2025:apexglass2025 /home/apexglass2025/apex.glass/.env)"
+      "Bash(chown apexglass2025:apexglass2025 /home/apexglass2025/apex.glass/.env)",
+      "Bash(curl -s -I \"https://apex.glass/produccion/app/dashboard.php\")"
     ]
   },
   "hooks": {

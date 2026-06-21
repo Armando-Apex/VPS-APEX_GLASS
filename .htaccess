@@ -1,0 +1,26 @@
+# APEX GLASS - Security Headers
+
+<IfModule mod_headers.c>
+    # Evita que el sitio sea embebido en iframes de otros dominios
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    # Evita MIME sniffing
+    Header always set X-Content-Type-Options "nosniff"
+
+    # Política de referrer
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Deshabilitar XSS Auditor legacy (CSP lo reemplaza)
+    Header always set X-XSS-Protection "0"
+
+    # Content Security Policy
+    Header always set Content-Security-Policy "default-src 'self' https://apex.glass; script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://graph.facebook.com https://maps.googleapis.com; frame-ancestors 'self';"
+
+    # HSTS - forzar HTTPS por 1 año
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+
+# Proteger archivos sensibles
+<FilesMatch "\.(env|log|sql|sh|bak|git)$">
+    Require all denied
+</FilesMatch>

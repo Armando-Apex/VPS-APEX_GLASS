@@ -132,6 +132,23 @@ function requireSessionApi() {
         ini_set('session.cookie_samesite', 'Lax');
         session_start();
     }
+    // Protección CSRF: validar Origin en peticiones de mutación
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    if (in_array($method, ['POST','PUT','DELETE','PATCH'])) {
+        $origin  = $_SERVER['HTTP_ORIGIN']  ?? '';
+        $referer = parse_url($_SERVER['HTTP_REFERER'] ?? '', PHP_URL_HOST);
+        $allowed = 'apex.glass';
+        if ($origin && parse_url($origin, PHP_URL_HOST) !== $allowed) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Origen no permitido']);
+            exit;
+        }
+        if (!$origin && $referer && $referer !== $allowed) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Origen no permitido']);
+            exit;
+        }
+    }
     if (empty($_SESSION['user_id'])) {
         http_response_code(401);
         echo json_encode(['error' => 'Sesion requerida']);
