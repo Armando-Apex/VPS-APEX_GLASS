@@ -916,7 +916,7 @@ var ModCampanas = (function() {
 
     // ── Init ──────────────────────────────────────────────────
     function init() {
-        cargarConversaciones();
+        tab('conversaciones', document.getElementById('cmpTabBtnConv'));
     }
 
     // ── Exposición global (requerida por SPA) ─────────────────
