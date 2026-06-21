@@ -42,7 +42,9 @@
       "Bash(grep -n 'sql\\\\|$_GET\\\\|$_POST\\\\|$_REQUEST\\\\|prepare\\\\|query\\\\|execute' /home/apexglass2025/apex.glass/public_html/produccion/api/campanas.php)",
       "Bash(grep -n '$_GET\\\\|$_POST\\\\|$_REQUEST\\\\|$_FILES' /home/apexglass2025/apex.glass/public_html/produccion/api/whatsapp_webhook.php)",
       "Bash(grep -n \"implode\\\\|WHERE.*\\\\$\\\\|query\\(\\\\\"SELECT\\\\|query\\(\\\\\"UPDATE\\\\|query\\(\\\\\"DELETE\\\\|query\\(\\\\\"INSERT\" /home/apexglass2025/apex.glass/public_html/produccion/api/campanas.php)",
-      "Bash(grep -n \"echo\\\\s*\\\\$\\\\|print\\\\s*\\\\$\" /home/apexglass2025/apex.glass/public_html/produccion/api/campanas.php)"
+      "Bash(grep -n \"echo\\\\s*\\\\$\\\\|print\\\\s*\\\\$\" /home/apexglass2025/apex.glass/public_html/produccion/api/campanas.php)",
+      "Bash(chmod 640 /home/apexglass2025/apex.glass/.env)",
+      "Bash(chown apexglass2025:apexglass2025 /home/apexglass2025/apex.glass/.env)"
     ]
   },
   "hooks": {
