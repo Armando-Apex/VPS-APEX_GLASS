@@ -537,4 +537,7 @@ Al terminar cualquier sesión con cambios:
 | UPD-135 | 21-jun | Armando | SEGURIDAD enviar_media: whitelist extensiones + validación MIME real con finfo; .htaccess en wa_media/ desactiva ejecución PHP (RemoveHandler/RemoveType); fix php_flag engine off incompatible con PHP-FPM |
 | UPD-136 | 21-jun | Armando | Limitar adjuntos chat WA a imágenes y PDF solamente — frontend accept + backend whitelist reducidos |
 
-**Próximo UPD disponible: UPD-137**
+| UPD-137 | 21-jun | Armando | SEGURIDAD webhook: anti-SSRF en descarga imágenes Meta — whitelist dominios (lookaside.fbsbx.com, scontent.whatsapp.net, mmg.whatsapp.net, media.fbcdn.net); límite 5MB con CURLOPT_PROGRESSFUNCTION |
+| UPD-138 | 21-jun | Armando | SEGURIDAD sesiones: cookies con HttpOnly + Secure + SameSite=Lax en requireSession() y requireSessionApi() en permisos.php |
+
+**Próximo UPD disponible: UPD-139**
