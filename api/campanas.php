@@ -386,6 +386,107 @@ if ($metodo === 'POST' && $accion === 'responder') {
     exit;
 }
 
+// ── POST enviar media (imagen/documento) en conversación ─────
+if ($metodo === 'POST' && $accion === 'enviar_media') {
+    $convId = (int)($_POST['conversacion_id'] ?? 0);
+    if (!$convId || empty($_FILES['archivo'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Faltan campos']);
+        exit;
+    }
+
+    $stmtConv = $db->prepare("SELECT * FROM whatsapp_conversaciones WHERE id = ?");
+    $stmtConv->execute([$convId]);
+    $conv = $stmtConv->fetch(PDO::FETCH_ASSOC);
+    if (!$conv) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Conversación no encontrada']);
+        exit;
+    }
+
+    $file     = $_FILES['archivo'];
+    $mime     = $file['type'];
+    $tmpPath  = $file['tmp_name'];
+    $origName = basename($file['name']);
+
+    // Determinar tipo WA
+    $tiposImagen = ['image/jpeg','image/png','image/gif','image/webp'];
+    $tiposDoc    = ['application/pdf','application/msword',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'application/vnd.ms-excel',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    if (in_array($mime, $tiposImagen)) {
+        $waType = 'image';
+    } elseif (in_array($mime, $tiposDoc)) {
+        $waType = 'document';
+    } else {
+        http_response_code(415);
+        echo json_encode(['error' => 'Tipo de archivo no soportado']);
+        exit;
+    }
+
+    // Subir a Meta Media API
+    $urlMedia = 'https://graph.facebook.com/v20.0/' . WA_PHONE_ID . '/media';
+    $ch = curl_init($urlMedia);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . WA_TOKEN]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, [
+        'messaging_product' => 'whatsapp',
+        'type'              => $mime,
+        'file'              => new CURLFile($tmpPath, $mime, $origName)
+    ]);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    $mediaRes  = json_decode(curl_exec($ch), true);
+    $mediaCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($mediaCode !== 200 || empty($mediaRes['id'])) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Error subiendo media a Meta', 'detalle' => $mediaRes]);
+        exit;
+    }
+
+    $mediaId = $mediaRes['id'];
+
+    // Construir payload según tipo
+    if ($waType === 'image') {
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to'                => $conv['telefono'],
+            'type'              => 'image',
+            'image'             => ['id' => $mediaId]
+        ];
+    } else {
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to'                => $conv['telefono'],
+            'type'              => 'document',
+            'document'          => ['id' => $mediaId, 'filename' => $origName]
+        ];
+    }
+
+    $res = enviarMensajeWA($payload);
+    if ($res['code'] !== 200) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Error enviando mensaje', 'detalle' => $res['data']]);
+        exit;
+    }
+
+    $waId    = $res['data']['messages'][0]['id'] ?? null;
+    $tipoMsg = ($waType === 'image') ? 'imagen' : 'documento';
+    $db->prepare("INSERT INTO whatsapp_mensajes
+        (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por)
+        VALUES (?, 'outbound', ?, ?, ?, ?)")
+       ->execute([$convId, $origName, $tipoMsg, $waId, $user['nombre']]);
+
+    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
+       ->execute([$convId]);
+
+    echo json_encode(['ok' => true, 'wa_message_id' => $waId, 'tipo' => $tipoMsg]);
+    exit;
+}
+
 // ── POST marcar conversación como leída ──────────────────────
 if ($metodo === 'POST' && $accion === 'marcar_leido') {
     $body   = json_decode(file_get_contents('php://input'), true);
