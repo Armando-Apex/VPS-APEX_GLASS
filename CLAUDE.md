@@ -540,4 +540,6 @@ Al terminar cualquier sesión con cambios:
 | UPD-137 | 21-jun | Armando | SEGURIDAD webhook: anti-SSRF en descarga imágenes Meta — whitelist dominios (lookaside.fbsbx.com, scontent.whatsapp.net, mmg.whatsapp.net, media.fbcdn.net); límite 5MB con CURLOPT_PROGRESSFUNCTION |
 | UPD-138 | 21-jun | Armando | SEGURIDAD sesiones: cookies con HttpOnly + Secure + SameSite=Lax en requireSession() y requireSessionApi() en permisos.php |
 
-**Próximo UPD disponible: UPD-139**
+| UPD-139 | 21-jun | Armando | Credenciales movidas a .env fuera del webroot (/home/apexglass2025/apex.glass/.env, permisos 640); config.php lee con parser propio sin dependencias externas; DB_PASS, API_KEY, WA_TOKEN y todas las claves eliminadas del código fuente |
+
+**Próximo UPD disponible: UPD-140**
