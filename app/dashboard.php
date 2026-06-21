@@ -204,6 +204,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
       </button>
       <button class="sidebar-link" data-modulo="campanas" onclick="cargarModulo('campanas')">
         <span class="sidebar-icon">&#128241;</span>Campa&ntilde;as WA
+        <span id="waBadge" style="display:none;background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;margin-left:auto;"></span>
       </button>
     </div>
     <?php endif; ?>
@@ -519,4 +520,26 @@ window.cargarModulo = function(nombre, params) {
   cerrarSidebar();
   return _cargarModuloOrig(nombre, params);
 };
+
+// ── Badge mensajes WA sin leer ────────────────────────────────
+(function() {
+  function actualizarBadgeWA() {
+    fetch('/produccion/api/campanas.php?accion=sin_leer')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var badge = document.getElementById('waBadge');
+        if (!badge) return;
+        var total = data.total || 0;
+        if (total > 0) {
+          badge.textContent = total;
+          badge.style.display = 'inline-block';
+        } else {
+          badge.style.display = 'none';
+        }
+      })
+      .catch(function() {});
+  }
+  actualizarBadgeWA();
+  setInterval(actualizarBadgeWA, 30000);
+})();
 </script>

@@ -55,6 +55,14 @@ function enviarMensajeWA($payload) {
     return ['code' => $code, 'data' => $data];
 }
 
+// ── GET mensajes sin leer (badge sidebar) ────────────────────
+if ($metodo === 'GET' && $accion === 'sin_leer') {
+    $stmt = $db->query("SELECT COALESCE(SUM(mensajes_sin_leer), 0) as total FROM whatsapp_conversaciones");
+    $row  = $stmt->fetch(PDO::FETCH_ASSOC);
+    echo json_encode(['total' => (int)$row['total']]);
+    exit;
+}
+
 // ── GET listar plantillas aprobadas desde Meta ───────────────
 if ($metodo === 'GET' && $accion === 'listar_plantillas') {
     $url = 'https://graph.facebook.com/v20.0/' . WA_WABA_ID .
