@@ -776,11 +776,13 @@ var ModCampanas = (function() {
 
         cargarMensajes(convId);
 
-        // Marcar como leído
+        // Marcar como leído y refrescar badge sidebar
         fetch('/produccion/api/campanas.php?accion=marcar_leido', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({conversacion_id: convId})
+        }).then(function() {
+            if (typeof window.actualizarBadgeWA === 'function') window.actualizarBadgeWA();
         });
     }
 

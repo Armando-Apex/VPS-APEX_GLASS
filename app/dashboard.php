@@ -541,5 +541,6 @@ window.cargarModulo = function(nombre, params) {
   }
   actualizarBadgeWA();
   setInterval(actualizarBadgeWA, 30000);
+  window.actualizarBadgeWA = actualizarBadgeWA;
 })();
 </script>
