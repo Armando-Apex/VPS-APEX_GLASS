@@ -327,18 +327,9 @@ if ($metodo === 'POST' && $accion === 'enviar') {
         }
     }
 
-    $enviados  = 0;
-    $inicioMin = time();
+    $enviados = 0;
 
     foreach ($envios as $envio) {
-        if ($enviados > 0 && $enviados % 25 === 0) {
-            $transcurrido = time() - $inicioMin;
-            if ($transcurrido < 60) {
-                sleep(60 - $transcurrido);
-            }
-            $inicioMin = time();
-        }
-
         $parametros = [];
         foreach ($vars as $var) {
             $valor = $var;

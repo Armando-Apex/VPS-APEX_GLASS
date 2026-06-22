@@ -665,18 +665,106 @@ function cmpRenderPanelRecepcion(o) {
 // ── Sub-tab detalle ───────────────────────────────────────────
 function cmpDetTab(tab) {
   _detTab = tab;
+  var _tabs = ['partidas','pagos','recepcion','comprobantes'];
   document.querySelectorAll('.det-tab').forEach(function(b, i) {
-    b.classList.toggle('active', ['partidas','pagos','recepcion'][i] === tab);
+    b.classList.toggle('active', _tabs[i] === tab);
   });
   document.querySelectorAll('.det-panel').forEach(function(p, i) {
-    p.classList.toggle('active', ['partidas','pagos','recepcion'][i] === tab);
+    p.classList.toggle('active', _tabs[i] === tab);
   });
   if (!_detalle) return;
-  if (tab === 'partidas')  cmpRenderPanelPartidas(_detalle);
-  if (tab === 'pagos')     cmpRenderPanelPagos(_detalle);
-  if (tab === 'recepcion') cmpRenderPanelRecepcion(_detalle);
+  if (tab === 'partidas')     cmpRenderPanelPartidas(_detalle);
+  if (tab === 'pagos')        cmpRenderPanelPagos(_detalle);
+  if (tab === 'recepcion')    cmpRenderPanelRecepcion(_detalle);
+  if (tab === 'comprobantes') cmpRenderPanelComprobantes(_detalle.id);
 }
 window.cmpDetTab = cmpDetTab;
+
+// ── Panel Comprobantes ────────────────────────────────────────
+async function cmpRenderPanelComprobantes(oc_id) {
+  var panel = document.getElementById('panelComprobantes');
+  panel.innerHTML = '<p style="color:#9ca3af;padding:16px 0">Cargando...</p>';
+  try {
+    var r    = await fetch('../api/ordenes_compra.php?accion=archivos&id=' + oc_id);
+    var list = await r.json();
+    var html = '';
+
+    if (PUEDE_GESTIONAR_CMP) {
+      html += '<div style="margin-bottom:14px">'
+            + '<label style="font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;display:block;margin-bottom:6px">Subir comprobante (PDF, imagen)</label>'
+            + '<div style="display:flex;gap:8px;align-items:center">'
+            + '<input type="file" id="cmpFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp" style="font-size:13px;flex:1">'
+            + '<button class="btn-prim" style="font-size:12px;padding:7px 14px;white-space:nowrap" onclick="cmpSubirArchivo(' + oc_id + ')">&#128206; Subir</button>'
+            + '</div>'
+            + '<div id="cmpUploadMsg" style="font-size:12px;margin-top:6px;color:#6b7280"></div>'
+            + '</div>';
+    }
+
+    if (!list.length) {
+      html += '<p style="color:#9ca3af;font-size:13px">Sin comprobantes adjuntos.</p>';
+    } else {
+      html += '<table style="width:100%;border-collapse:collapse;font-size:13px">'
+            + '<thead><tr style="border-bottom:2px solid #e2e8f0">'
+            + '<th style="text-align:left;padding:6px 8px;color:#6b7280;font-weight:600">Archivo</th>'
+            + '<th style="text-align:left;padding:6px 8px;color:#6b7280;font-weight:600">Subido por</th>'
+            + '<th style="text-align:left;padding:6px 8px;color:#6b7280;font-weight:600">Fecha</th>'
+            + '<th style="padding:6px 8px"></th>'
+            + '</tr></thead><tbody>';
+      list.forEach(function(a) {
+        var fecha = a.created_at ? a.created_at.substring(0,10) : '';
+        html += '<tr style="border-bottom:1px solid #f1f5f9">'
+              + '<td style="padding:8px"><a href="../archivos_oc/' + cmpEsc(a.ruta) + '" target="_blank" style="color:#2563eb;text-decoration:none;font-weight:500">&#128206; ' + cmpEsc(a.nombre) + '</a></td>'
+              + '<td style="padding:8px;color:#374151">' + cmpEsc(a.subido_por||'—') + '</td>'
+              + '<td style="padding:8px;color:#6b7280">' + fecha + '</td>'
+              + '<td style="padding:8px;text-align:right">';
+        if (PUEDE_GESTIONAR_CMP) {
+          html += '<button onclick="cmpEliminarArchivo(' + a.id + ',' + oc_id + ')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px" title="Eliminar">&#128465;</button>';
+        }
+        html += '</td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+
+    panel.innerHTML = html;
+  } catch(e) {
+    panel.innerHTML = '<p style="color:#dc2626;font-size:13px">Error al cargar comprobantes.</p>';
+  }
+}
+
+async function cmpSubirArchivo(oc_id) {
+  var input = document.getElementById('cmpFileInput');
+  var msg   = document.getElementById('cmpUploadMsg');
+  if (!input || !input.files.length) { msg.textContent = 'Selecciona un archivo primero.'; return; }
+  var form = new FormData();
+  form.append('archivo', input.files[0]);
+  form.append('oc_id', oc_id);
+  msg.textContent = 'Subiendo...';
+  try {
+    var r    = await fetch('../api/ordenes_compra.php?accion=subir_archivo', { method: 'POST', body: form });
+    var data = await r.json();
+    if (data.ok) {
+      input.value = '';
+      msg.textContent = '';
+      cmpRenderPanelComprobantes(oc_id);
+    } else {
+      msg.textContent = data.error || 'Error al subir.';
+    }
+  } catch(e) {
+    msg.textContent = 'Error de conexion.';
+  }
+}
+window.cmpSubirArchivo = cmpSubirArchivo;
+
+async function cmpEliminarArchivo(archivo_id, oc_id) {
+  if (!confirm('¿Eliminar este comprobante?')) return;
+  try {
+    var r    = await fetch('../api/ordenes_compra.php?accion=eliminar_archivo&id=' + archivo_id, { method: 'DELETE' });
+    var data = await r.json();
+    if (data.ok) cmpRenderPanelComprobantes(oc_id);
+    else alert(data.error || 'Error al eliminar.');
+  } catch(e) { alert('Error de conexion.'); }
+}
+window.cmpEliminarArchivo = cmpEliminarArchivo;
 
 // ── Agregar partida ───────────────────────────────────────────
 function cmpAbrirModalPartida(oc_id) {
