@@ -144,7 +144,14 @@ if ($method === 'GET') {
             WHERE c.orden_id IS NOT NULL
               AND o.estado != 'cancelada'
               AND c.estatus != 'cancelada'
-            ORDER BY o.fecha_pedido DESC
+            ORDER BY
+                CASE COALESCE(c.estatus_pago,'pendiente')
+                    WHEN 'pendiente' THEN 0
+                    WHEN 'parcial'   THEN 1
+                    WHEN 'pagado'    THEN 2
+                    ELSE 3
+                END ASC,
+                o.id DESC
         ");
         $ordenes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
