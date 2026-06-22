@@ -39,17 +39,16 @@ if (!is_array($canteo))    $canteo    = [];
 
 // ── Geometría (mismo cálculo que croquis.php _getOrigin) ──────────────────
 $SVG_W = 760; $SVG_H = 560;
-// MB/MR crecen con el número de elementos especiales: cada uno usa su propia fila/columna de cota
-// (rowStep/elBase escalados porque este canvas es más grande que el del editor: 760 vs 450)
 $rowStep    = 14 * ($SVG_W / 450);
-$elBase     = 50 * ($SVG_W / 450); // espacio reservado para cota ancho + "Eje X" antes de las filas de elementos
 $extraFilas = max(0, count($elementos) - 1);
-$ML = 80; $MR = 80 + $extraFilas*$rowStep; $MT = 20;
-$MB = count($elementos) ? max(90, $elBase + count($elementos)*$rowStep + 16*($SVG_W/450)) : 90;
-$sc = min(($SVG_W - $ML - $MR) / max($ancho, 1), ($SVG_H - $MT - $MB) / max($alto, 1));
+$hasEl      = count($elementos) > 0;
+// canvas más ancho cuando hay elementos para acomodar tabla lateral (proporcional a 450→560)
+$canvW = $hasEl ? $SVG_W + round(120 * $SVG_W / 450) : $SVG_W;
+$ML = 80; $MR = 80 + $extraFilas*$rowStep + ($hasEl ? round(130 * $SVG_W / 450) : 0); $MT = 20; $MB = 90;
+$sc = min(($canvW - $ML - $MR) / max($ancho, 1), ($SVG_H - $MT - $MB) / max($alto, 1));
 $gw = $ancho * $sc;
 $gh = $alto  * $sc;
-$ox = $ML + ($SVG_W - $ML - $MR - $gw) / 2;
+$ox = $ML + ($canvW - $ML - $MR - $gw) / 2;
 $oy = $MT  + ($SVG_H - $MT - $MB - $gh) / 2;
 $oyBottom = $oy + $gh;
 
@@ -62,9 +61,17 @@ function buildPath($forma, $params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc) {
         return "M$ox $oy L".($ox+$gw)." $oy L".($ox+$gw)." ".($oy+$gh)." L$ox ".($oy+$gh)." Z";
     }
     if ($forma === 'corte') {
-        $cx = min((float)($params['corte-x'] ?? 150), $ancho*0.4) * $sc;
-        $cy = min((float)($params['corte-y'] ?? 150), $alto*0.4)  * $sc;
-        return "M".($ox+$cx)." $oy L".($ox+$gw)." $oy L".($ox+$gw)." ".($oy+$gh)." L$ox ".($oy+$gh)." L$ox ".($oy+$cy)." Z";
+        $cx  = min((float)($params['corte-x'] ?? 150), $ancho*0.4) * $sc;
+        $cy  = min((float)($params['corte-y'] ?? 150), $alto*0.4)  * $sc;
+        $esq = $params['corte-esq'] ?? ['si'=>true,'sd'=>false,'ii'=>false,'id'=>false];
+        $eSI = !empty($esq['si']); $eSD = !empty($esq['sd']);
+        $eII = !empty($esq['ii']); $eID = !empty($esq['id']);
+        $d  = $eSI ? "M".($ox+$cx)." $oy " : "M$ox $oy ";
+        $d .= $eSD ? "L".($ox+$gw-$cx)." $oy L".($ox+$gw)." ".($oy+$cy)." " : "L".($ox+$gw)." $oy ";
+        $d .= $eID ? "L".($ox+$gw)." ".($oy+$gh-$cy)." L".($ox+$gw-$cx)." ".($oy+$gh)." " : "L".($ox+$gw)." ".($oy+$gh)." ";
+        $d .= $eII ? "L".($ox+$cx)." ".($oy+$gh)." L$ox ".($oy+$gh-$cy)." " : "L$ox ".($oy+$gh)." ";
+        if ($eSI) $d .= "L$ox ".($oy+$cy)." ";
+        return $d . 'Z';
     }
     if ($forma === 'L') {
         $lw = min((float)($params['l-cw'] ?? 200), $ancho*0.7) * $sc;
@@ -96,7 +103,7 @@ $arwSz=3.5; $arwLen=7; $lblW=36; $lblH=11; $lblWEj=36; $rotW=10; $rotH=36;
 $svg  = '';
 $uid  = 'cq' . $id;
 $svg .= '<defs><pattern id="g'.$uid.'" width="'.($sc*10).'" height="'.($sc*10).'" patternUnits="userSpaceOnUse" x="'.$ox.'" y="'.$oy.'"><path d="M '.($sc*10).' 0 L 0 0 0 '.($sc*10).'" fill="none" stroke="#e2e8f0" stroke-width="0.4"/></pattern></defs>';
-$svg .= '<rect width="'.$SVG_W.'" height="'.$SVG_H.'" fill="white"/>';
+$svg .= '<rect width="'.$canvW.'" height="'.$SVG_H.'" fill="white"/>';
 
 $sp = buildPath($forma, $params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc);
 $svg .= '<clipPath id="cl'.$uid.'"><path d="'.$sp.'"/></clipPath>';
@@ -153,8 +160,9 @@ foreach ($elementos as $idxEl => $e) {
     $svg .= '<circle cx="'.$ox.'" cy="'.$ey.'" r="2.5" fill="#dc2626" opacity="0.7"/>';
     $svg .= '<circle cx="'.$ex.'" cy="'.$oyBottom.'" r="2.5" fill="#16a34a" opacity="0.7"/>';
 
-    // cada elemento usa su propia fila de cota X, después de la cota ancho + Eje X
-    $cxPad=$elBase + $idxEl*$rowStep; $cxLblW=44; $cxLblH=12;
+    // Cota X debajo del vidrio (fila por elemento, después del Eje X)
+    $cxBase = $cOff + 14 + 12;
+    $cxPad  = $cxBase + $idxEl*$rowStep; $cxLblW=44; $cxLblH=12;
     $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cxPad).'" x2="'.$ex.'" y2="'.($oyBottom+$cxPad).'" stroke="#dc2626" stroke-width="'.$sw.'"/>';
     $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cxPad-$tk/2).'" x2="'.$ox.'" y2="'.($oyBottom+$cxPad+$tk/2).'" stroke="#dc2626" stroke-width="'.$sw.'"/>';
     $svg .= '<line x1="'.$ex.'" y1="'.($oyBottom+$cxPad-$tk/2).'" x2="'.$ex.'" y2="'.($oyBottom+$cxPad+$tk/2).'" stroke="#dc2626" stroke-width="'.$sw.'"/>';
@@ -162,7 +170,7 @@ foreach ($elementos as $idxEl => $e) {
     $svg .= '<rect x="'.($lxMid-$cxLblW/2).'" y="'.($oyBottom+$cxPad+2).'" width="'.$cxLblW.'" height="'.$cxLblH.'" fill="white" rx="2"/>';
     $svg .= '<text x="'.$lxMid.'" y="'.($oyBottom+$cxPad+$cxLblH/2+$fzSm/2).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#dc2626" font-family="monospace">X: '.$e['x'].' mm</text>';
 
-    // cada elemento usa su propia columna de cota Y para no encimarse con los demás
+    // Cota Y a la derecha del vidrio (columna por elemento)
     $cyPad=6 + $idxEl*$rowStep; $cyLblW=12; $cyLblH=44;
     $svg .= '<line x1="'.($ox+$gw+$cyPad).'" y1="'.$oyBottom.'" x2="'.($ox+$gw+$cyPad).'" y2="'.$ey.'" stroke="#16a34a" stroke-width="'.$sw.'"/>';
     $svg .= '<line x1="'.($ox+$gw+$cyPad-$tk/2).'" y1="'.$oyBottom.'" x2="'.($ox+$gw+$cyPad+$tk/2).'" y2="'.$oyBottom.'" stroke="#16a34a" stroke-width="'.$sw.'"/>';
@@ -210,6 +218,32 @@ foreach ($elementos as $idxEl => $e) {
     }
 }
 
+// Tabla de elementos (a la derecha de las cotas Y, sin tapar la pieza)
+if ($hasEl) {
+    $tExtraFilas = max(0, count($elementos) - 1);
+    $tblX = $ox + $gw + 6 + $tExtraFilas*$rowStep + 22;
+    $tblW = $canvW - $tblX - 4;
+    $tblY = $oy + 2;
+    $cardH = round(26 * $SVG_W / 450);
+    $eCol = ['tp'=>'#1e40af','ta'=>'#7c3aed','rs'=>'#854d0e'];
+    $eBg  = ['tp'=>'#dbeafe','ta'=>'#f3e8ff','rs'=>'#fef9c3'];
+    $svg .= '<text x="'.$tblX.'" y="'.$tblY.'" font-size="8" font-weight="700" fill="#64748b" font-family="sans-serif">ELEMENTOS</text>';
+    foreach ($elementos as $i => $el) {
+        $ec  = $eCol[$el['tipo']] ?? '#374151';
+        $ebg = $eBg[$el['tipo']]  ?? '#f1f5f9';
+        $ry  = $tblY + 12 + $i * $cardH;
+        $svg .= '<rect x="'.$tblX.'" y="'.$ry.'" width="'.$tblW.'" height="'.($cardH-2).'" fill="#f8fafc" rx="2"/>';
+        $svg .= '<rect x="'.$tblX.'" y="'.$ry.'" width="6" height="'.($cardH-2).'" fill="'.$ec.'" rx="2"/>';
+        $svg .= '<text x="'.($tblX+10).'" y="'.($ry+11).'" font-size="8.5" font-weight="700" fill="'.$ec.'" font-family="monospace">'.($i+1).'. '.strtoupper($el['tipo']).'</text>';
+        $det = '';
+        if ($el['tipo']==='tp') $det = '&#216;'.$el['d'].'mm';
+        if ($el['tipo']==='ta') $det = '&#216;'.$el['de'].'/'.$el['di'];
+        if ($el['tipo']==='rs') $det = $el['w'].'&#215;'.$el['h'].'mm';
+        $svg .= '<text x="'.($tblX+$tblW-2).'" y="'.($ry+11).'" text-anchor="end" font-size="8" fill="'.$ec.'" font-family="monospace">'.$det.'</text>';
+        $svg .= '<text x="'.($tblX+2).'" y="'.($ry+$cardH-4).'" font-size="7.5" fill="#374151" font-family="monospace">X: '.$el['x'].'  Y: '.$el['y'].'</text>';
+    }
+}
+
 // Canteado label
 $lados = [];
 if (!empty($canteo['sup'])) $lados[] = 'Sup';
@@ -217,10 +251,10 @@ if (!empty($canteo['inf'])) $lados[] = 'Inf';
 if (!empty($canteo['izq'])) $lados[] = 'Izq';
 if (!empty($canteo['der'])) $lados[] = 'Der';
 if ($lados) {
-    $svg .= '<text x="'.($SVG_W/2).'" y="'.($SVG_H-6).'" text-anchor="middle" font-size="'.$fz.'" fill="#92400e" font-family="monospace">Canteado: '.implode(' + ', $lados).'</text>';
+    $svg .= '<text x="'.($canvW/2).'" y="'.($SVG_H-6).'" text-anchor="middle" font-size="'.$fz.'" fill="#92400e" font-family="monospace">Canteado: '.implode(' + ', $lados).'</text>';
 }
 if ($notas) {
-    $svg .= '<text x="'.($SVG_W/2).'" y="'.($SVG_H-($lados ? $fz*2 : 6)).'" text-anchor="middle" font-size="'.$fzSm.'" fill="#64748b" font-family="sans-serif">'.htmlspecialchars(mb_substr($notas, 0, 65)).'</text>';
+    $svg .= '<text x="'.($canvW/2).'" y="'.($SVG_H-($lados ? $fz*2 : 6)).'" text-anchor="middle" font-size="'.$fzSm.'" fill="#64748b" font-family="sans-serif">'.htmlspecialchars(mb_substr($notas, 0, 65)).'</text>';
 }
 
 $folioMostrar = $cot['orden_folio'] ?: ($cot['folio'] ?? '');
@@ -233,7 +267,7 @@ $folioMostrar = $cot['orden_folio'] ?: ($cot['folio'] ?? '');
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1e293b; background: #fff; }
-.page { width: 210mm; min-height: 148mm; margin: 0 auto; padding: 12mm; }
+.page { width: <?= $hasEl ? '280mm' : '210mm' ?>; min-height: 148mm; margin: 0 auto; padding: 12mm; }
 .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a2e; padding-bottom: 8px; margin-bottom: 12px; }
 .header h1 { font-size: 16px; font-weight: 900; color: #1a1a2e; letter-spacing: .5px; }
 .header .sub { font-size: 11px; color: #64748b; margin-top: 2px; }
@@ -261,7 +295,7 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1e293
     </div>
   </div>
   <div class="svg-wrap">
-    <svg width="<?= $SVG_W ?>" height="<?= $SVG_H ?>" viewBox="0 0 <?= $SVG_W ?> <?= $SVG_H ?>"><?= $svg ?></svg>
+    <svg width="<?= $canvW ?>" height="<?= $SVG_H ?>" viewBox="0 0 <?= $canvW ?> <?= $SVG_H ?>" style="max-width:100%"><?= $svg ?></svg>
   </div>
   <div class="footer-note">Generado <?= date('d/m/Y H:i') ?> &mdash; Este croquis puede ser editado en el sistema, este PDF refleja la &#250;ltima versi&#243;n guardada.</div>
 </div>
