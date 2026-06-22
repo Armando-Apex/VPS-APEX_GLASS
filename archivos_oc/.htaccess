@@ -1,0 +1,4 @@
+Options -Indexes
+RemoveHandler .php .phtml .phar .php5 .php7
+RemoveType .php .phtml .phar .php5 .php7
+Options -ExecCGI

@@ -556,5 +556,8 @@ Al terminar cualquier sesión con cambios:
 | UPD-149 | 22-jun | Mando | Fix buscar_orden.php: filtro por estación ampliado para incluir estatus anteriores en el flujo — operadores pueden encontrar piezas llegadas por omisión desde estaciones previas |
 
 | UPD-150 | 22-jun | Mando | Permisos Compras: administracion y dueno pueden crear/editar OCs y partidas (antes solo dir_admin); api/ordenes_compra.php usa $ROLES_GESTIONAR_OC global |
+| UPD-151 | 22-jun | Armando | Fix reporte_direccion.php: % Entrega a tiempo ahora usa a_tiempo/(a_tiempo+con_retraso) — solo órdenes terminadas, excluye en_proceso y retraso_abierto. Barra apilada queda en 2 segmentos (verde/rojo). Concentrado mensual usa mismo criterio |
+| UPD-152 | 22-jun | Armando | Fix campanas WA "error de red": accion=enviar ahora usa fastcgi_finish_request() para cerrar conexión HTTP inmediatamente y seguir enviando en background — evita que Apache (ProxyTimeout 300s) corte campañas largas. Frontend ajustado: wizard se cierra cuando el poll detecta estado='enviada' |
+| UPD-153 | 22-jun | Armando | Fix campañas WA entrega 0: URLs scontent.whatsapp.net del ejemplo de plantilla tienen tokens de sesión — Meta no las puede fetchear desde sus servidores de entrega. Fix: accion=enviar sube la imagen a Media API de Meta antes del loop y usa media_id en todos los envíos (fallback a link si falla el upload) |
 
-**Próximo UPD disponible: UPD-151**
+**Próximo UPD disponible: UPD-154**
