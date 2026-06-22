@@ -741,9 +741,12 @@ function autoTempladoEspejo(idx) {
   var sel = document.getElementById('p_cristal_' + idx);
   if (!sel) return;
   var nombre = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text.toLowerCase() : '';
+  var templ = document.getElementById('p_templ_' + idx);
+  if (!templ) return;
   if (nombre.indexOf('espejo') !== -1) {
-    var templ = document.getElementById('p_templ_' + idx);
-    if (templ) templ.value = '0';
+    templ.value = '0';
+  } else if (nombre !== '' && nombre !== '-- cristal --') {
+    templ.value = '1';
   }
 }
 
