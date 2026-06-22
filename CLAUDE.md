@@ -546,4 +546,13 @@ Al terminar cualquier sesión con cambios:
 | UPD-141 | 21-jun | Armando | SEGURIDAD CSRF: validación de header Origin en requireSessionApi() para peticiones POST/PUT/DELETE/PATCH — complementa SameSite=Lax |
 | UPD-142 | 21-jun | Armando | SEGURIDAD headers HTTP: .htaccess en produccion/ con X-Frame-Options, X-Content-Type-Options, Referrer-Policy, CSP, HSTS y bloqueo de archivos sensibles (.env, .log, .sql) |
 
-**Próximo UPD disponible: UPD-143**
+| UPD-143 | 22-jun | Mando | SEGURIDAD directory listing: Options -Indexes en .htaccess raíz de produccion/ — bloquea listado de archivos en todo el proyecto (cascadea a subcarpetas) |
+| UPD-144 | 22-jun | Mando | SEGURIDAD .git y .claude expuestos: RewriteRule en .htaccess raíz bloquea acceso web a /.git/ y /.claude/ con 403 |
+| UPD-145 | 22-jun | Mando | SEGURIDAD test.php eliminado de producción (tenía display_errors=On y error_reporting=E_ALL) |
+| UPD-146 | 22-jun | Mando | SEGURIDAD CORS completo: api/.htaccess y 14 APIs autenticadas cambiadas de * a https://apex.glass; estaciones.php y recibir_orden.php mantienen * intencionalmente |
+| UPD-147 | 22-jun | Mando | SEGURIDAD directory listing en subcarpetas: .htaccess con Options -Indexes creado en app/, imagenes_comunicados/, archivos_campanas/, lib/, portal/ |
+
+| UPD-148 | 22-jun | Mando | Fix operador.php estación terminado: agrega botón ámbar de omisión para piezas en estatus intermedios (pendiente, en_corte, cortado, canteado, trazo); flujo sin templado con pieza en taladro ahora muestra botón verde normal |
+| UPD-149 | 22-jun | Mando | Fix buscar_orden.php: filtro por estación ampliado para incluir estatus anteriores en el flujo — operadores pueden encontrar piezas llegadas por omisión desde estaciones previas |
+
+**Próximo UPD disponible: UPD-150**

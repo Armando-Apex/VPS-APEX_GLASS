@@ -11,7 +11,7 @@ require_once 'permisos.php';
 requireSessionApi();
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: https://apex.glass');
 
 $num      = trim($_GET['num']      ?? '');
 $estacion = trim($_GET['estacion'] ?? '');
@@ -43,14 +43,14 @@ if (!$ordenes) {
     jsonResponse(['error' => 'No se encontraron órdenes con ese número'], 404);
 }
 
-// Mapeo estación → estatus que le corresponde
+// Mapeo estación → estatus visibles (incluye estatus anteriores para omisiones)
 $estacion_estatus = [
     'corte'     => ['pendiente', 'en_corte'],
-    'canteado'  => ['cortado'],
-    'trazo'     => ['canteado'],
-    'taladro'   => ['trazo'],
-    'templado'  => ['taladro', 'canteado'],
-    'terminado' => ['en_horno'],
+    'canteado'  => ['pendiente', 'en_corte', 'cortado'],
+    'trazo'     => ['pendiente', 'en_corte', 'cortado', 'canteado'],
+    'taladro'   => ['pendiente', 'en_corte', 'cortado', 'canteado', 'trazo'],
+    'templado'  => ['pendiente', 'en_corte', 'cortado', 'canteado', 'trazo', 'taladro'],
+    'terminado' => ['pendiente', 'en_corte', 'cortado', 'canteado', 'trazo', 'taladro', 'en_horno'],
     'entrega'   => ['terminado'],
     // Roles con acceso total ven todas las piezas
     'admin'          => null,

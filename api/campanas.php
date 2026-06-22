@@ -282,6 +282,19 @@ if ($metodo === 'POST' && $accion === 'enviar') {
     $stmtE->execute([$campanaId]);
     $envios = $stmtE->fetchAll(PDO::FETCH_ASSOC);
 
+    // Cerrar la conexión HTTP de inmediato — PHP-FPM sigue corriendo en background.
+    // Evita que Apache (ProxyTimeout 300s) corte el envío de campañas largas.
+    ignore_user_abort(true);
+    echo json_encode(['ok' => true, 'en_proceso' => true, 'total' => count($envios)]);
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } else {
+        header('Connection: close');
+        header('Content-Length: ' . ob_get_length());
+        ob_end_flush();
+        flush();
+    }
+
     $vars    = json_decode($campana['template_vars_json'], true) ?? [];
     $stmtUpd = $db->prepare("UPDATE campana_envios SET estado=?, wa_message_id=?, enviado_at=NOW(), error_msg=? WHERE id=?");
     $stmtCnt = $db->prepare("UPDATE campanas SET enviados = enviados + 1 WHERE id=?");
@@ -345,7 +358,6 @@ if ($metodo === 'POST' && $accion === 'enviar') {
     }
 
     $db->prepare("UPDATE campanas SET estado='enviada' WHERE id=?")->execute([$campanaId]);
-    echo json_encode(['ok' => true, 'enviados' => $enviados]);
     exit;
 }
 

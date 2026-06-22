@@ -9,7 +9,7 @@ require_once 'permisos.php';
 requireSessionApi();
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: https://apex.glass');
 
 $folio = strtoupper(trim($_GET['folio'] ?? ''));
 if (!$folio) jsonResponse(['error' => 'Folio requerido'], 400);

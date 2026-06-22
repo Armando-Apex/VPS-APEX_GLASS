@@ -8,7 +8,7 @@ require_once 'permisos.php';
 requireSessionApi();
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: https://apex.glass');
 
 $db        = getDB();
 $pagina    = max(1, (int)($_GET['pagina']    ?? 1));

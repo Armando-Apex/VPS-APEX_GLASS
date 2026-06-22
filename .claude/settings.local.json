@@ -46,7 +46,9 @@
       "Bash(chmod 640 /home/apexglass2025/apex.glass/.env)",
       "Bash(chown apexglass2025:apexglass2025 /home/apexglass2025/apex.glass/.env)",
       "Bash(curl -s -I \"https://apex.glass/produccion/app/dashboard.php\")",
-      "mcp__plugin_aikido_aikido-mcp__aikido_issues_list"
+      "mcp__plugin_aikido_aikido-mcp__aikido_issues_list",
+      "Read(//etc/opt/remi/php84/php-fpm.d/**)",
+      "Read(//etc/opt/remi/php84/**)"
     ]
   },
   "hooks": {

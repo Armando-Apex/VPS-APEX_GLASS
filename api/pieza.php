@@ -10,7 +10,7 @@ require_once 'permisos.php';
 requireSessionApi();
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: https://apex.glass');
 
 $qr = trim($_GET['qr'] ?? '');
 if (!$qr) jsonResponse(['error' => 'qr requerido'], 400);

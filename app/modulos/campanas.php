@@ -660,7 +660,7 @@ var ModCampanas = (function() {
             if (progArea) { progArea.style.display = ''; }
             if (btnEnviar) { btnEnviar.textContent = 'Enviando...'; }
 
-            // Poll progreso mientras envía
+            // Poll progreso — cierra wizard cuando el backend confirma 'enviada'
             _pollTimer = setInterval(function() {
                 fetch('/produccion/api/campanas.php?accion=progreso&id=' + campanaId)
                   .then(function(r) { return r.json(); })
@@ -670,25 +670,36 @@ var ModCampanas = (function() {
                     var txt = document.getElementById('cmpProgresoTxt');
                     if (bar) { bar.style.width = pct + '%'; }
                     if (txt) { txt.textContent = p.enviados + ' / ' + p.total + ' enviados (' + pct + '%)'; }
-                    if (p.estado === 'enviada') { clearInterval(_pollTimer); }
+                    if (p.estado === 'enviada') {
+                        clearInterval(_pollTimer);
+                        if (btnEnviar) { btnEnviar.textContent = 'Enviado ✓'; }
+                        setTimeout(function() { cerrarWizard(); cargarCampanas(); }, 1500);
+                    }
                   });
             }, 3000);
 
-            // Disparar envío (proceso largo — PHP manejará el tiempo)
+            // Disparar envío — el backend responde de inmediato y sigue en background
             fetch('/produccion/api/campanas.php?accion=enviar', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({campana_id: campanaId})
             })
-            .then(function(r) { return r.json(); })
-            .then(function(res) {
-                clearInterval(_pollTimer);
-                if (btnEnviar) { btnEnviar.textContent = res.ok ? 'Enviado ✓' : 'Error'; }
-                setTimeout(function() { cerrarWizard(); cargarCampanas(); }, 1500);
+            .then(function(r) {
+                if (!r.ok) { return r.text().then(function(t) { throw new Error('HTTP ' + r.status + ': ' + t.substring(0, 200)); }); }
+                return r.json();
             })
-            .catch(function() {
+            .then(function(res) {
+                if (!res.ok) {
+                    clearInterval(_pollTimer);
+                    if (btnEnviar) { btnEnviar.textContent = 'Error'; }
+                    alert('Error al enviar: ' + (res.error || 'desconocido'));
+                }
+                // Si ok, el poll detecta 'enviada' y cierra el wizard
+            })
+            .catch(function(err) {
                 clearInterval(_pollTimer);
-                if (btnEnviar) { btnEnviar.textContent = 'Error de red'; }
+                if (btnEnviar) { btnEnviar.textContent = 'Error'; }
+                alert('Error al conectar con el servidor: ' + (err.message || 'desconocido'));
             });
         })
         .catch(function(err) {

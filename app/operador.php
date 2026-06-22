@@ -911,8 +911,34 @@ function setupButton(p) {
       btn.style.cssText = 'background:#d97706;color:#000;font-size:14px;';
       var _pe2 = p.estatus;
       btn.onclick = function() { abrirModalOmision('terminado', _pe2, 'terminado'); };
+    } else if (parseInt(p.requiere_templado) === 0 && p.estatus === 'taladro') {
+      // Flujo normal sin templado: taladro → terminado
+      btn.textContent      = '✅ Salió OK → Terminado';
+      btn.className        = 'btn-action go';
+      btn.style.background = '#16a34a';
+      btn.onclick          = () => doUpdate('terminado');
+      var btnReproc2 = document.createElement('button');
+      btnReproc2.textContent   = '🔄 Reproceso → Pendiente';
+      btnReproc2.className     = 'btn-action btn-extra';
+      btnReproc2.style.cssText = 'background:#d97706;margin-top:10px;width:100%';
+      btnReproc2.onclick       = () => doReproceso();
+      contenedor.appendChild(btnReproc2);
+    } else if (['pendiente','en_corte','cortado','canteado','trazo'].indexOf(p.estatus) !== -1) {
+      // Estaciones intermedias saltadas — ofrecer omisión
+      var omisionTermMsg = {
+        pendiente: 'Ninguna estación marcó la pieza',
+        en_corte:  'CORTE, CANTEADO, TRAZO y TALADRO no marcaron',
+        cortado:   'CANTEADO, TRAZO y TALADRO no marcaron',
+        canteado:  'TRAZO y TALADRO no marcaron',
+        trazo:     'TALADRO no marcó la pieza',
+      };
+      btn.textContent   = '⚠️ ' + (omisionTermMsg[p.estatus] || 'Estaciones anteriores no marcaron') + ' — Confirmar omisión';
+      btn.className     = 'btn-action';
+      btn.style.cssText = 'background:#d97706;color:#000;font-size:14px;';
+      var _pe3 = p.estatus;
+      btn.onclick = function() { abrirModalOmision('terminado', _pe3, 'terminado'); };
     } else {
-      btn.textContent   = '⛔ Pieza no está en horno aún';
+      btn.textContent   = '⛔ Pieza no está lista para terminar';
       btn.className     = 'btn-action done';
       btn.style.cssText = 'background:#334155;color:#94a3b8;cursor:not-allowed;font-size:14px;opacity:1';
       btn.onclick       = null;

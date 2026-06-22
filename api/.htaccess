@@ -1,6 +1,8 @@
-# APEX GLASS - Headers CORS para Chrome
+# APEX GLASS - Headers CORS
+# Solo se permite el origen propio. estaciones.php y recibir_orden.php
+# sobreescriben este header cuando necesitan acceso externo.
 <IfModule mod_headers.c>
-    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Origin "https://apex.glass"
     Header always set Access-Control-Allow-Methods "POST, GET, OPTIONS"
     Header always set Access-Control-Allow-Headers "Content-Type, X-API-Key"
 </IfModule>

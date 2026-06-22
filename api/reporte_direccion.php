@@ -9,7 +9,7 @@ require_once 'config.php';
 require_once 'permisos.php';
 requirePermisoApi('ver_reportes');
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: https://apex.glass');
 
 $pdo     = getDB();
 $periodo = $_GET['periodo'] ?? 'mes_actual';
