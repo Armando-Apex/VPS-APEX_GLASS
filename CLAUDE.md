@@ -361,9 +361,9 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 |---|---|---|---|
 | URGENTE | Ambos | Operador horno: 2 acciones separadas (en_horno + terminado/reproceso) | HECHO UPD-076 |
 | ALTA | Armando | Cancelar HostGator (~1 semana margen desde 14-jun) | HECHO 18-jun |
-| ALTA | Armando | Seguridad HTTP (CORS, CSRF, headers, session regenerate) | Pendiente |
+| ALTA | Armando | Seguridad HTTP (CORS, CSRF, headers, session regenerate) | HECHO UPD-138 a 147 |
 | ALTA | Armando | Agregar UPDs 059+ al Google Doc (cambios 12-14 jun) | Pendiente |
-| MEDIA | Armando | Mover DB_PASS a .env fuera del webroot | Pendiente |
+| MEDIA | Armando | Mover DB_PASS a .env fuera del webroot | HECHO UPD-139 |
 | MEDIA | Armando | Cargar tzdata en MariaDB VPS | Pendiente |
 | MEDIA | Armando | Instalar n8n via Docker (n8n.apex.glass, puerto 5678) | Pendiente |
 | MEDIA | Armando | PDF croquis: app/imprimir_croquis.php | Pendiente |
@@ -560,4 +560,11 @@ Al terminar cualquier sesión con cambios:
 | UPD-152 | 22-jun | Armando | Fix campanas WA "error de red": accion=enviar ahora usa fastcgi_finish_request() para cerrar conexión HTTP inmediatamente y seguir enviando en background — evita que Apache (ProxyTimeout 300s) corte campañas largas. Frontend ajustado: wizard se cierra cuando el poll detecta estado='enviada' |
 | UPD-153 | 22-jun | Armando | Fix campañas WA entrega 0: URLs scontent.whatsapp.net del ejemplo de plantilla tienen tokens de sesión — Meta no las puede fetchear desde sus servidores de entrega. Fix: accion=enviar sube la imagen a Media API de Meta antes del loop y usa media_id en todos los envíos (fallback a link si falla el upload) |
 
-**Próximo UPD disponible: UPD-154**
+| UPD-154 | 22-jun | Armando | Campañas WA: métricas visuales en cards — 4 tarjetas (Enviados/Entregados/Leídos/Respuestas) con número grande + porcentaje; mini-barra tipo embudo morado(leídos)+verde(entregados sin leer) |
+| UPD-155 | 22-jun | Armando | Webhook WA: manejo de tipos reaction (muestra emoji), audio, video, sticker, location, interactive — ya no aparece "[Mensaje tipo: X]" para tipos desconocidos |
+| UPD-156 | 22-jun | Armando | Fix servidor bloqueado durante envío campaña: (1) eliminado sleep(60) cada 25 mensajes — Meta Cloud API permite 80/seg; (2) PHP-FPM pm.max_children 5→12 — evita que un worker de envío bloquee el resto del sistema |
+| UPD-157 | 22-jun | Armando | Badge ámbar autorizaciones pendientes en sidebar "Cotizaciones": polling 60s a api/autorizaciones.php?pendientes=1; solo visible para dir_admin; color #d97706 |
+| UPD-158 | 22-jun | Armando | Cobranza: orden cambiado a pendiente → parcial → pagado (los que necesitan atención primero), dentro de cada grupo por o.id DESC (más reciente arriba) |
+| UPD-159 | 22-jun | Armando | cotizacion.php: seleccionar espejo → templado automático NO; cambiar a otro cristal → templado vuelve a SÍ; implementado como window.cotAutoTemplado (patrón correcto SPA para funciones llamadas desde onchange HTML) |
+
+**Próximo UPD disponible: UPD-160**
