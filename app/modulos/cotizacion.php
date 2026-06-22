@@ -581,7 +581,7 @@ function renderPartidas(editable) {
     html += '<span class="num-partida">' + (i+1) + '</span>';
 
     // Cristal
-    html += '<select id="p_cristal_' + i + '" onchange="ModCotizacion._autoTempladoEspejo(' + i + ');ModCotizacion._recalcular()" ' + (!editable?'disabled':'') + '>';
+    html += '<select id="p_cristal_' + i + '" onchange="window.cotAutoTemplado(' + i + ');ModCotizacion._recalcular()" ' + (!editable?'disabled':'') + '>';
     html += '<option value="">-- Cristal --</option>';
     for (var j = 0; j < cristales.length; j++) {
       var c = cristales[j];
@@ -737,18 +737,18 @@ function eliminarPartida(idx) {
 }
 
 // ── Auto: espejo → templado = No ─────────────────────────────────────────────
-function autoTempladoEspejo(idx) {
+window.cotAutoTemplado = function(idx) {
   var sel = document.getElementById('p_cristal_' + idx);
   if (!sel) return;
-  var nombre = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text.toLowerCase() : '';
+  var nombre = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text.toLowerCase().trim() : '';
   var templ = document.getElementById('p_templ_' + idx);
   if (!templ) return;
   if (nombre.indexOf('espejo') !== -1) {
     templ.value = '0';
-  } else if (nombre !== '' && nombre !== '-- cristal --') {
+  } else if (nombre && nombre !== '-- cristal --') {
     templ.value = '1';
   }
-}
+};
 
 // ── Recalcular totales ────────────────────────────────────────────────────────
 function recalcular() {
@@ -1724,7 +1724,6 @@ return {
   _agregarPartida:    agregarPartida,
   _eliminarPartida:   eliminarPartida,
   _recalcular:        recalcular,
-  _autoTempladoEspejo: autoTempladoEspejo,
   _buscarCliente:     buscarCliente,
   _seleccionarCliente:seleccionarCliente,
   _toggleFactura:     toggleFactura,
