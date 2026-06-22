@@ -581,7 +581,7 @@ function renderPartidas(editable) {
     html += '<span class="num-partida">' + (i+1) + '</span>';
 
     // Cristal
-    html += '<select id="p_cristal_' + i + '" onchange="ModCotizacion._recalcular()" ' + (!editable?'disabled':'') + '>';
+    html += '<select id="p_cristal_' + i + '" onchange="ModCotizacion._autoTempladoEspejo(' + i + ');ModCotizacion._recalcular()" ' + (!editable?'disabled':'') + '>';
     html += '<option value="">-- Cristal --</option>';
     for (var j = 0; j < cristales.length; j++) {
       var c = cristales[j];
@@ -734,6 +734,17 @@ function eliminarPartida(idx) {
   partidas.splice(idx, 1);
   renderPartidas(true);
   recalcular();
+}
+
+// ── Auto: espejo → templado = No ─────────────────────────────────────────────
+function autoTempladoEspejo(idx) {
+  var sel = document.getElementById('p_cristal_' + idx);
+  if (!sel) return;
+  var nombre = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text.toLowerCase() : '';
+  if (nombre.indexOf('espejo') !== -1) {
+    var templ = document.getElementById('p_templ_' + idx);
+    if (templ) templ.value = '0';
+  }
 }
 
 // ── Recalcular totales ────────────────────────────────────────────────────────
@@ -1710,6 +1721,7 @@ return {
   _agregarPartida:    agregarPartida,
   _eliminarPartida:   eliminarPartida,
   _recalcular:        recalcular,
+  _autoTempladoEspejo: autoTempladoEspejo,
   _buscarCliente:     buscarCliente,
   _seleccionarCliente:seleccionarCliente,
   _toggleFactura:     toggleFactura,
