@@ -48,7 +48,8 @@
       "Bash(curl -s -I \"https://apex.glass/produccion/app/dashboard.php\")",
       "mcp__plugin_aikido_aikido-mcp__aikido_issues_list",
       "Read(//etc/opt/remi/php84/php-fpm.d/**)",
-      "Read(//etc/opt/remi/php84/**)"
+      "Read(//etc/opt/remi/php84/**)",
+      "Bash(curl -s 'https://graph.facebook.com/v20.0/1517799296194687/message_templates?fields=name,status,language,quality_score&limit=50&access_token=__CMDSUB_OUTPUT__')"
     ]
   },
   "hooks": {
