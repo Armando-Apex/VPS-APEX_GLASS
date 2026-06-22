@@ -187,23 +187,50 @@ var ModCampanas = (function() {
                 html = '<p style="color:#64748b;font-size:13px;">Sin campa&ntilde;as a&uacute;n.</p>';
             } else {
                 data.campanas.forEach(function(c) {
+                    var tot  = parseInt(c.total_destinatarios) || 0;
+                    var env  = parseInt(c.enviados)   || 0;
+                    var ent  = parseInt(c.entregados) || 0;
+                    var lei  = parseInt(c.leidos)     || 0;
+                    var res  = parseInt(c.respuestas) || 0;
+                    var pEnv = tot  > 0 ? Math.round(env / tot  * 100) : 0;
+                    var pEnt = env  > 0 ? Math.round(ent / env  * 100) : 0;
+                    var pLei = env  > 0 ? Math.round(lei / env  * 100) : 0;
+                    var pRes = env  > 0 ? Math.round(res / env  * 100) : 0;
                     html += '<div class="cmp-card">' +
                         '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">' +
                         '<div>' +
                         '<strong style="font-size:14px;">' + esc(c.nombre) + '</strong>' +
-                        '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">' + fmtFecha(c.created_at) + ' &middot; Template: <code>' + esc(c.template_nombre) + '</code></div>' +
+                        '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">' + fmtFecha(c.created_at) + ' &middot; <code>' + esc(c.template_nombre) + '</code></div>' +
                         '</div>' +
                         '<span class="cmp-badge ' + esc(c.estado) + '">' + esc(c.estado).toUpperCase() + '</span>' +
                         '</div>' +
-                        '<div class="cmp-metricas">' +
-                        '<div class="cmp-metrica">&#9993; Enviados: <span>' + c.enviados + '/' + c.total_destinatarios + '</span></div>' +
-                        '<div class="cmp-metrica">&#10003;&#10003; Entregados: <span>' + c.entregados + '</span></div>' +
-                        '<div class="cmp-metrica">&#128065; Le&iacute;dos: <span>' + c.leidos + '</span></div>' +
-                        '<div class="cmp-metrica">&#128172; Respuestas: <span>' + c.respuestas + '</span></div>' +
+                        '<div style="margin:12px 0 4px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">' +
+                        '<div style="background:#f8fafc;border-radius:6px;padding:8px 4px;">' +
+                            '<div style="font-size:18px;font-weight:700;color:#334155;">' + env + '</div>' +
+                            '<div style="font-size:10px;color:#64748b;margin-top:2px;">Enviados</div>' +
+                            '<div style="font-size:11px;color:#94a3b8;">' + pEnv + '% de ' + tot + '</div>' +
                         '</div>' +
-                        '<div style="margin-top:12px;">' +
+                        '<div style="background:#f0fdf4;border-radius:6px;padding:8px 4px;">' +
+                            '<div style="font-size:18px;font-weight:700;color:#16a34a;">' + ent + '</div>' +
+                            '<div style="font-size:10px;color:#64748b;margin-top:2px;">Entregados</div>' +
+                            '<div style="font-size:11px;color:#94a3b8;">' + pEnt + '% env.</div>' +
+                        '</div>' +
+                        '<div style="background:#f5f3ff;border-radius:6px;padding:8px 4px;">' +
+                            '<div style="font-size:18px;font-weight:700;color:#7c3aed;">' + lei + '</div>' +
+                            '<div style="font-size:10px;color:#64748b;margin-top:2px;">Le&iacute;dos</div>' +
+                            '<div style="font-size:11px;color:#94a3b8;">' + pLei + '% env.</div>' +
+                        '</div>' +
+                        '<div style="background:#fff7ed;border-radius:6px;padding:8px 4px;">' +
+                            '<div style="font-size:18px;font-weight:700;color:#ea580c;">' + res + '</div>' +
+                            '<div style="font-size:10px;color:#64748b;margin-top:2px;">Respuestas</div>' +
+                            '<div style="font-size:11px;color:#94a3b8;">' + pRes + '% env.</div>' +
+                        '</div>' +
+                        '</div>' +
+                        '<div style="background:#f1f5f9;border-radius:4px;overflow:hidden;height:6px;margin-bottom:12px;">' +
+                            (lei > 0  ? '<div style="height:6px;width:' + pLei + '%;background:#7c3aed;display:inline-block;"></div>' : '') +
+                            (ent > lei ? '<div style="height:6px;width:' + Math.round((ent-lei)/env*100) + '%;background:#16a34a;display:inline-block;"></div>' : '') +
+                        '</div>' +
                         '<button onclick="window.cmpVerDetalle(' + c.id + ')" style="font-size:12px;padding:5px 14px;border:1px solid #e2e8f0;border-radius:5px;background:#fff;cursor:pointer;">Ver detalle</button>' +
-                        '</div>' +
                         '</div>';
                 });
             }

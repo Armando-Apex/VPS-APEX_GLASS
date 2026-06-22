@@ -566,16 +566,18 @@ function cmpRenderDetalle() {
   + (o.notas ? '<div style="grid-column:1/-1"><div class="det-info-lbl">Notas</div><div class="det-info-val">' + cmpEsc(o.notas) + '</div></div>' : '');
 
   // Activar tab correcto
+  var _tabs = ['partidas','pagos','recepcion','comprobantes'];
   document.querySelectorAll('.det-tab').forEach(function(b, i) {
-    b.classList.toggle('active', ['partidas','pagos','recepcion'][i] === _detTab);
+    b.classList.toggle('active', _tabs[i] === _detTab);
   });
   document.querySelectorAll('.det-panel').forEach(function(p, i) {
-    p.classList.toggle('active', ['partidas','pagos','recepcion'][i] === _detTab);
+    p.classList.toggle('active', _tabs[i] === _detTab);
   });
 
-  if (_detTab === 'partidas')  cmpRenderPanelPartidas(o);
-  if (_detTab === 'pagos')     cmpRenderPanelPagos(o);
-  if (_detTab === 'recepcion') cmpRenderPanelRecepcion(o);
+  if (_detTab === 'partidas')     cmpRenderPanelPartidas(o);
+  if (_detTab === 'pagos')        cmpRenderPanelPagos(o);
+  if (_detTab === 'recepcion')    cmpRenderPanelRecepcion(o);
+  if (_detTab === 'comprobantes') cmpRenderPanelComprobantes(o.id);
 
   // Footer con acciones
   var footer = '';
