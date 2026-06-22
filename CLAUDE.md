@@ -555,4 +555,6 @@ Al terminar cualquier sesión con cambios:
 | UPD-148 | 22-jun | Mando | Fix operador.php estación terminado: agrega botón ámbar de omisión para piezas en estatus intermedios (pendiente, en_corte, cortado, canteado, trazo); flujo sin templado con pieza en taladro ahora muestra botón verde normal |
 | UPD-149 | 22-jun | Mando | Fix buscar_orden.php: filtro por estación ampliado para incluir estatus anteriores en el flujo — operadores pueden encontrar piezas llegadas por omisión desde estaciones previas |
 
-**Próximo UPD disponible: UPD-150**
+| UPD-150 | 22-jun | Mando | Permisos Compras: administracion y dueno pueden crear/editar OCs y partidas (antes solo dir_admin); api/ordenes_compra.php usa $ROLES_GESTIONAR_OC global |
+
+**Próximo UPD disponible: UPD-151**

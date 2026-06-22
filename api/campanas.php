@@ -299,6 +299,34 @@ if ($metodo === 'POST' && $accion === 'enviar') {
     $stmtUpd = $db->prepare("UPDATE campana_envios SET estado=?, wa_message_id=?, enviado_at=NOW(), error_msg=? WHERE id=?");
     $stmtCnt = $db->prepare("UPDATE campanas SET enviados = enviados + 1 WHERE id=?");
 
+    // Subir imagen a Media API para obtener media_id reutilizable en todos los envíos.
+    // Las URLs scontent.whatsapp.net tienen tokens de sesión — Meta no las puede fetchear
+    // desde sus servidores de entrega, causando fallido silencioso con wamid válido.
+    $headerMediaId = null;
+    if (!empty($campana['header_image_url'])) {
+        $imgBytes = @file_get_contents($campana['header_image_url']);
+        if ($imgBytes !== false) {
+            $tmpImg = tempnam(sys_get_temp_dir(), 'wa_hdr_');
+            file_put_contents($tmpImg, $imgBytes);
+            $mime = mime_content_type($tmpImg) ?: 'image/jpeg';
+            $chUp = curl_init('https://graph.facebook.com/v20.0/' . WA_PHONE_ID . '/media');
+            curl_setopt($chUp, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($chUp, CURLOPT_POST, true);
+            curl_setopt($chUp, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . WA_TOKEN]);
+            curl_setopt($chUp, CURLOPT_POSTFIELDS, [
+                'messaging_product' => 'whatsapp',
+                'type'              => $mime,
+                'file'              => new CURLFile($tmpImg, $mime, 'header.' . (explode('/', $mime)[1] ?? 'jpg'))
+            ]);
+            curl_setopt($chUp, CURLOPT_TIMEOUT, 30);
+            $upRes = json_decode(curl_exec($chUp), true);
+            curl_close($chUp);
+            @unlink($tmpImg);
+            $headerMediaId = $upRes['id'] ?? null;
+            error_log('APEX WA upload header: ' . ($headerMediaId ? 'OK id=' . $headerMediaId : 'FAIL ' . json_encode($upRes)));
+        }
+    }
+
     $enviados  = 0;
     $inicioMin = time();
 
@@ -325,9 +353,12 @@ if ($metodo === 'POST' && $accion === 'enviar') {
 
         $components = [];
         if (!empty($campana['header_image_url'])) {
+            $imgParam = $headerMediaId
+                ? ['id'   => $headerMediaId]
+                : ['link' => $campana['header_image_url']];
             $components[] = [
                 'type'       => 'header',
-                'parameters' => [['type' => 'image', 'image' => ['link' => $campana['header_image_url']]]]
+                'parameters' => [['type' => 'image', 'image' => $imgParam]]
             ];
         }
         if (!empty($parametros)) {

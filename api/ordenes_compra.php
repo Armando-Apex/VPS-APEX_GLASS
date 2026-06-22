@@ -17,21 +17,25 @@ $id     = (int)($_GET['id'] ?? 0);
 
 // ── Helper: ¿puede editarse el encabezado / agregar partidas? ─
 // Borrador: cualquiera con gestionar_inventario.
-// Abierta: solo dir_admin (con o sin entregas).
+$ROLES_GESTIONAR_OC = ['dir_admin', 'administracion', 'dueno'];
+
+// Abierta: roles con gestión de inventario (con o sin entregas).
 function ocHeaderEsEditable($db, $oc_id, $rol) {
+    global $ROLES_GESTIONAR_OC;
     $s = $db->prepare("SELECT estado FROM ordenes_compra WHERE id = ?");
     $s->execute([$oc_id]);
     $row = $s->fetch(PDO::FETCH_ASSOC);
     if (!$row) return false;
     if ($row['estado'] === 'borrador') return true;
-    if ($row['estado'] === 'abierta' && $rol === 'dir_admin') return true;
+    if ($row['estado'] === 'abierta' && in_array($rol, $ROLES_GESTIONAR_OC)) return true;
     return false;
 }
 
 // ── Helper: ¿puede editarse/eliminarse esta partida? ──────────
 // Borrador: cualquiera con gestionar_inventario.
-// Abierta + dir_admin: solo si la partida no tiene material recibido.
+// Abierta + roles gestión: solo si la partida no tiene material recibido.
 function partidaEsEditable($db, $partida_id, $rol) {
+    global $ROLES_GESTIONAR_OC;
     $s = $db->prepare("
         SELECT o.estado, COALESCE(op.cantidad_recibida, 0) AS recibido
         FROM oc_partidas op
@@ -42,7 +46,7 @@ function partidaEsEditable($db, $partida_id, $rol) {
     $row = $s->fetch(PDO::FETCH_ASSOC);
     if (!$row) return false;
     if ($row['estado'] === 'borrador') return true;
-    if ($row['estado'] === 'abierta' && $rol === 'dir_admin' && (float)$row['recibido'] === 0.0) return true;
+    if ($row['estado'] === 'abierta' && in_array($rol, $ROLES_GESTIONAR_OC) && (float)$row['recibido'] === 0.0) return true;
     return false;
 }
 
