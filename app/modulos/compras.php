@@ -246,10 +246,12 @@ tbody td { padding: 11px 14px; font-size: 13px; }
         <button class="det-tab active" onclick="cmpDetTab('partidas')">Partidas</button>
         <button class="det-tab"        onclick="cmpDetTab('pagos')">Pagos</button>
         <button class="det-tab"        onclick="cmpDetTab('recepcion')">Recepci&oacute;n</button>
+        <button class="det-tab"        onclick="cmpDetTab('comprobantes')">Comprobantes</button>
       </div>
       <div class="det-panel active" id="panelPartidas"></div>
       <div class="det-panel"        id="panelPagos"></div>
       <div class="det-panel"        id="panelRecepcion"></div>
+      <div class="det-panel"        id="panelComprobantes"></div>
     </div>
     <div class="modal-footer" id="detFooter"></div>
   </div>
@@ -531,9 +533,10 @@ async function cmpVerDetalle(id) {
   _detTab  = 'partidas';
   document.getElementById('detTitulo').textContent = 'Cargando...';
   document.getElementById('detInfoGrid').innerHTML = '';
-  document.getElementById('panelPartidas').innerHTML  = '<p style="color:#9ca3af;padding:20px">Cargando...</p>';
-  document.getElementById('panelPagos').innerHTML     = '';
-  document.getElementById('panelRecepcion').innerHTML = '';
+  document.getElementById('panelPartidas').innerHTML    = '<p style="color:#9ca3af;padding:20px">Cargando...</p>';
+  document.getElementById('panelPagos').innerHTML       = '';
+  document.getElementById('panelRecepcion').innerHTML   = '';
+  document.getElementById('panelComprobantes').innerHTML = '';
   document.getElementById('modalDetalle').style.display = 'flex';
 
   try {
