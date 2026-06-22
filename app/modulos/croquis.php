@@ -62,7 +62,7 @@ header('Content-Type: text/html; charset=utf-8');
 /* Fields */
 .cq-field-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .cq-field-label { font-size: 13px; color: #64748b; min-width: 76px; }
-.cq-fi { flex: 1; height: 34px; border: 1.5px solid #e2e8f0; border-radius: 7px; padding: 0 9px; font-size: 14px; background: white; color: #1e293b; }
+.cq-fi { flex: 1; min-width: 0; height: 34px; border: 1.5px solid #e2e8f0; border-radius: 7px; padding: 0 9px; font-size: 14px; background: white; color: #1e293b; box-sizing: border-box; }
 .cq-fi:focus { outline: none; border-color: #2563eb; }
 .cq-unit { font-size: 12px; color: #94a3b8; min-width: 22px; }
 /* Canteado */
@@ -98,7 +98,7 @@ header('Content-Type: text/html; charset=utf-8');
 /* Modal editar elemento */
 .cq-modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 300; align-items: center; justify-content: center; }
 .cq-modal-bg.open { display: flex; }
-.cq-modal { background: white; border-radius: 14px; padding: 22px; width: 300px; box-shadow: 0 8px 32px rgba(0,0,0,.18); }
+.cq-modal { background: white; border-radius: 14px; padding: 22px; width: 300px; max-width: calc(100vw - 32px); box-sizing: border-box; box-shadow: 0 8px 32px rgba(0,0,0,.18); }
 .cq-modal h3 { font-size: 14px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 7px; }
 .cq-modal-btns { display: flex; gap: 7px; margin-top: 14px; justify-content: flex-end; }
 .cq-mbtn-del    { border: none; border-radius: 7px; padding: 6px 12px; font-size: 12px; cursor: pointer; background: #fee2e2; color: #991b1b; }
@@ -798,14 +798,14 @@ function _openEditModal(id) {
 }
 
 function _mField(label, id, val) {
-  return '<div class="cq-field-row" style="margin-bottom:8px"><span class="cq-field-label" style="min-width:120px;font-size:11px">'+label+'</span><input class="cq-fi" type="number" id="'+id+'" value="'+val+'"></div>';
+  return '<div class="cq-field-row" style="margin-bottom:8px"><span class="cq-field-label" style="min-width:80px;font-size:11px">'+label+'</span><input class="cq-fi" type="number" id="'+id+'" value="'+val+'"></div>';
 }
 
 function _mSelectTP(id, val) {
   var opts = [10,13,16,19,20].map(function(v){
     return '<option value="'+v+'"'+(v===val?' selected':'')+'>Ø '+v+' mm</option>';
   }).join('');
-  return '<div class="cq-field-row" style="margin-bottom:8px"><span class="cq-field-label" style="min-width:120px;font-size:11px">Diámetro</span><select class="cq-fi" id="'+id+'">'+opts+'</select></div>';
+  return '<div class="cq-field-row" style="margin-bottom:8px"><span class="cq-field-label" style="min-width:80px;font-size:11px">Diámetro</span><select class="cq-fi" id="'+id+'">'+opts+'</select></div>';
 }
 
 function _mSelectTA(id, val, label) {
@@ -813,7 +813,7 @@ function _mSelectTA(id, val, label) {
   for (var v=20; v<=29; v++) {
     opts.push('<option value="'+v+'"'+(v===val?' selected':'')+'>Ø '+v+' mm</option>');
   }
-  return '<div class="cq-field-row" style="margin-bottom:8px"><span class="cq-field-label" style="min-width:120px;font-size:11px">'+label+'</span><select class="cq-fi" id="'+id+'">'+opts.join('')+'</select></div>';
+  return '<div class="cq-field-row" style="margin-bottom:8px"><span class="cq-field-label" style="min-width:80px;font-size:11px">'+label+'</span><select class="cq-fi" id="'+id+'">'+opts.join('')+'</select></div>';
 }
 
 function _closeModal() {
@@ -1210,7 +1210,7 @@ function _redraw() {
       if (el.tipo==='ta') det = 'Ø'+el.de+'/'+el.di;
       if (el.tipo==='rs') det = el.w+'×'+el.h+'mm';
       out += '<text x="'+(tblX+tblW-2)+'" y="'+(ry+10)+'" text-anchor="end" font-size="7" fill="'+ec+'" font-family="monospace">'+det+'</text>';
-      out += '<text x="'+(tblX+2)+'" y="'+(ry+19)+'" font-size="6.5" fill="#374151" font-family="monospace">X: '+el.x+'  Y: '+el.y+'</text>';
+      out += '<text x="'+(tblX+8)+'" y="'+(ry+19)+'" font-size="6.5" fill="#374151" font-family="monospace">X: '+el.x+'  Y: '+el.y+'</text>';
     });
   }
 

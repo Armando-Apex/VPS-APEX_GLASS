@@ -240,7 +240,7 @@ if ($hasEl) {
         if ($el['tipo']==='ta') $det = '&#216;'.$el['de'].'/'.$el['di'];
         if ($el['tipo']==='rs') $det = $el['w'].'&#215;'.$el['h'].'mm';
         $svg .= '<text x="'.($tblX+$tblW-2).'" y="'.($ry+11).'" text-anchor="end" font-size="8" fill="'.$ec.'" font-family="monospace">'.$det.'</text>';
-        $svg .= '<text x="'.($tblX+2).'" y="'.($ry+$cardH-4).'" font-size="7.5" fill="#374151" font-family="monospace">X: '.$el['x'].'  Y: '.$el['y'].'</text>';
+        $svg .= '<text x="'.($tblX+8).'" y="'.($ry+$cardH-4).'" font-size="7.5" fill="#374151" font-family="monospace">X: '.$el['x'].'  Y: '.$el['y'].'</text>';
     }
 }
 

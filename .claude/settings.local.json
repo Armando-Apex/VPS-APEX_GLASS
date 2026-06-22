@@ -55,7 +55,14 @@
       "Bash(curl -s 'https://graph.facebook.com/v20.0/1517799296194687/message_templates?fields=name,components&limit=10&access_token=__CMDSUB_OUTPUT__')",
       "Bash(systemctl reload *)",
       "Bash(php84 *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(postfix status *)",
+      "Bash(systemctl is-active *)",
+      "Bash(mkdir -p /home/apexglass2025/apex.glass/public_html/produccion/lib/phpmailer)",
+      "Bash(curl -sO https://raw.githubusercontent.com/PHPMailer/PHPMailer/master/src/Exception.php)",
+      "Bash(curl -sO https://raw.githubusercontent.com/PHPMailer/PHPMailer/master/src/PHPMailer.php)",
+      "Bash(curl -sO https://raw.githubusercontent.com/PHPMailer/PHPMailer/master/src/SMTP.php)",
+      "Bash(chown apexglass2025:apexglass2025 *)"
     ]
   },
   "hooks": {
