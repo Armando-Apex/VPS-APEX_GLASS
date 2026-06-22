@@ -106,8 +106,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } elseif ($tipo === 'document') {
                     $contenido = $msg['document']['filename'] ?? 'documento';
                     $tipo = 'documento';
+                } elseif ($tipo === 'reaction') {
+                    $emoji = $msg['reaction']['emoji'] ?? '';
+                    if (!$emoji) continue; // reacción eliminada — ignorar
+                    $contenido = 'Reaccionó: ' . $emoji;
+                    $tipo = 'texto';
+                } elseif ($tipo === 'audio') {
+                    $contenido = '[Nota de voz]';
+                    $tipo = 'texto';
+                } elseif ($tipo === 'video') {
+                    $contenido = '[Video]';
+                    $tipo = 'texto';
+                } elseif ($tipo === 'sticker') {
+                    $contenido = '[Sticker]';
+                    $tipo = 'texto';
+                } elseif ($tipo === 'location') {
+                    $lat = $msg['location']['latitude']  ?? '';
+                    $lng = $msg['location']['longitude'] ?? '';
+                    $contenido = '[Ubicación: ' . $lat . ',' . $lng . ']';
+                    $tipo = 'texto';
+                } elseif ($tipo === 'interactive') {
+                    $contenido = $msg['interactive']['button_reply']['title']
+                              ?? $msg['interactive']['list_reply']['title']
+                              ?? '[Respuesta interactiva]';
+                    $tipo = 'texto';
                 } else {
-                    $contenido = '[Mensaje tipo: ' . $tipo . ']';
+                    $contenido = '[' . $tipo . ']';
                     $tipo = 'texto';
                 }
 
