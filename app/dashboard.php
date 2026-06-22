@@ -192,6 +192,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
       <div class="sidebar-label">Comercial</div>
       <button class="sidebar-link" data-modulo="cotizaciones" onclick="cargarModulo('cotizaciones')">
         <span class="sidebar-icon">&#128188;</span>Cotizaciones
+        <span id="authBadge" style="display:none;background:#d97706;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;margin-left:auto;"></span>
       </button>
       <button class="sidebar-link" data-modulo="clientes" onclick="cargarModulo('clientes')">
         <span class="sidebar-icon">&#128101;</span>Clientes
@@ -520,6 +521,29 @@ window.cargarModulo = function(nombre, params) {
   cerrarSidebar();
   return _cargarModuloOrig(nombre, params);
 };
+
+// ── Badge autorizaciones pendientes (ámbar) ───────────────────
+(function() {
+  function actualizarBadgeAuth() {
+    fetch('/produccion/api/autorizaciones.php?pendientes=1')
+      .then(function(r) { if (!r.ok) throw new Error(); return r.json(); })
+      .then(function(data) {
+        var badge = document.getElementById('authBadge');
+        if (!badge) return;
+        var total = Array.isArray(data) ? data.length : 0;
+        if (total > 0) {
+          badge.textContent = total;
+          badge.style.display = 'inline-block';
+        } else {
+          badge.style.display = 'none';
+        }
+      })
+      .catch(function() {});
+  }
+  actualizarBadgeAuth();
+  setInterval(actualizarBadgeAuth, 60000);
+  window.actualizarBadgeAuth = actualizarBadgeAuth;
+})();
 
 // ── Badge mensajes WA sin leer ────────────────────────────────
 (function() {
