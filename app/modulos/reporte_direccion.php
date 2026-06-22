@@ -232,7 +232,8 @@ function rdRender(rep, dash, inv) {
   var porAsesor   = rep.por_asesor            || [];
   var repro       = rep.reproceso    || {};
   var hornoSems   = rep.horno_semanas|| [];
-  var pctTiempo  = r.total > 0 ? Math.round((r.a_tiempo / r.total) * 100) : 0;
+  var _resueltas = parseInt(r.a_tiempo||0) + parseInt(r.con_retraso||0);
+  var pctTiempo  = _resueltas > 0 ? Math.round((r.a_tiempo / _resueltas) * 100) : 0;
   var pctColor   = pctTiempo >= 80 ? 'var(--green)' : pctTiempo >= 60 ? 'var(--amber)' : 'var(--red)';
   var pctCobrado = parseFloat(fin.ventas||0) > 0 ? Math.round((parseFloat(fin.cobrado||0) / parseFloat(fin.ventas)) * 100) : 0;
   var html = '';
@@ -241,7 +242,7 @@ function rdRender(rep, dash, inv) {
   html += '<div class="section-title">&#211;rdenes del per&#237;odo</div>';
   html += '<div class="kpi-grid" style="grid-template-columns:repeat(6,1fr)">' +
     '<div class="kpi-card"><div class="kpi-num">' + (r.total||0) + '</div><div class="kpi-label">Total</div></div>' +
-    '<div class="kpi-card"><div class="kpi-num" style="color:var(--green)">' + (r.a_tiempo||0) + '</div><div class="kpi-label">A tiempo</div><div class="kpi-sub">' + pctTiempo + '% del total</div></div>' +
+    '<div class="kpi-card"><div class="kpi-num" style="color:var(--green)">' + (r.a_tiempo||0) + '</div><div class="kpi-label">A tiempo</div><div class="kpi-sub">' + pctTiempo + '% de terminadas</div></div>' +
     '<div class="kpi-card"><div class="kpi-num" style="color:var(--red)">' + (r.con_retraso||0) + '</div><div class="kpi-label">Con retraso</div><div class="kpi-sub">Cerradas fuera de fecha</div></div>' +
     '<div class="kpi-card"><div class="kpi-num" style="color:var(--amber)">' + (r.en_proceso||0) + '</div><div class="kpi-label">En proceso</div><div class="kpi-sub">Activas dentro de fecha</div></div>' +
     '<div class="kpi-card"><div class="kpi-num" style="color:var(--red)">' + (r.retraso_abierto||0) + '</div><div class="kpi-label">Retraso abierto</div><div class="kpi-sub">Activas vencidas</div></div>' +
@@ -315,25 +316,22 @@ function rdRender(rep, dash, inv) {
   '</div>';
 
   /* ─── Barra entrega a tiempo ─── */
-  var bATiempo   = parseInt(r.a_tiempo||0);
-  var bRetraso   = parseInt(r.con_retraso||0);
-  var bEnProceso = parseInt(r.en_proceso||0);
-  var totalBarra   = bATiempo + bRetraso + bEnProceso;
-  var pctATiempo   = totalBarra > 0 ? (bATiempo   / totalBarra * 100).toFixed(1) : 0;
-  var pctRetraso   = totalBarra > 0 ? (bRetraso   / totalBarra * 100).toFixed(1) : 0;
-  var pctEnProceso = totalBarra > 0 ? (bEnProceso / totalBarra * 100).toFixed(1) : 0;
+  var bATiempo = parseInt(r.a_tiempo||0);
+  var bRetraso = parseInt(r.con_retraso||0);
+  var totalBarra  = bATiempo + bRetraso;
+  var pctATiempo  = totalBarra > 0 ? (bATiempo / totalBarra * 100).toFixed(1) : 0;
+  var pctRetraso  = totalBarra > 0 ? (bRetraso / totalBarra * 100).toFixed(1) : 0;
 
   html += '<div class="efectividad-card">' +
     '<div class="efect-header"><div class="efect-title">Entrega a tiempo</div><div class="efect-pct" style="color:' + pctColor + '">' + pctTiempo + '%</div></div>' +
     '<div class="efect-bar">' +
-      (pctATiempo   > 0 ? '<div style="width:' + pctATiempo   + '%;background:var(--green);transition:width .4s"></div>' : '') +
-      (pctRetraso   > 0 ? '<div style="width:' + pctRetraso   + '%;background:var(--red);transition:width .4s"></div>' : '') +
-      (pctEnProceso > 0 ? '<div style="width:' + pctEnProceso + '%;background:var(--amber);transition:width .4s"></div>' : '') +
+      (pctATiempo > 0 ? '<div style="width:' + pctATiempo + '%;background:var(--green);transition:width .4s"></div>' : '') +
+      (pctRetraso > 0 ? '<div style="width:' + pctRetraso + '%;background:var(--red);transition:width .4s"></div>' : '') +
     '</div>' +
     '<div class="efect-legend">' +
-      '<span><span class="leg-dot" style="background:var(--green)"></span>' + (r.a_tiempo||0) + ' a tiempo (' + pctATiempo + '%)</span>' +
-      '<span><span class="leg-dot" style="background:var(--red)"></span>' + (r.con_retraso||0) + ' con retraso (' + pctRetraso + '%)</span>' +
-      '<span><span class="leg-dot" style="background:var(--amber)"></span>' + (r.en_proceso||0) + ' en proceso (' + pctEnProceso + '%)</span>' +
+      '<span><span class="leg-dot" style="background:var(--green)"></span>' + bATiempo + ' a tiempo (' + pctATiempo + '%)</span>' +
+      '<span><span class="leg-dot" style="background:var(--red)"></span>' + bRetraso + ' con retraso (' + pctRetraso + '%)</span>' +
+      '<span style="color:var(--muted)">' + (parseInt(r.en_proceso||0) + parseInt(r.retraso_abierto||0)) + ' a&#250;n en producci&#243;n (excluidas)</span>' +
     '</div>' +
   '</div>';
 
@@ -349,7 +347,8 @@ function rdRender(rep, dash, inv) {
         '<th>% A tiempo</th><th>Prom. d&#237;as</th><th>Local</th><th>For&#225;neo</th>' +
       '</tr></thead><tbody>';
     filas.forEach(function(m) {
-      var pct = m.total > 0 ? Math.round((m.a_tiempo/m.total)*100) : 0;
+      var _res = parseInt(m.a_tiempo||0) + parseInt(m.con_retraso||0);
+      var pct = _res > 0 ? Math.round((m.a_tiempo/_res)*100) : 0;
       var cls = pct>=80?'pct-good':pct>=60?'pct-warn':'pct-bad';
       html += '<tr>' +
         '<td>' + m.mes_label + '</td>' +
@@ -371,7 +370,7 @@ function rdRender(rep, dash, inv) {
         '<td>Total</td><td>' + totRow.total + '</td><td>' + totRow.cerradas + '</td>' +
         '<td>' + totRow.abiertas + '</td><td>' + totRow.a_tiempo + '</td>' +
         '<td>' + totRow.con_retraso + '</td><td>' + totRow.en_proceso + '</td>' +
-        '<td>' + (totRow.total>0?Math.round((totRow.a_tiempo/totRow.total)*100)+'%':'&#8212;') + '</td>' +
+        '<td>' + (function(){ var _r=parseInt(totRow.a_tiempo||0)+parseInt(totRow.con_retraso||0); return _r>0?Math.round(totRow.a_tiempo/_r*100)+'%':'&#8212;'; })() + '</td>' +
         '<td>' + (totRow.prom_dias?parseFloat(totRow.prom_dias).toFixed(1):'&#8212;') + '</td>' +
         '<td>' + (totRow.local||0) + '</td><td>' + (totRow.foraneo||0) + '</td>' +
       '</tr></tfoot>';
