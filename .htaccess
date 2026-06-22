@@ -23,10 +23,18 @@
 # Deshabilitar listado de directorios
 Options -Indexes
 
+# Evitar que ETags filtren inodos del filesystem
+FileETag MTime Size
+
 # Proteger archivos sensibles
 <FilesMatch "\.(env|log|sql|sh|bak|git)$">
     Require all denied
 </FilesMatch>
+
+# Bloquear error_log sin extensión
+<Files "error_log">
+    Require all denied
+</Files>
 
 # Bloquear acceso a directorios internos de control
 <IfModule mod_rewrite.c>

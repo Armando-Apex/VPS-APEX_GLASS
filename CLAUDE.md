@@ -376,6 +376,11 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | BAJA | Ambos | m2_requeridos en laminas.php | Pendiente |
 | MANUAL | Armando | Actualizar CTN-259: "PRUEBA PORTAL" → "JESUS MANUEL SALDANA DE LA ROSA" | Pendiente |
 | MANUAL | Armando | Capturar precios: Claro 12mm, Claro Zafiro 9mm, Filtrasol 9mm, Tintex 6mm, Tintex 9mm | Pendiente |
+| ALTA | Ambos | SEGURIDAD: Fail2ban en puerto 8443 (AdminBolt) — protección brute force, panel expuesto al internet | Pendiente |
+| ALTA | Ambos | SEGURIDAD: FTP puerto 21 abierto — evaluar migrar a SFTP (puerto 22) y cerrar FTP | Pendiente |
+| ALTA | Ambos | SEGURIDAD: Rate limiting en login.php — verificar/implementar bloqueo por intentos fallidos | Pendiente |
+| MEDIA | Armando | SEGURIDAD: SSH hardening — verificar que solo acepta llaves, no password | Pendiente |
+| MEDIA | Armando | SEGURIDAD: Revisar permisos de archivos en servidor (buscar 777) | Pendiente |
 
 ---
 
@@ -566,5 +571,11 @@ Al terminar cualquier sesión con cambios:
 | UPD-157 | 22-jun | Armando | Badge ámbar autorizaciones pendientes en sidebar "Cotizaciones": polling 60s a api/autorizaciones.php?pendientes=1; solo visible para dir_admin; color #d97706 |
 | UPD-158 | 22-jun | Armando | Cobranza: orden cambiado a pendiente → parcial → pagado (los que necesitan atención primero), dentro de cada grupo por o.id DESC (más reciente arriba) |
 | UPD-159 | 22-jun | Armando | cotizacion.php: seleccionar espejo → templado automático NO; cambiar a otro cristal → templado vuelve a SÍ; implementado como window.cotAutoTemplado (patrón correcto SPA para funciones llamadas desde onchange HTML) |
-
-**Próximo UPD disponible: UPD-160**
+| UPD-160 | 22-jun | Mando | SEGURIDAD pentesting Kali: nmap, testssl (SSL A+), curl (headers), gobuster, nikto — sin hallazgos críticos post-fixes ||
+| UPD-161 | 22-jun | Mando | SEGURIDAD error_log expuesto: bloque <Files "error_log"> en .htaccess raíz |
+| UPD-162 | 22-jun | Mando | SEGURIDAD ETags: FileETag MTime Size en .htaccess — evita filtrar inodos (CVE-2003-1418) |
+| UPD-163 | 22-jun | Mando | Fix operador.php estación terminado: botón ámbar de omisión para piezas en estatus intermedios|
+| UPD-164 | 22-jun | Mando | Fix buscar_orden.php: filtro por estación ampliado para incluir estatus anteriores por omisión|
+| UPD-165 | 22-jun | Mando | Permisos Compras: administracion y dueno pueden crear/editar OCs igual que dir_admin |
+| UPD-166 | 22-jun | Mando | NUEVO Comprobantes en OC: tabla oc_archivos, carpeta archivos_oc/, tab Comprobantes en modalDetalle |
+**Próximo UPD disponible: UPD-167**
