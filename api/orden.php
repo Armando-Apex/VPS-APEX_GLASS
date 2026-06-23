@@ -6,7 +6,17 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
-requireSessionApi();
+
+// Acepta sesión interna del sistema O sesión del portal de clientes
+if (session_status() === PHP_SESSION_NONE) session_start();
+$esPortal     = !empty($_SESSION['portal_cliente_id']);
+$esInterno    = !empty($_SESSION['usuario']);
+if (!$esPortal && !$esInterno) {
+    header('Content-Type: application/json');
+    http_response_code(401);
+    echo json_encode(['error' => 'No autorizado']); exit;
+}
+$portalClienteId = $esPortal ? (int)$_SESSION['portal_cliente_id'] : null;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: https://apex.glass');
@@ -21,6 +31,17 @@ $stmt = $db->prepare('SELECT * FROM ordenes WHERE folio = ?');
 $stmt->execute([$folio]);
 $orden = $stmt->fetch();
 if (!$orden) jsonResponse(['error' => 'Orden no encontrada'], 404);
+
+// Si es portal, verificar que la orden pertenece al cliente de la sesión
+if ($esPortal) {
+    $stmtCli = $db->prepare('SELECT razon_social, nombre FROM clientes WHERE id = ?');
+    $stmtCli->execute([$portalClienteId]);
+    $rowCli = $stmtCli->fetch();
+    $razonCli = $rowCli ? ($rowCli['razon_social'] ?: $rowCli['nombre']) : '';
+    if ((int)$orden['cliente_id'] !== $portalClienteId && $orden['cliente_nombre'] !== $razonCli) {
+        jsonResponse(['error' => 'No autorizado'], 403);
+    }
+}
 
 // Todas las piezas con sus campos de trabajos incluidos
 $stmt = $db->prepare('
