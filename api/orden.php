@@ -10,7 +10,7 @@ require_once 'permisos.php';
 // Acepta sesión interna del sistema O sesión del portal de clientes
 if (session_status() === PHP_SESSION_NONE) session_start();
 $esPortal     = !empty($_SESSION['portal_cliente_id']);
-$esInterno    = !empty($_SESSION['usuario']);
+$esInterno    = !empty($_SESSION['user_id']);
 if (!$esPortal && !$esInterno) {
     header('Content-Type: application/json');
     http_response_code(401);
