@@ -1221,8 +1221,7 @@ function _redraw() {
     }
     if (e.tipo==='rs') {
       var rw=Math.max(8,e.h*sc), rh=Math.max(4,e.w*sc);
-      // Preset herraje: mínimo para que la silueta sea legible (sin exagerar)
-      if ((e.rs_preset||0) === 1) { rw = Math.max(rw, 22); rh = Math.max(rh, Math.round(22*(58/37.5))); }
+      // Sin mínimo forzado para presets — se dibuja a escala real
       var exD = Math.min(ex, ox+gw-rw);
       var rySVG = Math.max(ey - rh, oy);
       out += '<g style="cursor:'+cur+'"'+evts+'>';
