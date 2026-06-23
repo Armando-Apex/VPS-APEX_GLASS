@@ -505,4 +505,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-174 | 23-jun | Mando | Croquis resaque fuera de pieza: posición de dibujo clampeada con exD=min(ex, ox+gw-rw) y rySVG=max(ey-rh, oy) — resaque nunca sale del diagrama; todas las cotas y etiquetas actualizadas a exD; aplica en editor y PDF |
 | UPD-175 | 23-jun | Armando | Correo OC: BD += correo_enviado/correo_enviado_at; api/mailer.php (PHPMailer SMTP .env); ordenes_compra.php += pendientes_envio, enviar_correo, auto-send al abrir OC si dir_admin; compras.php += upload archivo en modal creación + botón "Enviar OC por correo" (morado, solo dir_admin no enviado) + badge morado sidebar polling 60s |
 | UPD-176 | 23-jun | Mando | Fix chat WA nombre contacto: webhook SELECT += cliente_id para detectar NULL; si conversación ya existe y cliente_id IS NULL → busca en clientes por teléfono y actualiza; GET conversaciones: COALESCE(c.nombre, cp.nombre) con LEFT JOIN fallback por teléfono + UPDATE auto-vinculación al cargar lista |
-**Próximo UPD disponible: UPD-177**
+| UPD-177 | 23-jun | Armando | SEGURIDAD api/orden_comentarios.php: fix IDOR — cancelar ahora requiere ser autor o admin (dir_admin/dueno/administracion); listar/agregar verifican existencia de cotización y que comercial solo acceda a las suyas vía asesor_id |
+**Próximo UPD disponible: UPD-178**
