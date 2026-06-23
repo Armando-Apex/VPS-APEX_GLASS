@@ -263,13 +263,16 @@ if ($ordenCompleta && $estatus === 'terminado') {
     // Envío WA automático (una sola vez) cuando toda la orden está terminada
     try {
         $stmtWa = $db->prepare('
-            SELECT o.wa_lista_enviado, o.cliente_nombre, o.folio, o.cliente_id,
-                   cl.telefono, cl.telefono_alterno,
+            SELECT o.wa_lista_enviado, o.cliente_nombre, o.folio,
+                   COALESCE(o.cliente_id, c.cliente_id) as cliente_id,
+                   COALESCE(cl.telefono, cl2.telefono) as telefono,
+                   COALESCE(cl.telefono_alterno, cl2.telefono_alterno) as telefono_alterno,
                    c.proyecto,
                    (SELECT COUNT(*) FROM piezas WHERE orden_id = o.id) as total_piezas
             FROM ordenes o
             LEFT JOIN clientes cl ON cl.id = o.cliente_id
             LEFT JOIN cotizaciones c ON c.orden_id = o.id
+            LEFT JOIN clientes cl2 ON cl2.id = c.cliente_id
             WHERE o.id = ?
         ');
         $stmtWa->execute([$pieza['orden_id']]);

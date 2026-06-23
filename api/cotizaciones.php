@@ -235,14 +235,15 @@ if ($method === 'POST') {
         $db->beginTransaction();
         try {
             $stmt3 = $db->prepare("INSERT INTO ordenes
-                (folio, orden_trabajo, tipo, cliente_nombre, asesor, proyecto,
+                (folio, orden_trabajo, tipo, cliente_id, cliente_nombre, asesor, proyecto,
                  fecha_pedido, fecha_entrega, tipo_entrega, observaciones)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
             ");
             $stmt3->execute([
                 $folio_orden,
                 $folio_orden,
                 'suministro',
+                $cot['cliente_id'] ?: null,
                 $cot['cliente_nombre'],
                 $cot['asesor_nombre'],
                 $cot['proyecto'] ?? '',
