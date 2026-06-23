@@ -9,19 +9,18 @@ $body   = json_decode(file_get_contents('php://input'), true) ?? [];
 
 $esAdmin = in_array($user['rol'], ['dir_admin', 'dueno', 'administracion']);
 
-// Verifica que el usuario tiene acceso a la cotización (comercial solo ve las suyas)
+// Verifica que el usuario tiene acceso a la cotización (default-deny: no-admin debe ser asesor)
 function verificarAccesoCotizacion($db, $cid, $user, $esAdmin) {
     $st = $db->prepare('SELECT id FROM cotizaciones WHERE id = ?');
     $st->execute([$cid]);
     if (!$st->fetch()) {
         jsonResponse(['error' => 'Cotización no encontrada'], 404);
     }
-    if (!$esAdmin && $user['rol'] === 'comercial') {
-        $st2 = $db->prepare('SELECT id FROM cotizaciones WHERE id = ? AND asesor_id = ?');
-        $st2->execute([$cid, $user['id']]);
-        if (!$st2->fetch()) {
-            jsonResponse(['error' => 'Sin acceso a esta cotización'], 403);
-        }
+    if ($esAdmin) return;
+    $st2 = $db->prepare('SELECT id FROM cotizaciones WHERE id = ? AND asesor_id = ?');
+    $st2->execute([$cid, $user['id']]);
+    if (!$st2->fetch()) {
+        jsonResponse(['error' => 'Sin acceso a esta cotización'], 403);
     }
 }
 
