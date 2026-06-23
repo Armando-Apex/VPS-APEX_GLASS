@@ -64,7 +64,8 @@
       "Bash(curl -sO https://raw.githubusercontent.com/PHPMailer/PHPMailer/master/src/SMTP.php)",
       "Bash(chown apexglass2025:apexglass2025 *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost/produccion/app/imprimir_cotizacion.php?id=197\")",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(grep -n '^\\\\$pdo\\\\|^\\\\$conn\\\\|^\\\\$db\\\\|new PDO\\\\|new mysqli\\\\|mysqli_connect' /home/apexglass2025/apex.glass/public_html/produccion/api/config.php)"
     ]
   },
   "hooks": {
