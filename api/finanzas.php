@@ -200,18 +200,36 @@ if ($method === 'POST') {
 
         $db->beginTransaction();
         try {
-            // Insertar pago
+            // Calcular total y saldo pendiente ANTES de aplicar el pago
+            $stmt_pre = $db->prepare("SELECT COALESCE(saldo_pagado,0) as saldo_pagado, descuento, servicios_subtotal,
+                COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id = c.id),0) AS bruto_partidas,
+                cliente_id
+                FROM cotizaciones c WHERE c.id = ?");
+            $stmt_pre->execute([$cot_id]);
+            $pre = $stmt_pre->fetch(PDO::FETCH_ASSOC);
+            if (!$pre) throw new Exception('Cotización no encontrada');
+
+            $total_real      = round(((float)$pre['bruto_partidas'] * (1 - (float)$pre['descuento']/100) + (float)$pre['servicios_subtotal']) * 1.16, 2);
+            $saldo_pendiente = round(max(0, $total_real - (float)$pre['saldo_pagado']), 2);
+            $excedente       = round($monto - $saldo_pendiente, 2);
+
+            // Si hay excedente > $5 solo registramos lo necesario para saldar; el resto va a saldo a favor
+            // Si excedente <= $5 se absorbe (redondeo / diferencia de centavos)
+            $monto_aplicar = ($excedente > 5.00) ? $saldo_pendiente : $monto;
+            $depositar_favor = ($excedente > 5.00) ? $excedente : 0.0;
+
+            // Insertar pago (por el monto que realmente se aplica a la orden)
             $db->prepare("INSERT INTO cotizacion_pagos
                 (cotizacion_id, fecha_pago, hora_pago, monto, forma_pago, notas, registrado_por)
                 VALUES (?,?,?,?,?,?,?)
-            ")->execute([$cot_id, $fecha, $hora, $monto, $forma, $notas, $usuario_nombre]);
+            ")->execute([$cot_id, $fecha, $hora, $monto_aplicar, $forma, $notas, $usuario_nombre]);
 
             // Actualizar saldo_pagado en cotizaciones
             $db->prepare("UPDATE cotizaciones SET
                 saldo_pagado = COALESCE(saldo_pagado,0) + ?,
                 updated_at = NOW()
                 WHERE id = ?
-            ")->execute([$monto, $cot_id]);
+            ")->execute([$monto_aplicar, $cot_id]);
 
             // Si aplica saldo a favor → descontar del monedero del cliente
             if ($forma === 'saldo_favor') {
@@ -238,6 +256,20 @@ if ($method === 'POST') {
                 ")->execute([$cliente_id, -$monto, $fecha, $ref, $notas, $cot_id, $usuario_nombre]);
             }
 
+            // Si el pago excedió el total en más de $5 → depositar diferencia como saldo a favor
+            if ($depositar_favor > 0) {
+                $cliente_id_dep = (int)($pre['cliente_id'] ?? 0);
+                if (!$cliente_id_dep) throw new Exception('Cotización sin cliente asociado para depósito de excedente');
+                $stmt_fol = $db->prepare("SELECT o.folio FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id WHERE c.id = ?");
+                $stmt_fol->execute([$cot_id]);
+                $fila_fol = $stmt_fol->fetch(PDO::FETCH_ASSOC);
+                $ref_dep  = 'Excedente de pago en ' . ($fila_fol ? $fila_fol['folio'] : 'cot. #'.$cot_id);
+                $db->prepare("INSERT INTO clientes_saldo_favor
+                    (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
+                    VALUES (?, 'deposito', ?, ?, ?, ?, ?, ?)
+                ")->execute([$cliente_id_dep, $depositar_favor, $fecha, $ref_dep, $notas, $cot_id, $usuario_nombre]);
+            }
+
             $db->commit();
 
             // Devolver saldo actualizado (bruto desde partidas para evitar inconsistencia en c.subtotal)
@@ -255,9 +287,10 @@ if ($method === 'POST') {
             }
 
             echo json_encode([
-                'ok'           => true,
-                'saldo_pagado' => $cot['saldo_pagado'],
-                'total'        => $total_real,
+                'ok'              => true,
+                'saldo_pagado'    => $cot['saldo_pagado'],
+                'total'           => $total_real,
+                'excedente'       => $depositar_favor > 0 ? $depositar_favor : null,
             ]);
         } catch (Exception $e) {
             $db->rollBack();

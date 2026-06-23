@@ -127,7 +127,7 @@ $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cOff).'" x2="'.($ox+$gw).'" y2="'.
 $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cOff-$tk).'" x2="'.$ox.'" y2="'.($oyBottom+$cOff+$tk).'" stroke="#222222" stroke-width="'.$sw.'"/>';
 $svg .= '<line x1="'.($ox+$gw).'" y1="'.($oyBottom+$cOff-$tk).'" x2="'.($ox+$gw).'" y2="'.($oyBottom+$cOff+$tk).'" stroke="#222222" stroke-width="'.$sw.'"/>';
 $svg .= '<rect x="'.($ox+$gw/2-$lblW/2).'" y="'.($oyBottom+$cOff-$lblH/2).'" width="'.$lblW.'" height="'.$lblH.'" fill="white"/>';
-$svg .= '<text x="'.($ox+$gw/2).'" y="'.($oyBottom+$cOff+$fz/2-1).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#1e293b" font-family="monospace">'.$ancho.' mm</text>';
+$svg .= '<text x="'.($ox+$gw/2).'" y="'.($oyBottom+$cOff+$fz/2-1).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#111111" font-family="monospace">'.$ancho.' mm</text>';
 
 // Cota alto
 $svg .= '<line x1="'.$ox.'" y1="'.$oy.'" x2="'.($ox-$cxOff-2).'" y2="'.$oy.'" stroke="#bbbbbb" stroke-width="0.5" stroke-dasharray="2,2"/>';
@@ -136,78 +136,78 @@ $svg .= '<line x1="'.($ox-$cxOff).'" y1="'.$oy.'" x2="'.($ox-$cxOff).'" y2="'.$o
 $svg .= '<line x1="'.($ox-$cxOff-$tk).'" y1="'.$oy.'" x2="'.($ox-$cxOff+$tk).'" y2="'.$oy.'" stroke="#222222" stroke-width="'.$sw.'"/>';
 $svg .= '<line x1="'.($ox-$cxOff-$tk).'" y1="'.$oyBottom.'" x2="'.($ox-$cxOff+$tk).'" y2="'.$oyBottom.'" stroke="#222222" stroke-width="'.$sw.'"/>';
 $svg .= '<rect x="'.($ox-$cxOff-$rotW/2).'" y="'.($oy+$gh/2-$rotH/2).'" width="'.$rotW.'" height="'.$rotH.'" fill="white"/>';
-$svg .= '<text x="'.($ox-$cxOff).'" y="'.($oy+$gh/2).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#1e293b" font-family="monospace" transform="rotate(-90,'.($ox-$cxOff).','.($oy+$gh/2).')">'.$alto.' mm</text>';
+$svg .= '<text x="'.($ox-$cxOff).'" y="'.($oy+$gh/2).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#111111" font-family="monospace" transform="rotate(-90,'.($ox-$cxOff).','.($oy+$gh/2).')">'.$alto.' mm</text>';
 
 // Eje X
 $ejXY = $oyBottom + $cOff + 14;
-$svg .= '<line x1="'.$ox.'" y1="'.$ejXY.'" x2="'.($ox+$gw).'" y2="'.$ejXY.'" stroke="#dc2626" stroke-width="1.1"/>';
-$svg .= '<line x1="'.$ox.'" y1="'.($ejXY-$tk).'" x2="'.$ox.'" y2="'.($ejXY+$tk).'" stroke="#dc2626" stroke-width="1.1"/>';
-$svg .= '<polygon points="'.($ox+$gw).','.($ejXY-$arwSz).' '.($ox+$gw+$arwLen).','.$ejXY.' '.($ox+$gw).','.($ejXY+$arwSz).'" fill="#dc2626"/>';
+$svg .= '<line x1="'.$ox.'" y1="'.$ejXY.'" x2="'.($ox+$gw).'" y2="'.$ejXY.'" stroke="#222222" stroke-width="1.1"/>';
+$svg .= '<line x1="'.$ox.'" y1="'.($ejXY-$tk).'" x2="'.$ox.'" y2="'.($ejXY+$tk).'" stroke="#222222" stroke-width="1.1"/>';
+$svg .= '<polygon points="'.($ox+$gw).','.($ejXY-$arwSz).' '.($ox+$gw+$arwLen).','.$ejXY.' '.($ox+$gw).','.($ejXY+$arwSz).'" fill="#222222"/>';
 $svg .= '<rect x="'.($ox+$gw/2-$lblWEj/2).'" y="'.($ejXY-$lblH/2).'" width="'.$lblWEj.'" height="'.$lblH.'" fill="white"/>';
-$svg .= '<text x="'.($ox+$gw/2).'" y="'.($ejXY+$fz/2-1).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#dc2626" font-family="monospace">Eje X</text>';
+$svg .= '<text x="'.($ox+$gw/2).'" y="'.($ejXY+$fz/2-1).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#222222" font-family="monospace">Eje X</text>';
 
 // Eje Y
 $ejYX = $ox - $cxOff - 24;
-$svg .= '<line x1="'.$ejYX.'" y1="'.$oyBottom.'" x2="'.$ejYX.'" y2="'.$oy.'" stroke="#16a34a" stroke-width="1.1"/>';
-$svg .= '<line x1="'.($ejYX-$tk).'" y1="'.$oyBottom.'" x2="'.($ejYX+$tk).'" y2="'.$oyBottom.'" stroke="#16a34a" stroke-width="1.1"/>';
-$svg .= '<polygon points="'.($ejYX-$arwSz).','.$oy.' '.$ejYX.','.($oy-$arwLen).' '.($ejYX+$arwSz).','.$oy.'" fill="#16a34a"/>';
+$svg .= '<line x1="'.$ejYX.'" y1="'.$oyBottom.'" x2="'.$ejYX.'" y2="'.$oy.'" stroke="#555555" stroke-width="1.1"/>';
+$svg .= '<line x1="'.($ejYX-$tk).'" y1="'.$oyBottom.'" x2="'.($ejYX+$tk).'" y2="'.$oyBottom.'" stroke="#555555" stroke-width="1.1"/>';
+$svg .= '<polygon points="'.($ejYX-$arwSz).','.$oy.' '.$ejYX.','.($oy-$arwLen).' '.($ejYX+$arwSz).','.$oy.'" fill="#555555"/>';
 $svg .= '<rect x="'.($ejYX-$rotW/2).'" y="'.($oy+$gh/2-$rotH/2).'" width="'.$rotW.'" height="'.$rotH.'" fill="white"/>';
-$svg .= '<text x="'.$ejYX.'" y="'.($oy+$gh/2).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#16a34a" font-family="monospace" transform="rotate(-90,'.$ejYX.','.($oy+$gh/2).')">Eje Y</text>';
+$svg .= '<text x="'.$ejYX.'" y="'.($oy+$gh/2).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#555555" font-family="monospace" transform="rotate(-90,'.$ejYX.','.($oy+$gh/2).')">Eje Y</text>';
 
 // Elementos
 foreach ($elementos as $idxEl => $e) {
     $ep = toPX((float)$e['x'], (float)$e['y'], $ox, $oyBottom, $sc);
     $ex = $ep['x']; $ey = $ep['y'];
 
-    $svg .= '<line x1="'.$ox.'" y1="'.$ey.'" x2="'.$ex.'" y2="'.$ey.'" stroke="#dc2626" stroke-width="0.6" stroke-dasharray="4,3" opacity="0.6"/>';
-    $svg .= '<line x1="'.$ex.'" y1="'.$oyBottom.'" x2="'.$ex.'" y2="'.$ey.'" stroke="#16a34a" stroke-width="0.6" stroke-dasharray="4,3" opacity="0.6"/>';
-    $svg .= '<circle cx="'.$ox.'" cy="'.$ey.'" r="2.5" fill="#dc2626" opacity="0.7"/>';
-    $svg .= '<circle cx="'.$ex.'" cy="'.$oyBottom.'" r="2.5" fill="#16a34a" opacity="0.7"/>';
+    $svg .= '<line x1="'.$ox.'" y1="'.$ey.'" x2="'.$ex.'" y2="'.$ey.'" stroke="#222222" stroke-width="0.6" stroke-dasharray="4,3" opacity="0.6"/>';
+    $svg .= '<line x1="'.$ex.'" y1="'.$oyBottom.'" x2="'.$ex.'" y2="'.$ey.'" stroke="#555555" stroke-width="0.6" stroke-dasharray="4,3" opacity="0.6"/>';
+    $svg .= '<circle cx="'.$ox.'" cy="'.$ey.'" r="2.5" fill="#666666" opacity="0.7"/>';
+    $svg .= '<circle cx="'.$ex.'" cy="'.$oyBottom.'" r="2.5" fill="#888888" opacity="0.7"/>';
 
     // Cota X debajo del vidrio (fila por elemento, después del Eje X)
     $cxBase = $cOff + 14 + 12;
     $cxPad  = $cxBase + $idxEl*$rowStep; $cxLblW=44; $cxLblH=12;
-    $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cxPad).'" x2="'.$ex.'" y2="'.($oyBottom+$cxPad).'" stroke="#dc2626" stroke-width="'.$sw.'"/>';
-    $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cxPad-$tk/2).'" x2="'.$ox.'" y2="'.($oyBottom+$cxPad+$tk/2).'" stroke="#dc2626" stroke-width="'.$sw.'"/>';
-    $svg .= '<line x1="'.$ex.'" y1="'.($oyBottom+$cxPad-$tk/2).'" x2="'.$ex.'" y2="'.($oyBottom+$cxPad+$tk/2).'" stroke="#dc2626" stroke-width="'.$sw.'"/>';
+    $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cxPad).'" x2="'.$ex.'" y2="'.($oyBottom+$cxPad).'" stroke="#222222" stroke-width="'.$sw.'"/>';
+    $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cxPad-$tk/2).'" x2="'.$ox.'" y2="'.($oyBottom+$cxPad+$tk/2).'" stroke="#222222" stroke-width="'.$sw.'"/>';
+    $svg .= '<line x1="'.$ex.'" y1="'.($oyBottom+$cxPad-$tk/2).'" x2="'.$ex.'" y2="'.($oyBottom+$cxPad+$tk/2).'" stroke="#222222" stroke-width="'.$sw.'"/>';
     $lxMid = $ox + ($ex-$ox)/2;
     $svg .= '<rect x="'.($lxMid-$cxLblW/2).'" y="'.($oyBottom+$cxPad+2).'" width="'.$cxLblW.'" height="'.$cxLblH.'" fill="white" rx="2"/>';
-    $svg .= '<text x="'.$lxMid.'" y="'.($oyBottom+$cxPad+$cxLblH/2+$fzSm/2).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#dc2626" font-family="monospace">X: '.$e['x'].' mm</text>';
+    $svg .= '<text x="'.$lxMid.'" y="'.($oyBottom+$cxPad+$cxLblH/2+$fzSm/2).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#222222" font-family="monospace">X: '.$e['x'].' mm</text>';
 
     // Cota Y a la derecha del vidrio (columna por elemento)
     $cyPad=6 + $idxEl*$rowStep; $cyLblW=12; $cyLblH=44;
-    $svg .= '<line x1="'.($ox+$gw+$cyPad).'" y1="'.$oyBottom.'" x2="'.($ox+$gw+$cyPad).'" y2="'.$ey.'" stroke="#16a34a" stroke-width="'.$sw.'"/>';
-    $svg .= '<line x1="'.($ox+$gw+$cyPad-$tk/2).'" y1="'.$oyBottom.'" x2="'.($ox+$gw+$cyPad+$tk/2).'" y2="'.$oyBottom.'" stroke="#16a34a" stroke-width="'.$sw.'"/>';
-    $svg .= '<line x1="'.($ox+$gw+$cyPad-$tk/2).'" y1="'.$ey.'" x2="'.($ox+$gw+$cyPad+$tk/2).'" y2="'.$ey.'" stroke="#16a34a" stroke-width="'.$sw.'"/>';
+    $svg .= '<line x1="'.($ox+$gw+$cyPad).'" y1="'.$oyBottom.'" x2="'.($ox+$gw+$cyPad).'" y2="'.$ey.'" stroke="#555555" stroke-width="'.$sw.'"/>';
+    $svg .= '<line x1="'.($ox+$gw+$cyPad-$tk/2).'" y1="'.$oyBottom.'" x2="'.($ox+$gw+$cyPad+$tk/2).'" y2="'.$oyBottom.'" stroke="#555555" stroke-width="'.$sw.'"/>';
+    $svg .= '<line x1="'.($ox+$gw+$cyPad-$tk/2).'" y1="'.$ey.'" x2="'.($ox+$gw+$cyPad+$tk/2).'" y2="'.$ey.'" stroke="#555555" stroke-width="'.$sw.'"/>';
     $lyMid = $ey + ($oyBottom-$ey)/2;
     $svg .= '<rect x="'.($ox+$gw+$cyPad+2).'" y="'.($lyMid-$cyLblH/2).'" width="'.$cyLblW.'" height="'.$cyLblH.'" fill="white" rx="2"/>';
-    $svg .= '<text x="'.($ox+$gw+$cyPad+$cyLblW/2+2).'" y="'.$lyMid.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#16a34a" font-family="monospace" transform="rotate(-90,'.($ox+$gw+$cyPad+$cyLblW/2+2).','.$lyMid.')">Y: '.$e['y'].' mm</text>';
+    $svg .= '<text x="'.($ox+$gw+$cyPad+$cyLblW/2+2).'" y="'.$lyMid.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#555555" font-family="monospace" transform="rotate(-90,'.($ox+$gw+$cyPad+$cyLblW/2+2).','.$lyMid.')">Y: '.$e['y'].' mm</text>';
 
     if ($e['tipo'] === 'tp') {
         $r = max(4, ((float)$e['d']/2) * $sc);
-        $svg .= '<circle cx="'.$ex.'" cy="'.$ey.'" r="'.$r.'" fill="white" stroke="#1e40af" stroke-width="1.5"/>';
-        $svg .= '<line x1="'.($ex-$r*1.3).'" y1="'.$ey.'" x2="'.($ex+$r*1.3).'" y2="'.$ey.'" stroke="#1e40af" stroke-width="1"/>';
-        $svg .= '<line x1="'.$ex.'" y1="'.($ey-$r*1.3).'" x2="'.$ex.'" y2="'.($ey+$r*1.3).'" stroke="#1e40af" stroke-width="1"/>';
+        $svg .= '<circle cx="'.$ex.'" cy="'.$ey.'" r="'.$r.'" fill="white" stroke="#111111" stroke-width="1.5"/>';
+        $svg .= '<line x1="'.($ex-$r*1.3).'" y1="'.$ey.'" x2="'.($ex+$r*1.3).'" y2="'.$ey.'" stroke="#111111" stroke-width="1"/>';
+        $svg .= '<line x1="'.$ex.'" y1="'.($ey-$r*1.3).'" x2="'.$ex.'" y2="'.($ey+$r*1.3).'" stroke="#111111" stroke-width="1"/>';
         $lx=$ex+$r+4; $ly=$ey-$r-4;
         $svg .= '<rect x="'.($lx-1).'" y="'.($ly-$fz).'" width="62" height="'.($fz+3).'" fill="white" rx="2"/>';
-        $svg .= '<text x="'.$lx.'" y="'.$ly.'" font-size="'.$fzSm.'" font-weight="700" fill="#1e40af" font-family="monospace">TP  &#216;'.$e['d'].' mm</text>';
+        $svg .= '<text x="'.$lx.'" y="'.$ly.'" font-size="'.$fzSm.'" font-weight="700" fill="#111111" font-family="monospace">TP  &#216;'.$e['d'].' mm</text>';
     }
     if ($e['tipo'] === 'ta') {
         $re = max(5, ((float)$e['de']/2) * $sc);
         $ri = max(2, ((float)$e['di']/2) * $sc);
-        $svg .= '<circle cx="'.$ex.'" cy="'.$ey.'" r="'.$re.'" fill="white" stroke="#7c3aed" stroke-width="1.5"/>';
-        $svg .= '<circle cx="'.$ex.'" cy="'.$ey.'" r="'.$ri.'" fill="none" stroke="#7c3aed" stroke-width="0.8" stroke-dasharray="2,1.5"/>';
+        $svg .= '<circle cx="'.$ex.'" cy="'.$ey.'" r="'.$re.'" fill="white" stroke="#333333" stroke-width="1.5"/>';
+        $svg .= '<circle cx="'.$ex.'" cy="'.$ey.'" r="'.$ri.'" fill="none" stroke="#333333" stroke-width="0.8" stroke-dasharray="2,1.5"/>';
         $lx=$ex+$re+4; $ly=$ey-$re-4;
         $svg .= '<rect x="'.($lx-1).'" y="'.($ly-$fz).'" width="76" height="'.($fz+3).'" fill="white" rx="2"/>';
-        $svg .= '<text x="'.$lx.'" y="'.$ly.'" font-size="'.$fzSm.'" font-weight="700" fill="#7c3aed" font-family="monospace">TA  &#216;'.$e['de'].'/'.$e['di'].' mm</text>';
+        $svg .= '<text x="'.$lx.'" y="'.$ly.'" font-size="'.$fzSm.'" font-weight="700" fill="#333333" font-family="monospace">TA  &#216;'.$e['de'].'/'.$e['di'].' mm</text>';
     }
     if ($e['tipo'] === 'rs') {
         $rw = max(8, (float)$e['h']*$sc);
         $rh = max(4, (float)$e['w']*$sc);
         $exD = min($ex, $ox+$gw-$rw);
         $rySVG = max($ey - $rh, $oy);
-        $colRS = '#854d0e';
-        $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+        $colRS = '#333333';
+        $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#e8e8e8" fill-opacity="1" stroke="#333333" stroke-width="1.2" stroke-dasharray="3,2"/>';
         $svg .= '<line x1="'.$exD.'" y1="'.($rySVG-9).'" x2="'.($exD+$rw).'" y2="'.($rySVG-9).'" stroke="'.$colRS.'" stroke-width="0.8"/>';
         $svg .= '<line x1="'.$exD.'" y1="'.($rySVG-12).'" x2="'.$exD.'" y2="'.($rySVG-6).'" stroke="'.$colRS.'" stroke-width="0.8"/>';
         $svg .= '<line x1="'.($exD+$rw).'" y1="'.($rySVG-12).'" x2="'.($exD+$rw).'" y2="'.($rySVG-6).'" stroke="'.$colRS.'" stroke-width="0.8"/>';
@@ -228,7 +228,7 @@ foreach ($elementos as $idxEl => $e) {
         $rh = max(4, (float)$e['w']*$sc);
         $exD = min($ex, $ox+$gw-$rw);
         $rySVG = max($ey - $rh, $oy);
-        $colBI = '#0f766e';
+        $colBI = '#333333';
         $distR = $ancho - (float)$e['x']; $distL = (float)$e['x'];
         $distT = $alto  - (float)$e['y']; $distB = (float)$e['y'];
         $minD  = min($distR, $distL, $distT, $distB);
@@ -240,9 +240,9 @@ foreach ($elementos as $idxEl => $e) {
         $cr1  = $rw * 0.28; $d45 = $cr1 * 0.7071;
         $lx1  = $exD - $d45; $rx1c = $exD + $rw + $d45; $eyC = $rySVG - $d45;
         $svg .= '<g transform="rotate('.$biRot.' '.$cxR.' '.$cyR.')">';
-        $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#ccfbf1" fill-opacity="0.9" stroke="none"/>';
-        $svg .= '<circle cx="'.$lx1.'" cy="'.$eyC.'" r="'.$cr1.'" fill="#ccfbf1" fill-opacity="0.9" stroke="none"/>';
-        $svg .= '<circle cx="'.$rx1c.'" cy="'.$eyC.'" r="'.$cr1.'" fill="#ccfbf1" fill-opacity="0.9" stroke="none"/>';
+        $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#e8e8e8" fill-opacity="1" stroke="none"/>';
+        $svg .= '<circle cx="'.$lx1.'" cy="'.$eyC.'" r="'.$cr1.'" fill="#e8e8e8" fill-opacity="1" stroke="none"/>';
+        $svg .= '<circle cx="'.$rx1c.'" cy="'.$eyC.'" r="'.$cr1.'" fill="#e8e8e8" fill-opacity="1" stroke="none"/>';
         $svg .= '<path d="M '.$exD.' '.($rySVG+$rh).' L '.$exD.' '.$rySVG.' L '.($exD+$rw).' '.$rySVG.' L '.($exD+$rw).' '.($rySVG+$rh).'" fill="none" stroke="'.$colBI.'" stroke-width="1.5"/>';
         $svg .= '<circle cx="'.$lx1.'" cy="'.$eyC.'" r="'.$cr1.'" fill="none" stroke="'.$colBI.'" stroke-width="1.5"/>';
         $svg .= '<circle cx="'.$rx1c.'" cy="'.$eyC.'" r="'.$cr1.'" fill="none" stroke="'.$colBI.'" stroke-width="1.5"/>';
@@ -260,14 +260,14 @@ if ($hasEl) {
     $tblW = min($canvW - $tblX - 4, round(140 * $SVG_W / 450));
     $tblY = $oy + 2;
     $cardH = round(28 * $SVG_W / 450);
-    $eCol = ['tp'=>'#1e40af','ta'=>'#7c3aed','rs'=>'#854d0e','bi'=>'#0f766e'];
-    $eBg  = ['tp'=>'#dbeafe','ta'=>'#f3e8ff','rs'=>'#fef9c3','bi'=>'#ccfbf1'];
-    $svg .= '<text x="'.$tblX.'" y="'.$tblY.'" font-size="13" font-weight="700" fill="#64748b" font-family="sans-serif">ELEMENTOS</text>';
+    $eCol = ['tp'=>'#111111','ta'=>'#333333','rs'=>'#333333','bi'=>'#333333'];
+    $eBg  = ['tp'=>'#eeeeee','ta'=>'#eeeeee','rs'=>'#eeeeee','bi'=>'#eeeeee'];
+    $svg .= '<text x="'.$tblX.'" y="'.$tblY.'" font-size="13" font-weight="700" fill="#555555" font-family="sans-serif">ELEMENTOS</text>';
     foreach ($elementos as $i => $el) {
-        $ec  = $eCol[$el['tipo']] ?? '#374151';
+        $ec  = $eCol[$el['tipo']] ?? '#333333';
         $ebg = $eBg[$el['tipo']]  ?? '#f1f5f9';
         $ry  = $tblY + 18 + $i * $cardH;
-        $svg .= '<rect x="'.$tblX.'" y="'.$ry.'" width="'.$tblW.'" height="'.($cardH-2).'" fill="#f8fafc" rx="3"/>';
+        $svg .= '<rect x="'.$tblX.'" y="'.$ry.'" width="'.$tblW.'" height="'.($cardH-2).'" fill="#f4f4f4" rx="3"/>';
         $svg .= '<rect x="'.$tblX.'" y="'.$ry.'" width="8" height="'.($cardH-2).'" fill="'.$ec.'" rx="3"/>';
         $svg .= '<text x="'.($tblX+13).'" y="'.($ry+18).'" font-size="15" font-weight="700" fill="'.$ec.'" font-family="monospace">'.($i+1).'. '.strtoupper($el['tipo']).'</text>';
         $det = '';
@@ -276,7 +276,7 @@ if ($hasEl) {
         if ($el['tipo']==='rs') $det = $el['w'].'&#215;'.$el['h'].'mm';
         if ($el['tipo']==='bi') $det = $el['w'].'&#215;'.$el['h'].'mm';
         $svg .= '<text x="'.($tblX+$tblW-2).'" y="'.($ry+18).'" text-anchor="end" font-size="14" fill="'.$ec.'" font-family="monospace">'.$det.'</text>';
-        $svg .= '<text x="'.($tblX+12).'" y="'.($ry+$cardH-6).'" font-size="12" fill="#374151" font-family="monospace">X: '.$el['x'].'  Y: '.$el['y'].'</text>';
+        $svg .= '<text x="'.($tblX+12).'" y="'.($ry+$cardH-6).'" font-size="12" fill="#333333" font-family="monospace">X: '.$el['x'].'  Y: '.$el['y'].'</text>';
     }
 }
 
@@ -287,10 +287,10 @@ if (!empty($canteo['inf'])) $lados[] = 'Inf';
 if (!empty($canteo['izq'])) $lados[] = 'Izq';
 if (!empty($canteo['der'])) $lados[] = 'Der';
 if ($lados) {
-    $svg .= '<text x="'.($canvW/2).'" y="'.($SVG_H-6).'" text-anchor="middle" font-size="'.$fz.'" fill="#92400e" font-family="monospace">Canteado: '.implode(' + ', $lados).'</text>';
+    $svg .= '<text x="'.($canvW/2).'" y="'.($SVG_H-6).'" text-anchor="middle" font-size="'.$fz.'" fill="#333333" font-family="monospace">Canteado: '.implode(' + ', $lados).'</text>';
 }
 if ($notas) {
-    $svg .= '<text x="'.($canvW/2).'" y="'.($SVG_H-($lados ? $fz*2 : 6)).'" text-anchor="middle" font-size="'.$fzSm.'" fill="#64748b" font-family="sans-serif">'.htmlspecialchars(mb_substr($notas, 0, 65)).'</text>';
+    $svg .= '<text x="'.($canvW/2).'" y="'.($SVG_H-($lados ? $fz*2 : 6)).'" text-anchor="middle" font-size="'.$fzSm.'" fill="#555555" font-family="sans-serif">'.htmlspecialchars(mb_substr($notas, 0, 65)).'</text>';
 }
 
 $folioMostrar = $cot['orden_folio'] ?: ($cot['folio'] ?? '');
@@ -310,15 +310,48 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1e293
 .header .sub { font-size: 12px; color: #64748b; margin-top: 2px; }
 .meta { text-align: right; font-size: 12px; color: #334155; line-height: 1.6; }
 .meta b { color: #1a1a2e; }
-.svg-wrap { border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px; display: flex; justify-content: center; }
-.svg-wrap svg { width: 100%; height: auto; }
+.svg-wrap { border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px; display: flex; justify-content: center; overflow: auto; }
+.svg-wrap svg { display: block; flex-shrink: 0; }
 .footer-note { margin-top: 8px; font-size: 10px; color: #94a3b8; text-align: center; }
-.btn-print { position: fixed; top: 10px; right: 10px; background: #16a34a; color: #fff; border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
-@media print { .btn-print { display: none; } body { background: #fff; } }
+.ctrl-bar { position: fixed; top: 10px; right: 10px; display: flex; align-items: center; gap: 8px; background: white; border: 1px solid #d1d5db; border-radius: 8px; padding: 6px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+.ctrl-bar label { font-size: 12px; color: #374151; font-weight: 600; white-space: nowrap; }
+.ctrl-bar select { font-size: 12px; border: 1px solid #d1d5db; border-radius: 5px; padding: 3px 6px; background: white; cursor: pointer; }
+.btn-print { background: #1a1a2e; color: #fff; border: none; border-radius: 6px; padding: 7px 14px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.btn-print:hover { background: #2d2d4e; }
+@media print { .ctrl-bar { display: none; } body { background: #fff; } }
 </style>
 </head>
 <body>
-<button class="btn-print" onclick="window.print()">&#128424; Imprimir</button>
+<div class="ctrl-bar">
+  <label>Escala:</label>
+  <select id="cq-escala" onchange="escalarDiagrama(this.value)">
+    <option value="40">40%</option>
+    <option value="50">50%</option>
+    <option value="60">60%</option>
+    <option value="70">70%</option>
+    <option value="80">80%</option>
+    <option value="90">90%</option>
+    <option value="100" selected>100%</option>
+    <option value="110">110%</option>
+    <option value="120">120%</option>
+    <option value="130">130%</option>
+    <option value="150">150%</option>
+    <option value="175">175%</option>
+    <option value="200">200%</option>
+  </select>
+  <button class="btn-print" onclick="window.print()">&#128424; Imprimir</button>
+</div>
+<script>
+var CQ_BASE_W = <?= $canvW ?>;
+var CQ_BASE_H = <?= $SVG_H ?>;
+function escalarDiagrama(pct) {
+  var svg = document.querySelector('.svg-wrap svg');
+  if (!svg) return;
+  var scale = pct / 100;
+  svg.setAttribute('width',  Math.round(CQ_BASE_W * scale));
+  svg.setAttribute('height', Math.round(CQ_BASE_H * scale));
+}
+</script>
 <div class="page">
   <div class="header">
     <div>
@@ -333,7 +366,7 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1e293
     </div>
   </div>
   <div class="svg-wrap">
-    <svg width="<?= $canvW ?>" height="<?= $SVG_H ?>" viewBox="0 0 <?= $canvW ?> <?= $SVG_H ?>" style="max-width:100%"><?= $svg ?></svg>
+    <svg id="cq-svg-print" width="<?= $canvW ?>" height="<?= $SVG_H ?>" viewBox="0 0 <?= $canvW ?> <?= $SVG_H ?>"><?= $svg ?></svg>
   </div>
   <div class="footer-note">Generado <?= date('d/m/Y H:i') ?> &mdash; Este croquis puede ser editado en el sistema, este PDF refleja la &#250;ltima versi&#243;n guardada.</div>
 </div>

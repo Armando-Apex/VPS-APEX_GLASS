@@ -341,6 +341,9 @@ async function registrarPago(cot_id, orden_id) {
   if (data.ok) {
     // Recargar detalle para mostrar el nuevo pago
     await abrirDetalle(orden_id);
+    if (data.excedente) {
+      alert('Pago registrado.\n\nEl excedente de $' + parseFloat(data.excedente).toLocaleString('es-MX',{minimumFractionDigits:2}) + ' fue abonado al saldo a favor del cliente.');
+    }
   } else {
     alert(data.error || 'Error al registrar pago');
   }
