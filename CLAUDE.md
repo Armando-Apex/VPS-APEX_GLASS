@@ -513,4 +513,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-182 | 23-jun | Mando | Fix botones impresión cotizacion.php: window.open() → a[target=_blank rel=noopener] para evitar bloqueo silencioso de popup blocker en scripts inyectados por SPA; CSS .btn += display:inline-block + text-decoration:none |
 | UPD-183 | 23-jun | Mando | Croquis nuevo elemento BI (Bisagra): chip teal en panel, tipo propio con forma U+círculos a 45°/135° (herraje cancel baño CT29), auto-rota al borde más cercano, dimensiones editables (default 58×37.5mm); RS queda como resaque genérico sin preset; aplica en editor y PDF |
 | UPD-184 | 23-jun | Mando | Fix portal clientes móvil "No se encontró la orden": api/orden.php acepta sesión portal (portal_cliente_id) además de sesión interna — UPD-123 había roto el portal al agregar requireSessionApi(); verifica que la orden pertenezca al cliente antes de mostrarla |
-**Próximo UPD disponible: UPD-185**
+| UPD-185 | 23-jun | Armando | BD ordenes += wa_lista_enviado TINYINT(1) DEFAULT 0; api/wa_helper.php (enviarMensajeWA extraída a helper compartido); actualizar_estatus.php envía plantilla WA 'orden_lista' automáticamente al marcar última pieza terminada — verifica que ninguna pieza quede fuera de terminado/entregado, marca flag para no reintentar |
+**Próximo UPD disponible: UPD-186**
