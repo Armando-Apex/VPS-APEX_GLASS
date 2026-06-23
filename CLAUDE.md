@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 23 junio 2026 | Próximo UPD disponible: UPD-185
+# Última actualización: 23 junio 2026 | Próximo UPD disponible: UPD-191
 
 **REGLA DE ORO:** Este archivo es la memoria compartida del proyecto. Claude lo lee al inicio de cada sesión y lo actualiza al terminar. Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -366,7 +366,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | MEDIA | Armando | Mover DB_PASS a .env fuera del webroot | HECHO UPD-139 |
 | MEDIA | Armando | Cargar tzdata en MariaDB VPS | Pendiente |
 | MEDIA | Armando | Instalar n8n via Docker (n8n.apex.glass, puerto 5678) | Pendiente |
-| MEDIA | Armando | PDF croquis: app/imprimir_croquis.php | Pendiente |
+| MEDIA | Armando | PDF croquis: app/imprimir_croquis.php | HECHO UPD-172/187/188/189 |
 | MEDIA | Armando | Feature Órdenes Express | Pendiente |
 | MEDIA | Armando | Google Sheets / Apps Script — verificar columna M | Pendiente |
 | MEDIA | Mando | Completar módulo Retrabajo: modal + razones por estación | Pendiente |
@@ -514,4 +514,10 @@ Al terminar cualquier sesión con cambios:
 | UPD-183 | 23-jun | Mando | Croquis nuevo elemento BI (Bisagra): chip teal en panel, tipo propio con forma U+círculos a 45°/135° (herraje cancel baño CT29), auto-rota al borde más cercano, dimensiones editables (default 58×37.5mm); RS queda como resaque genérico sin preset; aplica en editor y PDF |
 | UPD-184 | 23-jun | Mando | Fix portal clientes móvil "No se encontró la orden": api/orden.php acepta sesión portal (portal_cliente_id) además de sesión interna — UPD-123 había roto el portal al agregar requireSessionApi(); verifica que la orden pertenezca al cliente antes de mostrarla |
 | UPD-185 | 23-jun | Armando | BD ordenes += wa_lista_enviado TINYINT(1) DEFAULT 0; api/wa_helper.php (enviarMensajeWA extraída a helper compartido); actualizar_estatus.php envía plantilla WA 'orden_lista' automáticamente al marcar última pieza terminada — verifica que ninguna pieza quede fuera de terminado/entregado, marca flag para no reintentar |
-**Próximo UPD disponible: UPD-186**
+| UPD-186 | 23-jun | Mando | Fix editor croquis (modulos/croquis.php): MB dinámico max(90, EL_BASE+N×14+20) — todas las cotas X de elementos caben sin importar cuántos haya; SVG_H crece con MB; números de elemento clampeados dentro del outline (TP/TA: min(ex+r, ox+gw-6), RS/BI: dentro de la forma); ML=86, gap ejYX 14→20; bug _layout()→_getOrigin() corregido |
+| UPD-187 | 23-jun | Mando | Fix PDF croquis (imprimir_croquis.php): MB dinámico (cOff+14+12 + N_elem×rowStep + 24); ML=110; gap ejYX 14→24 — elimina overlap entre rect "alto mm" y rect "Eje Y"; label bisagra "BI posición"→"BI"; rect fondo BI width 52→18px |
+| UPD-188 | 23-jun | Mando | PDF croquis en blanco y negro para impresión: vidrio fill #f0f0f0 borde #1a1a1a; canteado línea guiones negra (stroke-dasharray:6,3); cotas #222222; ejes X/Y en #222222/#555555; TP/TA bordes #111111/#333333; RS/BI fill #e8e8e8 borde #333333; tabla elementos fondos #eeeeee barras #333333; colores HTML wrapper (botón, cabecera) sin cambio |
+| UPD-189 | 23-jun | Mando | PDF croquis selector de escala: barra fija top-right con select 40%-200% (default 100%) + botón Imprimir; JS escalarDiagrama() modifica width/height del SVG directamente (viewBox mantiene proporciones); svg-wrap overflow:auto para scroll en pantalla; ctrl-bar oculta en @media print |
+| UPD-190 | 23-jun | Mando | Fix finanzas VoBo pago excedente: api/finanzas.php calcula total_real y saldo_pendiente ANTES de insertar; si excedente >$5 registra solo monto necesario para saldar y deposita diferencia en clientes_saldo_favor tipo 'deposito' con referencia al folio; si excedente ≤$5 se absorbe sin depósito; frontend muestra alerta con monto abonado a saldo a favor |
+| UPD-191 | 23-jun | Mando | Fix precio cotización: recalcular() usaba cris.precio_m2 (catálogo actual) en lugar del precio bloqueado al guardar. Fix: hidden input p_pm2_i por partida inicializado con precio_m2_usado guardado; cotCristalChange() actualiza el hidden al precio del catálogo solo si el usuario cambia el cristal; recalcular() y armarPayload() leen del hidden; api/cotizaciones.php PUT respeta precio_m2_usado del frontend si es >0 (solo usa catálogo para partidas nuevas sin precio previo) |
+**Próximo UPD disponible: UPD-192**

@@ -580,8 +580,11 @@ function renderPartidas(editable) {
     html += '<div class="partida-row" id="prow-' + i + '">';
     html += '<span class="num-partida">' + (i+1) + '</span>';
 
+    // Precio bloqueado (se preserva al editar; solo cambia si el usuario elige otro cristal)
+    html += '<input type="hidden" id="p_pm2_' + i + '" value="' + (p.precio_m2_usado || 0) + '">';
+
     // Cristal
-    html += '<select id="p_cristal_' + i + '" onchange="window.cotAutoTemplado(' + i + ');ModCotizacion._recalcular()" ' + (!editable?'disabled':'') + '>';
+    html += '<select id="p_cristal_' + i + '" onchange="window.cotCristalChange(' + i + ')" ' + (!editable?'disabled':'') + '>';
     html += '<option value="">-- Cristal --</option>';
     for (var j = 0; j < cristales.length; j++) {
       var c = cristales[j];
@@ -737,6 +740,21 @@ function eliminarPartida(idx) {
 }
 
 // ── Auto: espejo → templado = No ─────────────────────────────────────────────
+window.cotCristalChange = function(idx) {
+  var sel = document.getElementById('p_cristal_' + idx);
+  var pm2 = document.getElementById('p_pm2_' + idx);
+  if (sel && pm2) {
+    var cid = parseInt(sel.value || 0);
+    var nuevoPrecio = 0;
+    for (var j = 0; j < cristales.length; j++) {
+      if (cristales[j].id == cid) { nuevoPrecio = parseFloat(cristales[j].precio_m2 || 0); break; }
+    }
+    pm2.value = nuevoPrecio;
+  }
+  window.cotAutoTemplado(idx);
+  ModCotizacion._recalcular();
+};
+
 window.cotAutoTemplado = function(idx) {
   var sel = document.getElementById('p_cristal_' + idx);
   if (!sel) return;
@@ -759,14 +777,9 @@ function recalcular() {
     var ancho     = parseInt(document.getElementById('p_ancho_'  + i)?.value || 0);
     var alto      = parseInt(document.getElementById('p_alto_'   + i)?.value || 0);
     if (!cristalId || !cantidad || !ancho || !alto) continue;
-    var cris = null;
-    for (var j = 0; j < cristales.length; j++) {
-      if (cristales[j].id == cristalId) { cris = cristales[j]; break; }
-    }
-    if (!cris) continue;
-    var m2      = (ancho / 1000) * (alto / 1000);
-    var precio  = parseFloat(cris.precio_m2 || cris.precio_m2_usado || 0);
-    subtotal   += cantidad * m2 * precio;
+    var m2     = (ancho / 1000) * (alto / 1000);
+    var precio = parseFloat(document.getElementById('p_pm2_' + i)?.value || 0);
+    subtotal  += cantidad * m2 * precio;
   }
   var pctDesc   = parseFloat(document.getElementById('fDescuento')?.value || 0);
   var descuento = subtotal * pctDesc / 100;
@@ -941,11 +954,13 @@ function armarPayload(clienteId) {
     var ancho     = parseInt(document.getElementById('p_ancho_'  + i)?.value || 0);
     var alto      = parseInt(document.getElementById('p_alto_'   + i)?.value || 0);
     if (!cristalId || !ancho || !alto) continue;
+    var pm2Guardado = parseFloat(document.getElementById('p_pm2_' + i)?.value || 0);
     partidasPayload.push({
       cristal_id:           parseInt(cristalId),
       cantidad:             cantidad,
       ancho:                ancho,
       alto:                 alto,
+      precio_m2_usado:      pm2Guardado || null,
       detalles:             document.getElementById('p_det_' + i)?.value || '',
       cpb:                  document.getElementById('p_cpb_' + i)?.value || '',
       resaques:             parseInt(document.getElementById('p_res_' + i)?.value || 0),

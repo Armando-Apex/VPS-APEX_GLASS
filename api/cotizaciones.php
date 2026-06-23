@@ -173,7 +173,8 @@ if ($method === 'GET') {
                c.fecha_entrega, c.localidad, c.ciudad_destino, c.condicion_pago,
                GREATEST(0, ROUND((COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                c.entrega_bloqueada,
-               o.folio AS orden_folio
+               o.folio AS orden_folio,
+               IF(c.estatus = 'cotizacion' AND c.created_at < DATE_SUB(NOW(), INTERVAL 15 DAY), 1, 0) AS es_inactiva
         FROM cotizaciones c
         LEFT JOIN ordenes o ON o.id = c.orden_id
         WHERE $where_str
@@ -600,8 +601,14 @@ if ($method === 'PUT') {
             $cristal = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$cristal) continue;
 
-            $m2           = round(($ancho / 1000) * ($alto / 1000), 6);
-            $precio_m2    = (float)$cristal['precio_m2'];
+            $m2 = round(($ancho / 1000) * ($alto / 1000), 6);
+
+            // Respetar el precio original de la cotización; solo usar catálogo si es partida nueva (sin precio previo)
+            $precio_m2_enviado = isset($p['precio_m2_usado']) && (float)$p['precio_m2_usado'] > 0
+                ? (float)$p['precio_m2_usado']
+                : null;
+            $precio_m2    = $precio_m2_enviado ?? (float)$cristal['precio_m2'];
+
             $precio_unit  = round($m2 * $precio_m2 * (1 - $descuento / 100), 4);
             $subtotal     = round($precio_unit * $cantidad, 2);
             $iva          = round($subtotal * 0.16, 2);
