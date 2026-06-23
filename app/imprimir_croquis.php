@@ -39,12 +39,16 @@ if (!is_array($canteo))    $canteo    = [];
 
 // ── Geometría (mismo cálculo que croquis.php _getOrigin) ──────────────────
 $SVG_W = 760; $SVG_H = 960;
+$cOff_geom = 32; // mismo que $cOff más abajo — usado para calcular MB dinámico
 $rowStep    = 14 * ($SVG_W / 450);
 $extraFilas = max(0, count($elementos) - 1);
 $hasEl      = count($elementos) > 0;
 // canvas más ancho cuando hay elementos para acomodar tabla lateral (proporcional a 450→560)
 $canvW = $hasEl ? $SVG_W + round(120 * $SVG_W / 450) : $SVG_W;
-$ML = 80; $MR = 80 + $extraFilas*$rowStep + ($hasEl ? round(130 * $SVG_W / 450) : 0); $MT = 20; $MB = 140;
+// MB crece con el número de elementos para que todas las cotas X quepan debajo del vidrio
+$cxBase_geom = $cOff_geom + 14 + 12; // offset de la primera cota X de elemento (igual a $cxBase en el foreach)
+$ML = 110; $MR = 80 + $extraFilas*$rowStep + ($hasEl ? round(130 * $SVG_W / 450) : 0); $MT = 20;
+$MB = max(140, (int)ceil($cxBase_geom + count($elementos) * $rowStep + 24));
 $sc = min(($canvW - $ML - $MR) / max($ancho, 1), ($SVG_H - $MT - $MB) / max($alto, 1));
 $gw = $ancho * $sc;
 $gh = $alto  * $sc;
@@ -143,7 +147,7 @@ $svg .= '<rect x="'.($ox+$gw/2-$lblWEj/2).'" y="'.($ejXY-$lblH/2).'" width="'.$l
 $svg .= '<text x="'.($ox+$gw/2).'" y="'.($ejXY+$fz/2-1).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#dc2626" font-family="monospace">Eje X</text>';
 
 // Eje Y
-$ejYX = $ox - $cxOff - 14;
+$ejYX = $ox - $cxOff - 24;
 $svg .= '<line x1="'.$ejYX.'" y1="'.$oyBottom.'" x2="'.$ejYX.'" y2="'.$oy.'" stroke="#16a34a" stroke-width="1.1"/>';
 $svg .= '<line x1="'.($ejYX-$tk).'" y1="'.$oyBottom.'" x2="'.($ejYX+$tk).'" y2="'.$oyBottom.'" stroke="#16a34a" stroke-width="1.1"/>';
 $svg .= '<polygon points="'.($ejYX-$arwSz).','.$oy.' '.$ejYX.','.($oy-$arwLen).' '.($ejYX+$arwSz).','.$oy.'" fill="#16a34a"/>';
@@ -244,8 +248,8 @@ foreach ($elementos as $idxEl => $e) {
         $svg .= '<circle cx="'.$rx1c.'" cy="'.$eyC.'" r="'.$cr1.'" fill="none" stroke="'.$colBI.'" stroke-width="1.5"/>';
         $svg .= '</g>';
         $lxRS=$exD; $lyRS2=$rySVG-24;
-        $svg .= '<rect x="'.($lxRS-1).'" y="'.($lyRS2-$fz).'" width="52" height="'.($fz+3).'" fill="white" rx="2"/>';
-        $svg .= '<text x="'.$lxRS.'" y="'.$lyRS2.'" font-size="'.$fzSm.'" font-weight="700" fill="'.$colBI.'" font-family="monospace">BI  posici&#243;n</text>';
+        $svg .= '<rect x="'.($lxRS-1).'" y="'.($lyRS2-$fz).'" width="24" height="'.($fz+3).'" fill="white" rx="2"/>';
+        $svg .= '<text x="'.$lxRS.'" y="'.$lyRS2.'" font-size="'.$fzSm.'" font-weight="700" fill="'.$colBI.'" font-family="monospace">BI</text>';
     }
 }
 

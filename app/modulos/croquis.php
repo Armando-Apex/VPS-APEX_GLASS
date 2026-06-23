@@ -494,9 +494,9 @@ function abrirConstructor(croquis) {
   setTimeout(function() {
     var wrap = document.getElementById('cq-svg-wrap');
     if (wrap) {
-      var o = _layout();
+      var o = _getOrigin();
       _panX = Math.max(0, (wrap.offsetWidth  - o.canvW) / 2);
-      _panY = Math.max(0, (wrap.offsetHeight - SVG_H) / 2);
+      _panY = Math.max(0, (wrap.offsetHeight - o.canvH) / 2);
       _redraw();
     }
   }, 50);
@@ -925,20 +925,18 @@ function _svgPoint(event) {
 function _getOrigin() {
   var ancho = Math.max(50, +document.getElementById('cq-ancho').value || 800);
   var alto  = Math.max(50, +document.getElementById('cq-alto').value  || 600);
-  // ML generoso: cota alto (22) + eje Y (14) + etiqueta rotada (~20) + margen = 80
-  // MB/MR crecen con el número de elementos especiales: cada uno usa su propia fila/columna de cota,
-  // reservando primero el espacio fijo de la cota ancho + etiqueta "Eje X" (EL_BASE) para no chocar con ellas
   var extraFilas = Math.max(0, _elementos.length - 1);
   var hasEl = _elementos.length > 0;
-  // canvas más ancho cuando hay elementos: espacio para cotas Y + tabla
   var canvW = hasEl ? SVG_W + 120 : SVG_W;
-  var ML=80, MR=80+extraFilas*14+(hasEl?130:0), MT=20, MB=90;
-  var sc = Math.min((canvW-ML-MR)/ancho, (SVG_H-MT-MB)/alto);
+  // MB crece con el número de elementos para que todas las cotas X quepan debajo del vidrio
+  var MB = Math.max(90, EL_BASE + _elementos.length * 14 + 20);
+  var svgH = Math.max(SVG_H, 220 + MB);
+  var ML=86, MR=80+extraFilas*14+(hasEl?130:0), MT=20;
+  var sc = Math.min((canvW-ML-MR)/ancho, (svgH-MT-MB)/alto);
   var gw = ancho*sc; var gh = alto*sc;
-  // centrar el vidrio dentro del área disponible
   var ox = ML + (canvW-ML-MR-gw)/2;
-  var oy = MT + (SVG_H-MT-MB-gh)/2;
-  return {ox:ox, oy:oy, gw:gw, gh:gh, sc:sc, ancho:ancho, alto:alto, canvW:canvW, canvH:SVG_H};
+  var oy = MT + (svgH-MT-MB-gh)/2;
+  return {ox:ox, oy:oy, gw:gw, gh:gh, sc:sc, ancho:ancho, alto:alto, canvW:canvW, canvH:svgH};
 }
 
 function _zoomIn() {
@@ -952,9 +950,9 @@ function _zoomOut() {
 function _zoomReset() {
   _zoom = 1.0;
   var wrap = document.getElementById('cq-svg-wrap');
-  var o = _layout();
+  var o = _getOrigin();
   _panX = wrap ? Math.max(0, (wrap.offsetWidth  - o.canvW) / 2) : 0;
-  _panY = wrap ? Math.max(0, (wrap.offsetHeight - SVG_H) / 2) : 0;
+  _panY = wrap ? Math.max(0, (wrap.offsetHeight - o.canvH) / 2) : 0;
   _updateZoomLabel(); _redraw();
 }
 function _updateZoomLabel() {
@@ -1058,10 +1056,10 @@ function _redraw() {
 
   // tamaño del SVG — ancho crece cuando hay elementos para acomodar tabla lateral
   svg.setAttribute('width',  o.canvW);
-  svg.setAttribute('height', SVG_H);
+  svg.setAttribute('height', o.canvH);
   svg.style.transform = 'scale('+_zoom+') translate('+(_panX/_zoom)+'px,'+(_panY/_zoom)+'px)';
   svg.style.width  = o.canvW + 'px';
-  svg.style.height = SVG_H + 'px';
+  svg.style.height = o.canvH + 'px';
 
   // ── Escala tipográfica fija — zoom se aplica solo vía CSS transform ──
   var fz     = 9;    // font-size base
@@ -1163,7 +1161,7 @@ function _redraw() {
   out += '<text x="'+(ox+gw/2)+'" y="'+(ejXY+fz/2-1)+'" text-anchor="middle" font-size="'+fz+'" font-weight="700" fill="#dc2626" font-family="monospace">Eje X</text>';
 
   // ── Eje Y — cota dedicada a la izq de la de alto, con flecha ──
-  var ejYX = ox - cxOff - 14;
+  var ejYX = ox - cxOff - 20;
   out += '<line x1="'+ejYX+'" y1="'+oyBottom+'" x2="'+ejYX+'" y2="'+oy+'" stroke="#16a34a" stroke-width="1.1"/>';
   out += '<line x1="'+(ejYX-tk)+'" y1="'+oyBottom+'" x2="'+(ejYX+tk)+'" y2="'+oyBottom+'" stroke="#16a34a" stroke-width="1.1"/>';
   out += '<polygon points="'+(ejYX-arwSz)+','+oy+' '+ejYX+','+(oy-arwLen)+' '+(ejYX+arwSz)+','+oy+'" fill="#16a34a"/>';
@@ -1211,9 +1209,9 @@ function _redraw() {
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+r+'" fill="white" stroke="#1e40af" stroke-width="1.5"/>';
       out += '<line x1="'+(ex-r*1.3)+'" y1="'+ey+'" x2="'+(ex+r*1.3)+'" y2="'+ey+'" stroke="#1e40af" stroke-width="1"/>';
       out += '<line x1="'+ex+'" y1="'+(ey-r*1.3)+'" x2="'+ex+'" y2="'+(ey+r*1.3)+'" stroke="#1e40af" stroke-width="1"/>';
-      // número en esquina superior derecha del círculo
-      out += '<circle cx="'+(ex+r)+'" cy="'+(ey-r)+'" r="5" fill="#1e40af"/>';
-      out += '<text x="'+(ex+r)+'" y="'+(ey-r+3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
+      var nbCxTP = Math.min(ex+r, ox+gw-6); var nbCyTP = Math.max(ey-r, oy+6);
+      out += '<circle cx="'+nbCxTP+'" cy="'+nbCyTP+'" r="5" fill="#1e40af"/>';
+      out += '<text x="'+nbCxTP+'" y="'+(nbCyTP+3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }
     if (e.tipo==='ta') {
@@ -1222,9 +1220,9 @@ function _redraw() {
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+(re+4)+'" fill="transparent"/>';
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+re+'" fill="white" stroke="#7c3aed" stroke-width="1.5"/>';
       out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+ri+'" fill="none" stroke="#7c3aed" stroke-width="0.8" stroke-dasharray="2,1.5"/>';
-      // número en esquina superior derecha
-      out += '<circle cx="'+(ex+re)+'" cy="'+(ey-re)+'" r="5" fill="#7c3aed"/>';
-      out += '<text x="'+(ex+re)+'" y="'+(ey-re+3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
+      var nbCxTA = Math.min(ex+re, ox+gw-6); var nbCyTA = Math.max(ey-re, oy+6);
+      out += '<circle cx="'+nbCxTA+'" cy="'+nbCyTA+'" r="5" fill="#7c3aed"/>';
+      out += '<text x="'+nbCxTA+'" y="'+(nbCyTA+3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }
     if (e.tipo==='rs') {
@@ -1234,8 +1232,9 @@ function _redraw() {
       out += '<g style="cursor:'+cur+'"'+evts+'>';
       out += '<rect x="'+(exD-3)+'" y="'+(rySVG-3)+'" width="'+(rw+6)+'" height="'+(rh+6)+'" fill="transparent"/>';
       out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
-      out += '<circle cx="'+(exD+rw+5)+'" cy="'+(rySVG-5)+'" r="5" fill="#854d0e"/>';
-      out += '<text x="'+(exD+rw+5)+'" y="'+(rySVG-1.5)+'" text-anchor="middle" font-size="6" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
+      var nbCxRS = Math.min(exD+rw-7, ox+gw-6); var nbCyRS = Math.max(rySVG+6, oy+6);
+      out += '<circle cx="'+nbCxRS+'" cy="'+nbCyRS+'" r="5" fill="#854d0e"/>';
+      out += '<text x="'+nbCxRS+'" y="'+(nbCyRS+3.5)+'" text-anchor="middle" font-size="6" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }
     if (e.tipo==='bi') {
@@ -1262,8 +1261,9 @@ function _redraw() {
       out += '<circle cx="'+lx1+'" cy="'+eyC+'" r="'+cr1+'" fill="none" stroke="#0f766e" stroke-width="1.5"/>';
       out += '<circle cx="'+rx1c+'" cy="'+eyC+'" r="'+cr1+'" fill="none" stroke="#0f766e" stroke-width="1.5"/>';
       out += '</g>';
-      out += '<circle cx="'+(exD+rw+5)+'" cy="'+(rySVG-5)+'" r="5" fill="#0f766e"/>';
-      out += '<text x="'+(exD+rw+5)+'" y="'+(rySVG-1.5)+'" text-anchor="middle" font-size="6" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
+      var nbCxBI = Math.min(exD+rw-7, ox+gw-6); var nbCyBI = Math.max(rySVG+6, oy+6);
+      out += '<circle cx="'+nbCxBI+'" cy="'+nbCyBI+'" r="5" fill="#0f766e"/>';
+      out += '<text x="'+nbCxBI+'" y="'+(nbCyBI+3.5)+'" text-anchor="middle" font-size="6" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }
   });

@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 15 junio 2026 | Próximo UPD disponible: UPD-080
+# Última actualización: 23 junio 2026 | Próximo UPD disponible: UPD-185
 
 **REGLA DE ORO:** Este archivo es la memoria compartida del proyecto. Claude lo lee al inicio de cada sesión y lo actualiza al terminar. Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -509,4 +509,8 @@ Al terminar cualquier sesión con cambios:
 | UPD-178 | 23-jun | Armando | Envío cotización por WhatsApp: BD clientes += telefono_alterno VARCHAR(20); api/clientes.php incluye telefono_alterno en GET/POST/PUT+bitácora; modulos/clientes.php muestra campo alterno en panel y formulario nuevo; api/campanas.php acción enviar_cotizacion_wa (plantilla cotizacion, calcula total, crea conversación en inbox); imprimir_cotizacion.php botón verde "Enviar por WhatsApp" + modal con tel pre-llenado + opción guardar como alterno |
 | UPD-179 | 23-jun | Armando | Fix etiquetas QR: lib/qrcode.min.js descargado localmente; imprimir_etiquetas.php cambia CDN jsdelivr por ruta local — CSP bloqueaba scripts externos |
 | UPD-180 | 23-jun | Armando | Fix doble chat WA: campanas.php y whatsapp_webhook.php buscan conversación por RIGHT(telefono,10) en lugar de match exacto — Meta envía 521XXXXXXXXXX (13 dígitos) pero normalizarTelefono() genera 52XXXXXXXXXX (12 dígitos); limpieza BD: 2 conversaciones duplicadas eliminadas, mensajes migrados al chat original |
-**Próximo UPD disponible: UPD-181**
+| UPD-181 | 23-jun | Mando | Fix imprimir_etiquetas.php: requireSession() → requirePermiso('ver_ordenes') — más robusto ante OPcache stale; consistente con demás archivos de impresión |
+| UPD-182 | 23-jun | Mando | Fix botones impresión cotizacion.php: window.open() → a[target=_blank rel=noopener] para evitar bloqueo silencioso de popup blocker en scripts inyectados por SPA; CSS .btn += display:inline-block + text-decoration:none |
+| UPD-183 | 23-jun | Mando | Croquis nuevo elemento BI (Bisagra): chip teal en panel, tipo propio con forma U+círculos a 45°/135° (herraje cancel baño CT29), auto-rota al borde más cercano, dimensiones editables (default 58×37.5mm); RS queda como resaque genérico sin preset; aplica en editor y PDF |
+| UPD-184 | 23-jun | Mando | Fix portal clientes móvil "No se encontró la orden": api/orden.php acepta sesión portal (portal_cliente_id) además de sesión interna — UPD-123 había roto el portal al agregar requireSessionApi(); verifica que la orden pertenezca al cliente antes de mostrarla |
+**Próximo UPD disponible: UPD-185**
