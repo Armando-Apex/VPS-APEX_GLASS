@@ -575,9 +575,9 @@ if ($metodo === 'POST' && $accion === 'marcar_leido') {
 
 // ── POST enviar cotización por WhatsApp (plantilla cotizacion_apex) ──
 if ($metodo === 'POST' && $accion === 'enviar_cotizacion_wa') {
-    $body          = json_decode(file_get_contents('php://input'), true);
-    $cotizacionId  = (int)($body['cotizacion_id'] ?? 0);
-    $telefonoRaw   = trim($body['telefono'] ?? '');
+    $body           = json_decode(file_get_contents('php://input'), true);
+    $cotizacionId   = (int)($body['cotizacion_id'] ?? 0);
+    $telefonoRaw    = trim($body['telefono'] ?? '');
     $guardarAlterno = !empty($body['guardar_alterno']);
 
     if (!$cotizacionId || !$telefonoRaw) {
@@ -586,16 +586,32 @@ if ($metodo === 'POST' && $accion === 'enviar_cotizacion_wa') {
         exit;
     }
 
-    // Cargar cotización
-    $stmtCot = $db->prepare("
+    // Validar formato teléfono: solo dígitos, entre 10 y 15 caracteres
+    $telefonoDigitos = preg_replace('/[^0-9]/', '', $telefonoRaw);
+    if (strlen($telefonoDigitos) < 10 || strlen($telefonoDigitos) > 15) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Número de teléfono inválido']);
+        exit;
+    }
+
+    $esAdminWA = in_array($user['rol'], ['dir_admin', 'dueno', 'administracion']);
+
+    // Cargar cotización — si no es admin, restringir a cotizaciones propias
+    $sqlCot = "
         SELECT c.folio, c.cliente_nombre, c.proyecto, c.cliente_id,
-               c.descuento, c.servicios_subtotal,
+               c.asesor_id, c.descuento, c.servicios_subtotal,
                COALESCE(SUM(cp.precio_m2_usado * cp.m2 * cp.cantidad), 0) as subtotal_bruto
         FROM cotizaciones c
         LEFT JOIN cotizaciones_partidas cp ON cp.cotizacion_id = c.id
-        WHERE c.id = ?
-        GROUP BY c.id");
-    $stmtCot->execute([$cotizacionId]);
+        WHERE c.id = ?";
+    $params = [$cotizacionId];
+    if (!$esAdminWA) {
+        $sqlCot .= " AND c.asesor_id = ?";
+        $params[] = $user['id'];
+    }
+    $sqlCot .= " GROUP BY c.id";
+    $stmtCot = $db->prepare($sqlCot);
+    $stmtCot->execute($params);
     $cot = $stmtCot->fetch(PDO::FETCH_ASSOC);
     if (!$cot) {
         http_response_code(404);
