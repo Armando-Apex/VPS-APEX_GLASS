@@ -1177,13 +1177,14 @@ function _redraw() {
     }
     if (e.tipo==='rs') {
       var rw=Math.max(8,e.w*sc), rh=Math.max(4,e.h*sc);
-      var rySVG = ey - rh;
+      var exD = Math.min(ex, ox+gw-rw);
+      var rySVG = Math.max(ey - rh, oy);
       out += '<g style="cursor:'+cur+'"'+evts+'>';
-      out += '<rect x="'+(ex-3)+'" y="'+(rySVG-3)+'" width="'+(rw+6)+'" height="'+(rh+6)+'" fill="transparent"/>';
-      out += '<rect x="'+ex+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+      out += '<rect x="'+(exD-3)+'" y="'+(rySVG-3)+'" width="'+(rw+6)+'" height="'+(rh+6)+'" fill="transparent"/>';
+      out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
       // número en esquina superior derecha del resaque
-      out += '<circle cx="'+(ex+rw)+'" cy="'+rySVG+'" r="5" fill="#854d0e"/>';
-      out += '<text x="'+(ex+rw)+'" y="'+(rySVG+3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
+      out += '<circle cx="'+(exD+rw)+'" cy="'+rySVG+'" r="5" fill="#854d0e"/>';
+      out += '<text x="'+(exD+rw)+'" y="'+(rySVG+3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }
   });
@@ -1192,9 +1193,9 @@ function _redraw() {
   if (_elementos.length) {
     var tExtraFilas = Math.max(0, _elementos.length - 1);
     var tblX = ox + gw + 6 + tExtraFilas*14 + 20;
-    var tblW = o.canvW - tblX - 4;
+    var tblW = Math.min(o.canvW - tblX - 4, 90);
     var tblY = oy + 2;
-    var cardH = 24;
+    var cardH = 18;
     var eCol = {tp:'#1e40af', ta:'#7c3aed', rs:'#854d0e'};
     var eBg  = {tp:'#dbeafe', ta:'#f3e8ff', rs:'#fef9c3'};
     out += '<text x="'+tblX+'" y="'+tblY+'" font-size="7" font-weight="700" fill="#64748b" font-family="sans-serif">ELEMENTOS</text>';

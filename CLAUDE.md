@@ -497,4 +497,10 @@ Al terminar cualquier sesión con cambios:
 | UPD-166 | 22-jun | Mando | NUEVO Comprobantes en OC: tabla oc_archivos, carpeta archivos_oc/, tab Comprobantes en modalDetalle |
 | UPD-167 | 22-jun | Mando | Croquis Esq. cortada: selector de 4 esquinas (Sup Izq/Der, Inf Izq/Der) — botones tipo canteo; Corte X/Y aplica a todas las seleccionadas; corte-esq en params_forma; actualizado en editor y PDF |
 | UPD-168 | 22-jun | Mando | Croquis tabla elementos: reubicada a la derecha de las cotas Y (canvas se amplía 120px cuando hay elementos); nunca tapa la pieza; cada elemento muestra tipo+detalle+X+Y en tarjeta de 2 líneas; mismo cambio en PDF (página 280mm) |
-**Próximo UPD disponible: UPD-169**
+| UPD-169 | 23-jun | Mando | Croquis tabla elementos: cuadro de color cambiado de fondo completo a barra delgada lateral (5-6px); fondo de tarjeta neutro #f8fafc; número integrado al texto "N. TIPO"; aplica en editor y PDF |
+| UPD-170 | 23-jun | Mando | Croquis tabla elementos: texto X/Y movido a tblX+8 para no quedar tapado por la barra de color; aplica en editor y PDF |
+| UPD-171 | 23-jun | Mando | Croquis modal editar elemento: inputs de Pos X/Y se salían del modal — fix con min-width:0 + box-sizing:border-box en .cq-fi; max-width:calc(100vw-32px) en .cq-modal; labels reducidos a 80px |
+| UPD-172 | 23-jun | Mando | Croquis PDF imprimir_croquis.php: SVG_H 560→960, MB 90→140, fuentes 9/8→14/12, flechas/ticks escalados; tabla elementos cardH 40→28, textos 15/14/12px; @page A4 portrait; SVG width:100% height:auto; botón "Guardar como PDF" → "Imprimir" |
+| UPD-173 | 23-jun | Mando | Croquis tabla elementos: ancho limitado a 90px (editor) y ~140px proporcional (PDF) para evitar exceso de espacio en blanco |
+| UPD-174 | 23-jun | Mando | Croquis resaque fuera de pieza: posición de dibujo clampeada con exD=min(ex, ox+gw-rw) y rySVG=max(ey-rh, oy) — resaque nunca sale del diagrama; todas las cotas y etiquetas actualizadas a exD; aplica en editor y PDF |
+**Próximo UPD disponible: UPD-175**

@@ -38,13 +38,13 @@ if (!is_array($elementos)) $elementos = [];
 if (!is_array($canteo))    $canteo    = [];
 
 // ── Geometría (mismo cálculo que croquis.php _getOrigin) ──────────────────
-$SVG_W = 760; $SVG_H = 560;
+$SVG_W = 760; $SVG_H = 960;
 $rowStep    = 14 * ($SVG_W / 450);
 $extraFilas = max(0, count($elementos) - 1);
 $hasEl      = count($elementos) > 0;
 // canvas más ancho cuando hay elementos para acomodar tabla lateral (proporcional a 450→560)
 $canvW = $hasEl ? $SVG_W + round(120 * $SVG_W / 450) : $SVG_W;
-$ML = 80; $MR = 80 + $extraFilas*$rowStep + ($hasEl ? round(130 * $SVG_W / 450) : 0); $MT = 20; $MB = 90;
+$ML = 80; $MR = 80 + $extraFilas*$rowStep + ($hasEl ? round(130 * $SVG_W / 450) : 0); $MT = 20; $MB = 140;
 $sc = min(($canvW - $ML - $MR) / max($ancho, 1), ($SVG_H - $MT - $MB) / max($alto, 1));
 $gw = $ancho * $sc;
 $gh = $alto  * $sc;
@@ -97,8 +97,8 @@ function buildPath($forma, $params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc) {
     return '';
 }
 
-$fz=9; $fzSm=8; $sw='0.9'; $tk=4; $cOff=24; $cxOff=22;
-$arwSz=3.5; $arwLen=7; $lblW=36; $lblH=11; $lblWEj=36; $rotW=10; $rotH=36;
+$fz=14; $fzSm=12; $sw='1.2'; $tk=5; $cOff=32; $cxOff=28;
+$arwSz=5; $arwLen=10; $lblW=52; $lblH=16; $lblWEj=52; $rotW=14; $rotH=52;
 
 $svg  = '';
 $uid  = 'cq' . $id;
@@ -198,21 +198,23 @@ foreach ($elementos as $idxEl => $e) {
         $svg .= '<text x="'.$lx.'" y="'.$ly.'" font-size="'.$fzSm.'" font-weight="700" fill="#7c3aed" font-family="monospace">TA  &#216;'.$e['de'].'/'.$e['di'].' mm</text>';
     }
     if ($e['tipo'] === 'rs') {
-        $rw = max(8, (float)$e['w']*$sc); $rh = max(4, (float)$e['h']*$sc);
-        $rySVG = $ey - $rh;
-        $svg .= '<rect x="'.$ex.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
-        $svg .= '<line x1="'.$ex.'" y1="'.($rySVG-9).'" x2="'.($ex+$rw).'" y2="'.($rySVG-9).'" stroke="#854d0e" stroke-width="0.8"/>';
-        $svg .= '<line x1="'.$ex.'" y1="'.($rySVG-12).'" x2="'.$ex.'" y2="'.($rySVG-6).'" stroke="#854d0e" stroke-width="0.8"/>';
-        $svg .= '<line x1="'.($ex+$rw).'" y1="'.($rySVG-12).'" x2="'.($ex+$rw).'" y2="'.($rySVG-6).'" stroke="#854d0e" stroke-width="0.8"/>';
-        $svg .= '<rect x="'.($ex+$rw/2-18).'" y="'.($rySVG-20).'" width="36" height="10" fill="white" rx="2"/>';
-        $svg .= '<text x="'.($ex+$rw/2).'" y="'.($rySVG-12).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace">'.$e['w'].' mm</text>';
-        $svg .= '<line x1="'.($ex+$rw+9).'" y1="'.$rySVG.'" x2="'.($ex+$rw+9).'" y2="'.$ey.'" stroke="#854d0e" stroke-width="0.8"/>';
-        $svg .= '<line x1="'.($ex+$rw+6).'" y1="'.$rySVG.'" x2="'.($ex+$rw+12).'" y2="'.$rySVG.'" stroke="#854d0e" stroke-width="0.8"/>';
-        $svg .= '<line x1="'.($ex+$rw+6).'" y1="'.$ey.'" x2="'.($ex+$rw+12).'" y2="'.$ey.'" stroke="#854d0e" stroke-width="0.8"/>';
+        $rw = max(8, (float)$e['w']*$sc);
+        $rh = max(4, (float)$e['h']*$sc);
+        $exD = min($ex, $ox+$gw-$rw);
+        $rySVG = max($ey - $rh, $oy);
+        $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+        $svg .= '<line x1="'.$exD.'" y1="'.($rySVG-9).'" x2="'.($exD+$rw).'" y2="'.($rySVG-9).'" stroke="#854d0e" stroke-width="0.8"/>';
+        $svg .= '<line x1="'.$exD.'" y1="'.($rySVG-12).'" x2="'.$exD.'" y2="'.($rySVG-6).'" stroke="#854d0e" stroke-width="0.8"/>';
+        $svg .= '<line x1="'.($exD+$rw).'" y1="'.($rySVG-12).'" x2="'.($exD+$rw).'" y2="'.($rySVG-6).'" stroke="#854d0e" stroke-width="0.8"/>';
+        $svg .= '<rect x="'.($exD+$rw/2-18).'" y="'.($rySVG-20).'" width="36" height="10" fill="white" rx="2"/>';
+        $svg .= '<text x="'.($exD+$rw/2).'" y="'.($rySVG-12).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace">'.$e['w'].' mm</text>';
+        $svg .= '<line x1="'.($exD+$rw+9).'" y1="'.$rySVG.'" x2="'.($exD+$rw+9).'" y2="'.$ey.'" stroke="#854d0e" stroke-width="0.8"/>';
+        $svg .= '<line x1="'.($exD+$rw+6).'" y1="'.$rySVG.'" x2="'.($exD+$rw+12).'" y2="'.$rySVG.'" stroke="#854d0e" stroke-width="0.8"/>';
+        $svg .= '<line x1="'.($exD+$rw+6).'" y1="'.$ey.'" x2="'.($exD+$rw+12).'" y2="'.$ey.'" stroke="#854d0e" stroke-width="0.8"/>';
         $lyRS = $rySVG + $rh/2;
-        $svg .= '<rect x="'.($ex+$rw+12).'" y="'.($lyRS-16).'" width="10" height="32" fill="white" rx="2"/>';
-        $svg .= '<text x="'.($ex+$rw+17).'" y="'.$lyRS.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace" transform="rotate(-90,'.($ex+$rw+17).','.$lyRS.')">'.$e['h'].' mm</text>';
-        $lxRS=$ex; $lyRS2=$rySVG-24;
+        $svg .= '<rect x="'.($exD+$rw+12).'" y="'.($lyRS-16).'" width="10" height="32" fill="white" rx="2"/>';
+        $svg .= '<text x="'.($exD+$rw+17).'" y="'.$lyRS.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace" transform="rotate(-90,'.($exD+$rw+17).','.$lyRS.')">'.$e['h'].' mm</text>';
+        $lxRS=$exD; $lyRS2=$rySVG-24;
         $svg .= '<rect x="'.($lxRS-1).'" y="'.($lyRS2-$fz).'" width="52" height="'.($fz+3).'" fill="white" rx="2"/>';
         $svg .= '<text x="'.$lxRS.'" y="'.$lyRS2.'" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace">RS  posici&#243;n</text>';
     }
@@ -222,25 +224,25 @@ foreach ($elementos as $idxEl => $e) {
 if ($hasEl) {
     $tExtraFilas = max(0, count($elementos) - 1);
     $tblX = $ox + $gw + 6 + $tExtraFilas*$rowStep + 22;
-    $tblW = $canvW - $tblX - 4;
+    $tblW = min($canvW - $tblX - 4, round(140 * $SVG_W / 450));
     $tblY = $oy + 2;
-    $cardH = round(26 * $SVG_W / 450);
+    $cardH = round(28 * $SVG_W / 450);
     $eCol = ['tp'=>'#1e40af','ta'=>'#7c3aed','rs'=>'#854d0e'];
     $eBg  = ['tp'=>'#dbeafe','ta'=>'#f3e8ff','rs'=>'#fef9c3'];
-    $svg .= '<text x="'.$tblX.'" y="'.$tblY.'" font-size="8" font-weight="700" fill="#64748b" font-family="sans-serif">ELEMENTOS</text>';
+    $svg .= '<text x="'.$tblX.'" y="'.$tblY.'" font-size="13" font-weight="700" fill="#64748b" font-family="sans-serif">ELEMENTOS</text>';
     foreach ($elementos as $i => $el) {
         $ec  = $eCol[$el['tipo']] ?? '#374151';
         $ebg = $eBg[$el['tipo']]  ?? '#f1f5f9';
-        $ry  = $tblY + 12 + $i * $cardH;
-        $svg .= '<rect x="'.$tblX.'" y="'.$ry.'" width="'.$tblW.'" height="'.($cardH-2).'" fill="#f8fafc" rx="2"/>';
-        $svg .= '<rect x="'.$tblX.'" y="'.$ry.'" width="6" height="'.($cardH-2).'" fill="'.$ec.'" rx="2"/>';
-        $svg .= '<text x="'.($tblX+10).'" y="'.($ry+11).'" font-size="8.5" font-weight="700" fill="'.$ec.'" font-family="monospace">'.($i+1).'. '.strtoupper($el['tipo']).'</text>';
+        $ry  = $tblY + 18 + $i * $cardH;
+        $svg .= '<rect x="'.$tblX.'" y="'.$ry.'" width="'.$tblW.'" height="'.($cardH-2).'" fill="#f8fafc" rx="3"/>';
+        $svg .= '<rect x="'.$tblX.'" y="'.$ry.'" width="8" height="'.($cardH-2).'" fill="'.$ec.'" rx="3"/>';
+        $svg .= '<text x="'.($tblX+13).'" y="'.($ry+18).'" font-size="15" font-weight="700" fill="'.$ec.'" font-family="monospace">'.($i+1).'. '.strtoupper($el['tipo']).'</text>';
         $det = '';
         if ($el['tipo']==='tp') $det = '&#216;'.$el['d'].'mm';
         if ($el['tipo']==='ta') $det = '&#216;'.$el['de'].'/'.$el['di'];
         if ($el['tipo']==='rs') $det = $el['w'].'&#215;'.$el['h'].'mm';
-        $svg .= '<text x="'.($tblX+$tblW-2).'" y="'.($ry+11).'" text-anchor="end" font-size="8" fill="'.$ec.'" font-family="monospace">'.$det.'</text>';
-        $svg .= '<text x="'.($tblX+8).'" y="'.($ry+$cardH-4).'" font-size="7.5" fill="#374151" font-family="monospace">X: '.$el['x'].'  Y: '.$el['y'].'</text>';
+        $svg .= '<text x="'.($tblX+$tblW-2).'" y="'.($ry+18).'" text-anchor="end" font-size="14" fill="'.$ec.'" font-family="monospace">'.$det.'</text>';
+        $svg .= '<text x="'.($tblX+12).'" y="'.($ry+$cardH-6).'" font-size="12" fill="#374151" font-family="monospace">X: '.$el['x'].'  Y: '.$el['y'].'</text>';
     }
 }
 
@@ -266,21 +268,23 @@ $folioMostrar = $cot['orden_folio'] ?: ($cot['folio'] ?? '');
 <title>Croquis P<?= (int)$cq['num_partida'] ?> — <?= htmlspecialchars($folioMostrar) ?> — APEX GLASS</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1e293b; background: #fff; }
-.page { width: <?= $hasEl ? '280mm' : '210mm' ?>; min-height: 148mm; margin: 0 auto; padding: 12mm; }
+@page { size: A4 portrait; margin: 10mm; }
+body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1e293b; background: #fff; }
+.page { width: 210mm; min-height: 277mm; margin: 0 auto; padding: 10mm; }
 .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a2e; padding-bottom: 8px; margin-bottom: 12px; }
-.header h1 { font-size: 16px; font-weight: 900; color: #1a1a2e; letter-spacing: .5px; }
-.header .sub { font-size: 11px; color: #64748b; margin-top: 2px; }
-.meta { text-align: right; font-size: 11px; color: #334155; line-height: 1.5; }
+.header h1 { font-size: 18px; font-weight: 900; color: #1a1a2e; letter-spacing: .5px; }
+.header .sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+.meta { text-align: right; font-size: 12px; color: #334155; line-height: 1.6; }
 .meta b { color: #1a1a2e; }
-.svg-wrap { border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; display: flex; justify-content: center; }
-.footer-note { margin-top: 10px; font-size: 9px; color: #94a3b8; text-align: center; }
+.svg-wrap { border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px; display: flex; justify-content: center; }
+.svg-wrap svg { width: 100%; height: auto; }
+.footer-note { margin-top: 8px; font-size: 10px; color: #94a3b8; text-align: center; }
 .btn-print { position: fixed; top: 10px; right: 10px; background: #16a34a; color: #fff; border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
 @media print { .btn-print { display: none; } body { background: #fff; } }
 </style>
 </head>
 <body>
-<button class="btn-print" onclick="window.print()">&#128424; Guardar como PDF</button>
+<button class="btn-print" onclick="window.print()">&#128424; Imprimir</button>
 <div class="page">
   <div class="header">
     <div>
