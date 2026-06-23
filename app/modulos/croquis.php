@@ -1227,22 +1227,26 @@ function _redraw() {
       out += '<g style="cursor:'+cur+'"'+evts+'>';
       out += '<rect x="'+(exD-3)+'" y="'+(rySVG-3)+'" width="'+(rw+6)+'" height="'+(rh+6)+'" fill="transparent"/>';
       if ((e.rs_preset || 0) === 1) {
-        // ── Herraje CT29: U sin base + círculos en esquinas superiores a 45°/135° ──
-        var cr1  = rw * 0.28;          // radio de cada oreja
-        var d45  = cr1 * 0.7071;       // componente diagonal (cos/sin 45°)
-        var lx1  = exD - d45;          // centro oreja izquierda (sale a 135°)
-        var rx1c = exD + rw + d45;     // centro oreja derecha (sale a 45°)
-        var eyC  = rySVG - d45;        // y de ambas orejas (suben igual)
-        // Relleno cuerpo rectangular
+        // ── Herraje CT29: U sin base + orejas a 45°/135° — orientación por borde más cercano ──
+        // Borde más cercano determina hacia dónde abre la U
+        var distR = o.ancho - e.x, distL = e.x, distT = o.alto - e.y, distB = e.y;
+        var minD  = Math.min(distR, distL, distT, distB);
+        var rsRot = 0;
+        if      (minD === distR) rsRot = 90;   // abre a la derecha
+        else if (minD === distT) rsRot = 180;  // abre hacia arriba
+        else if (minD === distL) rsRot = 270;  // abre a la izquierda
+        // distB → rsRot = 0 (abre abajo, orientación base)
+        var cxR = exD + rw*0.5, cyR = rySVG + rh*0.5;  // centro para rotar
+        var cr1 = rw * 0.28, d45 = cr1 * 0.7071;
+        var lx1 = exD - d45, rx1c = exD + rw + d45, eyC = rySVG - d45;
+        out += '<g transform="rotate('+rsRot+' '+cxR+' '+cyR+')">';
         out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
-        // Relleno orejas
         out += '<circle cx="'+lx1+'" cy="'+eyC+'" r="'+cr1+'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
         out += '<circle cx="'+rx1c+'" cy="'+eyC+'" r="'+cr1+'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
-        // Contorno U (izquierda + tope + derecha — sin base)
         out += '<path d="M '+exD+' '+(rySVG+rh)+' L '+exD+' '+rySVG+' L '+(exD+rw)+' '+rySVG+' L '+(exD+rw)+' '+(rySVG+rh)+'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
-        // Contorno orejas
         out += '<circle cx="'+lx1+'" cy="'+eyC+'" r="'+cr1+'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
         out += '<circle cx="'+rx1c+'" cy="'+eyC+'" r="'+cr1+'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
+        out += '</g>';
       } else {
         // ── Resaque genérico ─────────────────────────────────────────────────
         out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
