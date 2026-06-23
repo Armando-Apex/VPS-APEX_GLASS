@@ -101,7 +101,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .btn-srv-guardar:hover { background: #15803d; }
 .btn-srv-cancelar { background: none; border: 1px solid #e2e8f0; color: #64748b; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; }
 /* Botones */
-.btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: opacity .15s; }
+.btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: opacity .15s; display: inline-block; text-decoration: none; }
 .btn:hover { opacity: .85; }
 .btn-primary  { background: #2563eb; color: white; }
 .btn-success  { background: #16a34a; color: white; }
@@ -325,20 +325,20 @@ function renderFormulario(data) {
       html += '<button class="btn btn-primary btn-sm" onclick="ModCotizacion._guardarCambios()">&#128190; Guardar Cambios</button>';
     }
     if (estatus === 'cotizacion') {
-      html += '<button class="btn btn-ghost btn-sm" onclick="ModCotizacion._imprimirCotizacion()">&#128424;&#65039; Imprimir Cotizaci&#243;n</button>';
+      html += '<a class="btn btn-ghost btn-sm" href="../app/imprimir_cotizacion.php?id=' + ID_COT + '" target="_blank" rel="noopener">&#128424;&#65039; Imprimir Cotizaci&#243;n</a>';
     }
     if (estatus === 'orden' && PUEDE_EDITAR) {
-      html += '<button class="btn btn-ghost btn-sm" onclick="ModCotizacion._imprimirRemision()">&#128424;&#65039; Remisi&#243;n</button>';
+      html += '<a class="btn btn-ghost btn-sm" href="../app/imprimir_cotizacion.php?id=' + ID_COT + '&remision=1" target="_blank" rel="noopener">&#128424;&#65039; Remisi&#243;n</a>';
     }
     if (estatus === 'orden' && PUEDE_EDITAR && tieneVobo && tieneAbono) {
-      var folioEtiq = escJs(data.orden_folio || '');
-      html += '<button class="btn btn-ghost btn-sm" onclick="ModCotizacion._imprimirEtiquetas(\'' + folioEtiq + '\')">&#127991; Imprimir Etiquetas</button>';
+      var folioEtiq = encodeURIComponent(data.orden_folio || '');
+      html += '<a class="btn btn-ghost btn-sm" href="../app/imprimir_etiquetas.php?folio=' + folioEtiq + '" target="_blank" rel="noopener">&#127991; Imprimir Etiquetas</a>';
     }
     if (estatus === 'orden' && PUEDE_EDITAR && puedeImpSalida) {
-      html += '<button class="btn btn-ghost btn-sm" onclick="ModCotizacion._imprimirSalida()">&#128666; Imprimir Salida</button>';
+      html += '<a class="btn btn-ghost btn-sm" href="../app/imprimir_salida.php?id=' + ID_COT + '" target="_blank" rel="noopener">&#128666; Imprimir Salida</a>';
     }
     if (estatus === 'orden' && PUEDE_EDITAR) {
-      html += '<button class="btn btn-ghost btn-sm" onclick="ModCotizacion._imprimirOrden()">&#128424;&#65039; Orden de Producci&#243;n</button>';
+      html += '<a class="btn btn-ghost btn-sm" href="../app/imprimir_orden.php?id=' + ID_COT + '" target="_blank" rel="noopener">&#128424;&#65039; Orden de Producci&#243;n</a>';
     }
     if (estatus === 'orden' || estatus === 'entregada') {
       html += '<button class="btn btn-ghost btn-sm" onclick="ModCotizacion._abrirArchivos()">&#128206; Archivos</button>';

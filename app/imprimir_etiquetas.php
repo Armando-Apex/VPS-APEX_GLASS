@@ -7,7 +7,7 @@
 // ============================================================
 require_once __DIR__ . '/../api/config.php';
 require_once __DIR__ . '/../api/permisos.php';
-requireSession();
+requirePermiso('ver_ordenes');
 
 $folio   = strtoupper(trim($_GET['folio']   ?? ''));
 $partida = intval($_GET['partida'] ?? 0);

@@ -209,9 +209,9 @@ foreach ($elementos as $idxEl => $e) {
             $distT = $alto  - (float)$e['y']; $distB = (float)$e['y'];
             $minD  = min($distR, $distL, $distT, $distB);
             $rsRot = 0;
-            if      ($minD === $distR) $rsRot = 90;
+            if      ($minD === $distR) $rsRot = 270;
             else if ($minD === $distT) $rsRot = 180;
-            else if ($minD === $distL) $rsRot = 270;
+            else if ($minD === $distL) $rsRot = 90;
             $cxR = $exD + $rw*0.5; $cyR = $rySVG + $rh*0.5;
             $cr1  = $rw * 0.28; $d45 = $cr1 * 0.7071;
             $lx1  = $exD - $d45; $rx1c = $exD + $rw + $d45; $eyC = $rySVG - $d45;

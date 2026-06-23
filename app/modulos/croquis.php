@@ -1232,9 +1232,9 @@ function _redraw() {
         var distR = o.ancho - e.x, distL = e.x, distT = o.alto - e.y, distB = e.y;
         var minD  = Math.min(distR, distL, distT, distB);
         var rsRot = 0;
-        if      (minD === distR) rsRot = 90;   // abre a la derecha
+        if      (minD === distR) rsRot = 270;  // abre a la derecha
         else if (minD === distT) rsRot = 180;  // abre hacia arriba
-        else if (minD === distL) rsRot = 270;  // abre a la izquierda
+        else if (minD === distL) rsRot = 90;   // abre a la izquierda
         // distB → rsRot = 0 (abre abajo, orientación base)
         var cxR = exD + rw*0.5, cyR = rySVG + rh*0.5;  // centro para rotar
         var cr1 = rw * 0.28, d45 = cr1 * 0.7071;
