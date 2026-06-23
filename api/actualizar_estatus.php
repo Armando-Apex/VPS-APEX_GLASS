@@ -20,6 +20,7 @@
 
 require_once 'config.php';
 require_once 'permisos.php';
+require_once 'wa_helper.php';
 requireSessionApi();
 
 
@@ -256,6 +257,59 @@ if ($ordenCompleta && $estatus === 'terminado') {
                 $pieza['orden_id'],
                 $asesor_row['id'] ?? null
             ]);
+        }
+    } catch (Exception $ignored) {}
+
+    // Envío WA automático (una sola vez) cuando toda la orden está terminada
+    try {
+        $stmtWa = $db->prepare('
+            SELECT o.wa_lista_enviado, o.cliente_nombre, o.folio,
+                   cl.telefono, cl.telefono_alterno,
+                   c.proyecto,
+                   (SELECT COUNT(*) FROM piezas WHERE orden_id = o.id) as total_piezas
+            FROM ordenes o
+            LEFT JOIN clientes cl ON cl.id = o.cliente_id
+            LEFT JOIN cotizaciones c ON c.orden_id = o.id
+            WHERE o.id = ?
+        ');
+        $stmtWa->execute([$pieza['orden_id']]);
+        $ordWa = $stmtWa->fetch(PDO::FETCH_ASSOC);
+
+        if ($ordWa && !$ordWa['wa_lista_enviado']) {
+            // Verificar que ninguna pieza quede fuera de terminado/entregado
+            $stmtPend = $db->prepare('
+                SELECT COUNT(*) FROM piezas
+                WHERE orden_id = ? AND estatus NOT IN ("terminado","entregado")
+            ');
+            $stmtPend->execute([$pieza['orden_id']]);
+            if ((int)$stmtPend->fetchColumn() === 0) {
+                $telRaw = preg_replace('/\D/', '', $ordWa['telefono_alterno'] ?: $ordWa['telefono']);
+                if ($telRaw && strlen($telRaw) >= 10) {
+                    if (strlen($telRaw) === 10) $telRaw = '52' . $telRaw;
+                    $proyectoWa = trim($ordWa['proyecto'] ?: $ordWa['cliente_nombre']);
+                    $resWa = enviarMensajeWA([
+                        'messaging_product' => 'whatsapp',
+                        'to'   => $telRaw,
+                        'type' => 'template',
+                        'template' => [
+                            'name'     => 'orden_lista',
+                            'language' => ['code' => 'es_MX'],
+                            'components' => [[
+                                'type' => 'body',
+                                'parameters' => [
+                                    ['type' => 'text', 'text' => substr(strip_tags($ordWa['cliente_nombre']), 0, 60)],
+                                    ['type' => 'text', 'text' => substr(strip_tags($ordWa['folio']), 0, 20)],
+                                    ['type' => 'text', 'text' => substr(strip_tags($proyectoWa), 0, 100)],
+                                    ['type' => 'text', 'text' => (string)$ordWa['total_piezas']],
+                                ]
+                            ]]
+                        ]
+                    ]);
+                }
+                // Marcar enviado incluso si falla para no reintentar en bucle
+                $db->prepare('UPDATE ordenes SET wa_lista_enviado = 1 WHERE id = ?')
+                   ->execute([$pieza['orden_id']]);
+            }
         }
     } catch (Exception $ignored) {}
 }

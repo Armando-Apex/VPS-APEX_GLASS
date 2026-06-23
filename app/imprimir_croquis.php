@@ -106,35 +106,35 @@ $arwSz=5; $arwLen=10; $lblW=52; $lblH=16; $lblWEj=52; $rotW=14; $rotH=52;
 
 $svg  = '';
 $uid  = 'cq' . $id;
-$svg .= '<defs><pattern id="g'.$uid.'" width="'.($sc*10).'" height="'.($sc*10).'" patternUnits="userSpaceOnUse" x="'.$ox.'" y="'.$oy.'"><path d="M '.($sc*10).' 0 L 0 0 0 '.($sc*10).'" fill="none" stroke="#e2e8f0" stroke-width="0.4"/></pattern></defs>';
+$svg .= '<defs><pattern id="g'.$uid.'" width="'.($sc*10).'" height="'.($sc*10).'" patternUnits="userSpaceOnUse" x="'.$ox.'" y="'.$oy.'"><path d="M '.($sc*10).' 0 L 0 0 0 '.($sc*10).'" fill="none" stroke="#cccccc" stroke-width="0.4"/></pattern></defs>';
 $svg .= '<rect width="'.$canvW.'" height="'.$SVG_H.'" fill="white"/>';
 
 $sp = buildPath($forma, $params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc);
 $svg .= '<clipPath id="cl'.$uid.'"><path d="'.$sp.'"/></clipPath>';
 $svg .= '<rect x="'.$ox.'" y="'.$oy.'" width="'.$gw.'" height="'.$gh.'" fill="url(#g'.$uid.')" clip-path="url(#cl'.$uid.')"/>';
-$svg .= '<path d="'.$sp.'" fill="#e8f4fd" fill-opacity="0.65" stroke="#2563eb" stroke-width="1.5"/>';
+$svg .= '<path d="'.$sp.'" fill="#f0f0f0" fill-opacity="1" stroke="#1a1a1a" stroke-width="1.5"/>';
 
-$cs = 'stroke:#f59e0b;stroke-width:3;stroke-linecap:round';
+$cs = 'stroke:#222222;stroke-width:3;stroke-linecap:round;stroke-dasharray:6,3';
 if (!empty($canteo['sup'])) $svg .= '<line x1="'.$ox.'" y1="'.$oy.'" x2="'.($ox+$gw).'" y2="'.$oy.'" style="'.$cs.'"/>';
 if (!empty($canteo['inf'])) $svg .= '<line x1="'.$ox.'" y1="'.$oyBottom.'" x2="'.($ox+$gw).'" y2="'.$oyBottom.'" style="'.$cs.'"/>';
 if (!empty($canteo['izq'])) $svg .= '<line x1="'.$ox.'" y1="'.$oy.'" x2="'.$ox.'" y2="'.$oyBottom.'" style="'.$cs.'"/>';
 if (!empty($canteo['der'])) $svg .= '<line x1="'.($ox+$gw).'" y1="'.$oy.'" x2="'.($ox+$gw).'" y2="'.$oyBottom.'" style="'.$cs.'"/>';
 
 // Cota ancho
-$svg .= '<line x1="'.$ox.'" y1="'.$oyBottom.'" x2="'.$ox.'" y2="'.($oyBottom+$cOff+2).'" stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="2,2"/>';
-$svg .= '<line x1="'.($ox+$gw).'" y1="'.$oyBottom.'" x2="'.($ox+$gw).'" y2="'.($oyBottom+$cOff+2).'" stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="2,2"/>';
-$svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cOff).'" x2="'.($ox+$gw).'" y2="'.($oyBottom+$cOff).'" stroke="#475569" stroke-width="'.$sw.'"/>';
-$svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cOff-$tk).'" x2="'.$ox.'" y2="'.($oyBottom+$cOff+$tk).'" stroke="#475569" stroke-width="'.$sw.'"/>';
-$svg .= '<line x1="'.($ox+$gw).'" y1="'.($oyBottom+$cOff-$tk).'" x2="'.($ox+$gw).'" y2="'.($oyBottom+$cOff+$tk).'" stroke="#475569" stroke-width="'.$sw.'"/>';
+$svg .= '<line x1="'.$ox.'" y1="'.$oyBottom.'" x2="'.$ox.'" y2="'.($oyBottom+$cOff+2).'" stroke="#bbbbbb" stroke-width="0.5" stroke-dasharray="2,2"/>';
+$svg .= '<line x1="'.($ox+$gw).'" y1="'.$oyBottom.'" x2="'.($ox+$gw).'" y2="'.($oyBottom+$cOff+2).'" stroke="#bbbbbb" stroke-width="0.5" stroke-dasharray="2,2"/>';
+$svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cOff).'" x2="'.($ox+$gw).'" y2="'.($oyBottom+$cOff).'" stroke="#222222" stroke-width="'.$sw.'"/>';
+$svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cOff-$tk).'" x2="'.$ox.'" y2="'.($oyBottom+$cOff+$tk).'" stroke="#222222" stroke-width="'.$sw.'"/>';
+$svg .= '<line x1="'.($ox+$gw).'" y1="'.($oyBottom+$cOff-$tk).'" x2="'.($ox+$gw).'" y2="'.($oyBottom+$cOff+$tk).'" stroke="#222222" stroke-width="'.$sw.'"/>';
 $svg .= '<rect x="'.($ox+$gw/2-$lblW/2).'" y="'.($oyBottom+$cOff-$lblH/2).'" width="'.$lblW.'" height="'.$lblH.'" fill="white"/>';
 $svg .= '<text x="'.($ox+$gw/2).'" y="'.($oyBottom+$cOff+$fz/2-1).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#1e293b" font-family="monospace">'.$ancho.' mm</text>';
 
 // Cota alto
-$svg .= '<line x1="'.$ox.'" y1="'.$oy.'" x2="'.($ox-$cxOff-2).'" y2="'.$oy.'" stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="2,2"/>';
-$svg .= '<line x1="'.$ox.'" y1="'.$oyBottom.'" x2="'.($ox-$cxOff-2).'" y2="'.$oyBottom.'" stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="2,2"/>';
-$svg .= '<line x1="'.($ox-$cxOff).'" y1="'.$oy.'" x2="'.($ox-$cxOff).'" y2="'.$oyBottom.'" stroke="#475569" stroke-width="'.$sw.'"/>';
-$svg .= '<line x1="'.($ox-$cxOff-$tk).'" y1="'.$oy.'" x2="'.($ox-$cxOff+$tk).'" y2="'.$oy.'" stroke="#475569" stroke-width="'.$sw.'"/>';
-$svg .= '<line x1="'.($ox-$cxOff-$tk).'" y1="'.$oyBottom.'" x2="'.($ox-$cxOff+$tk).'" y2="'.$oyBottom.'" stroke="#475569" stroke-width="'.$sw.'"/>';
+$svg .= '<line x1="'.$ox.'" y1="'.$oy.'" x2="'.($ox-$cxOff-2).'" y2="'.$oy.'" stroke="#bbbbbb" stroke-width="0.5" stroke-dasharray="2,2"/>';
+$svg .= '<line x1="'.$ox.'" y1="'.$oyBottom.'" x2="'.($ox-$cxOff-2).'" y2="'.$oyBottom.'" stroke="#bbbbbb" stroke-width="0.5" stroke-dasharray="2,2"/>';
+$svg .= '<line x1="'.($ox-$cxOff).'" y1="'.$oy.'" x2="'.($ox-$cxOff).'" y2="'.$oyBottom.'" stroke="#222222" stroke-width="'.$sw.'"/>';
+$svg .= '<line x1="'.($ox-$cxOff-$tk).'" y1="'.$oy.'" x2="'.($ox-$cxOff+$tk).'" y2="'.$oy.'" stroke="#222222" stroke-width="'.$sw.'"/>';
+$svg .= '<line x1="'.($ox-$cxOff-$tk).'" y1="'.$oyBottom.'" x2="'.($ox-$cxOff+$tk).'" y2="'.$oyBottom.'" stroke="#222222" stroke-width="'.$sw.'"/>';
 $svg .= '<rect x="'.($ox-$cxOff-$rotW/2).'" y="'.($oy+$gh/2-$rotH/2).'" width="'.$rotW.'" height="'.$rotH.'" fill="white"/>';
 $svg .= '<text x="'.($ox-$cxOff).'" y="'.($oy+$gh/2).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#1e293b" font-family="monospace" transform="rotate(-90,'.($ox-$cxOff).','.($oy+$gh/2).')">'.$alto.' mm</text>';
 
