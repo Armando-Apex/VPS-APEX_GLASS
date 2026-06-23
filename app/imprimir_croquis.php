@@ -248,7 +248,7 @@ foreach ($elementos as $idxEl => $e) {
         $svg .= '<circle cx="'.$rx1c.'" cy="'.$eyC.'" r="'.$cr1.'" fill="none" stroke="'.$colBI.'" stroke-width="1.5"/>';
         $svg .= '</g>';
         $lxRS=$exD; $lyRS2=$rySVG-24;
-        $svg .= '<rect x="'.($lxRS-1).'" y="'.($lyRS2-$fz).'" width="24" height="'.($fz+3).'" fill="white" rx="2"/>';
+        $svg .= '<rect x="'.($lxRS-1).'" y="'.($lyRS2-$fz).'" width="18" height="'.($fz+3).'" fill="white" rx="2"/>';
         $svg .= '<text x="'.$lxRS.'" y="'.$lyRS2.'" font-size="'.$fzSm.'" font-weight="700" fill="'.$colBI.'" font-family="monospace">BI</text>';
     }
 }
