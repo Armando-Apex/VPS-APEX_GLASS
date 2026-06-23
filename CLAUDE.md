@@ -503,4 +503,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-172 | 23-jun | Mando | Croquis PDF imprimir_croquis.php: SVG_H 560→960, MB 90→140, fuentes 9/8→14/12, flechas/ticks escalados; tabla elementos cardH 40→28, textos 15/14/12px; @page A4 portrait; SVG width:100% height:auto; botón "Guardar como PDF" → "Imprimir" |
 | UPD-173 | 23-jun | Mando | Croquis tabla elementos: ancho limitado a 90px (editor) y ~140px proporcional (PDF) para evitar exceso de espacio en blanco |
 | UPD-174 | 23-jun | Mando | Croquis resaque fuera de pieza: posición de dibujo clampeada con exD=min(ex, ox+gw-rw) y rySVG=max(ey-rh, oy) — resaque nunca sale del diagrama; todas las cotas y etiquetas actualizadas a exD; aplica en editor y PDF |
-**Próximo UPD disponible: UPD-175**
+| UPD-175 | 23-jun | Armando | Correo OC: BD += correo_enviado/correo_enviado_at; api/mailer.php (PHPMailer SMTP .env); ordenes_compra.php += pendientes_envio, enviar_correo, auto-send al abrir OC si dir_admin; compras.php += upload archivo en modal creación + botón "Enviar OC por correo" (morado, solo dir_admin no enviado) + badge morado sidebar polling 60s |
+**Próximo UPD disponible: UPD-176**

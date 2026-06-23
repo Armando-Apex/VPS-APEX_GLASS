@@ -8,6 +8,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
+require_once 'mailer.php';
 $user = requirePermiso('ver_inventario');
 
 $db     = getDB();
@@ -52,6 +53,14 @@ function partidaEsEditable($db, $partida_id, $rol) {
 
 // ── GET ──────────────────────────────────────────────────────
 if ($method === 'GET') {
+
+    // OCs abiertas sin correo enviado (badge sidebar dir_admin)
+    if ($accion === 'pendientes_envio') {
+        if (!in_array($user['rol'], ['dir_admin','dueno']))
+            jsonResponse(['total' => 0]);
+        $s = $db->query("SELECT COUNT(*) FROM ordenes_compra WHERE estado='abierta' AND correo_enviado=0");
+        jsonResponse(['total' => (int)$s->fetchColumn()]);
+    }
 
     // Siguiente número de OC
     if ($accion === 'consecutivo') {
@@ -205,7 +214,7 @@ if ($method === 'GET') {
     $s = $db->prepare("
         SELECT
             oc.id, oc.tipo, oc.categoria, oc.numero_oc, oc.fecha_oc, oc.dias_credito,
-            oc.estado, oc.fecha_pago_programada, oc.notas,
+            oc.estado, oc.fecha_pago_programada, oc.notas, oc.correo_enviado,
             p.nombre                            AS proveedor,
             COUNT(DISTINCT op.id)               AS num_partidas,
             COALESCE(SUM(op.importe), 0)        AS subtotal_sin_iva,
@@ -559,7 +568,74 @@ if ($method === 'POST') {
         if (!$oc_id || !in_array($estado, $validos))
             jsonResponse(['error' => 'Datos inválidos'], 422);
         $db->prepare("UPDATE ordenes_compra SET estado=? WHERE id=?")->execute([$estado, $oc_id]);
-        jsonResponse(['ok' => true]);
+
+        // Auto-envío cuando dir_admin/dueno abre una OC
+        $correo_enviado = false;
+        if ($estado === 'abierta' && in_array($user['rol'], ['dir_admin','dueno'])) {
+            $soc = $db->prepare("
+                SELECT oc.numero_oc, oc.notas,
+                       p.nombre AS proveedor_nombre,
+                       COALESCE(SUM(op.importe),0)*1.16 AS total_con_iva
+                FROM ordenes_compra oc
+                JOIN proveedores p ON p.id = oc.proveedor_id
+                LEFT JOIN oc_partidas op ON op.orden_compra_id = oc.id
+                WHERE oc.id = ?
+                GROUP BY oc.id
+            ");
+            $soc->execute([$oc_id]);
+            $oc_data = $soc->fetch();
+            // Buscar primer archivo adjunto
+            $saf = $db->prepare("SELECT ruta FROM oc_archivos WHERE oc_id=? ORDER BY created_at ASC LIMIT 1");
+            $saf->execute([$oc_id]);
+            $archivo = $saf->fetchColumn();
+            $archivo_path = $archivo ? __DIR__ . '/../archivos_oc/' . basename($archivo) : null;
+
+            $result = enviarCorreoOC($oc_data, $archivo_path);
+            if ($result['ok']) {
+                $db->prepare("UPDATE ordenes_compra SET correo_enviado=1, correo_enviado_at=NOW() WHERE id=?")
+                   ->execute([$oc_id]);
+                $correo_enviado = true;
+            } else {
+                error_log('APEX OC correo fallido OC#' . $oc_id . ': ' . ($result['error'] ?? ''));
+            }
+        }
+        jsonResponse(['ok' => true, 'correo_enviado' => $correo_enviado]);
+    }
+
+    // ── Enviar correo OC manualmente (dir_admin) ──────────────
+    if ($accion === 'enviar_correo') {
+        if (!in_array($user['rol'], ['dir_admin','dueno']))
+            jsonResponse(['error' => 'Sin permiso'], 403);
+        $oc_id = (int)($body['orden_compra_id'] ?? 0);
+        if (!$oc_id) jsonResponse(['error' => 'orden_compra_id requerido'], 422);
+
+        $soc = $db->prepare("
+            SELECT oc.numero_oc, oc.notas,
+                   p.nombre AS proveedor_nombre,
+                   COALESCE(SUM(op.importe),0)*1.16 AS total_con_iva
+            FROM ordenes_compra oc
+            JOIN proveedores p ON p.id = oc.proveedor_id
+            LEFT JOIN oc_partidas op ON op.orden_compra_id = oc.id
+            WHERE oc.id = ?
+            GROUP BY oc.id
+        ");
+        $soc->execute([$oc_id]);
+        $oc_data = $soc->fetch();
+        if (!$oc_data) jsonResponse(['error' => 'OC no encontrada'], 404);
+
+        $saf = $db->prepare("SELECT ruta FROM oc_archivos WHERE oc_id=? ORDER BY created_at ASC LIMIT 1");
+        $saf->execute([$oc_id]);
+        $archivo = $saf->fetchColumn();
+        $archivo_path = $archivo ? __DIR__ . '/../archivos_oc/' . basename($archivo) : null;
+
+        $result = enviarCorreoOC($oc_data, $archivo_path);
+        if ($result['ok']) {
+            $db->prepare("UPDATE ordenes_compra SET correo_enviado=1, correo_enviado_at=NOW() WHERE id=?")
+               ->execute([$oc_id]);
+            jsonResponse(['ok' => true]);
+        } else {
+            jsonResponse(['error' => 'Error al enviar: ' . ($result['error'] ?? 'desconocido')], 500);
+        }
     }
 
     jsonResponse(['error' => 'Acción no válida'], 400);

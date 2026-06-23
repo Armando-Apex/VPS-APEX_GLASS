@@ -239,6 +239,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
       </button>
       <button class="sidebar-link" data-modulo="compras" onclick="cargarModulo('compras')">
         <span class="sidebar-icon">&#128722;</span>Compras
+        <?php if ($esAdmin): ?><span id="badge-compras-envio" style="display:none;background:#7c3aed;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:4px"></span><?php endif; ?>
       </button>
     </div>
     <?php endif; ?>
@@ -544,6 +545,33 @@ window.cargarModulo = function(nombre, params) {
   setInterval(actualizarBadgeAuth, 60000);
   window.actualizarBadgeAuth = actualizarBadgeAuth;
 })();
+
+// ── Badge OCs pendientes de envío (dir_admin) ─────────────────
+<?php if ($esAdmin): ?>
+(function() {
+  function actualizarBadgeCompras() {
+    fetch('/produccion/api/ordenes_compra.php?accion=pendientes_envio')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var badge = document.getElementById('badge-compras-envio');
+        if (!badge) return;
+        var total = data.total || 0;
+        if (total > 0) {
+          badge.textContent = total;
+          badge.style.display = 'inline-block';
+        } else {
+          badge.style.display = 'none';
+        }
+      })
+      .catch(function() {});
+  }
+  actualizarBadgeCompras();
+  setInterval(actualizarBadgeCompras, 60000);
+  window.actualizarBadgeCompras = actualizarBadgeCompras;
+})();
+<?php else: ?>
+window.actualizarBadgeCompras = function() {};
+<?php endif; ?>
 
 // ── Badge mensajes WA sin leer ────────────────────────────────
 (function() {

@@ -6,6 +6,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=compras'); exit;
 }
 $puede_gestionar = in_array($_SESSION['user_rol'] ?? '', ['dir_admin','dueno','administracion']);
+$es_dir_admin    = in_array($_SESSION['user_rol'] ?? '', ['dir_admin','dueno']);
 ?>
 <style>
 .cmp-wrap { padding: 24px; }
@@ -225,6 +226,13 @@ tbody td { padding: 11px 14px; font-size: 13px; }
           <input type="text" id="ocNotas" class="form-input" placeholder="Opcional">
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Cotizaci&oacute;n / Factura a pagar <span style="font-weight:400;color:#9ca3af">(opcional)</span></label>
+          <input type="file" id="ocArchivo" accept=".pdf,.jpg,.jpeg,.png,.webp" style="font-size:13px;padding:4px 0">
+          <span style="font-size:11px;color:#9ca3af">PDF o imagen &mdash; se adjunta al correo de la OC</span>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-sec" onclick="ModCompras._cerrarModal('modalNuevaOC')">Cancelar</button>
@@ -337,6 +345,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 
 <script>
 var PUEDE_GESTIONAR_CMP = <?= $puede_gestionar ? 'true' : 'false' ?>;
+var ES_DIR_ADMIN_CMP    = <?= $es_dir_admin ? 'true' : 'false' ?>;
 
 var ModCompras = (function() {
 
@@ -517,6 +526,15 @@ async function cmpGuardarOC() {
     });
     var d = await r.json();
     if (d.ok) {
+      // Subir archivo si se seleccionó
+      var archivoInput = document.getElementById('ocArchivo');
+      if (archivoInput && archivoInput.files && archivoInput.files.length) {
+        var form = new FormData();
+        form.append('archivo', archivoInput.files[0]);
+        form.append('oc_id', d.id);
+        await fetch('../api/ordenes_compra.php?accion=subir_archivo', { method: 'POST', body: form });
+        archivoInput.value = '';
+      }
       cmpCerrarModal('modalNuevaOC');
       await cmpCargar();
       cmpVerDetalle(d.id);
@@ -588,10 +606,18 @@ function cmpRenderDetalle() {
       footer += '<button class="btn-sm btn-add" onclick="cmpAbrirModalPago(' + o.id + ')">+ Pago</button> ';
     }
     if (o.estado === 'borrador') {
-      footer += '<button class="btn-prim" style="font-size:12px;padding:7px 14px" onclick="cmpCambiarEstado(' + o.id + ',\'abierta\')">Abrir OC</button> ';
+      var lbl_abrir = ES_DIR_ADMIN_CMP ? 'Abrir OC (envia correo)' : 'Abrir OC';
+      footer += '<button class="btn-prim" style="font-size:12px;padding:7px 14px" onclick="cmpCambiarEstado(' + o.id + ',\'abierta\')">' + lbl_abrir + '</button> ';
     }
     if (o.estado === 'abierta') {
       footer += '<button class="btn-prim" style="font-size:12px;padding:7px 14px;background:#16a34a" onclick="cmpAbrirModalRecepcion(' + o.id + ')">Registrar recepci&oacute;n</button> ';
+      // Botón enviar correo — solo dir_admin, solo si no se ha enviado
+      if (ES_DIR_ADMIN_CMP && !o.correo_enviado) {
+        footer += '<button class="btn-prim" style="font-size:12px;padding:7px 14px;background:#7c3aed" onclick="cmpEnviarCorreo(' + o.id + ')">Enviar OC por correo</button> ';
+      }
+      if (o.correo_enviado) {
+        footer += '<span style="font-size:12px;color:#16a34a;font-weight:600;padding:7px 0">Correo enviado</span> ';
+      }
     }
   }
   footer += '<button class="btn-sec" onclick="ModCompras._cerrarModal(\'modalDetalle\')">Cerrar</button>';
@@ -963,6 +989,29 @@ async function cmpCambiarEstado(oc_id, estado) {
   } catch(e) { alert('Error de conexion'); }
 }
 window.cmpCambiarEstado = cmpCambiarEstado;
+
+// ── Enviar correo OC (dir_admin) ──────────────────────────────
+async function cmpEnviarCorreo(oc_id) {
+  if (!confirm('Enviar correo de esta OC a los destinatarios configurados?')) return;
+  try {
+    var r = await fetch('../api/ordenes_compra.php', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'enviar_correo', orden_compra_id: oc_id})
+    });
+    var d = await r.json();
+    if (d.ok) {
+      var r2 = await fetch('../api/ordenes_compra.php?accion=detalle&id=' + oc_id);
+      _detalle = await r2.json();
+      cmpRenderDetalle();
+      await cmpCargar();
+      actualizarBadgeCompras();
+    } else {
+      alert(d.error || 'Error al enviar correo');
+    }
+  } catch(e) { alert('Error de conexion'); }
+}
+window.cmpEnviarCorreo = cmpEnviarCorreo;
 
 // ── Paginar ───────────────────────────────────────────────────
 function cmpPaginar(dir) { _cmpPage += dir; cmpFiltrar(); }
