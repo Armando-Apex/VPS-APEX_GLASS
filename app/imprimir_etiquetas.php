@@ -76,7 +76,7 @@ if ($orden['fecha_entrega']) {
 <head>
 <meta charset="UTF-8">
 <title>Etiquetas <?= htmlspecialchars($folio) ?></title>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="../lib/qrcode.min.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 
