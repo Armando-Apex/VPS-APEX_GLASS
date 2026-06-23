@@ -333,6 +333,15 @@ async function cargarModulo(nombre, params = {}) {
   document.querySelectorAll('script[data-spa-mod]').forEach(s => s.remove());
   _spaScripts = [];
 
+  // Cerrar y eliminar cualquier modal/overlay que haya quedado abierto del módulo anterior
+  ['corrModal','archModal','catModal','modalRechazoCalidad'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  });
+  document.querySelectorAll('.motivo-overlay').forEach(function(el) {
+    if (el.parentNode) el.parentNode.removeChild(el);
+  });
+
   document.getElementById('spa-content').innerHTML = '';
   document.getElementById('spa-loading').classList.add('show');
 
