@@ -202,35 +202,8 @@ foreach ($elementos as $idxEl => $e) {
         $rh = max(4, (float)$e['w']*$sc);
         $exD = min($ex, $ox+$gw-$rw);
         $rySVG = max($ey - $rh, $oy);
-        $rsPreset = (int)($e['rs_preset'] ?? 0);
-        if ($rsPreset === 1) {
-            // Herraje CT29: U sin base + orejas a 45°/135° — orientación por borde más cercano
-            $distR = $ancho - (float)$e['x']; $distL = (float)$e['x'];
-            $distT = $alto  - (float)$e['y']; $distB = (float)$e['y'];
-            $minD  = min($distR, $distL, $distT, $distB);
-            $rsRot = 0;
-            if      ($minD === $distR) $rsRot = 270;
-            else if ($minD === $distT) $rsRot = 180;
-            else if ($minD === $distL) $rsRot = 90;
-            $cxR = $exD + $rw*0.5; $cyR = $rySVG + $rh*0.5;
-            $cr1  = $rw * 0.28; $d45 = $cr1 * 0.7071;
-            $lx1  = $exD - $d45; $rx1c = $exD + $rw + $d45; $eyC = $rySVG - $d45;
-            $svg .= '<g transform="rotate('.$rsRot.' '.$cxR.' '.$cyR.')">';
-            $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
-            $svg .= '<circle cx="'.$lx1.'" cy="'.$eyC.'" r="'.$cr1.'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
-            $svg .= '<circle cx="'.$rx1c.'" cy="'.$eyC.'" r="'.$cr1.'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
-            $svg .= '<path d="M '.$exD.' '.($rySVG+$rh).' L '.$exD.' '.$rySVG.' L '.($exD+$rw).' '.$rySVG.' L '.($exD+$rw).' '.($rySVG+$rh).'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
-            $svg .= '<circle cx="'.$lx1.'" cy="'.$eyC.'" r="'.$cr1.'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
-            $svg .= '<circle cx="'.$rx1c.'" cy="'.$eyC.'" r="'.$cr1.'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
-            $svg .= '</g>';
-            $colRS = '#0369a1';
-        } else {
-            $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
-            $colRS = '#854d0e';
-        }
-        $svg .= '<line x1="'.$exD.'" y1="'.($rySVG-9).'" x2="'.($exD+$rw).'" y2="'.($rySVG-9).'" stroke="#854d0e" stroke-width="0.8"/>';
-        $svg .= '<line x1="'.$exD.'" y1="'.($rySVG-12).'" x2="'.$exD.'" y2="'.($rySVG-6).'" stroke="#854d0e" stroke-width="0.8"/>';
-        $svg .= '<line x1="'.($exD+$rw).'" y1="'.($rySVG-12).'" x2="'.($exD+$rw).'" y2="'.($rySVG-6).'" stroke="#854d0e" stroke-width="0.8"/>';
+        $colRS = '#854d0e';
+        $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
         $svg .= '<line x1="'.$exD.'" y1="'.($rySVG-9).'" x2="'.($exD+$rw).'" y2="'.($rySVG-9).'" stroke="'.$colRS.'" stroke-width="0.8"/>';
         $svg .= '<line x1="'.$exD.'" y1="'.($rySVG-12).'" x2="'.$exD.'" y2="'.($rySVG-6).'" stroke="'.$colRS.'" stroke-width="0.8"/>';
         $svg .= '<line x1="'.($exD+$rw).'" y1="'.($rySVG-12).'" x2="'.($exD+$rw).'" y2="'.($rySVG-6).'" stroke="'.$colRS.'" stroke-width="0.8"/>';
@@ -244,8 +217,35 @@ foreach ($elementos as $idxEl => $e) {
         $svg .= '<text x="'.($exD+$rw+17).'" y="'.$lyRS.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="'.$colRS.'" font-family="monospace" transform="rotate(-90,'.($exD+$rw+17).','.$lyRS.')">'.$e['w'].' mm</text>';
         $lxRS=$exD; $lyRS2=$rySVG-24;
         $svg .= '<rect x="'.($lxRS-1).'" y="'.($lyRS2-$fz).'" width="52" height="'.($fz+3).'" fill="white" rx="2"/>';
-        $rsLabel = $rsPreset === 1 ? 'CT29  herraje' : 'RS  posici&#243;n';
-        $svg .= '<text x="'.$lxRS.'" y="'.$lyRS2.'" font-size="'.$fzSm.'" font-weight="700" fill="'.$colRS.'" font-family="monospace">'.$rsLabel.'</text>';
+        $svg .= '<text x="'.$lxRS.'" y="'.$lyRS2.'" font-size="'.$fzSm.'" font-weight="700" fill="'.$colRS.'" font-family="monospace">RS  posici&#243;n</text>';
+    }
+    if ($e['tipo'] === 'bi') {
+        $rw = max(8, (float)$e['h']*$sc);
+        $rh = max(4, (float)$e['w']*$sc);
+        $exD = min($ex, $ox+$gw-$rw);
+        $rySVG = max($ey - $rh, $oy);
+        $colBI = '#0f766e';
+        $distR = $ancho - (float)$e['x']; $distL = (float)$e['x'];
+        $distT = $alto  - (float)$e['y']; $distB = (float)$e['y'];
+        $minD  = min($distR, $distL, $distT, $distB);
+        $biRot = 0;
+        if      ($minD === $distR) $biRot = 270;
+        else if ($minD === $distT) $biRot = 180;
+        else if ($minD === $distL) $biRot = 90;
+        $cxR = $exD + $rw*0.5; $cyR = $rySVG + $rh*0.5;
+        $cr1  = $rw * 0.28; $d45 = $cr1 * 0.7071;
+        $lx1  = $exD - $d45; $rx1c = $exD + $rw + $d45; $eyC = $rySVG - $d45;
+        $svg .= '<g transform="rotate('.$biRot.' '.$cxR.' '.$cyR.')">';
+        $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#ccfbf1" fill-opacity="0.9" stroke="none"/>';
+        $svg .= '<circle cx="'.$lx1.'" cy="'.$eyC.'" r="'.$cr1.'" fill="#ccfbf1" fill-opacity="0.9" stroke="none"/>';
+        $svg .= '<circle cx="'.$rx1c.'" cy="'.$eyC.'" r="'.$cr1.'" fill="#ccfbf1" fill-opacity="0.9" stroke="none"/>';
+        $svg .= '<path d="M '.$exD.' '.($rySVG+$rh).' L '.$exD.' '.$rySVG.' L '.($exD+$rw).' '.$rySVG.' L '.($exD+$rw).' '.($rySVG+$rh).'" fill="none" stroke="'.$colBI.'" stroke-width="1.5"/>';
+        $svg .= '<circle cx="'.$lx1.'" cy="'.$eyC.'" r="'.$cr1.'" fill="none" stroke="'.$colBI.'" stroke-width="1.5"/>';
+        $svg .= '<circle cx="'.$rx1c.'" cy="'.$eyC.'" r="'.$cr1.'" fill="none" stroke="'.$colBI.'" stroke-width="1.5"/>';
+        $svg .= '</g>';
+        $lxRS=$exD; $lyRS2=$rySVG-24;
+        $svg .= '<rect x="'.($lxRS-1).'" y="'.($lyRS2-$fz).'" width="52" height="'.($fz+3).'" fill="white" rx="2"/>';
+        $svg .= '<text x="'.$lxRS.'" y="'.$lyRS2.'" font-size="'.$fzSm.'" font-weight="700" fill="'.$colBI.'" font-family="monospace">BI  posici&#243;n</text>';
     }
 }
 
@@ -256,8 +256,8 @@ if ($hasEl) {
     $tblW = min($canvW - $tblX - 4, round(140 * $SVG_W / 450));
     $tblY = $oy + 2;
     $cardH = round(28 * $SVG_W / 450);
-    $eCol = ['tp'=>'#1e40af','ta'=>'#7c3aed','rs'=>'#854d0e'];
-    $eBg  = ['tp'=>'#dbeafe','ta'=>'#f3e8ff','rs'=>'#fef9c3'];
+    $eCol = ['tp'=>'#1e40af','ta'=>'#7c3aed','rs'=>'#854d0e','bi'=>'#0f766e'];
+    $eBg  = ['tp'=>'#dbeafe','ta'=>'#f3e8ff','rs'=>'#fef9c3','bi'=>'#ccfbf1'];
     $svg .= '<text x="'.$tblX.'" y="'.$tblY.'" font-size="13" font-weight="700" fill="#64748b" font-family="sans-serif">ELEMENTOS</text>';
     foreach ($elementos as $i => $el) {
         $ec  = $eCol[$el['tipo']] ?? '#374151';
@@ -270,6 +270,7 @@ if ($hasEl) {
         if ($el['tipo']==='tp') $det = '&#216;'.$el['d'].'mm';
         if ($el['tipo']==='ta') $det = '&#216;'.$el['de'].'/'.$el['di'];
         if ($el['tipo']==='rs') $det = $el['w'].'&#215;'.$el['h'].'mm';
+        if ($el['tipo']==='bi') $det = $el['w'].'&#215;'.$el['h'].'mm';
         $svg .= '<text x="'.($tblX+$tblW-2).'" y="'.($ry+18).'" text-anchor="end" font-size="14" fill="'.$ec.'" font-family="monospace">'.$det.'</text>';
         $svg .= '<text x="'.($tblX+12).'" y="'.($ry+$cardH-6).'" font-size="12" fill="#374151" font-family="monospace">X: '.$el['x'].'  Y: '.$el['y'].'</text>';
     }

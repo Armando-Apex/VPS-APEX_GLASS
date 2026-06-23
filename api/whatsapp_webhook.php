@@ -135,9 +135,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $tipo = 'texto';
                 }
 
-                // Buscar o crear conversación
-                $stmtConv = $db->prepare("SELECT id, cliente_id FROM whatsapp_conversaciones WHERE telefono = ?");
-                $stmtConv->execute([$telefono]);
+                // Buscar o crear conversación — por últimos 10 dígitos para tolerar 52 vs 521
+                $stmtConv = $db->prepare("SELECT id, cliente_id FROM whatsapp_conversaciones WHERE RIGHT(REGEXP_REPLACE(telefono,'[^0-9]',''),10) = ?");
+                $stmtConv->execute([substr($telefono, -10)]);
                 $conv = $stmtConv->fetch(PDO::FETCH_ASSOC);
 
                 if (!$conv) {

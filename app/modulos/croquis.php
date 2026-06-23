@@ -38,6 +38,7 @@ header('Content-Type: text/html; charset=utf-8');
 .cq-tag-tp  { background: #dbeafe; color: #1e40af; }
 .cq-tag-ta  { background: #f3e8ff; color: #6b21a8; }
 .cq-tag-rs  { background: #dcfce7; color: #15803d; }
+.cq-tag-bi  { background: #ccfbf1; color: #0f766e; }
 .cq-tag-ct  { background: #fef9c3; color: #713f12; }
 .cq-item-actions { display: flex; gap: 6px; }
 .cq-btn-pdf { background: #16a34a; color: white; border: none; border-radius: 7px; padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer; }
@@ -227,6 +228,9 @@ header('Content-Type: text/html; charset=utf-8');
             <div class="cq-chip" draggable="true" ondragstart="CroquisMod._startDrag('rs',event)">
               <span class="cq-tag cq-tag-rs">RS</span> Resaque
             </div>
+            <div class="cq-chip" draggable="true" ondragstart="CroquisMod._startDrag('bi',event)">
+              <span class="cq-tag cq-tag-bi">BI</span> Bisagra
+            </div>
             <div class="cq-hint">Arrastra al vidrio &middot; Doble clic edita</div>
             <div id="cq-placed-list"></div>
           </div>
@@ -382,6 +386,7 @@ function renderLista(croquis) {
     var tpCnt = elems.filter(function(e){ return e.tipo==='tp'; }).length;
     var taCnt = elems.filter(function(e){ return e.tipo==='ta'; }).length;
     var rsCnt = elems.filter(function(e){ return e.tipo==='rs'; }).length;
+    var biCnt = elems.filter(function(e){ return e.tipo==='bi'; }).length;
     var ladosCanteo = [];
     if (canteoObj.sup) ladosCanteo.push('Sup');
     if (canteoObj.inf) ladosCanteo.push('Inf');
@@ -390,6 +395,7 @@ function renderLista(croquis) {
     if (tpCnt) tags += '<span class="cq-tag cq-tag-tp">' + tpCnt + ' TP</span>';
     if (taCnt) tags += '<span class="cq-tag cq-tag-ta">' + taCnt + ' TA</span>';
     if (rsCnt) tags += '<span class="cq-tag cq-tag-rs">' + rsCnt + ' RS</span>';
+    if (biCnt) tags += '<span class="cq-tag cq-tag-bi">' + biCnt + ' BI</span>';
     if (ladosCanteo.length) tags += '<span class="cq-tag cq-tag-ct">Cant: ' + ladosCanteo.join('+') + '</span>';
 
     var formaLabel = {rect:'Rectángulo',corte:'Esq. cortada',L:'Forma L',trap:'Trapecio',poligono:'Forma libre'}[c.forma] || c.forma;
@@ -685,6 +691,7 @@ function _onDrop(event) {
   if (_draggingChip === 'tp') { el.d  = 13; }
   if (_draggingChip === 'ta') { el.de = 20; el.di = 20; }
   if (_draggingChip === 'rs') { el.w = 120; el.h = 40; el.rs_preset = 0; }
+  if (_draggingChip === 'bi') { el.w = 58; el.h = 37.5; }
   _elementos.push(el);
   _draggingChip = null;
   _renderPlacedList();
@@ -789,13 +796,14 @@ function _openEditModal(id) {
   _editingId = id;
   var el = _elementos.find(function(e){ return e.id === id; });
   if (!el) return;
-  var titles = {tp:'Taladro pasado', ta:'Taladro avellanado', rs:'Resaque'};
-  var tagCls  = {tp:'cq-tag-tp', ta:'cq-tag-ta', rs:'cq-tag-rs'};
+  var titles = {tp:'Taladro pasado', ta:'Taladro avellanado', rs:'Resaque', bi:'Bisagra'};
+  var tagCls  = {tp:'cq-tag-tp', ta:'cq-tag-ta', rs:'cq-tag-rs', bi:'cq-tag-bi'};
   document.getElementById('cq-modal-title').innerHTML = '<span class="cq-tag '+tagCls[el.tipo]+'" style="margin-right:5px">'+el.tipo.toUpperCase()+'</span>'+titles[el.tipo];
   var f = _mField('Pos X (mm)','ced-x',el.x) + _mField('Pos Y (mm)','ced-y',el.y);
   if (el.tipo==='tp') f += _mSelectTP('ced-d', el.d);
   if (el.tipo==='ta') f += _mSelectTA('ced-de', el.de, 'Ø ext (mm)') + _mSelectTA('ced-di', el.di, 'Ø int (mm)');
   if (el.tipo==='rs') f += _mResaqueFields(el.w, el.h);
+  if (el.tipo==='bi') f += _mField('Ancho (mm)','ced-w',el.w) + _mField('Alto (mm)','ced-h',el.h);
   document.getElementById('cq-modal-fields').innerHTML = f;
   document.getElementById('cq-edit-modal').classList.add('open');
 }
@@ -820,8 +828,7 @@ function _mSelectTA(id, val, label) {
 }
 
 var RS_PREDEFINIDOS = [
-  { label: 'Personalizado',                  w: null,  h: null  },
-  { label: 'Herraje cancel baño (1476180)',  w: 58,    h: 37.5  }
+  { label: 'Personalizado', w: null, h: null }
 ];
 
 function _mResaqueFields(w, h) {
@@ -872,6 +879,7 @@ function _saveEditing() {
   if (el.tipo==='tp') el.d  = +document.getElementById('ced-d').value  || 12;
   if (el.tipo==='ta') { el.de = +document.getElementById('ced-de').value || 20; el.di = +document.getElementById('ced-di').value || 10; }
   if (el.tipo==='rs') { el.rs_preset = +document.getElementById('ced-rs-tipo').value || 0; el.w = +document.getElementById('ced-w').value || 120; el.h = +document.getElementById('ced-h').value || 40; }
+  if (el.tipo==='bi') { el.w = +document.getElementById('ced-w').value || 58; el.h = +document.getElementById('ced-h').value || 37.5; }
   _closeModal();
   _renderPlacedList();
   _redraw();
@@ -888,7 +896,7 @@ function _renderPlacedList() {
   var list = document.getElementById('cq-placed-list');
   if (!_elementos.length) { list.innerHTML = ''; return; }
   list.innerHTML = _elementos.map(function(e) {
-    var tc = e.tipo==='tp'?'cq-tag-tp':e.tipo==='ta'?'cq-tag-ta':'cq-tag-rs';
+    var tc = e.tipo==='tp'?'cq-tag-tp':e.tipo==='ta'?'cq-tag-ta':e.tipo==='bi'?'cq-tag-bi':'cq-tag-rs';
     var label = e.tipo==='tp' ? 'X:'+e.x+' Y:'+e.y+' Ø'+e.d
               : e.tipo==='ta' ? 'X:'+e.x+' Y:'+e.y+' Ø'+e.de+'/'+e.di
               : 'X:'+e.x+' Y:'+e.y+' '+e.w+'×'+e.h;
@@ -1221,39 +1229,40 @@ function _redraw() {
     }
     if (e.tipo==='rs') {
       var rw=Math.max(8,e.h*sc), rh=Math.max(4,e.w*sc);
-      // Sin mínimo forzado para presets — se dibuja a escala real
       var exD = Math.min(ex, ox+gw-rw);
       var rySVG = Math.max(ey - rh, oy);
       out += '<g style="cursor:'+cur+'"'+evts+'>';
       out += '<rect x="'+(exD-3)+'" y="'+(rySVG-3)+'" width="'+(rw+6)+'" height="'+(rh+6)+'" fill="transparent"/>';
-      if ((e.rs_preset || 0) === 1) {
-        // ── Herraje CT29: U sin base + orejas a 45°/135° — orientación por borde más cercano ──
-        // Borde más cercano determina hacia dónde abre la U
-        var distR = o.ancho - e.x, distL = e.x, distT = o.alto - e.y, distB = e.y;
-        var minD  = Math.min(distR, distL, distT, distB);
-        var rsRot = 0;
-        if      (minD === distR) rsRot = 270;  // abre a la derecha
-        else if (minD === distT) rsRot = 180;  // abre hacia arriba
-        else if (minD === distL) rsRot = 90;   // abre a la izquierda
-        // distB → rsRot = 0 (abre abajo, orientación base)
-        var cxR = exD + rw*0.5, cyR = rySVG + rh*0.5;  // centro para rotar
-        var cr1 = rw * 0.28, d45 = cr1 * 0.7071;
-        var lx1 = exD - d45, rx1c = exD + rw + d45, eyC = rySVG - d45;
-        out += '<g transform="rotate('+rsRot+' '+cxR+' '+cyR+')">';
-        out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
-        out += '<circle cx="'+lx1+'" cy="'+eyC+'" r="'+cr1+'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
-        out += '<circle cx="'+rx1c+'" cy="'+eyC+'" r="'+cr1+'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
-        out += '<path d="M '+exD+' '+(rySVG+rh)+' L '+exD+' '+rySVG+' L '+(exD+rw)+' '+rySVG+' L '+(exD+rw)+' '+(rySVG+rh)+'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
-        out += '<circle cx="'+lx1+'" cy="'+eyC+'" r="'+cr1+'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
-        out += '<circle cx="'+rx1c+'" cy="'+eyC+'" r="'+cr1+'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
-        out += '</g>';
-      } else {
-        // ── Resaque genérico ─────────────────────────────────────────────────
-        out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
-      }
-      // número — pequeño, fuera del bounding box arriba a la derecha
-      var nbColor = (e.rs_preset||0)===1 ? '#0369a1' : '#854d0e';
-      out += '<circle cx="'+(exD+rw+5)+'" cy="'+(rySVG-5)+'" r="5" fill="'+nbColor+'"/>';
+      out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+      out += '<circle cx="'+(exD+rw+5)+'" cy="'+(rySVG-5)+'" r="5" fill="#854d0e"/>';
+      out += '<text x="'+(exD+rw+5)+'" y="'+(rySVG-1.5)+'" text-anchor="middle" font-size="6" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
+      out += '</g>';
+    }
+    if (e.tipo==='bi') {
+      var rw=Math.max(8,e.h*sc), rh=Math.max(4,e.w*sc);
+      var exD = Math.min(ex, ox+gw-rw);
+      var rySVG = Math.max(ey - rh, oy);
+      out += '<g style="cursor:'+cur+'"'+evts+'>';
+      out += '<rect x="'+(exD-3)+'" y="'+(rySVG-3)+'" width="'+(rw+6)+'" height="'+(rh+6)+'" fill="transparent"/>';
+      // Orientación: U abre hacia el borde más cercano
+      var distR = o.ancho - e.x, distL = e.x, distT = o.alto - e.y, distB = e.y;
+      var minD  = Math.min(distR, distL, distT, distB);
+      var biRot = 0;
+      if      (minD === distR) biRot = 270;
+      else if (minD === distT) biRot = 180;
+      else if (minD === distL) biRot = 90;
+      var cxR = exD + rw*0.5, cyR = rySVG + rh*0.5;
+      var cr1 = rw * 0.28, d45 = cr1 * 0.7071;
+      var lx1 = exD - d45, rx1c = exD + rw + d45, eyC = rySVG - d45;
+      out += '<g transform="rotate('+biRot+' '+cxR+' '+cyR+')">';
+      out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#ccfbf1" fill-opacity="0.9" stroke="none"/>';
+      out += '<circle cx="'+lx1+'" cy="'+eyC+'" r="'+cr1+'" fill="#ccfbf1" fill-opacity="0.9" stroke="none"/>';
+      out += '<circle cx="'+rx1c+'" cy="'+eyC+'" r="'+cr1+'" fill="#ccfbf1" fill-opacity="0.9" stroke="none"/>';
+      out += '<path d="M '+exD+' '+(rySVG+rh)+' L '+exD+' '+rySVG+' L '+(exD+rw)+' '+rySVG+' L '+(exD+rw)+' '+(rySVG+rh)+'" fill="none" stroke="#0f766e" stroke-width="1.5"/>';
+      out += '<circle cx="'+lx1+'" cy="'+eyC+'" r="'+cr1+'" fill="none" stroke="#0f766e" stroke-width="1.5"/>';
+      out += '<circle cx="'+rx1c+'" cy="'+eyC+'" r="'+cr1+'" fill="none" stroke="#0f766e" stroke-width="1.5"/>';
+      out += '</g>';
+      out += '<circle cx="'+(exD+rw+5)+'" cy="'+(rySVG-5)+'" r="5" fill="#0f766e"/>';
       out += '<text x="'+(exD+rw+5)+'" y="'+(rySVG-1.5)+'" text-anchor="middle" font-size="6" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }
@@ -1266,8 +1275,8 @@ function _redraw() {
     var tblW = Math.min(o.canvW - tblX - 4, 90);
     var tblY = oy + 2;
     var cardH = 24;
-    var eCol = {tp:'#1e40af', ta:'#7c3aed', rs:'#854d0e'};
-    var eBg  = {tp:'#dbeafe', ta:'#f3e8ff', rs:'#fef9c3'};
+    var eCol = {tp:'#1e40af', ta:'#7c3aed', rs:'#854d0e', bi:'#0f766e'};
+    var eBg  = {tp:'#dbeafe', ta:'#f3e8ff', rs:'#fef9c3', bi:'#ccfbf1'};
     out += '<text x="'+tblX+'" y="'+tblY+'" font-size="7" font-weight="700" fill="#64748b" font-family="sans-serif">ELEMENTOS</text>';
     _elementos.forEach(function(el, i) {
       var ec  = eCol[el.tipo] || '#374151';
@@ -1280,6 +1289,7 @@ function _redraw() {
       if (el.tipo==='tp') det = 'Ø'+el.d+'mm';
       if (el.tipo==='ta') det = 'Ø'+el.de+'/'+el.di;
       if (el.tipo==='rs') det = el.w+'×'+el.h+'mm';
+      if (el.tipo==='bi') det = el.w+'×'+el.h+'mm';
       out += '<text x="'+(tblX+tblW-2)+'" y="'+(ry+10)+'" text-anchor="end" font-size="7" fill="'+ec+'" font-family="monospace">'+det+'</text>';
       out += '<text x="'+(tblX+8)+'" y="'+(ry+cardH-6)+'" font-size="6.5" fill="#374151" font-family="monospace">X: '+el.x+'  Y: '+el.y+'</text>';
     });

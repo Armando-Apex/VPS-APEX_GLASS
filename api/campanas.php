@@ -657,8 +657,9 @@ if ($metodo === 'POST' && $accion === 'enviar_cotizacion_wa') {
     }
 
     // Guardar en conversación para que aparezca en el inbox
-    $stmtConv = $db->prepare("SELECT id FROM whatsapp_conversaciones WHERE telefono = ?");
-    $stmtConv->execute([$telefono]);
+    // Buscar por últimos 10 dígitos para evitar doble chat por formato 52 vs 521
+    $stmtConv = $db->prepare("SELECT id FROM whatsapp_conversaciones WHERE RIGHT(REGEXP_REPLACE(telefono,'[^0-9]',''),10) = ?");
+    $stmtConv->execute([substr($telefonoDigitos, -10)]);
     $conv = $stmtConv->fetch(PDO::FETCH_ASSOC);
     if (!$conv) {
         $db->prepare("INSERT INTO whatsapp_conversaciones (cliente_id, telefono, ultima_actividad) VALUES (?,?,NOW())")
