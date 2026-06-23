@@ -204,26 +204,18 @@ foreach ($elementos as $idxEl => $e) {
         $rySVG = max($ey - $rh, $oy);
         $rsPreset = (int)($e['rs_preset'] ?? 0);
         if ($rsPreset === 1) {
-            // Herraje CT29: mancuerna — círculo arriba, barra delgada, círculo abajo
-            $cx1  = $exD + $rw*0.5;
-            $cr1  = $rw*0.5;
-            $nw1  = $rw*0.28;
-            $topC = $rySVG + $cr1;
-            $botC = $rySVG + $rh - $cr1;
-            $svg .= '<circle cx="'.$cx1.'" cy="'.$topC.'" r="'.$cr1.'" fill="#e0f2fe" stroke="none"/>';
-            $svg .= '<circle cx="'.$cx1.'" cy="'.$botC.'" r="'.$cr1.'" fill="#e0f2fe" stroke="none"/>';
-            $svg .= '<rect x="'.($cx1-$nw1).'" y="'.$topC.'" width="'.($nw1*2).'" height="'.($botC-$topC).'" fill="#e0f2fe" stroke="none"/>';
-            $d1 = 'M '.($cx1+$nw1).' '.$topC.
-                  ' A '.$cr1.' '.$cr1.' 0 1 0 '.($cx1-$nw1).' '.$topC.
-                  ' L '.($cx1-$nw1).' '.$botC.
-                  ' A '.$cr1.' '.$cr1.' 0 1 1 '.($cx1+$nw1).' '.$botC.
-                  ' Z';
-            $svg .= '<path d="'.$d1.'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
-            $svg .= '<line x1="'.($cx1-$nw1).'" y1="'.$topC.'" x2="'.($cx1-$nw1).'" y2="'.$botC.'" stroke="#0369a1" stroke-width="1"/>';
-            $svg .= '<line x1="'.($cx1+$nw1).'" y1="'.$topC.'" x2="'.($cx1+$nw1).'" y2="'.$botC.'" stroke="#0369a1" stroke-width="1"/>';
-            $scR2 = max(2, $cr1*0.35);
-            $svg .= '<circle cx="'.$cx1.'" cy="'.$topC.'" r="'.$scR2.'" fill="#0369a1"/>';
-            $svg .= '<circle cx="'.$cx1.'" cy="'.$botC.'" r="'.$scR2.'" fill="#0369a1"/>';
+            // Herraje CT29: U sin base + círculos en esquinas superiores a 45°/135°
+            $cr1  = $rw * 0.28;
+            $d45  = $cr1 * 0.7071;
+            $lx1  = $exD - $d45;
+            $rx1c = $exD + $rw + $d45;
+            $eyC  = $rySVG - $d45;
+            $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
+            $svg .= '<circle cx="'.$lx1.'" cy="'.$eyC.'" r="'.$cr1.'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
+            $svg .= '<circle cx="'.$rx1c.'" cy="'.$eyC.'" r="'.$cr1.'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
+            $svg .= '<path d="M '.$exD.' '.($rySVG+$rh).' L '.$exD.' '.$rySVG.' L '.($exD+$rw).' '.$rySVG.' L '.($exD+$rw).' '.($rySVG+$rh).'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
+            $svg .= '<circle cx="'.$lx1.'" cy="'.$eyC.'" r="'.$cr1.'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
+            $svg .= '<circle cx="'.$rx1c.'" cy="'.$eyC.'" r="'.$cr1.'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
             $colRS = '#0369a1';
         } else {
             $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';

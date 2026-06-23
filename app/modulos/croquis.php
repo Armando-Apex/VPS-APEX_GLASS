@@ -1227,30 +1227,22 @@ function _redraw() {
       out += '<g style="cursor:'+cur+'"'+evts+'>';
       out += '<rect x="'+(exD-3)+'" y="'+(rySVG-3)+'" width="'+(rw+6)+'" height="'+(rh+6)+'" fill="transparent"/>';
       if ((e.rs_preset || 0) === 1) {
-        // ── Herraje CT29: mancuerna — círculo arriba, barra delgada, círculo abajo ──
-        var cx1  = exD + rw*0.5;
-        var cr1  = rw*0.5;            // radio de cada círculo = mitad del ancho total
-        var nw1  = rw*0.28;           // semiancho del conector (angosto)
-        var topC = rySVG + cr1;       // centro círculo superior
-        var botC = rySVG + rh - cr1;  // centro círculo inferior
-        // Relleno: círculos + rect conector solapados
-        out += '<circle cx="'+cx1+'" cy="'+topC+'" r="'+cr1+'" fill="#e0f2fe" stroke="none"/>';
-        out += '<circle cx="'+cx1+'" cy="'+botC+'" r="'+cr1+'" fill="#e0f2fe" stroke="none"/>';
-        out += '<rect x="'+(cx1-nw1)+'" y="'+topC+'" width="'+(nw1*2)+'" height="'+(botC-topC)+'" fill="#e0f2fe" stroke="none"/>';
-        // Contorno: path mancuerna
-        var d1 = 'M '+(cx1+nw1)+' '+topC+
-                 ' A '+cr1+' '+cr1+' 0 1 0 '+(cx1-nw1)+' '+topC+
-                 ' L '+(cx1-nw1)+' '+botC+
-                 ' A '+cr1+' '+cr1+' 0 1 1 '+(cx1+nw1)+' '+botC+
-                 ' Z';
-        out += '<path d="'+d1+'" fill="none" stroke="#0369a1" stroke-width="1.2"/>';
-        // Línea vertical del conector (para que se vea la barra)
-        out += '<line x1="'+(cx1-nw1)+'" y1="'+topC+'" x2="'+(cx1-nw1)+'" y2="'+botC+'" stroke="#0369a1" stroke-width="0.8"/>';
-        out += '<line x1="'+(cx1+nw1)+'" y1="'+topC+'" x2="'+(cx1+nw1)+'" y2="'+botC+'" stroke="#0369a1" stroke-width="0.8"/>';
-        // Punto de tornillo en cada círculo
-        var scR1 = Math.max(1.5, cr1*0.35);
-        out += '<circle cx="'+cx1+'" cy="'+topC+'" r="'+scR1+'" fill="#0369a1"/>';
-        out += '<circle cx="'+cx1+'" cy="'+botC+'" r="'+scR1+'" fill="#0369a1"/>';
+        // ── Herraje CT29: U sin base + círculos en esquinas superiores a 45°/135° ──
+        var cr1  = rw * 0.28;          // radio de cada oreja
+        var d45  = cr1 * 0.7071;       // componente diagonal (cos/sin 45°)
+        var lx1  = exD - d45;          // centro oreja izquierda (sale a 135°)
+        var rx1c = exD + rw + d45;     // centro oreja derecha (sale a 45°)
+        var eyC  = rySVG - d45;        // y de ambas orejas (suben igual)
+        // Relleno cuerpo rectangular
+        out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
+        // Relleno orejas
+        out += '<circle cx="'+lx1+'" cy="'+eyC+'" r="'+cr1+'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
+        out += '<circle cx="'+rx1c+'" cy="'+eyC+'" r="'+cr1+'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
+        // Contorno U (izquierda + tope + derecha — sin base)
+        out += '<path d="M '+exD+' '+(rySVG+rh)+' L '+exD+' '+rySVG+' L '+(exD+rw)+' '+rySVG+' L '+(exD+rw)+' '+(rySVG+rh)+'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
+        // Contorno orejas
+        out += '<circle cx="'+lx1+'" cy="'+eyC+'" r="'+cr1+'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
+        out += '<circle cx="'+rx1c+'" cy="'+eyC+'" r="'+cr1+'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
       } else {
         // ── Resaque genérico ─────────────────────────────────────────────────
         out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
