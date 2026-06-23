@@ -198,8 +198,8 @@ foreach ($elementos as $idxEl => $e) {
         $svg .= '<text x="'.$lx.'" y="'.$ly.'" font-size="'.$fzSm.'" font-weight="700" fill="#7c3aed" font-family="monospace">TA  &#216;'.$e['de'].'/'.$e['di'].' mm</text>';
     }
     if ($e['tipo'] === 'rs') {
-        $rw = max(8, (float)$e['w']*$sc);
-        $rh = max(4, (float)$e['h']*$sc);
+        $rw = max(8, (float)$e['h']*$sc);
+        $rh = max(4, (float)$e['w']*$sc);
         $exD = min($ex, $ox+$gw-$rw);
         $rySVG = max($ey - $rh, $oy);
         $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
@@ -207,13 +207,13 @@ foreach ($elementos as $idxEl => $e) {
         $svg .= '<line x1="'.$exD.'" y1="'.($rySVG-12).'" x2="'.$exD.'" y2="'.($rySVG-6).'" stroke="#854d0e" stroke-width="0.8"/>';
         $svg .= '<line x1="'.($exD+$rw).'" y1="'.($rySVG-12).'" x2="'.($exD+$rw).'" y2="'.($rySVG-6).'" stroke="#854d0e" stroke-width="0.8"/>';
         $svg .= '<rect x="'.($exD+$rw/2-18).'" y="'.($rySVG-20).'" width="36" height="10" fill="white" rx="2"/>';
-        $svg .= '<text x="'.($exD+$rw/2).'" y="'.($rySVG-12).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace">'.$e['w'].' mm</text>';
+        $svg .= '<text x="'.($exD+$rw/2).'" y="'.($rySVG-12).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace">'.$e['h'].' mm</text>';
         $svg .= '<line x1="'.($exD+$rw+9).'" y1="'.$rySVG.'" x2="'.($exD+$rw+9).'" y2="'.$ey.'" stroke="#854d0e" stroke-width="0.8"/>';
         $svg .= '<line x1="'.($exD+$rw+6).'" y1="'.$rySVG.'" x2="'.($exD+$rw+12).'" y2="'.$rySVG.'" stroke="#854d0e" stroke-width="0.8"/>';
         $svg .= '<line x1="'.($exD+$rw+6).'" y1="'.$ey.'" x2="'.($exD+$rw+12).'" y2="'.$ey.'" stroke="#854d0e" stroke-width="0.8"/>';
         $lyRS = $rySVG + $rh/2;
         $svg .= '<rect x="'.($exD+$rw+12).'" y="'.($lyRS-16).'" width="10" height="32" fill="white" rx="2"/>';
-        $svg .= '<text x="'.($exD+$rw+17).'" y="'.$lyRS.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace" transform="rotate(-90,'.($exD+$rw+17).','.$lyRS.')">'.$e['h'].' mm</text>';
+        $svg .= '<text x="'.($exD+$rw+17).'" y="'.$lyRS.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace" transform="rotate(-90,'.($exD+$rw+17).','.$lyRS.')">'.$e['w'].' mm</text>';
         $lxRS=$exD; $lyRS2=$rySVG-24;
         $svg .= '<rect x="'.($lxRS-1).'" y="'.($lyRS2-$fz).'" width="52" height="'.($fz+3).'" fill="white" rx="2"/>';
         $svg .= '<text x="'.$lxRS.'" y="'.$lyRS2.'" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace">RS  posici&#243;n</text>';

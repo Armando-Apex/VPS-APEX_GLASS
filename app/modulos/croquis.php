@@ -86,7 +86,7 @@ header('Content-Type: text/html; charset=utf-8');
 .cq-btn-guardar { background: #16a34a; color: white; border: none; border-radius: 8px; padding: 7px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .cq-btn-guardar:hover { background: #15803d; }
 .cq-btn-cancel-editor { background: #f1f5f9; color: #374151; border: none; border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer; }
-.cq-svg-wrap { flex: 1; overflow: hidden; position: relative; background: #f8fafc; cursor: grab; }
+.cq-svg-wrap { flex: 1; overflow: auto; position: relative; background: #f8fafc; cursor: grab; }
 .cq-svg-wrap.panning { cursor: grabbing; }
 #cq-svg { position: absolute; top: 0; left: 0; background: white; border: 1px solid #e2e8f0; border-radius: 3px; transform-origin: top left; }
 .cq-nota-bar { padding: 9px 16px; border-top: 1px solid #e2e8f0; background: white; display: flex; gap: 8px; align-items: center; }
@@ -486,7 +486,8 @@ function abrirConstructor(croquis) {
   setTimeout(function() {
     var wrap = document.getElementById('cq-svg-wrap');
     if (wrap) {
-      _panX = Math.max(0, (wrap.offsetWidth  - SVG_W) / 2);
+      var o = _layout();
+      _panX = Math.max(0, (wrap.offsetWidth  - o.canvW) / 2);
       _panY = Math.max(0, (wrap.offsetHeight - SVG_H) / 2);
       _redraw();
     }
@@ -901,7 +902,8 @@ function _zoomOut() {
 function _zoomReset() {
   _zoom = 1.0;
   var wrap = document.getElementById('cq-svg-wrap');
-  _panX = wrap ? Math.max(0, (wrap.offsetWidth  - SVG_W) / 2) : 0;
+  var o = _layout();
+  _panX = wrap ? Math.max(0, (wrap.offsetWidth  - o.canvW) / 2) : 0;
   _panY = wrap ? Math.max(0, (wrap.offsetHeight - SVG_H) / 2) : 0;
   _updateZoomLabel(); _redraw();
 }
@@ -1176,7 +1178,7 @@ function _redraw() {
       out += '</g>';
     }
     if (e.tipo==='rs') {
-      var rw=Math.max(8,e.w*sc), rh=Math.max(4,e.h*sc);
+      var rw=Math.max(8,e.h*sc), rh=Math.max(4,e.w*sc);
       var exD = Math.min(ex, ox+gw-rw);
       var rySVG = Math.max(ey - rh, oy);
       out += '<g style="cursor:'+cur+'"'+evts+'>';
@@ -1195,7 +1197,7 @@ function _redraw() {
     var tblX = ox + gw + 6 + tExtraFilas*14 + 20;
     var tblW = Math.min(o.canvW - tblX - 4, 90);
     var tblY = oy + 2;
-    var cardH = 18;
+    var cardH = 24;
     var eCol = {tp:'#1e40af', ta:'#7c3aed', rs:'#854d0e'};
     var eBg  = {tp:'#dbeafe', ta:'#f3e8ff', rs:'#fef9c3'};
     out += '<text x="'+tblX+'" y="'+tblY+'" font-size="7" font-weight="700" fill="#64748b" font-family="sans-serif">ELEMENTOS</text>';
@@ -1203,15 +1205,15 @@ function _redraw() {
       var ec  = eCol[el.tipo] || '#374151';
       var ebg = eBg[el.tipo]  || '#f1f5f9';
       var ry  = tblY + 11 + i * cardH;
-      out += '<rect x="'+tblX+'" y="'+ry+'" width="'+tblW+'" height="20" fill="#f8fafc" rx="2"/>';
-      out += '<rect x="'+tblX+'" y="'+ry+'" width="5" height="20" fill="'+ec+'" rx="2"/>';
+      out += '<rect x="'+tblX+'" y="'+ry+'" width="'+tblW+'" height="'+(cardH-2)+'" fill="#f8fafc" rx="2"/>';
+      out += '<rect x="'+tblX+'" y="'+ry+'" width="5" height="'+(cardH-2)+'" fill="'+ec+'" rx="2"/>';
       out += '<text x="'+(tblX+9)+'" y="'+(ry+10)+'" font-size="7.5" font-weight="700" fill="'+ec+'" font-family="monospace">'+(i+1)+'. '+el.tipo.toUpperCase()+'</text>';
       var det = '';
       if (el.tipo==='tp') det = 'Ø'+el.d+'mm';
       if (el.tipo==='ta') det = 'Ø'+el.de+'/'+el.di;
       if (el.tipo==='rs') det = el.w+'×'+el.h+'mm';
       out += '<text x="'+(tblX+tblW-2)+'" y="'+(ry+10)+'" text-anchor="end" font-size="7" fill="'+ec+'" font-family="monospace">'+det+'</text>';
-      out += '<text x="'+(tblX+8)+'" y="'+(ry+19)+'" font-size="6.5" fill="#374151" font-family="monospace">X: '+el.x+'  Y: '+el.y+'</text>';
+      out += '<text x="'+(tblX+8)+'" y="'+(ry+cardH-6)+'" font-size="6.5" fill="#374151" font-family="monospace">X: '+el.x+'  Y: '+el.y+'</text>';
     });
   }
 

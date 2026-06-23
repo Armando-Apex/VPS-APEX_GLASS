@@ -187,15 +187,26 @@ if ($metodo === 'GET' && $accion === 'progreso') {
 // ── GET conversaciones ───────────────────────────────────────
 if ($metodo === 'GET' && $accion === 'conversaciones') {
     $stmt = $db->query("
-        SELECT wc.id, wc.cliente_id, c.nombre as nombre_cliente, wc.telefono,
-               wc.ultima_actividad, wc.mensajes_sin_leer, wc.estado,
+        SELECT wc.id, wc.cliente_id,
+               COALESCE(c.nombre, cp.nombre) as nombre_cliente,
+               wc.telefono, wc.ultima_actividad, wc.mensajes_sin_leer, wc.estado,
                (SELECT contenido FROM whatsapp_mensajes wm
                 WHERE wm.conversacion_id = wc.id
                 ORDER BY wm.created_at DESC LIMIT 1) as ultimo_mensaje
         FROM whatsapp_conversaciones wc
         LEFT JOIN clientes c ON c.id = wc.cliente_id
+        LEFT JOIN clientes cp ON wc.cliente_id IS NULL
+            AND RIGHT(REGEXP_REPLACE(cp.telefono,'[^0-9]',''), 10) = RIGHT(REGEXP_REPLACE(wc.telefono,'[^0-9]',''), 10)
         ORDER BY wc.ultima_actividad DESC");
-    echo json_encode(['conversaciones' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Auto-vincular conversaciones sin cliente cuando el fallback por teléfono encontró uno
+    $stmtVinc = $db->prepare("
+        UPDATE whatsapp_conversaciones wc
+        JOIN clientes cp ON RIGHT(REGEXP_REPLACE(cp.telefono,'[^0-9]',''),10) = RIGHT(REGEXP_REPLACE(wc.telefono,'[^0-9]',''),10)
+        SET wc.cliente_id = cp.id
+        WHERE wc.cliente_id IS NULL");
+    $stmtVinc->execute();
+    echo json_encode(['conversaciones' => $rows]);
     exit;
 }
 

@@ -112,12 +112,36 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .recibio-item { text-align: center; }
 .recibio-linea { border-top: 1px solid #000; width: 200px; margin: 0 auto 5px; }
 
+/* ── Comentarios ── */
+.comentarios-section { margin-top: 16px; }
+.comentarios-titulo { font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; border-bottom: 1.5px solid #1a1a2e; padding-bottom: 4px; }
+.comentario-card { border: 1.5px solid #1a1a2e; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; }
+.comentario-card.cancelado { border-color: #dc2626; background: #fff5f5; }
+.comentario-meta { font-size: 10px; font-weight: 700; color: #6b7280; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+.comentario-meta .autor { color: #1a1a2e; font-size: 11px; }
+.comentario-texto { font-size: 14px; font-weight: 700; color: #1a1a2e; line-height: 1.5; }
+.comentario-cancelacion { margin-top: 8px; padding-top: 6px; border-top: 1px dashed #fca5a5; font-size: 10px; color: #dc2626; font-weight: 600; }
+.btn-cancelar-com { background: none; border: 1px solid #dc2626; color: #dc2626; border-radius: 4px; padding: 2px 8px; font-size: 10px; cursor: pointer; font-weight: 700; }
+.btn-cancelar-com:hover { background: #fee2e2; }
+/* Modal comentario */
+.com-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 999; align-items: center; justify-content: center; }
+.com-overlay.show { display: flex; }
+.com-modal { background: white; border-radius: 12px; padding: 28px; width: 480px; max-width: calc(100vw - 32px); box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+.com-modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; color: #1a1a2e; }
+.com-modal textarea { width: 100%; height: 100px; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 10px; font-size: 14px; font-family: inherit; resize: vertical; }
+.com-modal textarea:focus { outline: none; border-color: #1a1a2e; }
+.com-modal-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+.btn-com-guardar { background: #16a34a; color: white; border: none; padding: 9px 22px; border-radius: 7px; font-size: 14px; font-weight: 700; cursor: pointer; }
+.btn-com-guardar:hover { background: #15803d; }
+.btn-com-cancel { background: #f1f5f9; color: #374151; border: none; padding: 9px 16px; border-radius: 7px; font-size: 14px; font-weight: 600; cursor: pointer; }
+
 /* ── Print ── */
 @media print {
     .no-print { display: none !important; }
     body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     @page { margin: 15mm 10mm; size: letter landscape; }
     .doc { padding: 0; }
+    .btn-cancelar-com { display: none !important; }
 }
 </style>
 </head>
@@ -125,7 +149,10 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 
 <div class="print-bar no-print">
   <span>Orden de Producción — <?= htmlspecialchars($folio) ?></span>
-  <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+  <div style="display:flex;gap:10px">
+    <button class="btn-com-guardar" onclick="abrirModalComentario()" style="padding:8px 20px;font-size:13px">➕ Agregar comentario</button>
+    <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+  </div>
 </div>
 
 <div class="doc">
@@ -230,10 +257,109 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
     </div>
   </div>
 
+  <!-- Comentarios de producción -->
+  <div class="comentarios-section" id="comentarios-section"></div>
+
   <div style="margin-top:14px;font-size:9px;color:#6b7280;border-top:1px solid #e2e8f0;padding-top:8px">
     Templadora Noreste, S.A. de C.V. — Parque Industrial MARFER, Carr. Monterrey-Saltillo km 65, Av. De la Industria #214, Santa Catarina, N.L., C.P. 66367 — Tel: 81 1180 5078
   </div>
 
 </div>
+
+<!-- Modal agregar comentario -->
+<div class="com-overlay no-print" id="com-overlay">
+  <div class="com-modal">
+    <h3>Agregar comentario a la orden</h3>
+    <textarea id="com-texto" placeholder="Escribe el comentario..."></textarea>
+    <div class="com-modal-btns">
+      <button class="btn-com-cancel" onclick="cerrarModalComentario()">Cancelar</button>
+      <button class="btn-com-guardar" onclick="guardarComentario()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var COT_ID = <?= (int)$id ?>;
+var API_COM = '../api/orden_comentarios.php';
+
+function cargarComentarios() {
+    fetch(API_COM + '?accion=listar&cotizacion_id=' + COT_ID)
+        .then(function(r){ return r.json(); })
+        .then(function(d){ renderComentarios(d.comentarios || []); });
+}
+
+function renderComentarios(lista) {
+    var sec = document.getElementById('comentarios-section');
+    if (!lista.length) { sec.innerHTML = ''; return; }
+    var html = '<div class="comentarios-titulo">Comentarios de producción</div>';
+    lista.forEach(function(c) {
+        var fecha = new Date(c.created_at);
+        var fechaStr = fecha.toLocaleDateString('es-MX', {day:'2-digit',month:'2-digit',year:'numeric'});
+        var horaStr  = fecha.toLocaleTimeString('es-MX', {hour:'2-digit',minute:'2-digit'});
+        html += '<div class="comentario-card' + (c.cancelado == 1 ? ' cancelado' : '') + '">';
+        html += '<div class="comentario-meta">';
+        html += '<span class="autor">' + escHtml(c.usuario_nombre) + '</span>';
+        html += '<span>' + fechaStr + ' &nbsp;·&nbsp; ' + horaStr + '</span>';
+        if (!c.cancelado) {
+            html += '<button class="btn-cancelar-com no-print" onclick="cancelarComentario(' + c.id + ')">✕ Cancelar</button>';
+        }
+        html += '</div>';
+        html += '<div class="comentario-texto">' + escHtml(c.texto) + '</div>';
+        if (c.cancelado == 1 && c.cancelado_por) {
+            var fechaCan = new Date(c.cancelado_at);
+            var fechaCanStr = fechaCan.toLocaleDateString('es-MX', {day:'2-digit',month:'2-digit',year:'numeric'});
+            var horaCanStr  = fechaCan.toLocaleTimeString('es-MX', {hour:'2-digit',minute:'2-digit'});
+            html += '<div class="comentario-cancelacion">⛔ Cancelado por ' + escHtml(c.cancelado_por) + ' — ' + fechaCanStr + ' ' + horaCanStr + '</div>';
+        }
+        html += '</div>';
+    });
+    sec.innerHTML = html;
+}
+
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function abrirModalComentario() {
+    document.getElementById('com-texto').value = '';
+    document.getElementById('com-overlay').classList.add('show');
+    document.getElementById('com-texto').focus();
+}
+
+function cerrarModalComentario() {
+    document.getElementById('com-overlay').classList.remove('show');
+}
+
+function guardarComentario() {
+    var texto = document.getElementById('com-texto').value.trim();
+    if (!texto) return;
+    fetch(API_COM, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({accion:'agregar', cotizacion_id: COT_ID, texto: texto})
+    }).then(function(r){ return r.json(); }).then(function(d) {
+        if (d.ok) { cerrarModalComentario(); cargarComentarios(); }
+        else alert(d.error || 'Error al guardar');
+    });
+}
+
+function cancelarComentario(id) {
+    if (!confirm('¿Cancelar este comentario?')) return;
+    fetch(API_COM, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({accion:'cancelar', id: id})
+    }).then(function(r){ return r.json(); }).then(function(d) {
+        if (d.ok) cargarComentarios();
+        else alert(d.error || 'Error');
+    });
+}
+
+document.getElementById('com-overlay').addEventListener('click', function(e) {
+    if (e.target === this) cerrarModalComentario();
+});
+
+cargarComentarios();
+</script>
 </body>
 </html>

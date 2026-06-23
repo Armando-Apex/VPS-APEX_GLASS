@@ -136,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 // Buscar o crear conversación
-                $stmtConv = $db->prepare("SELECT id FROM whatsapp_conversaciones WHERE telefono = ?");
+                $stmtConv = $db->prepare("SELECT id, cliente_id FROM whatsapp_conversaciones WHERE telefono = ?");
                 $stmtConv->execute([$telefono]);
                 $conv = $stmtConv->fetch(PDO::FETCH_ASSOC);
 
@@ -151,6 +151,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $convId = $db->lastInsertId();
                 } else {
                     $convId = $conv['id'];
+                    // Si la conversación existe pero sin cliente vinculado, intentar enlazar ahora
+                    if (!$conv['cliente_id']) {
+                        $stmtCli2 = $db->prepare("SELECT id FROM clientes WHERE REGEXP_REPLACE(telefono,'[^0-9]','') LIKE ?");
+                        $stmtCli2->execute(['%' . substr($telefono, -10)]);
+                        $cli2 = $stmtCli2->fetch(PDO::FETCH_ASSOC);
+                        if ($cli2) {
+                            $db->prepare("UPDATE whatsapp_conversaciones SET cliente_id=? WHERE id=?")
+                               ->execute([$cli2['id'], $convId]);
+                        }
+                    }
                 }
 
                 // Asociar a envío de campaña si existe
