@@ -263,7 +263,7 @@ if ($ordenCompleta && $estatus === 'terminado') {
     // Envío WA automático (una sola vez) cuando toda la orden está terminada
     try {
         $stmtWa = $db->prepare('
-            SELECT o.wa_lista_enviado, o.cliente_nombre, o.folio,
+            SELECT o.wa_lista_enviado, o.cliente_nombre, o.folio, o.cliente_id,
                    cl.telefono, cl.telefono_alterno,
                    c.proyecto,
                    (SELECT COUNT(*) FROM piezas WHERE orden_id = o.id) as total_piezas
@@ -305,10 +305,34 @@ if ($ordenCompleta && $estatus === 'terminado') {
                             ]]
                         ]
                     ]);
+
+                    $waId = $resWa['data']['messages'][0]['id'] ?? null;
+                    if ($resWa['code'] === 200 && $waId) {
+                        // Marcar enviado solo si Meta confirmó
+                        $db->prepare('UPDATE ordenes SET wa_lista_enviado = 1 WHERE id = ?')
+                           ->execute([$pieza['orden_id']]);
+
+                        // Guardar en inbox para visibilidad
+                        $tel10 = substr($telRaw, -10);
+                        $stmtCv = $db->prepare("SELECT id, cliente_id FROM whatsapp_conversaciones WHERE RIGHT(REGEXP_REPLACE(telefono,'[^0-9]',''),10) = ?");
+                        $stmtCv->execute([$tel10]);
+                        $conv = $stmtCv->fetch(PDO::FETCH_ASSOC);
+                        if (!$conv) {
+                            $db->prepare("INSERT INTO whatsapp_conversaciones (cliente_id, telefono, ultima_actividad) VALUES (?,?,NOW())")
+                               ->execute([$ordWa['cliente_id'] ?? null, $telRaw]);
+                            $convId = $db->lastInsertId();
+                        } else {
+                            $convId = $conv['id'];
+                        }
+                        $contenidoLog = '[Plantilla orden_lista] Orden ' . $ordWa['folio'] . ' lista — ' . $ordWa['total_piezas'] . ' piezas — ' . $proyectoWa;
+                        $db->prepare("INSERT INTO whatsapp_mensajes (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por) VALUES (?, 'outbound', ?, 'texto', ?, 'sistema')")
+                           ->execute([$convId, $contenidoLog, $waId]);
+                        $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
+                           ->execute([$convId]);
+                    } else {
+                        error_log('APEX WA orden_lista fallo: orden=' . $ordWa['folio'] . ' tel=' . $telRaw . ' resp=' . json_encode($resWa['data']));
+                    }
                 }
-                // Marcar enviado incluso si falla para no reintentar en bucle
-                $db->prepare('UPDATE ordenes SET wa_lista_enviado = 1 WHERE id = ?')
-                   ->execute([$pieza['orden_id']]);
             }
         }
     } catch (Exception $ignored) {}
