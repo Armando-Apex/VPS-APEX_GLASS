@@ -62,7 +62,9 @@
       "Bash(curl -sO https://raw.githubusercontent.com/PHPMailer/PHPMailer/master/src/Exception.php)",
       "Bash(curl -sO https://raw.githubusercontent.com/PHPMailer/PHPMailer/master/src/PHPMailer.php)",
       "Bash(curl -sO https://raw.githubusercontent.com/PHPMailer/PHPMailer/master/src/SMTP.php)",
-      "Bash(chown apexglass2025:apexglass2025 *)"
+      "Bash(chown apexglass2025:apexglass2025 *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost/produccion/app/imprimir_cotizacion.php?id=197\")",
+      "Bash(curl *)"
     ]
   },
   "hooks": {

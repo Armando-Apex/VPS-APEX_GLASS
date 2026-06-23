@@ -220,11 +220,11 @@ tbody td.center { text-align: center; }
 </div>
 
 <script>
-var _waTeléfonoDefault = '<?= htmlspecialchars($c['cli_tel_alterno'] ?: $c['cli_tel'] ?: '', ENT_QUOTES) ?>';
+var _waTelefonoDefault = '<?= htmlspecialchars($c['cli_tel_alterno'] ?: $c['cli_tel'] ?: '', ENT_QUOTES) ?>';
 var _waCotId = <?= (int)$id ?>;
 
 function waAbrirModal() {
-  document.getElementById('waTelefono').value = _waTeléfonoDefault;
+  document.getElementById('waTelefono').value = _waTelefonoDefault;
   document.getElementById('waGuardarAlterno').checked = false;
   document.getElementById('waMensaje').style.display = 'none';
   document.getElementById('waModalBg').classList.add('open');
