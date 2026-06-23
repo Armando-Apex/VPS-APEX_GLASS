@@ -418,7 +418,9 @@ function abrirConstructor(croquis) {
   _forma    = (croquis && croquis.forma)  || 'rect';
   _canteo   = (croquis && croquis.canteo) || {sup:false,der:false,inf:false,izq:false};
   _elementos = (croquis && croquis.elementos) ? croquis.elementos.map(function(e, i) {
-    return Object.assign({}, e, {id: ++_elemCounter});
+    var el = Object.assign({}, e, {id: ++_elemCounter});
+    if (el.tipo === 'rs' && el.rs_preset === undefined) el.rs_preset = 0;
+    return el;
   }) : [];
 
   var pfIn = (croquis && croquis.params_forma) || {};
@@ -682,7 +684,7 @@ function _onDrop(event) {
   var el = {id: ++_elemCounter, tipo: _draggingChip, x: mm.x, y: mm.y};
   if (_draggingChip === 'tp') { el.d  = 13; }
   if (_draggingChip === 'ta') { el.de = 20; el.di = 20; }
-  if (_draggingChip === 'rs') { el.w  = 120; el.h = 40; }
+  if (_draggingChip === 'rs') { el.w = 120; el.h = 40; el.rs_preset = 0; }
   _elementos.push(el);
   _draggingChip = null;
   _renderPlacedList();
@@ -793,7 +795,7 @@ function _openEditModal(id) {
   var f = _mField('Pos X (mm)','ced-x',el.x) + _mField('Pos Y (mm)','ced-y',el.y);
   if (el.tipo==='tp') f += _mSelectTP('ced-d', el.d);
   if (el.tipo==='ta') f += _mSelectTA('ced-de', el.de, 'Ø ext (mm)') + _mSelectTA('ced-di', el.di, 'Ø int (mm)');
-  if (el.tipo==='rs') f += _mField('Ancho (mm)','ced-w',el.w) + _mField('Alto (mm)','ced-h',el.h);
+  if (el.tipo==='rs') f += _mResaqueFields(el.w, el.h);
   document.getElementById('cq-modal-fields').innerHTML = f;
   document.getElementById('cq-edit-modal').classList.add('open');
 }
@@ -817,6 +819,46 @@ function _mSelectTA(id, val, label) {
   return '<div class="cq-field-row" style="margin-bottom:8px"><span class="cq-field-label" style="min-width:80px;font-size:11px">'+label+'</span><select class="cq-fi" id="'+id+'">'+opts.join('')+'</select></div>';
 }
 
+var RS_PREDEFINIDOS = [
+  { label: 'Personalizado',                  w: null,  h: null  },
+  { label: 'Herraje cancel baño (1476180)',  w: 58,    h: 37.5  }
+];
+
+function _mResaqueFields(w, h) {
+  // detectar si w/h coinciden con algún predefinido
+  var selIdx = 0;
+  for (var i = 1; i < RS_PREDEFINIDOS.length; i++) {
+    if (RS_PREDEFINIDOS[i].w == w && RS_PREDEFINIDOS[i].h == h) { selIdx = i; break; }
+  }
+  var opts = RS_PREDEFINIDOS.map(function(p, i) {
+    return '<option value="'+i+'"'+(i===selIdx?' selected':'')+'>'+p.label+'</option>';
+  }).join('');
+  var disabled = selIdx > 0 ? ' disabled' : '';
+  var html = '<div class="cq-field-row" style="margin-bottom:8px">';
+  html += '<span class="cq-field-label" style="min-width:80px;font-size:11px">Tipo</span>';
+  html += '<select class="cq-fi" id="ced-rs-tipo" onchange="window.cqRsTipoChange(this.value)">'+opts+'</select>';
+  html += '</div>';
+  html += '<div class="cq-field-row" style="margin-bottom:8px"><span class="cq-field-label" style="min-width:80px;font-size:11px">Ancho (mm)</span><input class="cq-fi" type="number" id="ced-w" value="'+w+'"'+disabled+'></div>';
+  html += '<div class="cq-field-row" style="margin-bottom:8px"><span class="cq-field-label" style="min-width:80px;font-size:11px">Alto (mm)</span><input class="cq-fi" type="number" id="ced-h" value="'+h+'"'+disabled+'></div>';
+  return html;
+}
+
+window.cqRsTipoChange = function(idx) {
+  var p = RS_PREDEFINIDOS[+idx];
+  var inpW = document.getElementById('ced-w');
+  var inpH = document.getElementById('ced-h');
+  if (!p) return;
+  if (p.w === null) {
+    inpW.disabled = false;
+    inpH.disabled = false;
+  } else {
+    inpW.value    = p.w;
+    inpH.value    = p.h;
+    inpW.disabled = true;
+    inpH.disabled = true;
+  }
+};
+
 function _closeModal() {
   document.getElementById('cq-edit-modal').classList.remove('open');
   _editingId = null;
@@ -829,7 +871,7 @@ function _saveEditing() {
   el.y = +document.getElementById('ced-y').value || 0;
   if (el.tipo==='tp') el.d  = +document.getElementById('ced-d').value  || 12;
   if (el.tipo==='ta') { el.de = +document.getElementById('ced-de').value || 20; el.di = +document.getElementById('ced-di').value || 10; }
-  if (el.tipo==='rs') { el.w  = +document.getElementById('ced-w').value  || 120; el.h = +document.getElementById('ced-h').value || 40; }
+  if (el.tipo==='rs') { el.rs_preset = +document.getElementById('ced-rs-tipo').value || 0; el.w = +document.getElementById('ced-w').value || 120; el.h = +document.getElementById('ced-h').value || 40; }
   _closeModal();
   _renderPlacedList();
   _redraw();
@@ -1183,9 +1225,32 @@ function _redraw() {
       var rySVG = Math.max(ey - rh, oy);
       out += '<g style="cursor:'+cur+'"'+evts+'>';
       out += '<rect x="'+(exD-3)+'" y="'+(rySVG-3)+'" width="'+(rw+6)+'" height="'+(rh+6)+'" fill="transparent"/>';
-      out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+      if ((e.rs_preset || 0) === 1) {
+        // ── Herraje cancel baño 1476180 ──────────────────────────────────────
+        // Placa principal (rectángulo con esquinas redondeadas)
+        out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#e0f2fe" fill-opacity="0.9" stroke="#0369a1" stroke-width="1.5" rx="2"/>';
+        // Línea central horizontal (separador placa)
+        out += '<line x1="'+exD+'" y1="'+(rySVG+rh*0.5)+'" x2="'+(exD+rw)+'" y2="'+(rySVG+rh*0.5)+'" stroke="#0369a1" stroke-width="0.8" stroke-dasharray="2,1.5"/>';
+        // Tornillo superior (posición proporcional al diagrama: 19/58 desde arriba, centrado)
+        var scX = exD + rw*0.5;
+        var scY1 = rySVG + rh*0.28;
+        var scY2 = rySVG + rh*0.72;
+        var scR = Math.max(2, rw*0.14);
+        out += '<circle cx="'+scX+'" cy="'+scY1+'" r="'+scR+'" fill="white" stroke="#0369a1" stroke-width="1"/>';
+        out += '<line x1="'+(scX-scR*0.6)+'" y1="'+scY1+'" x2="'+(scX+scR*0.6)+'" y2="'+scY1+'" stroke="#0369a1" stroke-width="0.7"/>';
+        out += '<line x1="'+scX+'" y1="'+(scY1-scR*0.6)+'" x2="'+scX+'" y2="'+(scY1+scR*0.6)+'" stroke="#0369a1" stroke-width="0.7"/>';
+        // Tornillo inferior
+        out += '<circle cx="'+scX+'" cy="'+scY2+'" r="'+scR+'" fill="white" stroke="#0369a1" stroke-width="1"/>';
+        out += '<line x1="'+(scX-scR*0.6)+'" y1="'+scY2+'" x2="'+(scX+scR*0.6)+'" y2="'+scY2+'" stroke="#0369a1" stroke-width="0.7"/>';
+        out += '<line x1="'+scX+'" y1="'+(scY2-scR*0.6)+'" x2="'+scX+'" y2="'+(scY2+scR*0.6)+'" stroke="#0369a1" stroke-width="0.7"/>';
+        // Etiqueta
+        out += '<text x="'+(exD+rw+4)+'" y="'+(rySVG+rh*0.5+3)+'" font-size="5.5" fill="#0369a1" font-family="monospace" font-weight="700">CT29</text>';
+      } else {
+        // ── Resaque genérico ─────────────────────────────────────────────────
+        out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+      }
       // número en esquina superior derecha del resaque
-      out += '<circle cx="'+(exD+rw)+'" cy="'+rySVG+'" r="5" fill="#854d0e"/>';
+      out += '<circle cx="'+(exD+rw)+'" cy="'+rySVG+'" r="5" fill="'+ ((e.rs_preset||0)===1?'#0369a1':'#854d0e') +'"/>';
       out += '<text x="'+(exD+rw)+'" y="'+(rySVG+3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }

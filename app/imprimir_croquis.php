@@ -202,21 +202,44 @@ foreach ($elementos as $idxEl => $e) {
         $rh = max(4, (float)$e['w']*$sc);
         $exD = min($ex, $ox+$gw-$rw);
         $rySVG = max($ey - $rh, $oy);
-        $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+        $rsPreset = (int)($e['rs_preset'] ?? 0);
+        if ($rsPreset === 1) {
+            // Herraje cancel baño 1476180
+            $scX  = $exD + $rw*0.5;
+            $scY1 = $rySVG + $rh*0.28;
+            $scY2 = $rySVG + $rh*0.72;
+            $scR  = max(3, $rw*0.14);
+            $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#e0f2fe" fill-opacity="0.9" stroke="#0369a1" stroke-width="1.5" rx="3"/>';
+            $svg .= '<line x1="'.$exD.'" y1="'.($rySVG+$rh*0.5).'" x2="'.($exD+$rw).'" y2="'.($rySVG+$rh*0.5).'" stroke="#0369a1" stroke-width="1" stroke-dasharray="2,2"/>';
+            $svg .= '<circle cx="'.$scX.'" cy="'.$scY1.'" r="'.$scR.'" fill="white" stroke="#0369a1" stroke-width="1"/>';
+            $svg .= '<line x1="'.($scX-$scR*0.6).'" y1="'.$scY1.'" x2="'.($scX+$scR*0.6).'" y2="'.$scY1.'" stroke="#0369a1" stroke-width="0.8"/>';
+            $svg .= '<line x1="'.$scX.'" y1="'.($scY1-$scR*0.6).'" x2="'.$scX.'" y2="'.($scY1+$scR*0.6).'" stroke="#0369a1" stroke-width="0.8"/>';
+            $svg .= '<circle cx="'.$scX.'" cy="'.$scY2.'" r="'.$scR.'" fill="white" stroke="#0369a1" stroke-width="1"/>';
+            $svg .= '<line x1="'.($scX-$scR*0.6).'" y1="'.$scY2.'" x2="'.($scX+$scR*0.6).'" y2="'.$scY2.'" stroke="#0369a1" stroke-width="0.8"/>';
+            $svg .= '<line x1="'.$scX.'" y1="'.($scY2-$scR*0.6).'" x2="'.$scX.'" y2="'.($scY2+$scR*0.6).'" stroke="#0369a1" stroke-width="0.8"/>';
+            $colRS = '#0369a1';
+        } else {
+            $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+            $colRS = '#854d0e';
+        }
         $svg .= '<line x1="'.$exD.'" y1="'.($rySVG-9).'" x2="'.($exD+$rw).'" y2="'.($rySVG-9).'" stroke="#854d0e" stroke-width="0.8"/>';
         $svg .= '<line x1="'.$exD.'" y1="'.($rySVG-12).'" x2="'.$exD.'" y2="'.($rySVG-6).'" stroke="#854d0e" stroke-width="0.8"/>';
         $svg .= '<line x1="'.($exD+$rw).'" y1="'.($rySVG-12).'" x2="'.($exD+$rw).'" y2="'.($rySVG-6).'" stroke="#854d0e" stroke-width="0.8"/>';
+        $svg .= '<line x1="'.$exD.'" y1="'.($rySVG-9).'" x2="'.($exD+$rw).'" y2="'.($rySVG-9).'" stroke="'.$colRS.'" stroke-width="0.8"/>';
+        $svg .= '<line x1="'.$exD.'" y1="'.($rySVG-12).'" x2="'.$exD.'" y2="'.($rySVG-6).'" stroke="'.$colRS.'" stroke-width="0.8"/>';
+        $svg .= '<line x1="'.($exD+$rw).'" y1="'.($rySVG-12).'" x2="'.($exD+$rw).'" y2="'.($rySVG-6).'" stroke="'.$colRS.'" stroke-width="0.8"/>';
         $svg .= '<rect x="'.($exD+$rw/2-18).'" y="'.($rySVG-20).'" width="36" height="10" fill="white" rx="2"/>';
-        $svg .= '<text x="'.($exD+$rw/2).'" y="'.($rySVG-12).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace">'.$e['h'].' mm</text>';
-        $svg .= '<line x1="'.($exD+$rw+9).'" y1="'.$rySVG.'" x2="'.($exD+$rw+9).'" y2="'.$ey.'" stroke="#854d0e" stroke-width="0.8"/>';
-        $svg .= '<line x1="'.($exD+$rw+6).'" y1="'.$rySVG.'" x2="'.($exD+$rw+12).'" y2="'.$rySVG.'" stroke="#854d0e" stroke-width="0.8"/>';
-        $svg .= '<line x1="'.($exD+$rw+6).'" y1="'.$ey.'" x2="'.($exD+$rw+12).'" y2="'.$ey.'" stroke="#854d0e" stroke-width="0.8"/>';
+        $svg .= '<text x="'.($exD+$rw/2).'" y="'.($rySVG-12).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="'.$colRS.'" font-family="monospace">'.$e['h'].' mm</text>';
+        $svg .= '<line x1="'.($exD+$rw+9).'" y1="'.$rySVG.'" x2="'.($exD+$rw+9).'" y2="'.$ey.'" stroke="'.$colRS.'" stroke-width="0.8"/>';
+        $svg .= '<line x1="'.($exD+$rw+6).'" y1="'.$rySVG.'" x2="'.($exD+$rw+12).'" y2="'.$rySVG.'" stroke="'.$colRS.'" stroke-width="0.8"/>';
+        $svg .= '<line x1="'.($exD+$rw+6).'" y1="'.$ey.'" x2="'.($exD+$rw+12).'" y2="'.$ey.'" stroke="'.$colRS.'" stroke-width="0.8"/>';
         $lyRS = $rySVG + $rh/2;
         $svg .= '<rect x="'.($exD+$rw+12).'" y="'.($lyRS-16).'" width="10" height="32" fill="white" rx="2"/>';
-        $svg .= '<text x="'.($exD+$rw+17).'" y="'.$lyRS.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace" transform="rotate(-90,'.($exD+$rw+17).','.$lyRS.')">'.$e['w'].' mm</text>';
+        $svg .= '<text x="'.($exD+$rw+17).'" y="'.$lyRS.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="'.$colRS.'" font-family="monospace" transform="rotate(-90,'.($exD+$rw+17).','.$lyRS.')">'.$e['w'].' mm</text>';
         $lxRS=$exD; $lyRS2=$rySVG-24;
         $svg .= '<rect x="'.($lxRS-1).'" y="'.($lyRS2-$fz).'" width="52" height="'.($fz+3).'" fill="white" rx="2"/>';
-        $svg .= '<text x="'.$lxRS.'" y="'.$lyRS2.'" font-size="'.$fzSm.'" font-weight="700" fill="#854d0e" font-family="monospace">RS  posici&#243;n</text>';
+        $rsLabel = $rsPreset === 1 ? 'CT29  herraje' : 'RS  posici&#243;n';
+        $svg .= '<text x="'.$lxRS.'" y="'.$lyRS2.'" font-size="'.$fzSm.'" font-weight="700" fill="'.$colRS.'" font-family="monospace">'.$rsLabel.'</text>';
     }
 }
 
