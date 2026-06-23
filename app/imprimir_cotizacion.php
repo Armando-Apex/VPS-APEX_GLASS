@@ -7,7 +7,7 @@ $remision = !empty($_GET['remision']);
 if (!$id) { echo "ID requerido"; exit; }
 
 $db   = getDB();
-$stmt = $db->prepare("SELECT c.*, cl.telefono as cli_tel, cl.email as cli_email, cl.ciudad as cli_ciudad,
+$stmt = $db->prepare("SELECT c.*, cl.telefono as cli_tel, cl.telefono_alterno as cli_tel_alterno, cl.email as cli_email, cl.ciudad as cli_ciudad,
            o.folio AS orden_folio
     FROM cotizaciones c
     LEFT JOIN clientes cl ON c.cliente_id = cl.id
@@ -164,10 +164,25 @@ tbody td.center { text-align: center; }
 .firma-box .cargo { font-size: 9.5px; color: #64748b; }
 .contacto-footer { font-size: 9px; color: #94a3b8; text-align: right; line-height: 1.7; }
 
-/* Print */
+/* Botones flotantes */
 .btn-print { position: fixed; bottom: 20px; right: 20px; background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,.4); z-index: 100; }
+.btn-wa    { position: fixed; bottom: 20px; right: 220px; background: #16a34a; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(22,163,74,.4); z-index: 100; }
+/* Modal WA */
+.wa-modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200; align-items:center; justify-content:center; }
+.wa-modal-bg.open { display:flex; }
+.wa-modal { background:#fff; border-radius:12px; width:380px; max-width:95vw; box-shadow:0 20px 60px rgba(0,0,0,.2); overflow:hidden; }
+.wa-modal-head { background:#15803d; color:#fff; padding:16px 20px; font-size:15px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
+.wa-modal-body { padding:20px; }
+.wa-label { display:block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#64748b; margin-bottom:6px; }
+.wa-input { width:100%; padding:9px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:14px; box-sizing:border-box; outline:none; }
+.wa-input:focus { border-color:#16a34a; }
+.wa-check-row { display:flex; align-items:center; gap:8px; margin-top:14px; font-size:13px; color:#374151; }
+.wa-modal-foot { display:flex; justify-content:flex-end; gap:10px; padding:14px 20px; border-top:1px solid #f1f5f9; }
+.wa-btn-cancel { background:#f1f5f9; color:#475569; border:none; padding:9px 18px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; }
+.wa-btn-send   { background:#16a34a; color:#fff; border:none; padding:9px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; }
+.wa-btn-send:disabled { background:#86efac; cursor:not-allowed; }
 @media print {
-  .btn-print { display: none; }
+  .btn-print, .btn-wa, .wa-modal-bg { display: none; }
   .page { padding: 10mm 12mm 15mm; }
   @page { size: A4; margin: 0; }
 }
@@ -176,6 +191,84 @@ tbody td.center { text-align: center; }
 <body>
 
 <button class="btn-print" onclick="window.print()">🖨️ Guardar / Imprimir PDF</button>
+<button class="btn-wa" onclick="waAbrirModal()">💬 Enviar por WhatsApp</button>
+
+<!-- Modal WhatsApp -->
+<div class="wa-modal-bg" id="waModalBg">
+  <div class="wa-modal">
+    <div class="wa-modal-head">
+      <span>Enviar Cotización por WhatsApp</span>
+      <button onclick="waCerrarModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">&#10005;</button>
+    </div>
+    <div class="wa-modal-body">
+      <p style="font-size:12px;color:#64748b;margin-bottom:14px;">
+        Se enviará la plantilla <strong>cotizacion_apex</strong> al número indicado con los datos de esta cotización.
+      </p>
+      <label class="wa-label">Teléfono WhatsApp del cliente</label>
+      <input class="wa-input" type="tel" id="waTelefono" placeholder="8120000000">
+      <div class="wa-check-row">
+        <input type="checkbox" id="waGuardarAlterno" style="width:16px;height:16px;">
+        <label for="waGuardarAlterno">Guardar como teléfono alterno en el perfil del cliente</label>
+      </div>
+      <div id="waMensaje" style="margin-top:12px;font-size:12px;display:none;"></div>
+    </div>
+    <div class="wa-modal-foot">
+      <button class="wa-btn-cancel" onclick="waCerrarModal()">Cancelar</button>
+      <button class="wa-btn-send" id="waBtnEnviar" onclick="waEnviar()">Enviar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var _waTeléfonoDefault = '<?= htmlspecialchars($c['cli_tel_alterno'] ?: $c['cli_tel'] ?: '', ENT_QUOTES) ?>';
+var _waCotId = <?= (int)$id ?>;
+
+function waAbrirModal() {
+  document.getElementById('waTelefono').value = _waTeléfonoDefault;
+  document.getElementById('waGuardarAlterno').checked = false;
+  document.getElementById('waMensaje').style.display = 'none';
+  document.getElementById('waModalBg').classList.add('open');
+  document.getElementById('waTelefono').focus();
+}
+function waCerrarModal() {
+  document.getElementById('waModalBg').classList.remove('open');
+}
+function waEnviar() {
+  var tel = document.getElementById('waTelefono').value.trim();
+  if (!tel) { alert('Ingresa el número de WhatsApp'); return; }
+  var btn = document.getElementById('waBtnEnviar');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  var msgEl = document.getElementById('waMensaje');
+  msgEl.style.display = 'none';
+
+  fetch('/produccion/api/campanas.php?accion=enviar_cotizacion_wa', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      cotizacion_id:  _waCotId,
+      telefono:       tel,
+      guardar_alterno: document.getElementById('waGuardarAlterno').checked
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) {
+      msgEl.style.cssText = 'margin-top:12px;font-size:13px;display:block;color:#15803d;font-weight:600;';
+      msgEl.textContent = '✓ Mensaje enviado correctamente';
+      btn.textContent = 'Enviado';
+    } else {
+      msgEl.style.cssText = 'margin-top:12px;font-size:12px;display:block;color:#dc2626;';
+      msgEl.textContent = 'Error: ' + (d.error || 'No se pudo enviar');
+      btn.disabled = false; btn.textContent = 'Enviar';
+    }
+  })
+  .catch(function() {
+    msgEl.style.cssText = 'margin-top:12px;font-size:12px;display:block;color:#dc2626;';
+    msgEl.textContent = 'Error de conexión';
+    btn.disabled = false; btn.textContent = 'Enviar';
+  });
+}
+</script>
 
 <div class="page">
 

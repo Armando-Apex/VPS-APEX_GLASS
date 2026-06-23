@@ -47,7 +47,7 @@ if ($method === 'GET') {
     }
     $pass_col = $ver_pass ? ', portal_password' : '';
     $stmt = $pdo->prepare("
-        SELECT id, codigo, razon_social, nombre, contacto, telefono, email, localidad, ciudad, activo, created_at
+        SELECT id, codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email, localidad, ciudad, activo, created_at
         $pass_col, portal_activo
         FROM clientes c $where ORDER BY codigo ASC LIMIT 200
     ");
@@ -135,12 +135,13 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_nombre') {
 
 // ─── POST ──────────────────────────────────────────────────────────────────────
 if ($method === 'POST') {
-    $razon_social = strtoupper(trim($body['razon_social'] ?? ''));
-    $contacto     = strtoupper(trim($body['contacto']      ?? ''));
-    $telefono     = trim($body['telefono']      ?? '');
-    $email        = trim($body['email']         ?? '');
-    $localidad    = ($body['localidad'] ?? '') === 'foraneo' ? 'foraneo' : 'local';
-    $ciudad       = trim($body['ciudad']        ?? '');
+    $razon_social     = strtoupper(trim($body['razon_social']     ?? ''));
+    $contacto         = strtoupper(trim($body['contacto']          ?? ''));
+    $telefono         = trim($body['telefono']          ?? '');
+    $telefono_alterno = trim($body['telefono_alterno']  ?? '');
+    $email            = trim($body['email']             ?? '');
+    $localidad        = ($body['localidad'] ?? '') === 'foraneo' ? 'foraneo' : 'local';
+    $ciudad           = trim($body['ciudad']            ?? '');
 
     if (!$razon_social) { echo json_encode(['error' => 'La razón social es obligatoria']); exit; }
     if ($localidad === 'foraneo' && !$ciudad) { echo json_encode(['error' => 'La ciudad es obligatoria para foráneos']); exit; }
@@ -150,8 +151,8 @@ if ($method === 'POST') {
     $next  = ($row['max_num'] ?? 146) + 1;
     $codigo = 'CTN-' . $next;
 
-    $pdo->prepare("INSERT INTO clientes (codigo, razon_social, nombre, contacto, telefono, email, localidad, ciudad) VALUES (?,?,?,?,?,?,?,?)")
-        ->execute([$codigo, $razon_social, $razon_social, $contacto, $telefono, $email, $localidad, $ciudad]);
+    $pdo->prepare("INSERT INTO clientes (codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email, localidad, ciudad) VALUES (?,?,?,?,?,?,?,?,?)")
+        ->execute([$codigo, $razon_social, $razon_social, $contacto, $telefono, $telefono_alterno ?: null, $email, $localidad, $ciudad]);
     $new_id = $pdo->lastInsertId();
 
     $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'CREACION', '', ?, ?, ?)")
@@ -171,16 +172,17 @@ if ($method === 'PUT') {
     if (!$actual) { echo json_encode(['error' => 'No encontrado']); exit; }
 
     $campos = [
-        'razon_social' => strtoupper(trim($body['razon_social'] ?? $actual['razon_social'])),
-        'contacto'     => strtoupper(trim($body['contacto']     ?? $actual['contacto'])),
-        'telefono'     => trim($body['telefono']      ?? $actual['telefono']),
-        'email'        => trim($body['email']         ?? $actual['email']),
-        'localidad'    => in_array($body['localidad'] ?? '', ['local','foraneo']) ? $body['localidad'] : $actual['localidad'],
-        'ciudad'       => trim($body['ciudad']        ?? $actual['ciudad']),
+        'razon_social'     => strtoupper(trim($body['razon_social']    ?? $actual['razon_social'])),
+        'contacto'         => strtoupper(trim($body['contacto']        ?? $actual['contacto'])),
+        'telefono'         => trim($body['telefono']        ?? $actual['telefono']),
+        'telefono_alterno' => trim($body['telefono_alterno'] ?? $actual['telefono_alterno'] ?? '') ?: null,
+        'email'            => trim($body['email']           ?? $actual['email']),
+        'localidad'        => in_array($body['localidad'] ?? '', ['local','foraneo']) ? $body['localidad'] : $actual['localidad'],
+        'ciudad'           => trim($body['ciudad']          ?? $actual['ciudad']),
     ];
     if (isset($body['activo']) && $es_admin) $campos['activo'] = (int)$body['activo'];
 
-    $etiquetas = ['razon_social'=>'Razón Social','contacto'=>'Contacto','telefono' =>'Teléfono','email'=>'Email','localidad'=>'Localidad','ciudad'=>'Ciudad','activo' =>'Estatus'];
+    $etiquetas = ['razon_social'=>'Razón Social','contacto'=>'Contacto','telefono'=>'Teléfono','telefono_alterno'=>'Teléfono Alterno WA','email'=>'Email','localidad'=>'Localidad','ciudad'=>'Ciudad','activo'=>'Estatus'];
     $stmt_log  = $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?,?,?,?,?,?)");
 
     foreach ($campos as $campo => $nuevo) {

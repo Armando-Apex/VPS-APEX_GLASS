@@ -573,5 +573,99 @@ if ($metodo === 'POST' && $accion === 'marcar_leido') {
     exit;
 }
 
+// ── POST enviar cotización por WhatsApp (plantilla cotizacion_apex) ──
+if ($metodo === 'POST' && $accion === 'enviar_cotizacion_wa') {
+    $body          = json_decode(file_get_contents('php://input'), true);
+    $cotizacionId  = (int)($body['cotizacion_id'] ?? 0);
+    $telefonoRaw   = trim($body['telefono'] ?? '');
+    $guardarAlterno = !empty($body['guardar_alterno']);
+
+    if (!$cotizacionId || !$telefonoRaw) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Datos incompletos']);
+        exit;
+    }
+
+    // Cargar cotización
+    $stmtCot = $db->prepare("
+        SELECT c.folio, c.cliente_nombre, c.proyecto, c.cliente_id,
+               c.descuento, c.servicios_subtotal,
+               COALESCE(SUM(cp.precio_m2_usado * cp.m2 * cp.cantidad), 0) as subtotal_bruto
+        FROM cotizaciones c
+        LEFT JOIN cotizaciones_partidas cp ON cp.cotizacion_id = c.id
+        WHERE c.id = ?
+        GROUP BY c.id");
+    $stmtCot->execute([$cotizacionId]);
+    $cot = $stmtCot->fetch(PDO::FETCH_ASSOC);
+    if (!$cot) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Cotización no encontrada']);
+        exit;
+    }
+
+    // Calcular total igual que imprimir_cotizacion.php
+    $subtotal_neto = ($cot['descuento'] > 0)
+        ? round($cot['subtotal_bruto'] * (1 - $cot['descuento'] / 100), 2)
+        : (float)$cot['subtotal_bruto'];
+    $base       = round($subtotal_neto + (float)($cot['servicios_subtotal'] ?? 0), 2);
+    $totalFmt   = '$' . number_format(round($base * 1.16, 2), 2, '.', ',');
+
+    $telefono = normalizarTelefono($telefonoRaw);
+
+    $payload = [
+        'messaging_product' => 'whatsapp',
+        'to'                => $telefono,
+        'type'              => 'template',
+        'template'          => [
+            'name'       => 'cotizacion_apex',
+            'language'   => ['code' => 'es_MX'],
+            'components' => [[
+                'type'       => 'body',
+                'parameters' => [
+                    ['type' => 'text', 'text' => substr(strip_tags($cot['cliente_nombre']), 0, 60)],
+                    ['type' => 'text', 'text' => substr(strip_tags($cot['folio']), 0, 20)],
+                    ['type' => 'text', 'text' => substr(strip_tags($cot['proyecto'] ?: 'N/A'), 0, 100)],
+                    ['type' => 'text', 'text' => $totalFmt],
+                ]
+            ]]
+        ]
+    ];
+
+    $res  = enviarMensajeWA($payload);
+    $waId = $res['data']['messages'][0]['id'] ?? null;
+
+    if (!$waId) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Error al enviar', 'detalle' => $res['data']]);
+        exit;
+    }
+
+    // Guardar en conversación para que aparezca en el inbox
+    $stmtConv = $db->prepare("SELECT id FROM whatsapp_conversaciones WHERE telefono = ?");
+    $stmtConv->execute([$telefono]);
+    $conv = $stmtConv->fetch(PDO::FETCH_ASSOC);
+    if (!$conv) {
+        $db->prepare("INSERT INTO whatsapp_conversaciones (cliente_id, telefono, ultima_actividad) VALUES (?,?,NOW())")
+           ->execute([$cot['cliente_id'] ?: null, $telefono]);
+        $convId = $db->lastInsertId();
+    } else {
+        $convId = $conv['id'];
+    }
+    $resumen = 'Cotización ' . $cot['folio'] . ' — ' . $totalFmt;
+    $db->prepare("INSERT INTO whatsapp_mensajes (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por) VALUES (?,'outbound',?,?,?,?)")
+       ->execute([$convId, $resumen, 'texto', $waId, $user['nombre']]);
+    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
+       ->execute([$convId]);
+
+    // Guardar teléfono alterno si se solicitó
+    if ($guardarAlterno && $cot['cliente_id']) {
+        $db->prepare("UPDATE clientes SET telefono_alterno=? WHERE id=?")
+           ->execute([$telefonoRaw, $cot['cliente_id']]);
+    }
+
+    echo json_encode(['ok' => true, 'wa_message_id' => $waId]);
+    exit;
+}
+
 http_response_code(400);
 echo json_encode(['error' => 'Accion no reconocida']);

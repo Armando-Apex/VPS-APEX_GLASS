@@ -174,6 +174,10 @@ tbody td { padding: 11px 14px; font-size: 13px; }
         <input class="cli-form-input" id="new-telefono" type="text" placeholder="812 000 0000">
       </div>
       <div class="cli-form-row">
+        <label class="cli-form-label">Tel&#233;fono Alterno WhatsApp</label>
+        <input class="cli-form-input" id="new-telefono-alterno" type="text" placeholder="812 000 0000 (opcional)">
+      </div>
+      <div class="cli-form-row">
         <label class="cli-form-label">Email</label>
         <input class="cli-form-input" id="new-email" type="email" placeholder="correo@ejemplo.com">
       </div>
@@ -296,6 +300,10 @@ window.cliAbrirPanel = function(id) {
       <div class="cli-info-valor muted">${c.telefono || '—'}</div>
     </div>
     <div class="cli-info-row">
+      <div class="cli-info-label">Tel. Alterno WhatsApp</div>
+      <div class="cli-info-valor muted">${c.telefono_alterno || '—'}</div>
+    </div>
+    <div class="cli-info-row">
       <div class="cli-info-label">Usuario Portal</div>
       <div class="cli-info-valor mono">${c.codigo || '—'}</div>
     </div>
@@ -351,12 +359,13 @@ window.cliCopiarPass = function(pass) {
 };
 
 window.cliNuevo = function() {
-  document.getElementById('new-razon').value     = '';
-  document.getElementById('new-contacto').value  = '';
-  document.getElementById('new-telefono').value  = '';
-  document.getElementById('new-email').value     = '';
-  document.getElementById('new-localidad').value = 'local';
-  document.getElementById('new-ciudad').value    = '';
+  document.getElementById('new-razon').value              = '';
+  document.getElementById('new-contacto').value           = '';
+  document.getElementById('new-telefono').value           = '';
+  document.getElementById('new-telefono-alterno').value   = '';
+  document.getElementById('new-email').value              = '';
+  document.getElementById('new-localidad').value          = 'local';
+  document.getElementById('new-ciudad').value             = '';
   document.getElementById('new-ciudad-row').style.display = 'none';
   document.getElementById('cliModalBg').classList.add('open');
   setTimeout(() => document.getElementById('new-razon').focus(), 80);
@@ -385,10 +394,11 @@ window.cliGuardarNuevo = async function() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        razon_social: razon,
-        contacto:  document.getElementById('new-contacto').value.trim(),
-        telefono:  document.getElementById('new-telefono').value.trim(),
-        email:     document.getElementById('new-email').value.trim(),
+        razon_social:     razon,
+        contacto:         document.getElementById('new-contacto').value.trim(),
+        telefono:         document.getElementById('new-telefono').value.trim(),
+        telefono_alterno: document.getElementById('new-telefono-alterno').value.trim(),
+        email:            document.getElementById('new-email').value.trim(),
         localidad, ciudad
       })
     });
