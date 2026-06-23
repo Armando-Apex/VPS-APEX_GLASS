@@ -246,6 +246,15 @@ var _canAddSrv          = false;
 
 // ── Inicializar ────────────────────────────────────────────────────────────────
 async function init() {
+  // Limpiar modales de carga anterior que puedan haber quedado en document.body
+  ['corrModal','archModal','catModal'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  });
+  document.querySelectorAll('.motivo-overlay').forEach(function(el) {
+    if (el.parentNode) el.parentNode.removeChild(el);
+  });
+
   var res = await fetch(API_CRIS + '?activos=1');
   cristales = await res.json();
   try {
