@@ -204,18 +204,25 @@ foreach ($elementos as $idxEl => $e) {
         $rySVG = max($ey - $rh, $oy);
         $rsPreset = (int)($e['rs_preset'] ?? 0);
         if ($rsPreset === 1) {
-            // Herraje CT29: U sin base + círculos en esquinas superiores a 45°/135°
-            $cr1  = $rw * 0.28;
-            $d45  = $cr1 * 0.7071;
-            $lx1  = $exD - $d45;
-            $rx1c = $exD + $rw + $d45;
-            $eyC  = $rySVG - $d45;
+            // Herraje CT29: U sin base + orejas a 45°/135° — orientación por borde más cercano
+            $distR = $ancho - (float)$e['x']; $distL = (float)$e['x'];
+            $distT = $alto  - (float)$e['y']; $distB = (float)$e['y'];
+            $minD  = min($distR, $distL, $distT, $distB);
+            $rsRot = 0;
+            if      ($minD === $distR) $rsRot = 90;
+            else if ($minD === $distT) $rsRot = 180;
+            else if ($minD === $distL) $rsRot = 270;
+            $cxR = $exD + $rw*0.5; $cyR = $rySVG + $rh*0.5;
+            $cr1  = $rw * 0.28; $d45 = $cr1 * 0.7071;
+            $lx1  = $exD - $d45; $rx1c = $exD + $rw + $d45; $eyC = $rySVG - $d45;
+            $svg .= '<g transform="rotate('.$rsRot.' '.$cxR.' '.$cyR.')">';
             $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
             $svg .= '<circle cx="'.$lx1.'" cy="'.$eyC.'" r="'.$cr1.'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
             $svg .= '<circle cx="'.$rx1c.'" cy="'.$eyC.'" r="'.$cr1.'" fill="#e0f2fe" fill-opacity="0.9" stroke="none"/>';
             $svg .= '<path d="M '.$exD.' '.($rySVG+$rh).' L '.$exD.' '.$rySVG.' L '.($exD+$rw).' '.$rySVG.' L '.($exD+$rw).' '.($rySVG+$rh).'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
             $svg .= '<circle cx="'.$lx1.'" cy="'.$eyC.'" r="'.$cr1.'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
             $svg .= '<circle cx="'.$rx1c.'" cy="'.$eyC.'" r="'.$cr1.'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
+            $svg .= '</g>';
             $colRS = '#0369a1';
         } else {
             $svg .= '<rect x="'.$exD.'" y="'.$rySVG.'" width="'.$rw.'" height="'.$rh.'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';

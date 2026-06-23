@@ -202,7 +202,7 @@ tbody td.center { text-align: center; }
     </div>
     <div class="wa-modal-body">
       <p style="font-size:12px;color:#64748b;margin-bottom:14px;">
-        Se enviará la plantilla <strong>cotizacion_apex</strong> al número indicado con los datos de esta cotización.
+        Se enviará la plantilla <strong>cotizacion</strong> al número indicado con los datos de esta cotización.
       </p>
       <label class="wa-label">Teléfono WhatsApp del cliente</label>
       <input class="wa-input" type="tel" id="waTelefono" placeholder="8120000000">

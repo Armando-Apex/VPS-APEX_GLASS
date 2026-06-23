@@ -633,7 +633,7 @@ if ($metodo === 'POST' && $accion === 'enviar_cotizacion_wa') {
         'to'                => $telefono,
         'type'              => 'template',
         'template'          => [
-            'name'       => 'cotizacion_apex',
+            'name'       => 'cotizacion',
             'language'   => ['code' => 'es_MX'],
             'components' => [[
                 'type'       => 'body',
