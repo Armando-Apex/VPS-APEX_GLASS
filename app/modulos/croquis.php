@@ -1226,32 +1226,38 @@ function _redraw() {
       out += '<g style="cursor:'+cur+'"'+evts+'>';
       out += '<rect x="'+(exD-3)+'" y="'+(rySVG-3)+'" width="'+(rw+6)+'" height="'+(rh+6)+'" fill="transparent"/>';
       if ((e.rs_preset || 0) === 1) {
-        // ── Herraje cancel baño 1476180 ──────────────────────────────────────
-        // Placa principal (rectángulo con esquinas redondeadas)
-        out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#e0f2fe" fill-opacity="0.9" stroke="#0369a1" stroke-width="1.5" rx="2"/>';
-        // Línea central horizontal (separador placa)
-        out += '<line x1="'+exD+'" y1="'+(rySVG+rh*0.5)+'" x2="'+(exD+rw)+'" y2="'+(rySVG+rh*0.5)+'" stroke="#0369a1" stroke-width="0.8" stroke-dasharray="2,1.5"/>';
-        // Tornillo superior (posición proporcional al diagrama: 19/58 desde arriba, centrado)
-        var scX = exD + rw*0.5;
-        var scY1 = rySVG + rh*0.28;
-        var scY2 = rySVG + rh*0.72;
-        var scR = Math.max(2, rw*0.14);
-        out += '<circle cx="'+scX+'" cy="'+scY1+'" r="'+scR+'" fill="white" stroke="#0369a1" stroke-width="1"/>';
-        out += '<line x1="'+(scX-scR*0.6)+'" y1="'+scY1+'" x2="'+(scX+scR*0.6)+'" y2="'+scY1+'" stroke="#0369a1" stroke-width="0.7"/>';
-        out += '<line x1="'+scX+'" y1="'+(scY1-scR*0.6)+'" x2="'+scX+'" y2="'+(scY1+scR*0.6)+'" stroke="#0369a1" stroke-width="0.7"/>';
-        // Tornillo inferior
-        out += '<circle cx="'+scX+'" cy="'+scY2+'" r="'+scR+'" fill="white" stroke="#0369a1" stroke-width="1"/>';
-        out += '<line x1="'+(scX-scR*0.6)+'" y1="'+scY2+'" x2="'+(scX+scR*0.6)+'" y2="'+scY2+'" stroke="#0369a1" stroke-width="0.7"/>';
-        out += '<line x1="'+scX+'" y1="'+(scY2-scR*0.6)+'" x2="'+scX+'" y2="'+(scY2+scR*0.6)+'" stroke="#0369a1" stroke-width="0.7"/>';
-        // Etiqueta
+        // ── Herraje cancel baño 1476180 — silueta dumbbell ──────────────────
+        var cx1  = exD + rw*0.5;
+        var cr1  = rw*0.48;                  // radio círculo ≈ mitad del ancho
+        var sw1  = rw*0.28;                  // semiancho del conector central
+        var topC = rySVG + cr1;
+        var botC = rySVG + rh - cr1;
+        // Relleno: dos círculos + rect conector (se solapan para formar silueta)
+        out += '<circle cx="'+cx1+'" cy="'+topC+'" r="'+cr1+'" fill="#e0f2fe" stroke="none"/>';
+        out += '<circle cx="'+cx1+'" cy="'+botC+'" r="'+cr1+'" fill="#e0f2fe" stroke="none"/>';
+        out += '<rect x="'+(cx1-sw1)+'" y="'+topC+'" width="'+(sw1*2)+'" height="'+(botC-topC)+'" fill="#e0f2fe" stroke="none"/>';
+        // Contorno dumbbell: path que bordea la silueta completa
+        var d1 = 'M '+(cx1+sw1)+','+topC+
+                 ' A '+cr1+','+cr1+' 0 1,0 '+(cx1-sw1)+','+topC+
+                 ' L '+(cx1-sw1)+','+botC+
+                 ' A '+cr1+','+cr1+' 0 1,1 '+(cx1+sw1)+','+botC+
+                 ' Z';
+        out += '<path d="'+d1+'" fill="none" stroke="#0369a1" stroke-width="1.5"/>';
+        // Tornillos (círculo con cruz) en centro de cada ala
+        var scR1 = Math.max(2, cr1*0.38);
+        [topC, botC].forEach(function(cy) {
+          out += '<circle cx="'+cx1+'" cy="'+cy+'" r="'+scR1+'" fill="white" stroke="#0369a1" stroke-width="1"/>';
+          out += '<line x1="'+(cx1-scR1*0.65)+'" y1="'+cy+'" x2="'+(cx1+scR1*0.65)+'" y2="'+cy+'" stroke="#0369a1" stroke-width="0.8"/>';
+          out += '<line x1="'+cx1+'" y1="'+(cy-scR1*0.65)+'" x2="'+cx1+'" y2="'+(cy+scR1*0.65)+'" stroke="#0369a1" stroke-width="0.8"/>';
+        });
         out += '<text x="'+(exD+rw+4)+'" y="'+(rySVG+rh*0.5+3)+'" font-size="5.5" fill="#0369a1" font-family="monospace" font-weight="700">CT29</text>';
       } else {
         // ── Resaque genérico ─────────────────────────────────────────────────
         out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
       }
-      // número en esquina superior derecha del resaque
-      out += '<circle cx="'+(exD+rw)+'" cy="'+rySVG+'" r="5" fill="'+ ((e.rs_preset||0)===1?'#0369a1':'#854d0e') +'"/>';
-      out += '<text x="'+(exD+rw)+'" y="'+(rySVG+3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
+      // número — fuera de la silueta, arriba a la derecha
+      out += '<circle cx="'+(exD+rw+7)+'" cy="'+(rySVG-7)+'" r="6" fill="'+ ((e.rs_preset||0)===1?'#0369a1':'#854d0e') +'"/>';
+      out += '<text x="'+(exD+rw+7)+'" y="'+(rySVG-3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }
   });
