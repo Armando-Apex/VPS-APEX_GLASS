@@ -112,8 +112,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $contenido = 'Reaccionó: ' . $emoji;
                     $tipo = 'texto';
                 } elseif ($tipo === 'audio') {
+                    $mediaId = $msg['audio']['id'] ?? '';
                     $contenido = '[Nota de voz]';
-                    $tipo = 'texto';
+                    if ($mediaId) {
+                        $chMeta = curl_init('https://graph.facebook.com/v20.0/' . $mediaId);
+                        curl_setopt($chMeta, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($chMeta, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . WA_TOKEN]);
+                        curl_setopt($chMeta, CURLOPT_TIMEOUT, 10);
+                        $metaRes = json_decode(curl_exec($chMeta), true);
+                        curl_close($chMeta);
+                        $downloadUrl = $metaRes['url'] ?? '';
+                        $urlHost = parse_url($downloadUrl, PHP_URL_HOST) ?? '';
+                        $metaDomains = ['lookaside.fbsbx.com','scontent.whatsapp.net','mmg.whatsapp.net','media.fbcdn.net'];
+                        $dominioValido = false;
+                        foreach ($metaDomains as $d) {
+                            if ($urlHost === $d || substr($urlHost, -(strlen($d)+1)) === '.'.$d) {
+                                $dominioValido = true; break;
+                            }
+                        }
+                        if ($downloadUrl && $dominioValido) {
+                            $chAud = curl_init($downloadUrl);
+                            curl_setopt($chAud, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($chAud, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . WA_TOKEN]);
+                            curl_setopt($chAud, CURLOPT_TIMEOUT, 30);
+                            curl_setopt($chAud, CURLOPT_NOPROGRESS, false);
+                            curl_setopt($chAud, CURLOPT_PROGRESSFUNCTION, function($res, $dlTotal, $dlNow) {
+                                return ($dlNow > 16 * 1024 * 1024) ? 1 : 0;
+                            });
+                            $audData = curl_exec($chAud);
+                            curl_close($chAud);
+                            if ($audData && strlen($audData) <= 16 * 1024 * 1024) {
+                                $mime = $metaRes['mime_type'] ?? 'audio/ogg';
+                                $extMap = ['audio/ogg'=>'ogg','audio/mpeg'=>'mp3','audio/mp4'=>'m4a','audio/aac'=>'aac','audio/amr'=>'amr'];
+                                $mimeBase = explode(';', $mime)[0];
+                                $ext = $extMap[$mimeBase] ?? 'ogg';
+                                $localName = uniqid('wa_in_', true) . '.' . $ext;
+                                $localDir  = dirname(__DIR__) . '/archivos_campanas/wa_media/';
+                                file_put_contents($localDir . $localName, $audData);
+                                $contenido = '/produccion/archivos_campanas/wa_media/' . $localName;
+                            }
+                        }
+                    }
+                    $tipo = 'audio';
                 } elseif ($tipo === 'video') {
                     $contenido = '[Video]';
                     $tipo = 'texto';

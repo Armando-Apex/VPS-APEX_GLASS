@@ -844,6 +844,12 @@ var ModCampanas = (function() {
                     } else {
                         contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128247; Imagen</div>';
                     }
+                } else if (m.tipo === 'audio') {
+                    if (m.contenido && m.contenido.indexOf('/produccion/') === 0) {
+                        contenidoHtml = '<audio controls style="max-width:220px;display:block;margin:2px 0;"><source src="' + esc(m.contenido) + '">Tu navegador no soporta audio.</audio>';
+                    } else {
+                        contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#127908; Nota de voz</div>';
+                    }
                 } else if (m.tipo === 'documento') {
                     contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128196; ' + esc(m.contenido) + '</div>';
                 } else {
