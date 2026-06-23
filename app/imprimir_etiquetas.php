@@ -6,7 +6,7 @@
 //       imprimir_etiquetas.php?folio=R-801&partida=3  (solo una partida)
 // ============================================================
 require_once __DIR__ . '/../api/config.php';
-requireLogin();
+requireSession();
 
 $folio   = strtoupper(trim($_GET['folio']   ?? ''));
 $partida = intval($_GET['partida'] ?? 0);
