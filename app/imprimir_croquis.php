@@ -150,12 +150,10 @@ foreach ($elementos as $idxEl => $e) {
     $desdeIzq = (float)$e['x'] <= $ancho / 2;
     $dimH     = $desdeIzq ? (float)$e['x'] : ($ancho - (float)$e['x']);
     if ($dimH == 0) { $desdeIzq = !$desdeIzq; $dimH = $desdeIzq ? (float)$e['x'] : ($ancho - (float)$e['x']); }
-    $gapH     = 8;
-    $bordHx   = $desdeIzq ? ($ox - $gapH) : ($ox + $gw + $gapH);
+    // borde con pequeño margen para que el tick no quede encima del contorno
+    $bordHx   = $desdeIzq ? ($ox + 4) : ($ox + $gw - 4);
     $offH     = 12 + $idxEl * 16;
     $cotHy    = $ey + $offH;
-    // línea de extensión desde el borde del vidrio hasta la cota
-    $svg .= '<line x1="'.($desdeIzq ? $ox : $ox+$gw).'" y1="'.$cotHy.'" x2="'.$bordHx.'" y2="'.$cotHy.'" stroke="#aaaaaa" stroke-width="0.6" stroke-dasharray="2,2"/>';
     $svg .= '<line x1="'.$ex.'" y1="'.$ey.'" x2="'.$ex.'" y2="'.$cotHy.'" stroke="#333333" stroke-width="0.6" stroke-dasharray="3,2" opacity="0.6"/>';
     $svg .= '<line x1="'.$bordHx.'" y1="'.$cotHy.'" x2="'.$ex.'" y2="'.$cotHy.'" stroke="#333333" stroke-width="1.2"/>';
     $svg .= '<line x1="'.$bordHx.'" y1="'.($cotHy-$tk/2).'" x2="'.$bordHx.'" y2="'.($cotHy+$tk/2).'" stroke="#333333" stroke-width="1.2"/>';
@@ -168,12 +166,11 @@ foreach ($elementos as $idxEl => $e) {
     $desdeInf = (float)$e['y'] <= $alto / 2;
     $dimV     = $desdeInf ? (float)$e['y'] : ($alto - (float)$e['y']);
     if ($dimV == 0) { $desdeInf = !$desdeInf; $dimV = $desdeInf ? (float)$e['y'] : ($alto - (float)$e['y']); }
-    $gap      = 8; // separación entre borde del vidrio y arranque de la cota
-    $bordVy   = $desdeInf ? ($oyBottom + $gap) : ($oy - $gap);
+    // borde con pequeño margen para que el tick no quede encima del contorno
+    $bordVy   = $desdeInf ? ($oyBottom - 4) : ($oy + 4);
     $offV     = 12 + $idxEl * 16;
     $cotVx    = $ex - $offV;
-    // línea de extensión punteada desde el borde del vidrio hasta la cota
-    $svg .= '<line x1="'.$cotVx.'" y1="'.($desdeInf ? $oyBottom : $oy).'" x2="'.$cotVx.'" y2="'.$bordVy.'" stroke="#aaaaaa" stroke-width="0.6" stroke-dasharray="2,2"/>';
+    $cotVx    = max($cotVx, $ox - 30);
     $svg .= '<line x1="'.$ex.'" y1="'.$ey.'" x2="'.$cotVx.'" y2="'.$ey.'" stroke="#333333" stroke-width="0.6" stroke-dasharray="3,2" opacity="0.6"/>';
     $svg .= '<line x1="'.$cotVx.'" y1="'.$bordVy.'" x2="'.$cotVx.'" y2="'.$ey.'" stroke="#333333" stroke-width="1.2"/>';
     $svg .= '<line x1="'.($cotVx-$tk/2).'" y1="'.$bordVy.'" x2="'.($cotVx+$tk/2).'" y2="'.$bordVy.'" stroke="#333333" stroke-width="1.2"/>';
