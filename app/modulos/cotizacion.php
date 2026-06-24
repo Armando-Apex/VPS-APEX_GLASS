@@ -565,13 +565,17 @@ function renderFormulario(data) {
       .catch(function() {});
   }
 
-  // Cerrar autocomplete al hacer click fuera
-  document.addEventListener('click', function(e) {
+  // Cerrar autocomplete al hacer click fuera (un solo listener activo por carga)
+  if (window._cotAutocompleteHandler) {
+    document.removeEventListener('click', window._cotAutocompleteHandler);
+  }
+  window._cotAutocompleteHandler = function(e) {
     var lista = document.getElementById('clienteLista');
     if (lista && !lista.contains(e.target) && e.target.id !== 'clienteBusqueda') {
       lista.style.display = 'none';
     }
-  });
+  };
+  document.addEventListener('click', window._cotAutocompleteHandler);
 }
 
 // ── Render partidas ────────────────────────────────────────────────────────────
@@ -1631,6 +1635,59 @@ async function cotDesactivarServicioCat(id) {
   } catch(e) { alert('Error de conexión'); }
 }
 
+// ── Rechazo por Calidad ───────────────────────────────────────────────────────
+function abrirRechazo() {
+  var modal = document.getElementById('modalRechazoCalidad');
+  var info  = document.getElementById('rechazoMontoInfo');
+  var input = document.getElementById('rechazoMotivoInput');
+  if (input) input.value = '';
+  if (info && window._cotData) {
+    var sp = parseFloat(window._cotData.saldo_pagado || 0).toFixed(2);
+    info.innerHTML = 'Saldo a transferir como saldo a favor: <strong>$' + sp + '</strong>';
+  }
+  if (modal) modal.style.display = 'flex';
+}
+
+function cerrarRechazo() {
+  var modal = document.getElementById('modalRechazoCalidad');
+  if (modal) modal.style.display = 'none';
+}
+
+async function confirmarRechazo() {
+  var motivo = (document.getElementById('rechazoMotivoInput') || {}).value || '';
+  motivo = motivo.trim();
+  if (!motivo) { alert('Escribe el motivo del rechazo'); return; }
+
+  var btn = document.getElementById('rechazoConfirmBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; }
+
+  var cotId = (window._cotData && window._cotData.id) ? window._cotData.id : 0;
+
+  try {
+    var res  = await fetch('../api/cotizaciones.php', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'rechazar', id: cotId, motivo: motivo})
+    });
+    var data = await res.json();
+    if (data.ok) {
+      cerrarRechazo();
+      alert('Orden rechazada correctamente. $' + parseFloat(data.monto_devuelto).toFixed(2) + ' transferidos a Saldo a Favor del cliente.');
+      irA('cotizacion', {id: cotId});
+    } else {
+      alert('Error: ' + (data.error || 'desconocido'));
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirmar rechazo'; }
+    }
+  } catch(e) {
+    alert('Error de red');
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar rechazo'; }
+  }
+}
+
+window.abrirRechazo   = abrirRechazo;
+window.cerrarRechazo  = cerrarRechazo;
+window.confirmarRechazo = confirmarRechazo;
+
 window.cotAbrirCatalogo       = cotAbrirCatalogo;
 window.cotCerrarCatalogo      = cotCerrarCatalogo;
 window.cotCrearServicioCat    = cotCrearServicioCat;
@@ -1812,52 +1869,3 @@ return {
   </div>
 </div>
 
-<script>
-function abrirRechazo() {
-  var modal = document.getElementById('modalRechazoCalidad');
-  var info  = document.getElementById('rechazoMontoInfo');
-  var input = document.getElementById('rechazoMotivoInput');
-  if (input) input.value = '';
-  if (info && window._cotData) {
-    var sp = parseFloat(window._cotData.saldo_pagado || 0).toFixed(2);
-    info.innerHTML = 'Saldo a transferir como saldo a favor: <strong>$' + sp + '</strong>';
-  }
-  if (modal) modal.style.display = 'flex';
-}
-
-function cerrarRechazo() {
-  var modal = document.getElementById('modalRechazoCalidad');
-  if (modal) modal.style.display = 'none';
-}
-
-async function confirmarRechazo() {
-  var motivo = (document.getElementById('rechazoMotivoInput') || {}).value || '';
-  motivo = motivo.trim();
-  if (!motivo) { alert('Escribe el motivo del rechazo'); return; }
-
-  var btn = document.getElementById('rechazoConfirmBtn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; }
-
-  var cotId = (window._cotData && window._cotData.id) ? window._cotData.id : 0;
-
-  try {
-    var res  = await fetch('../api/cotizaciones.php', {
-      method: 'PUT',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({accion:'rechazar', id: cotId, motivo: motivo})
-    });
-    var data = await res.json();
-    if (data.ok) {
-      cerrarRechazo();
-      alert('Orden rechazada correctamente. $' + parseFloat(data.monto_devuelto).toFixed(2) + ' transferidos a Saldo a Favor del cliente.');
-      location.reload();
-    } else {
-      alert('Error: ' + (data.error || 'desconocido'));
-      if (btn) { btn.disabled = false; btn.textContent = 'Confirmar rechazo'; }
-    }
-  } catch(e) {
-    alert('Error de red');
-    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar rechazo'; }
-  }
-}
-</script>
