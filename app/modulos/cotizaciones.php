@@ -142,7 +142,7 @@ var _COT_PER_PAGE = 25;
 
 async function cotCargar() {
   try {
-    var res  = await fetch('../api/cotizaciones.php?limit=350&t=' + Date.now());
+    var res  = await fetch('../api/cotizaciones.php?limit=1000&t=' + Date.now());
     var data = await res.json();
     _cotData = Array.isArray(data) ? data : (data.cotizaciones || []);
     cotFiltrar();
