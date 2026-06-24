@@ -15,11 +15,23 @@
 
 // ── CONFIGURACIÓN ─────────────────────────────────────────────────────────────
 
+// Leer .env (mismo archivo que usa el resto del sistema)
+$_envFile = dirname(__DIR__, 2) . '/apex.glass/.env';
+if (is_readable($_envFile)) {
+    foreach (file($_envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $_line) {
+        if (str_starts_with(trim($_line), '#') || !str_contains($_line, '=')) continue;
+        [$_k, $_v] = explode('=', $_line, 2);
+        $_ENV[trim($_k)] = trim($_v);
+    }
+}
+function _env(string $key, string $default = ''): string {
+    return $_ENV[$key] ?? $default;
+}
+
 // Ruta al JSON de credenciales de la Service Account
 define('SA_KEY_FILE', __DIR__ . '/../_secure/apex-glass-sa.json');
 
 // Emails que tendrán acceso de LECTURA a la carpeta de backups en Drive
-// La service account crea la carpeta y se las comparte automáticamente
 define('DRIVE_COMPARTIR_CON', [
     'areyna.sanchez@gmail.com',
 ]);
@@ -33,14 +45,14 @@ define('DIAS_RETENER', 15);
 // Carpeta local donde se guardan los backups
 define('BACKUP_DIR', __DIR__ . '/_backups');
 
-// Base de datos
-define('DB_HOST', '::1');
-define('DB_NAME', 'apexglass2025_prod');
-define('DB_USER', 'apexglass2025_usr');
-define('DB_PASS', 'tNGlass-Apex2025*2');  // ← PON TU CONTRASEÑA AQUÍ
+// Base de datos — leídos desde .env
+define('DB_HOST', _env('DB_HOST', '::1'));
+define('DB_NAME', _env('DB_NAME', ''));
+define('DB_USER', _env('DB_USER', ''));
+define('DB_PASS', _env('DB_PASS', ''));
 
-// Token de seguridad para llamadas HTTP manuales
-define('TOKEN_SECRETO', 'apex_bk_2026_xK9mTr_9N8VABUvCoiOcAk7HIZkawPyO');  // ← PON TU TOKEN AQUÍ
+// Token de seguridad para llamadas HTTP manuales — leído desde .env
+define('TOKEN_SECRETO', _env('BACKUP_TOKEN', ''));
 
 // ── SEGURIDAD ─────────────────────────────────────────────────────────────────
 if (php_sapi_name() !== 'cli') {
