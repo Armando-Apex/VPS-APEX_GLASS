@@ -39,16 +39,10 @@ if (!is_array($canteo))    $canteo    = [];
 
 // ── Geometría (mismo cálculo que croquis.php _getOrigin) ──────────────────
 $SVG_W = 760; $SVG_H = 960;
-$cOff_geom = 32; // mismo que $cOff más abajo — usado para calcular MB dinámico
-$rowStep    = 14 * ($SVG_W / 450);
-$extraFilas = max(0, count($elementos) - 1);
 $hasEl      = count($elementos) > 0;
-// canvas más ancho cuando hay elementos para acomodar tabla lateral (proporcional a 450→560)
 $canvW = $hasEl ? $SVG_W + round(120 * $SVG_W / 450) : $SVG_W;
-// MB crece con el número de elementos para que todas las cotas X quepan debajo del vidrio
-$cxBase_geom = $cOff_geom + 14 + 12; // offset de la primera cota X de elemento (igual a $cxBase en el foreach)
-$ML = 110; $MR = 80 + $extraFilas*$rowStep + ($hasEl ? round(130 * $SVG_W / 450) : 0); $MT = 20;
-$MB = max(140, (int)ceil($cxBase_geom + count($elementos) * $rowStep + 24));
+$ML = 110; $MR = $hasEl ? round(220 * $SVG_W / 450) : 80; $MT = 20;
+$MB = 140; // solo espacio para cota ancho — cotas de elementos van dentro del vidrio
 $sc = min(($canvW - $ML - $MR) / max($ancho, 1), ($SVG_H - $MT - $MB) / max($alto, 1));
 $gw = $ancho * $sc;
 $gh = $alto  * $sc;
@@ -138,50 +132,55 @@ $svg .= '<line x1="'.($ox-$cxOff-$tk).'" y1="'.$oyBottom.'" x2="'.($ox-$cxOff+$t
 $svg .= '<rect x="'.($ox-$cxOff-$rotW/2).'" y="'.($oy+$gh/2-$rotH/2).'" width="'.$rotW.'" height="'.$rotH.'" fill="white"/>';
 $svg .= '<text x="'.($ox-$cxOff).'" y="'.($oy+$gh/2).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#111111" font-family="monospace" transform="rotate(-90,'.($ox-$cxOff).','.($oy+$gh/2).')">'.$alto.' mm</text>';
 
-// Eje X
-$ejXY = $oyBottom + $cOff + 14;
-$svg .= '<line x1="'.$ox.'" y1="'.$ejXY.'" x2="'.($ox+$gw).'" y2="'.$ejXY.'" stroke="#222222" stroke-width="1.1"/>';
-$svg .= '<line x1="'.$ox.'" y1="'.($ejXY-$tk).'" x2="'.$ox.'" y2="'.($ejXY+$tk).'" stroke="#222222" stroke-width="1.1"/>';
-$svg .= '<polygon points="'.($ox+$gw).','.($ejXY-$arwSz).' '.($ox+$gw+$arwLen).','.$ejXY.' '.($ox+$gw).','.($ejXY+$arwSz).'" fill="#222222"/>';
-$svg .= '<rect x="'.($ox+$gw/2-$lblWEj/2).'" y="'.($ejXY-$lblH/2).'" width="'.$lblWEj.'" height="'.$lblH.'" fill="white"/>';
-$svg .= '<text x="'.($ox+$gw/2).'" y="'.($ejXY+$fz/2-1).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#222222" font-family="monospace">Eje X</text>';
-
-// Eje Y
-$ejYX = $ox - $cxOff - 24;
-$svg .= '<line x1="'.$ejYX.'" y1="'.$oyBottom.'" x2="'.$ejYX.'" y2="'.$oy.'" stroke="#555555" stroke-width="1.1"/>';
-$svg .= '<line x1="'.($ejYX-$tk).'" y1="'.$oyBottom.'" x2="'.($ejYX+$tk).'" y2="'.$oyBottom.'" stroke="#555555" stroke-width="1.1"/>';
-$svg .= '<polygon points="'.($ejYX-$arwSz).','.$oy.' '.$ejYX.','.($oy-$arwLen).' '.($ejYX+$arwSz).','.$oy.'" fill="#555555"/>';
-$svg .= '<rect x="'.($ejYX-$rotW/2).'" y="'.($oy+$gh/2-$rotH/2).'" width="'.$rotW.'" height="'.$rotH.'" fill="white"/>';
-$svg .= '<text x="'.$ejYX.'" y="'.($oy+$gh/2).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#555555" font-family="monospace" transform="rotate(-90,'.$ejYX.','.($oy+$gh/2).')">Eje Y</text>';
+// Flechas de ejes en esquina inferior izquierda (referencia compacta)
+$ejLen = 28;
+$svg .= '<line x1="'.$ox.'" y1="'.$oyBottom.'" x2="'.($ox+$ejLen).'" y2="'.$oyBottom.'" stroke="#333333" stroke-width="1.2"/>';
+$svg .= '<polygon points="'.($ox+$ejLen).','.($oyBottom-$arwSz).' '.($ox+$ejLen+$arwLen).','.$oyBottom.' '.($ox+$ejLen).','.($oyBottom+$arwSz).'" fill="#333333"/>';
+$svg .= '<text x="'.($ox+$ejLen+$arwLen+3).'" y="'.($oyBottom+$fz/2).'" font-size="'.($fz-2).'" fill="#333333" font-family="monospace" font-weight="700">X</text>';
+$svg .= '<line x1="'.$ox.'" y1="'.$oyBottom.'" x2="'.$ox.'" y2="'.($oyBottom-$ejLen).'" stroke="#333333" stroke-width="1.2"/>';
+$svg .= '<polygon points="'.($ox-$arwSz).','.($oyBottom-$ejLen).' '.$ox.','.($oyBottom-$ejLen-$arwLen).' '.($ox+$arwSz).','.($oyBottom-$ejLen).'" fill="#333333"/>';
+$svg .= '<text x="'.($ox-$fz).'" y="'.($oyBottom-$ejLen-$arwLen-3).'" font-size="'.($fz-2).'" fill="#333333" font-family="monospace" font-weight="700">Y</text>';
 
 // Elementos
 foreach ($elementos as $idxEl => $e) {
     $ep = toPX((float)$e['x'], (float)$e['y'], $ox, $oyBottom, $sc);
     $ex = $ep['x']; $ey = $ep['y'];
 
-    $svg .= '<line x1="'.$ox.'" y1="'.$ey.'" x2="'.$ex.'" y2="'.$ey.'" stroke="#222222" stroke-width="0.6" stroke-dasharray="4,3" opacity="0.6"/>';
-    $svg .= '<line x1="'.$ex.'" y1="'.$oyBottom.'" x2="'.$ex.'" y2="'.$ey.'" stroke="#555555" stroke-width="0.6" stroke-dasharray="4,3" opacity="0.6"/>';
-    $svg .= '<circle cx="'.$ox.'" cy="'.$ey.'" r="2.5" fill="#666666" opacity="0.7"/>';
-    $svg .= '<circle cx="'.$ex.'" cy="'.$oyBottom.'" r="2.5" fill="#888888" opacity="0.7"/>';
+    // Cota horizontal: desde el borde más cercano (izq o der)
+    $desdeIzq = (float)$e['x'] <= $ancho / 2;
+    $dimH     = $desdeIzq ? (float)$e['x'] : ($ancho - (float)$e['x']);
+    if ($dimH == 0) { $desdeIzq = !$desdeIzq; $dimH = $desdeIzq ? (float)$e['x'] : ($ancho - (float)$e['x']); }
+    $gapH     = 8;
+    $bordHx   = $desdeIzq ? ($ox - $gapH) : ($ox + $gw + $gapH);
+    $offH     = 12 + $idxEl * 16;
+    $cotHy    = $ey + $offH;
+    // línea de extensión desde el borde del vidrio hasta la cota
+    $svg .= '<line x1="'.($desdeIzq ? $ox : $ox+$gw).'" y1="'.$cotHy.'" x2="'.$bordHx.'" y2="'.$cotHy.'" stroke="#aaaaaa" stroke-width="0.6" stroke-dasharray="2,2"/>';
+    $svg .= '<line x1="'.$ex.'" y1="'.$ey.'" x2="'.$ex.'" y2="'.$cotHy.'" stroke="#333333" stroke-width="0.6" stroke-dasharray="3,2" opacity="0.6"/>';
+    $svg .= '<line x1="'.$bordHx.'" y1="'.$cotHy.'" x2="'.$ex.'" y2="'.$cotHy.'" stroke="#333333" stroke-width="1.2"/>';
+    $svg .= '<line x1="'.$bordHx.'" y1="'.($cotHy-$tk/2).'" x2="'.$bordHx.'" y2="'.($cotHy+$tk/2).'" stroke="#333333" stroke-width="1.2"/>';
+    $svg .= '<line x1="'.$ex.'" y1="'.($cotHy-$tk/2).'" x2="'.$ex.'" y2="'.($cotHy+$tk/2).'" stroke="#333333" stroke-width="1.2"/>';
+    $lxMid = ($bordHx + $ex) / 2;
+    $svg .= '<rect x="'.($lxMid-30).'" y="'.($cotHy-7).'" width="60" height="14" fill="white"/>';
+    $svg .= '<text x="'.$lxMid.'" y="'.($cotHy+5).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#111111" font-family="monospace">'.$dimH.' mm</text>';
 
-    // Cota X debajo del vidrio (fila por elemento, después del Eje X)
-    $cxBase = $cOff + 14 + 12;
-    $cxPad  = $cxBase + $idxEl*$rowStep; $cxLblW=44; $cxLblH=12;
-    $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cxPad).'" x2="'.$ex.'" y2="'.($oyBottom+$cxPad).'" stroke="#222222" stroke-width="'.$sw.'"/>';
-    $svg .= '<line x1="'.$ox.'" y1="'.($oyBottom+$cxPad-$tk/2).'" x2="'.$ox.'" y2="'.($oyBottom+$cxPad+$tk/2).'" stroke="#222222" stroke-width="'.$sw.'"/>';
-    $svg .= '<line x1="'.$ex.'" y1="'.($oyBottom+$cxPad-$tk/2).'" x2="'.$ex.'" y2="'.($oyBottom+$cxPad+$tk/2).'" stroke="#222222" stroke-width="'.$sw.'"/>';
-    $lxMid = $ox + ($ex-$ox)/2;
-    $svg .= '<rect x="'.($lxMid-$cxLblW/2).'" y="'.($oyBottom+$cxPad+2).'" width="'.$cxLblW.'" height="'.$cxLblH.'" fill="white" rx="2"/>';
-    $svg .= '<text x="'.$lxMid.'" y="'.($oyBottom+$cxPad+$cxLblH/2+$fzSm/2).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#222222" font-family="monospace">X: '.$e['x'].' mm</text>';
-
-    // Cota Y a la derecha del vidrio (columna por elemento)
-    $cyPad=6 + $idxEl*$rowStep; $cyLblW=12; $cyLblH=44;
-    $svg .= '<line x1="'.($ox+$gw+$cyPad).'" y1="'.$oyBottom.'" x2="'.($ox+$gw+$cyPad).'" y2="'.$ey.'" stroke="#555555" stroke-width="'.$sw.'"/>';
-    $svg .= '<line x1="'.($ox+$gw+$cyPad-$tk/2).'" y1="'.$oyBottom.'" x2="'.($ox+$gw+$cyPad+$tk/2).'" y2="'.$oyBottom.'" stroke="#555555" stroke-width="'.$sw.'"/>';
-    $svg .= '<line x1="'.($ox+$gw+$cyPad-$tk/2).'" y1="'.$ey.'" x2="'.($ox+$gw+$cyPad+$tk/2).'" y2="'.$ey.'" stroke="#555555" stroke-width="'.$sw.'"/>';
-    $lyMid = $ey + ($oyBottom-$ey)/2;
-    $svg .= '<rect x="'.($ox+$gw+$cyPad+2).'" y="'.($lyMid-$cyLblH/2).'" width="'.$cyLblW.'" height="'.$cyLblH.'" fill="white" rx="2"/>';
-    $svg .= '<text x="'.($ox+$gw+$cyPad+$cyLblW/2+2).'" y="'.$lyMid.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#555555" font-family="monospace" transform="rotate(-90,'.($ox+$gw+$cyPad+$cyLblW/2+2).','.$lyMid.')">Y: '.$e['y'].' mm</text>';
+    // Cota vertical: desde el borde más cercano (inf o sup)
+    $desdeInf = (float)$e['y'] <= $alto / 2;
+    $dimV     = $desdeInf ? (float)$e['y'] : ($alto - (float)$e['y']);
+    if ($dimV == 0) { $desdeInf = !$desdeInf; $dimV = $desdeInf ? (float)$e['y'] : ($alto - (float)$e['y']); }
+    $gap      = 8; // separación entre borde del vidrio y arranque de la cota
+    $bordVy   = $desdeInf ? ($oyBottom + $gap) : ($oy - $gap);
+    $offV     = 12 + $idxEl * 16;
+    $cotVx    = $ex - $offV;
+    // línea de extensión punteada desde el borde del vidrio hasta la cota
+    $svg .= '<line x1="'.$cotVx.'" y1="'.($desdeInf ? $oyBottom : $oy).'" x2="'.$cotVx.'" y2="'.$bordVy.'" stroke="#aaaaaa" stroke-width="0.6" stroke-dasharray="2,2"/>';
+    $svg .= '<line x1="'.$ex.'" y1="'.$ey.'" x2="'.$cotVx.'" y2="'.$ey.'" stroke="#333333" stroke-width="0.6" stroke-dasharray="3,2" opacity="0.6"/>';
+    $svg .= '<line x1="'.$cotVx.'" y1="'.$bordVy.'" x2="'.$cotVx.'" y2="'.$ey.'" stroke="#333333" stroke-width="1.2"/>';
+    $svg .= '<line x1="'.($cotVx-$tk/2).'" y1="'.$bordVy.'" x2="'.($cotVx+$tk/2).'" y2="'.$bordVy.'" stroke="#333333" stroke-width="1.2"/>';
+    $svg .= '<line x1="'.($cotVx-$tk/2).'" y1="'.$ey.'" x2="'.($cotVx+$tk/2).'" y2="'.$ey.'" stroke="#333333" stroke-width="1.2"/>';
+    $lyMid = ($bordVy + $ey) / 2;
+    $svg .= '<rect x="'.($cotVx-7).'" y="'.($lyMid-30).'" width="14" height="60" fill="white"/>';
+    $svg .= '<text x="'.$cotVx.'" y="'.$lyMid.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#111111" font-family="monospace" transform="rotate(-90,'.$cotVx.','.$lyMid.')">'.$dimV.' mm</text>';
 
     if ($e['tipo'] === 'tp') {
         $r = max(4, ((float)$e['d']/2) * $sc);
@@ -256,7 +255,7 @@ foreach ($elementos as $idxEl => $e) {
 // Tabla de elementos (a la derecha de las cotas Y, sin tapar la pieza)
 if ($hasEl) {
     $tExtraFilas = max(0, count($elementos) - 1);
-    $tblX = $ox + $gw + 6 + $tExtraFilas*$rowStep + 22;
+    $tblX = $ox + $gw + 28;
     $tblW = min($canvW - $tblX - 4, round(140 * $SVG_W / 450));
     $tblY = $oy + 2;
     $cardH = round(28 * $SVG_W / 450);

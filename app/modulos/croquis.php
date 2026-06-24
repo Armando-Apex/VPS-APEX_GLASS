@@ -313,7 +313,7 @@ var _polPreviewPt    = null; // {x,y} mm — posición actual del mouse, para l�
 var POL_SNAP = 10; // mm
 
 var SVG_W = 450, SVG_H = 340, PAD = 44;
-var EL_BASE = 50; // px reservados debajo del vidrio para cota ancho + "Eje X" antes de que empiecen las filas de elementos
+var EL_BASE = 50; // px reservados debajo del vidrio para cota ancho
 var _zoom = 1.0; // 1.0 = fit, escala multiplicadora sobre el fit base
 var _panX = 0, _panY = 0;      // offset de pan en px
 var _panning = false, _panStartX = 0, _panStartY = 0, _panStartOX = 0, _panStartOY = 0;
@@ -925,13 +925,11 @@ function _svgPoint(event) {
 function _getOrigin() {
   var ancho = Math.max(50, +document.getElementById('cq-ancho').value || 800);
   var alto  = Math.max(50, +document.getElementById('cq-alto').value  || 600);
-  var extraFilas = Math.max(0, _elementos.length - 1);
   var hasEl = _elementos.length > 0;
   var canvW = hasEl ? SVG_W + 120 : SVG_W;
-  // MB crece con el número de elementos para que todas las cotas X quepan debajo del vidrio
-  var MB = Math.max(90, EL_BASE + _elementos.length * 14 + 20);
+  var MB = EL_BASE; // solo espacio para cota ancho — cotas de elementos van dentro del vidrio
   var svgH = Math.max(SVG_H, 220 + MB);
-  var ML=86, MR=80+extraFilas*14+(hasEl?130:0), MT=20;
+  var ML=86, MR=hasEl?210:80, MT=20;
   var sc = Math.min((canvW-ML-MR)/ancho, (svgH-MT-MB)/alto);
   var gw = ancho*sc; var gh = alto*sc;
   var ox = ML + (canvW-ML-MR-gw)/2;
@@ -1152,21 +1150,14 @@ function _redraw() {
   out += '<rect x="'+(ox-cxOff-rotW/2)+'" y="'+(oy+gh/2-rotH/2)+'" width="'+rotW+'" height="'+rotH+'" fill="white"/>';
   out += '<text x="'+(ox-cxOff)+'" y="'+(oy+gh/2)+'" text-anchor="middle" font-size="'+fz+'" font-weight="700" fill="#1e293b" font-family="monospace" transform="rotate(-90,'+(ox-cxOff)+','+(oy+gh/2)+')">'+alto+' mm</text>';
 
-  // ── Eje X — cota dedicada debajo de la de ancho, con flecha ──
-  var ejXY = oyBottom + cOff + 14;
-  out += '<line x1="'+ox+'" y1="'+ejXY+'" x2="'+(ox+gw)+'" y2="'+ejXY+'" stroke="#dc2626" stroke-width="1.1"/>';
-  out += '<line x1="'+ox+'" y1="'+(ejXY-tk)+'" x2="'+ox+'" y2="'+(ejXY+tk)+'" stroke="#dc2626" stroke-width="1.1"/>';
-  out += '<polygon points="'+(ox+gw)+','+(ejXY-arwSz)+' '+(ox+gw+arwLen)+','+ejXY+' '+(ox+gw)+','+(ejXY+arwSz)+'" fill="#dc2626"/>';
-  out += '<rect x="'+(ox+gw/2-lblWEj/2)+'" y="'+(ejXY-lblH/2)+'" width="'+lblWEj+'" height="'+lblH+'" fill="white"/>';
-  out += '<text x="'+(ox+gw/2)+'" y="'+(ejXY+fz/2-1)+'" text-anchor="middle" font-size="'+fz+'" font-weight="700" fill="#dc2626" font-family="monospace">Eje X</text>';
-
-  // ── Eje Y — cota dedicada a la izq de la de alto, con flecha ──
-  var ejYX = ox - cxOff - 20;
-  out += '<line x1="'+ejYX+'" y1="'+oyBottom+'" x2="'+ejYX+'" y2="'+oy+'" stroke="#16a34a" stroke-width="1.1"/>';
-  out += '<line x1="'+(ejYX-tk)+'" y1="'+oyBottom+'" x2="'+(ejYX+tk)+'" y2="'+oyBottom+'" stroke="#16a34a" stroke-width="1.1"/>';
-  out += '<polygon points="'+(ejYX-arwSz)+','+oy+' '+ejYX+','+(oy-arwLen)+' '+(ejYX+arwSz)+','+oy+'" fill="#16a34a"/>';
-  out += '<rect x="'+(ejYX-rotW/2)+'" y="'+(oy+gh/2-rotH/2)+'" width="'+rotW+'" height="'+rotH+'" fill="white"/>';
-  out += '<text x="'+ejYX+'" y="'+(oy+gh/2)+'" text-anchor="middle" font-size="'+fz+'" font-weight="700" fill="#16a34a" font-family="monospace" transform="rotate(-90,'+ejYX+','+(oy+gh/2)+')">Eje Y</text>';
+  // ── Flechas de ejes en esquina inferior izquierda (referencia compacta) ──
+  var ejLen = 18;
+  out += '<line x1="'+ox+'" y1="'+oyBottom+'" x2="'+(ox+ejLen)+'" y2="'+oyBottom+'" stroke="#dc2626" stroke-width="1"/>';
+  out += '<polygon points="'+(ox+ejLen)+','+(oyBottom-arwSz)+' '+(ox+ejLen+arwLen)+','+oyBottom+' '+(ox+ejLen)+','+(oyBottom+arwSz)+'" fill="#dc2626"/>';
+  out += '<text x="'+(ox+ejLen+arwLen+2)+'" y="'+(oyBottom+fz/2)+'" font-size="'+(fz-1)+'" fill="#dc2626" font-family="monospace" font-weight="700">X</text>';
+  out += '<line x1="'+ox+'" y1="'+oyBottom+'" x2="'+ox+'" y2="'+(oyBottom-ejLen)+'" stroke="#16a34a" stroke-width="1"/>';
+  out += '<polygon points="'+(ox-arwSz)+','+(oyBottom-ejLen)+' '+ox+','+(oyBottom-ejLen-arwLen)+' '+(ox+arwSz)+','+(oyBottom-ejLen)+'" fill="#16a34a"/>';
+  out += '<text x="'+(ox-fz)+'" y="'+(oyBottom-ejLen-arwLen-2)+'" font-size="'+(fz-1)+'" fill="#16a34a" font-family="monospace" font-weight="700">Y</text>';
 
   // ── Elementos ─────────────────────────────────────────────────
   _elementos.forEach(function(e, idxEl) {
@@ -1175,29 +1166,6 @@ function _redraw() {
     var cur = _draggingElem===e.id ? 'grabbing' : 'grab';
     var evts = ' onmousedown="CroquisMod._elemMouseDown('+e.id+',event)" ondblclick="CroquisMod._elemDblClick('+e.id+',event)"';
 
-    // ── Líneas de referencia punteadas (sketch 3 style) ───────────
-    out += '<line x1="'+ox+'" y1="'+ey+'" x2="'+ex+'" y2="'+ey+'" stroke="#dc2626" stroke-width="0.6" stroke-dasharray="4,3" opacity="0.6"/>';
-    out += '<line x1="'+ex+'" y1="'+oyBottom+'" x2="'+ex+'" y2="'+ey+'" stroke="#16a34a" stroke-width="0.6" stroke-dasharray="4,3" opacity="0.6"/>';
-    out += '<circle cx="'+ox+'" cy="'+ey+'" r="2.5" fill="#dc2626" opacity="0.7"/>';
-    out += '<circle cx="'+ex+'" cy="'+oyBottom+'" r="2.5" fill="#16a34a" opacity="0.7"/>';
-
-    // ── Cota X debajo del vidrio (cada elemento usa su propia fila, después de la cota ancho + Eje X) ──
-    var cxPad = EL_BASE + idxEl*14, cxLblW = 44, cxLblH = 12;
-    out += '<line x1="'+ox+'" y1="'+(oyBottom+cxPad)+'" x2="'+ex+'" y2="'+(oyBottom+cxPad)+'" stroke="#dc2626" stroke-width="'+sw+'"/>';
-    out += '<line x1="'+ox+'" y1="'+(oyBottom+cxPad-tk/2)+'" x2="'+ox+'" y2="'+(oyBottom+cxPad+tk/2)+'" stroke="#dc2626" stroke-width="'+sw+'"/>';
-    out += '<line x1="'+ex+'" y1="'+(oyBottom+cxPad-tk/2)+'" x2="'+ex+'" y2="'+(oyBottom+cxPad+tk/2)+'" stroke="#dc2626" stroke-width="'+sw+'"/>';
-    var lxMid = ox + (ex-ox)/2;
-    out += '<rect x="'+(lxMid-cxLblW/2)+'" y="'+(oyBottom+cxPad+2)+'" width="'+cxLblW+'" height="'+cxLblH+'" fill="white" rx="2"/>';
-    out += '<text x="'+lxMid+'" y="'+(oyBottom+cxPad+cxLblH/2+fzSm/2)+'" text-anchor="middle" font-size="'+fzSm+'" font-weight="700" fill="#dc2626" font-family="monospace">X: '+e.x+' mm</text>';
-
-    // ── Cota Y a la derecha del vidrio (cada elemento usa su propia columna) ──
-    var cyPad = 6 + idxEl*14, cyLblW = 12, cyLblH = 44;
-    out += '<line x1="'+(ox+gw+cyPad)+'" y1="'+oyBottom+'" x2="'+(ox+gw+cyPad)+'" y2="'+ey+'" stroke="#16a34a" stroke-width="'+sw+'"/>';
-    out += '<line x1="'+(ox+gw+cyPad-tk/2)+'" y1="'+oyBottom+'" x2="'+(ox+gw+cyPad+tk/2)+'" y2="'+oyBottom+'" stroke="#16a34a" stroke-width="'+sw+'"/>';
-    out += '<line x1="'+(ox+gw+cyPad-tk/2)+'" y1="'+ey+'" x2="'+(ox+gw+cyPad+tk/2)+'" y2="'+ey+'" stroke="#16a34a" stroke-width="'+sw+'"/>';
-    var lyMid = ey + (oyBottom-ey)/2;
-    out += '<rect x="'+(ox+gw+cyPad+2)+'" y="'+(lyMid-cyLblH/2)+'" width="'+cyLblW+'" height="'+cyLblH+'" fill="white" rx="2"/>';
-    out += '<text x="'+(ox+gw+cyPad+cyLblW/2+2)+'" y="'+lyMid+'" text-anchor="middle" font-size="'+fzSm+'" font-weight="700" fill="#16a34a" font-family="monospace" transform="rotate(-90,'+(ox+gw+cyPad+cyLblW/2+2)+','+lyMid+')">Y: '+e.y+' mm</text>';
 
     // ── Dibujo del elemento — número dentro del círculo ──────────
     var numLabel = (idxEl + 1) + '';  // 1, 2, 3...
@@ -1291,7 +1259,11 @@ function _redraw() {
       if (el.tipo==='rs') det = el.w+'×'+el.h+'mm';
       if (el.tipo==='bi') det = el.w+'×'+el.h+'mm';
       out += '<text x="'+(tblX+tblW-2)+'" y="'+(ry+10)+'" text-anchor="end" font-size="7" fill="'+ec+'" font-family="monospace">'+det+'</text>';
-      out += '<text x="'+(tblX+8)+'" y="'+(ry+cardH-6)+'" font-size="6.5" fill="#374151" font-family="monospace">X: '+el.x+'  Y: '+el.y+'</text>';
+      var dH = el.x <= ancho/2 ? el.x : (ancho - el.x);
+      var dV = el.y <= alto/2  ? el.y : (alto  - el.y);
+      var lH = (el.x <= ancho/2 ? 'Izq ' : 'Der ') + dH + 'mm';
+      var lV = (el.y <= alto/2  ? 'Inf ' : 'Sup ') + dV + 'mm';
+      out += '<text x="'+(tblX+8)+'" y="'+(ry+cardH-6)+'" font-size="6.5" fill="#374151" font-family="monospace">'+lH+'  '+lV+'</text>';
     });
   }
 
