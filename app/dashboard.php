@@ -5,14 +5,15 @@ $user  = requirePermiso('ver_dashboard');
 $_rol  = $user['rol'];
 $_name = $user['nombre'];
 
-$esDir        = in_array($_rol, ['dueno','dir_admin','director','administracion']);
-$esComercial  = in_array($_rol, ['dueno','dir_admin','comercial','administracion']);
-$esAdmin      = $_rol === 'dir_admin';
-$esInventario = in_array($_rol, ['dir_admin','administracion']);
-$esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
-$esLogistica  = in_array($_rol, ['dir_admin','administracion','dueno','chofer']);
-$esJefe       = in_array($_rol, ['jefe_piso','dir_admin','dueno','director']);
-$esArchivos   = in_array($_rol, ['dir_admin','administracion','comercial']);
+$esDesarrollo = $_rol === 'desarrollo';
+$esDir        = in_array($_rol, ['dueno','dir_admin','director','administracion','desarrollo']);
+$esComercial  = in_array($_rol, ['dueno','dir_admin','comercial','administracion','desarrollo']);
+$esAdmin      = in_array($_rol, ['dir_admin','desarrollo']);
+$esInventario = in_array($_rol, ['dir_admin','administracion','desarrollo']);
+$esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno','desarrollo']);
+$esLogistica  = in_array($_rol, ['dir_admin','administracion','dueno','chofer','desarrollo']);
+$esJefe       = in_array($_rol, ['jefe_piso','dir_admin','dueno','director','desarrollo']);
+$esArchivos   = in_array($_rol, ['dir_admin','administracion','comercial','desarrollo']);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -257,9 +258,9 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
     <?php if ($esLogistica): ?>
     <div class="sidebar-section">
       <div class="sidebar-label">Log&iacute;stica</div>
-      <?php if (in_array($_rol, ['dir_admin','administracion','dueno'])): ?>
+      <?php if ($esDesarrollo): ?>
       <button class="sidebar-link" data-modulo="logistica_rutas" onclick="cargarModulo('logistica_rutas')">
-        <span class="sidebar-icon">&#128666;</span>Rutas de Entrega
+        <span class="sidebar-icon">&#128666;</span>Rutas de Entrega <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px">WIP</span>
       </button>
       <?php endif; ?>
       <?php if ($_rol === 'chofer'): ?>

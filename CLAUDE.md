@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 24 junio 2026 | Próximo UPD disponible: UPD-202
+# Última actualización: 24 junio 2026 | Próximo UPD disponible: UPD-204
 
 **REGLA DE ORO:** Este archivo es la memoria compartida del proyecto. Claude lo lee al inicio de cada sesión y lo actualiza al terminar. Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -486,4 +486,6 @@ Al terminar cualquier sesión con cambios:
 | UPD-200 | 24-jun | Armando | Auditoría cotizaciones ALTOS: (1) location.reload()→irA() en confirmarRechazo — evita romper SPA al rechazar por calidad; (2) listener click autocomplete cliente ya no se acumula entre navegaciones — usa window._cotAutocompleteHandler con removeEventListener previo; (3) abrirRechazo/cerrarRechazo/confirmarRechazo movidas dentro del IIFE y expuestas via window.* — eliminado segundo script suelto duplicado |
 | UPD-201 | 24-jun | Armando | Auditoría cotizaciones MEDIOS: (1) toggleFactura() eliminada — buscaba fFacturaRfc inexistente, nunca se llamaba; (2) 5 funciones imprimir* (imprimirOrden/Cotizacion/Remision/Etiquetas/Salida) eliminadas — dead code desde UPD-182 cuando los botones cambiaron a <a> tags; (3) query lista cotizaciones optimizada — reemplazadas 2 subqueries correlacionadas por LEFT JOIN con GROUP BY (cp_sums), reduciendo de N×2 queries a 1 JOIN |
 | UPD-202 | 24-jun | Armando | Reporte Dirección: prom_dias ahora excluye sábados, domingos y festivos (tabla festivos) — query adicional trae fechas crudas por orden; diasHabiles() itera día a día contando solo Lun-Vie no festivos; mismo cálculo para resumen global, filas mensuales y fila TOTAL |
-**Próximo UPD disponible: UPD-203**
+| UPD-203 | 24-jun | Mando | Fix PDF croquis cotas: bordHx/bordVy con margen de 4px desde el contorno del vidrio (antes 1px) — tick y número ya no se empalman con la línea del borde de la pieza; tabla ELEMENTOS en editor muestra "Izq/Der Nmm  Inf/Sup Nmm" en lugar de coordenadas X/Y |
+| UPD-204 | 24-jun | Mando | Usuario 'desarrollo' (rol desarrollo): acceso total + permiso exclusivo 'ver_wip' para módulos WIP; ENUM rol usuarios += desarrollo; $esDesarrollo en dashboard.php; nadie más ve features WIP |
+**Próximo UPD disponible: UPD-205**

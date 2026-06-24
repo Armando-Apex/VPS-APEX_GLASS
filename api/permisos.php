@@ -70,6 +70,18 @@ define('PERMISOS', [
         'ver_inventario',
         'gestionar_inventario',
     ],
+    'desarrollo' => [
+        'ver_dashboard',
+        'ver_ordenes',
+        'ver_estaciones',
+        'imprimir_etiquetas',
+        'cambiar_cualquier_estatus',
+        'registrar_entrega',
+        'ver_reportes',
+        'ver_inventario',
+        'gestionar_inventario',
+        'ver_wip',
+    ],
 ]);
 
 // Redireccion por defecto al hacer login segun rol
@@ -82,6 +94,7 @@ define('REDIRECCION_LOGIN', [
     'dir_admin'      => 'dashboard.php',
     'administracion' => 'dashboard.php',
     'dueno'          => 'dashboard.php',
+    'desarrollo'     => 'dashboard.php',
 ]);
 
 // Verificar si el rol tiene un permiso especifico

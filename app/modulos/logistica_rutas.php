@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
 $user = requireSessionApi();
-if (!in_array($user['rol'], ['administracion','dir_admin','dueno'])) {
+if (!in_array($user['rol'], ['administracion','dir_admin','dueno','desarrollo'])) {
     header('Location: ../dashboard.php'); exit;
 }
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {

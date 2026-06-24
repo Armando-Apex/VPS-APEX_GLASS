@@ -14,7 +14,7 @@ $nombre  = $user['nombre'];
 $db      = getDB();
 $method  = $_SERVER['REQUEST_METHOD'];
 
-$esLogistica = in_array($rol, ['administracion', 'dir_admin', 'dueno']);
+$esLogistica = in_array($rol, ['administracion', 'dir_admin', 'dueno', 'desarrollo']);
 $esChofer    = $rol === 'chofer';
 
 if (!$esLogistica && !$esChofer) {
