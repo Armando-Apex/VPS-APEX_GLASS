@@ -885,14 +885,6 @@ function seleccionarCliente(id, nombre, localidad, ciudad) {
 }
 
 // ── Localidad / Ciudad ────────────────────────────────────────────────────────
-function toggleFactura() {
-  var cb  = document.getElementById('fFacturaGenerica');
-  var rfc = document.getElementById('fFacturaRfc');
-  if (!cb || !rfc) return;
-  rfc.style.display = cb.checked ? 'none' : 'block';
-  if (cb.checked) rfc.value = '';
-}
-
 function toggleCiudad() {
   var esForaneo = (document.getElementById('fLocalidad')?.value === 'foraneo');
   var campo = document.getElementById('campoCiudad');
@@ -1048,26 +1040,6 @@ async function cancelar() {
   var res  = await fetch(API_COT, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({accion:'cancelar', id: ID_COT}) });
   var data = await res.json();
   if (data.ok) { irA('cotizaciones'); } else { alert(data.error); }
-}
-
-function imprimirOrden() {
-  window.open('../app/imprimir_orden.php?id=' + ID_COT, '_blank');
-}
-
-function imprimirCotizacion() {
-  window.open('../app/imprimir_cotizacion.php?id=' + ID_COT, '_blank');
-}
-
-function imprimirRemision() {
-  window.open('../app/imprimir_cotizacion.php?id=' + ID_COT + '&remision=1', '_blank');
-}
-
-function imprimirEtiquetas(folio) {
-  window.open('../app/imprimir_etiquetas.php?folio=' + encodeURIComponent(folio), '_blank');
-}
-
-function imprimirSalida() {
-  window.open('../app/imprimir_salida.php?id=' + ID_COT, '_blank');
 }
 
 // ── Modal Correcciones ────────────────────────────────────────────────────────
@@ -1819,18 +1791,12 @@ return {
   _recalcular:        recalcular,
   _buscarCliente:     buscarCliente,
   _seleccionarCliente:seleccionarCliente,
-  _toggleFactura:     toggleFactura,
   _toggleCiudad:      toggleCiudad,
   _actualizarFechaEntrega: actualizarFechaEntrega,
   _convertirOrden:    convertirOrden,
   _marcarEntregada:   marcarEntregada,
   _autorizarEntrega:  autorizarEntrega,
   _cancelar:          cancelar,
-  _imprimirOrden:     imprimirOrden,
-  _imprimirCotizacion: imprimirCotizacion,
-  _imprimirRemision:  imprimirRemision,
-  _imprimirEtiquetas:  imprimirEtiquetas,
-  _imprimirSalida:     imprimirSalida,
   _subirArchivo:       subirArchivo,
   _abrirArchivos:      abrirArchivos,
   _cerrarArchivos:     cerrarArchivos,

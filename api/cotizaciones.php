@@ -169,14 +169,19 @@ if ($method === 'GET') {
     $stmt = $db->prepare("
         SELECT c.id, c.folio, c.fecha, c.cliente_nombre, c.asesor_nombre,
                c.proyecto, c.estatus,
-               ROUND((COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) AS total,
+               ROUND((COALESCE(cp_sums.bruto, 0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) AS total,
                c.fecha_entrega, c.localidad, c.ciudad_destino, c.condicion_pago,
-               GREATEST(0, ROUND((COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+               GREATEST(0, ROUND((COALESCE(cp_sums.bruto, 0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                c.entrega_bloqueada,
                o.folio AS orden_folio,
                IF(c.estatus = 'cotizacion' AND c.created_at < DATE_SUB(NOW(), INTERVAL 15 DAY), 1, 0) AS es_inactiva
         FROM cotizaciones c
         LEFT JOIN ordenes o ON o.id = c.orden_id
+        LEFT JOIN (
+            SELECT cotizacion_id, SUM(precio_m2_usado * m2 * cantidad) AS bruto
+            FROM cotizaciones_partidas
+            GROUP BY cotizacion_id
+        ) cp_sums ON cp_sums.cotizacion_id = c.id
         WHERE $where_str
         ORDER BY c.created_at DESC
         LIMIT $limit
