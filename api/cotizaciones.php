@@ -91,7 +91,7 @@ if ($method === 'GET') {
     $id      = isset($_GET['id'])  ? (int)$_GET['id']  : null;
     $estatus = $_GET['estatus']    ?? '';
     $q       = trim($_GET['q']     ?? '');
-    $limit   = min((int)($_GET['limit'] ?? 50), 200);
+    $limit   = min((int)($_GET['limit'] ?? 50), 350);
 
     // Detalle completo con partidas
     if ($id) {
