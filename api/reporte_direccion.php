@@ -13,6 +13,26 @@ header('Access-Control-Allow-Origin: https://apex.glass');
 
 $pdo     = getDB();
 $periodo = $_GET['periodo'] ?? 'mes_actual';
+
+// Festivos para excluir del cálculo de días hábiles
+$festivosSet = array_flip(
+    $pdo->query("SELECT fecha FROM festivos")->fetchAll(PDO::FETCH_COLUMN)
+);
+
+function diasHabiles($d1, $d2, $festivosSet) {
+    if (!$d1 || !$d2) return null;
+    $cur = new DateTime($d1);
+    $end = new DateTime($d2);
+    if ($end <= $cur) return 0;
+    $cur->modify('+1 day');
+    $n = 0;
+    while ($cur <= $end) {
+        $dow = (int)$cur->format('N'); // 1=Lun … 7=Dom
+        if ($dow < 6 && !isset($festivosSet[$cur->format('Y-m-d')])) $n++;
+        $cur->modify('+1 day');
+    }
+    return $n;
+}
 $hoy     = new DateTime();
 
 switch ($periodo) {
@@ -151,6 +171,64 @@ $stmtM = $pdo->prepare("
 $stmtM->execute($params4);
 $mensual = $stmtM->fetchAll(PDO::FETCH_ASSOC);
 
+// Fechas crudas por orden para calcular días hábiles (excluye sáb, dom y festivos)
+$stmtDiasQ = $pdo->prepare("
+    SELECT
+        DATE_FORMAT(COALESCE(o.fecha_pedido, DATE(o.created_at)), '%Y-%m') AS mes_key,
+        COALESCE(o.fecha_pedido, DATE(o.created_at))                        AS fecha_inicio,
+        COALESCE(ft.fecha_terminado,
+                 DATE(COALESCE(o.fecha_cierre, o.updated_at)))              AS fecha_fin
+    FROM ordenes o
+    LEFT JOIN (
+        SELECT p.orden_id, DATE(MAX(h.created_at)) AS fecha_terminado
+        FROM historial_estatus h
+        JOIN piezas p ON p.id = h.pieza_id
+        WHERE h.estatus_nuevo = 'terminado'
+        GROUP BY p.orden_id
+    ) ft ON ft.orden_id = o.id
+    LEFT JOIN (
+        SELECT orden_id,
+            CASE WHEN SUM(estatus NOT IN ('terminado','entregado')) = 0 THEN 1 ELSE 0 END AS todas_terminadas
+        FROM piezas
+        GROUP BY orden_id
+    ) pt ON pt.orden_id = o.id
+    WHERE o.estado != 'cancelada'
+      AND (o.estado = 'entregada' OR (o.estado = 'activa' AND pt.todas_terminadas = 1))
+      AND (o.fecha_pedido BETWEEN ? AND ?
+           OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
+");
+$stmtDiasQ->execute($params4);
+
+$diasTodos  = [];
+$diasPorMes = [];
+foreach ($stmtDiasQ->fetchAll(PDO::FETCH_ASSOC) as $dr) {
+    $d = diasHabiles($dr['fecha_inicio'], $dr['fecha_fin'], $festivosSet);
+    if ($d !== null) {
+        $diasTodos[]              = $d;
+        $diasPorMes[$dr['mes_key']][] = $d;
+    }
+}
+
+$promDiasTotal = count($diasTodos) > 0
+    ? round(array_sum($diasTodos) / count($diasTodos), 1)
+    : null;
+
+// Reemplazar prom_dias en resumen global (antes era DATEDIFF calendario)
+$resumen['prom_dias'] = $promDiasTotal;
+
+// Reemplazar prom_dias en filas mensuales
+foreach ($mensual as &$fila) {
+    $mk = $fila['mes_key'] ?? '';
+    if (isset($diasPorMes[$mk]) && count($diasPorMes[$mk]) > 0) {
+        $fila['prom_dias'] = round(
+            array_sum($diasPorMes[$mk]) / count($diasPorMes[$mk]), 1
+        );
+    } else {
+        $fila['prom_dias'] = null;
+    }
+}
+unset($fila);
+
 // Fila de totales
 $totales = [
     'es_total'        => true,
@@ -163,9 +241,7 @@ $totales = [
     'en_proceso'      => array_sum(array_column($mensual, 'en_proceso')),
     'retraso_abierto' => array_sum(array_column($mensual, 'retraso_abierto')),
     'vobo_pendientes' => array_sum(array_column($mensual, 'vobo_pendientes')),
-    'prom_dias'       => count($mensual) > 0
-                         ? array_sum(array_column($mensual, 'prom_dias')) / count($mensual)
-                         : null,
+    'prom_dias'       => $promDiasTotal,
     'local'           => array_sum(array_column($mensual, 'local')),
     'foraneo'         => array_sum(array_column($mensual, 'foraneo')),
 ];
