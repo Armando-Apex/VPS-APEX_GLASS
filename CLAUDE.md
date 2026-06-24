@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 24 junio 2026 | Próximo UPD disponible: UPD-199
+# Última actualización: 24 junio 2026 | Próximo UPD disponible: UPD-202
 
 **REGLA DE ORO:** Este archivo es la memoria compartida del proyecto. Claude lo lee al inicio de cada sesión y lo actualiza al terminar. Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -482,4 +482,7 @@ Al terminar cualquier sesión con cambios:
 | UPD-196 | 23-jun | Armando | Fix complementario botones admin: limpieza de modales movida a cargarModulo() en dashboard.php — aplica en TODA navegación SPA, no solo al recargar cotizacion. Elimina corrModal/archModal/catModal/modalRechazoCalidad y .motivo-overlay antes de cargar cualquier módulo nuevo |
 | UPD-197 | 24-jun | Armando | Fix precio cotizador en tiempo real: recalcular() ahora usa catálogo como fallback cuando p_pm2_i=0 (partidas nuevas o con precio_m2_usado=0 en BD); renderPartidas inicializa el hidden con precio del catálogo si cristal_id existe y precio_m2_usado=0 — preserva el precio bloqueado de UPD-191 cuando precio_m2_usado>0 |
 | UPD-198 | 24-jun | Mando | Fix correcciones.php: propagar cambios de cpb, resaques, tp, ta, requiere_templado y detalles a tabla piezas al aplicar corrección — antes solo se propagaban cambios de dimensiones (ancho/alto/m2) |
-**Próximo UPD disponible: UPD-199**
+| UPD-199 | 24-jun | Armando | Auditoría cotizaciones CRÍTICO: límite registros 200→1000 en fetch JS (cotizaciones.php) y en API (cotizaciones.php) — con 222 cotizaciones en BD, 22 registros eran invisibles y los contadores de tabs eran incorrectos |
+| UPD-200 | 24-jun | Armando | Auditoría cotizaciones ALTOS: (1) location.reload()→irA() en confirmarRechazo — evita romper SPA al rechazar por calidad; (2) listener click autocomplete cliente ya no se acumula entre navegaciones — usa window._cotAutocompleteHandler con removeEventListener previo; (3) abrirRechazo/cerrarRechazo/confirmarRechazo movidas dentro del IIFE y expuestas via window.* — eliminado segundo script suelto duplicado |
+| UPD-201 | 24-jun | Armando | Auditoría cotizaciones MEDIOS: (1) toggleFactura() eliminada — buscaba fFacturaRfc inexistente, nunca se llamaba; (2) 5 funciones imprimir* (imprimirOrden/Cotizacion/Remision/Etiquetas/Salida) eliminadas — dead code desde UPD-182 cuando los botones cambiaron a <a> tags; (3) query lista cotizaciones optimizada — reemplazadas 2 subqueries correlacionadas por LEFT JOIN con GROUP BY (cp_sums), reduciendo de N×2 queries a 1 JOIN |
+**Próximo UPD disponible: UPD-202**
