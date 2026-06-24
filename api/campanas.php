@@ -269,7 +269,7 @@ if ($metodo === 'POST' && $accion === 'enviar') {
 
     $db->prepare("UPDATE campanas SET estado='enviando' WHERE id=?")->execute([$campanaId]);
 
-    $stmtE = $db->prepare("SELECT ce.id, ce.telefono, c.nombre as nombre_cliente
+    $stmtE = $db->prepare("SELECT ce.id, ce.telefono, c.nombre as nombre_cliente, c.codigo as codigo_cliente
         FROM campana_envios ce
         LEFT JOIN clientes c ON c.id = ce.cliente_id
         WHERE ce.campana_id = ? AND ce.estado = 'pendiente'");
@@ -329,6 +329,8 @@ if ($metodo === 'POST' && $accion === 'enviar') {
             $valor = $var;
             if ($var === '{{nombre_cliente}}') {
                 $valor = $envio['nombre_cliente'] ?? 'Cliente';
+            } elseif ($var === '{{codigo_portal}}') {
+                $valor = $envio['codigo_cliente'] ?? '';
             }
             // Sanitizar: solo texto plano, máx 1024 chars (límite Meta)
             $valor = strip_tags((string)$valor);

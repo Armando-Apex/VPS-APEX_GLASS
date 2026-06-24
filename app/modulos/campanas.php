@@ -359,7 +359,7 @@ var ModCampanas = (function() {
                 '</div>' +
                 '<div id="cmpVarsSection" style="display:none;margin-bottom:14px;">' +
                 '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Variables del mensaje</label>' +
-                '<p style="font-size:11px;color:#64748b;margin:0 0 8px;">Escribe <code>{{nombre_cliente}}</code> para personalizar con el nombre de cada destinatario.</p>' +
+                '<p style="font-size:11px;color:#64748b;margin:0 0 8px;">Variables disponibles: <code>{{nombre_cliente}}</code> (nombre del cliente) · <code>{{codigo_portal}}</code> (código de acceso al portal).</p>' +
                 '<div id="cmpVarsLista"></div>' +
                 '</div>' +
                 '<div id="cmpPreviewArea"></div>' +
@@ -432,7 +432,7 @@ var ModCampanas = (function() {
             var inp = document.createElement('input');
             inp.type = 'text';
             inp.value = v;
-            inp.placeholder = '{{nombre_cliente}} o texto fijo';
+            inp.placeholder = '{{nombre_cliente}}, {{codigo_portal}} o texto fijo';
             inp.maxLength = 200;
             inp.style.cssText = 'flex:1;padding:7px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;';
             // Closure captura i correctamente — sin datos de usuario en atributos JS
