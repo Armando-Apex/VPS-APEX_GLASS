@@ -240,12 +240,40 @@ if ($method === 'POST') {
                 $db->prepare("UPDATE cotizaciones_partidas SET " . implode(', ', $updates_p) . " WHERE id = ?")
                    ->execute($params_p);
 
-                // Propagar cambio de dimensiones a piezas en producción
-                if ($cambio_dim && $cot['orden_id']) {
-                    $db->prepare("
-                        UPDATE piezas SET ancho_mm = ?, alto_mm = ?, m2 = ?, updated_at = NOW()
-                        WHERE orden_id = ? AND partida = ?
-                    ")->execute([$nuevo_ancho, $nuevo_alto, $m2_partida, $cot['orden_id'], $partida['num_partida']]);
+                // Propagar cambios a piezas en producción
+                if ($cot['orden_id']) {
+                    $piezas_sets    = [];
+                    $piezas_params  = [];
+                    if ($cambio_dim) {
+                        $piezas_sets[]   = 'ancho_mm = ?'; $piezas_params[] = $nuevo_ancho;
+                        $piezas_sets[]   = 'alto_mm = ?';  $piezas_params[] = $nuevo_alto;
+                        $piezas_sets[]   = 'm2 = ?';       $piezas_params[] = $m2_partida;
+                    }
+                    if (array_key_exists('cpb', $pc)) {
+                        $piezas_sets[]   = 'cpb = ?'; $piezas_params[] = $pc['cpb'];
+                    }
+                    if (array_key_exists('resaques', $pc)) {
+                        $piezas_sets[]   = 'resaques = ?'; $piezas_params[] = (int)$pc['resaques'];
+                    }
+                    if (array_key_exists('taladros_pasados', $pc)) {
+                        $piezas_sets[]   = 'tp = ?'; $piezas_params[] = (int)$pc['taladros_pasados'];
+                    }
+                    if (array_key_exists('taladros_avellanados', $pc)) {
+                        $piezas_sets[]   = 'ta = ?'; $piezas_params[] = (int)$pc['taladros_avellanados'];
+                    }
+                    if (array_key_exists('requiere_templado', $pc)) {
+                        $piezas_sets[]   = 'requiere_templado = ?'; $piezas_params[] = (int)$pc['requiere_templado'];
+                    }
+                    if (array_key_exists('detalles', $pc)) {
+                        $piezas_sets[]   = 'detalles = ?'; $piezas_params[] = $pc['detalles'];
+                    }
+                    if (!empty($piezas_sets)) {
+                        $piezas_sets[]   = 'updated_at = NOW()';
+                        $piezas_params[] = $cot['orden_id'];
+                        $piezas_params[] = $partida['num_partida'];
+                        $db->prepare("UPDATE piezas SET " . implode(', ', $piezas_sets) . " WHERE orden_id = ? AND partida = ?")
+                           ->execute($piezas_params);
+                    }
                 }
             }
         }
