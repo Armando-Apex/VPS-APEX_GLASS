@@ -839,7 +839,7 @@ function _openEditModal(id) {
   if (el.tipo==='tp') f += _mSelectTP('ced-d', el.d);
   if (el.tipo==='ta') f += _mSelectTA('ced-de', el.de, 'Ø ext (mm)') + _mSelectTA('ced-di', el.di, 'Ø int (mm)');
   if (el.tipo==='rs') f += _mResaqueFields(el.w, el.h);
-  if (el.tipo==='bi') f += _mField('Ancho (mm)','ced-w',el.w) + _mField('Alto (mm)','ced-h',el.h);
+  if (el.tipo==='bi') f += _mField('Ancho (mm)','ced-w',el.w) + _mField('Alto (mm)','ced-h',el.h) + _mBiRefFields(el.bi_ref);
   document.getElementById('cq-modal-fields').innerHTML = f;
   document.getElementById('cq-edit-modal').classList.add('open');
 }
@@ -886,6 +886,26 @@ function _mResaqueFields(w, h) {
   return html;
 }
 
+function _mBiRefFields(biRef) {
+  var cur = biRef || 'inicio';
+  var opts = ['inicio','centro','final'];
+  var labels = {inicio:'Inicio', centro:'Centro', final:'Final'};
+  var btns = opts.map(function(v) {
+    var active = v===cur ? 'background:#0f766e;color:white;' : 'background:#f1f5f9;color:#374151;';
+    return '<button type="button" onclick="window.cqBiRefSel(\''+v+'\')" id="cq-biref-'+v+'" style="flex:1;padding:5px 0;border:1.5px solid #e2e8f0;border-radius:6px;font-size:11px;cursor:pointer;'+active+'">'+labels[v]+'</button>';
+  }).join('');
+  return '<div class="cq-field-row" style="margin-bottom:8px;flex-direction:column;gap:4px"><span class="cq-field-label" style="min-width:80px;font-size:11px">Medida desde</span><div style="display:flex;gap:4px;margin-top:4px">'+btns+'</div></div>';
+}
+
+window.cqBiRefSel = function(v) {
+  ['inicio','centro','final'].forEach(function(k) {
+    var b = document.getElementById('cq-biref-'+k);
+    if (!b) return;
+    if (k===v) { b.style.background='#0f766e'; b.style.color='white'; }
+    else        { b.style.background='#f1f5f9'; b.style.color='#374151'; }
+  });
+};
+
 window.cqRsTipoChange = function(idx) {
   var p = RS_PREDEFINIDOS[+idx];
   var inpW = document.getElementById('ced-w');
@@ -915,7 +935,12 @@ function _saveEditing() {
   if (el.tipo==='tp') el.d  = +document.getElementById('ced-d').value  || 12;
   if (el.tipo==='ta') { el.de = +document.getElementById('ced-de').value || 20; el.di = +document.getElementById('ced-di').value || 10; }
   if (el.tipo==='rs') { el.rs_preset = +document.getElementById('ced-rs-tipo').value || 0; el.w = +document.getElementById('ced-w').value || 120; el.h = +document.getElementById('ced-h').value || 40; }
-  if (el.tipo==='bi') { el.w = +document.getElementById('ced-w').value || 58; el.h = +document.getElementById('ced-h').value || 37.5; }
+  if (el.tipo==='bi') {
+    el.w = +document.getElementById('ced-w').value || 58;
+    el.h = +document.getElementById('ced-h').value || 37.5;
+    var selRef = ['inicio','centro','final'].find(function(k){ var b=document.getElementById('cq-biref-'+k); return b && b.style.background==='rgb(15, 118, 110)'; });
+    el.bi_ref = selRef || 'inicio';
+  }
   _closeModal();
   _renderPlacedList();
   _redraw();
@@ -1252,8 +1277,12 @@ function _redraw() {
     }
     if (e.tipo==='bi') {
       var rw=Math.max(8,e.h*sc), rh=Math.max(4,e.w*sc);
+      // bi_ref: 'inicio'=borde inferior(default), 'centro'=centro, 'final'=borde superior
+      var biOff = 0;
+      if (e.bi_ref==='centro') biOff = rh/2;
+      if (e.bi_ref==='final')  biOff = rh;
       var exD = Math.min(ex, ox+gw-rw);
-      var rySVG = Math.max(ey - rh, oy);
+      var rySVG = Math.max((ey + biOff) - rh, oy);
       out += '<g style="cursor:'+cur+'"'+evts+'>';
       out += '<rect x="'+(exD-3)+'" y="'+(rySVG-3)+'" width="'+(rw+6)+'" height="'+(rh+6)+'" fill="transparent"/>';
       // Orientación: U abre hacia el borde más cercano
@@ -1302,7 +1331,7 @@ function _redraw() {
       if (el.tipo==='tp') det = 'Ø'+el.d+'mm';
       if (el.tipo==='ta') det = 'Ø'+el.de+'/'+el.di;
       if (el.tipo==='rs') det = el.w+'×'+el.h+'mm';
-      if (el.tipo==='bi') det = el.w+'×'+el.h+'mm';
+      if (el.tipo==='bi') det = el.w+'×'+el.h+'mm'+(el.bi_ref&&el.bi_ref!=='inicio'?' ['+el.bi_ref+']':'');
       out += '<text x="'+(tblX+tblW-2)+'" y="'+(ry+10)+'" text-anchor="end" font-size="7" fill="'+ec+'" font-family="monospace">'+det+'</text>';
       var dH = el.x <= ancho/2 ? el.x : (ancho - el.x);
       var dV = el.y <= alto/2  ? el.y : (alto  - el.y);

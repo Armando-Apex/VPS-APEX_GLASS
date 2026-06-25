@@ -92,6 +92,15 @@ function buildPath($forma, $params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc) {
         }
         return $d . 'Z';
     }
+    if ($forma === 'esq') {
+        $corner = $params['esq-corner'] ?? 'ii';
+        $TL = "$ox,$oy"; $TR = ($ox+$gw).",$oy";
+        $BL = "$ox,".($oy+$gh); $BR = ($ox+$gw).",".($oy+$gh);
+        if ($corner === 'ii') return "M$BL L$BR L$TL Z";
+        if ($corner === 'id') return "M$BL L$BR L$TR Z";
+        if ($corner === 'si') return "M$TL L$TR L$BL Z";
+        if ($corner === 'sd') return "M$TL L$TR L$BR Z";
+    }
     return '';
 }
 
