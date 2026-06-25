@@ -72,6 +72,7 @@ $stmtCot = $pdo->prepare("
         c.asesor_nombre
     FROM cotizaciones c
     WHERE (c.cliente_id = ? OR c.cliente_nombre = ?)
+      AND c.estatus != 'orden'
     ORDER BY c.fecha DESC
 ");
 $stmtCot->execute([$cliente_id, $cliente_razon]);
