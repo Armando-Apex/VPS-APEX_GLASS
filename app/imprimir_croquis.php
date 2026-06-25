@@ -93,13 +93,24 @@ function buildPath($forma, $params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc) {
         return $d . 'Z';
     }
     if ($forma === 'esq') {
+        $tipo   = $params['esq-tipo']   ?? 'recto';
         $corner = $params['esq-corner'] ?? 'ii';
         $TL = "$ox,$oy"; $TR = ($ox+$gw).",$oy";
         $BL = "$ox,".($oy+$gh); $BR = ($ox+$gw).",".($oy+$gh);
-        if ($corner === 'ii') return "M$BL L$BR L$TL Z";
-        if ($corner === 'id') return "M$BL L$BR L$TR Z";
-        if ($corner === 'si') return "M$TL L$TR L$BL Z";
-        if ($corner === 'sd') return "M$TL L$TR L$BR Z";
+        $cx = $ox + $gw/2;
+        if ($tipo === 'recto') {
+            if ($corner === 'ii') return "M$BL L$BR L$TL Z";
+            if ($corner === 'id') return "M$BL L$BR L$TR Z";
+            if ($corner === 'si') return "M$TL L$TR L$BL Z";
+            if ($corner === 'sd') return "M$TL L$TR L$BR Z";
+        }
+        if ($tipo === 'isoceles') {
+            return "M$cx,$oy L".($ox+$gw).",".($oy+$gh)." L$ox,".($oy+$gh)." Z";
+        }
+        if ($tipo === 'curvo') {
+            $rx = $gw/2; $ry = $gh*0.35;
+            return "M$cx,$oy L".($ox+$gw).",".($oy+$gh)." A$rx,$ry 0 0,1 $ox,".($oy+$gh)." Z";
+        }
     }
     return '';
 }

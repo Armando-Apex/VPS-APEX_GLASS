@@ -1141,13 +1141,23 @@ function _buildPath(ox, oy, gw, gh) {
     return d + 'Z';
   }
   if (_forma === 'esq') {
-    // Triángulo rectángulo: el ángulo recto va en la esquina indicada por _esqCorner
-    // si = sup-izq (top-left), sd = sup-der, ii = inf-izq, id = inf-der
     var TL = ox+','+oy, TR = (ox+gw)+','+oy, BL = ox+','+(oy+gh), BR = (ox+gw)+','+(oy+gh);
-    if (_esqCorner === 'ii') return 'M'+BL+' L'+BR+' L'+TL+' Z'; // ángulo recto inf-izq
-    if (_esqCorner === 'id') return 'M'+BL+' L'+BR+' L'+TR+' Z'; // ángulo recto inf-der
-    if (_esqCorner === 'si') return 'M'+TL+' L'+TR+' L'+BL+' Z'; // ángulo recto sup-izq
-    if (_esqCorner === 'sd') return 'M'+TL+' L'+TR+' L'+BR+' Z'; // ángulo recto sup-der
+    var cx = ox+gw/2, cy = oy+gh/2;
+    if (_esqTipo === 'recto') {
+      if (_esqCorner === 'ii') return 'M'+BL+' L'+BR+' L'+TL+' Z';
+      if (_esqCorner === 'id') return 'M'+BL+' L'+BR+' L'+TR+' Z';
+      if (_esqCorner === 'si') return 'M'+TL+' L'+TR+' L'+BL+' Z';
+      if (_esqCorner === 'sd') return 'M'+TL+' L'+TR+' L'+BR+' Z';
+    }
+    if (_esqTipo === 'isoceles') {
+      // apex arriba-centro, base plana abajo
+      return 'M'+cx+' '+oy+' L'+(ox+gw)+' '+(oy+gh)+' L'+ox+' '+(oy+gh)+' Z';
+    }
+    if (_esqTipo === 'curvo') {
+      // apex arriba-centro, base curva (arco convexo hacia abajo)
+      var rx = gw/2, ry = gh*0.35;
+      return 'M'+cx+' '+oy+' L'+(ox+gw)+' '+(oy+gh)+' A'+rx+' '+ry+' 0 0 1 '+ox+' '+(oy+gh)+' Z';
+    }
   }
   return '';
 }
@@ -1402,6 +1412,7 @@ return {
   _setForma:       _setForma,
   _toggleCanteo:        _toggleCanteo,
   _toggleCorteEsquina:  _toggleCorteEsquina,
+  _toggleEsqTipo:       _toggleEsqTipo,
   _toggleEsqCorner:     _toggleEsqCorner,
   _startDrag:      _startDrag,
   _onDrop:         _onDrop,
