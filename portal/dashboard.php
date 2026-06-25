@@ -435,86 +435,6 @@ tbody td { padding: 14px 20px; font-size: 13px; vertical-align: middle; }
     <?php endif; ?>
   </div>
 
-  <!-- ── Historial ── -->
-  <div class="section">
-    <div class="section-label">
-      <span class="section-label-txt">Historial de entregas</span>
-      <span class="section-label-line"></span>
-      <span class="section-count"><?= count($entregadas) ?></span>
-    </div>
-
-    <?php if (empty($entregadas)): ?>
-      <div class="table-wrap"><div class="empty">Sin órdenes entregadas aún</div></div>
-    <?php else: ?>
-
-      <!-- DESKTOP -->
-      <div class="table-wrap desktop-only">
-        <table>
-          <thead>
-            <tr>
-              <th>Folio</th>
-              <th>Fecha pedido</th>
-              <th>Fecha entrega</th>
-              <th>Estatus</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($entregadas as $o):
-              $fecha_pedido = $o['fecha_pedido'] ? date('d M Y', strtotime($o['fecha_pedido'])) : '—';
-              $fecha_cierre = $o['fecha_cierre']  ? date('d M Y', strtotime($o['fecha_cierre']))  :
-                             ($o['fecha_entrega'] ? date('d M Y', strtotime($o['fecha_entrega'])) : '—');
-              $url          = 'orden.php?folio=' . urlencode($o['folio']);
-              $esActiva100  = $o['estado'] === 'activa' && intval($o['avance_pct']) >= 100;
-            ?>
-            <tr onclick="window.location='<?= htmlspecialchars($url) ?>'">
-              <td>
-                <div class="folio-txt"><?= htmlspecialchars($o['folio']) ?></div>
-                <?php if ($o['proyecto']): ?><div class="proyecto-txt"><?= htmlspecialchars($o['proyecto']) ?></div><?php endif; ?>
-              </td>
-              <td><span class="fecha-txt"><?= $fecha_pedido ?></span></td>
-              <td><span class="fecha-txt"><?= $fecha_cierre ?></span></td>
-              <td>
-                <?php if ($esActiva100): ?>
-                  <span class="tag tag-proceso"><span class="tag-dot"></span>Lista para entregar</span>
-                <?php else: ?>
-                  <span class="tag tag-entregada"><span class="tag-dot"></span>Entregada</span>
-                <?php endif; ?>
-              </td>
-            </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- MOBILE -->
-      <div class="cards-list mobile-only">
-        <?php foreach ($entregadas as $o):
-          $fecha_pedido = $o['fecha_pedido'] ? date('d M Y', strtotime($o['fecha_pedido'])) : '—';
-          $fecha_cierre = $o['fecha_cierre']  ? date('d M Y', strtotime($o['fecha_cierre']))  :
-                         ($o['fecha_entrega'] ? date('d M Y', strtotime($o['fecha_entrega'])) : '—');
-          $url         = 'orden.php?folio=' . urlencode($o['folio']);
-          $esActiva100 = $o['estado'] === 'activa' && intval($o['avance_pct']) >= 100;
-          $tagCls      = $esActiva100 ? 'tag-proceso'   : 'tag-entregada';
-          $tagTxt      = $esActiva100 ? 'Lista p/entregar' : 'Entregada';
-        ?>
-        <a class="orden-card" href="<?= htmlspecialchars($url) ?>">
-          <div class="card-top">
-            <div>
-              <div class="card-folio"><?= htmlspecialchars($o['folio']) ?></div>
-              <?php if ($o['proyecto']): ?><div class="card-proyecto"><?= htmlspecialchars($o['proyecto']) ?></div><?php endif; ?>
-            </div>
-            <span class="tag <?= $tagCls ?>"><span class="tag-dot"></span><?= $tagTxt ?></span>
-          </div>
-          <div class="card-row"><span class="card-row-label">Fecha pedido</span><span class="card-row-val"><?= $fecha_pedido ?></span></div>
-          <div class="card-row"><span class="card-row-label">Fecha entrega</span><span class="card-row-val"><?= $fecha_cierre ?></span></div>
-        </a>
-        <?php endforeach; ?>
-      </div>
-
-    <?php endif; ?>
-  </div>
-
-
   <!-- ── Cotizaciones ── -->
   <div class="section">
     <div class="section-label">
@@ -581,6 +501,86 @@ tbody td { padding: 14px 20px; font-size: 13px; vertical-align: middle; }
           <div class="card-row"><span class="card-row-label">Asesor</span><span class="card-row-val"><?= htmlspecialchars($c['asesor_nombre']) ?></span></div>
           <?php endif; ?>
           <div class="card-row"><span class="card-row-label">Total</span><span class="card-row-val" style="font-weight:600"><?= $total ?></span></div>
+        </a>
+        <?php endforeach; ?>
+      </div>
+
+    <?php endif; ?>
+  </div>
+
+  <!-- ── Historial ── -->
+  <?php $ultimas3 = array_slice(array_values($entregadas), 0, 3); ?>
+  <div class="section">
+    <div class="section-label">
+      <span class="section-label-txt">Historial de entregas</span>
+      <span class="section-label-line"></span>
+      <span class="section-count"><?= count($ultimas3) ?></span>
+    </div>
+
+    <?php if (empty($ultimas3)): ?>
+      <div class="table-wrap"><div class="empty">Sin órdenes entregadas aún</div></div>
+    <?php else: ?>
+
+      <!-- DESKTOP -->
+      <div class="table-wrap desktop-only">
+        <table>
+          <thead>
+            <tr>
+              <th>Folio</th>
+              <th>Fecha pedido</th>
+              <th>Fecha entrega</th>
+              <th>Estatus</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($ultimas3 as $o):
+              $fecha_pedido = $o['fecha_pedido'] ? date('d M Y', strtotime($o['fecha_pedido'])) : '—';
+              $fecha_cierre = $o['fecha_cierre']  ? date('d M Y', strtotime($o['fecha_cierre']))  :
+                             ($o['fecha_entrega'] ? date('d M Y', strtotime($o['fecha_entrega'])) : '—');
+              $url          = 'orden.php?folio=' . urlencode($o['folio']);
+              $esActiva100  = $o['estado'] === 'activa' && intval($o['avance_pct']) >= 100;
+            ?>
+            <tr onclick="window.location='<?= htmlspecialchars($url) ?>'">
+              <td>
+                <div class="folio-txt"><?= htmlspecialchars($o['folio']) ?></div>
+                <?php if ($o['proyecto']): ?><div class="proyecto-txt"><?= htmlspecialchars($o['proyecto']) ?></div><?php endif; ?>
+              </td>
+              <td><span class="fecha-txt"><?= $fecha_pedido ?></span></td>
+              <td><span class="fecha-txt"><?= $fecha_cierre ?></span></td>
+              <td>
+                <?php if ($esActiva100): ?>
+                  <span class="tag tag-proceso"><span class="tag-dot"></span>Lista para entregar</span>
+                <?php else: ?>
+                  <span class="tag tag-entregada"><span class="tag-dot"></span>Entregada</span>
+                <?php endif; ?>
+              </td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- MOBILE -->
+      <div class="cards-list mobile-only">
+        <?php foreach ($ultimas3 as $o):
+          $fecha_pedido = $o['fecha_pedido'] ? date('d M Y', strtotime($o['fecha_pedido'])) : '—';
+          $fecha_cierre = $o['fecha_cierre']  ? date('d M Y', strtotime($o['fecha_cierre']))  :
+                         ($o['fecha_entrega'] ? date('d M Y', strtotime($o['fecha_entrega'])) : '—');
+          $url         = 'orden.php?folio=' . urlencode($o['folio']);
+          $esActiva100 = $o['estado'] === 'activa' && intval($o['avance_pct']) >= 100;
+          $tagCls      = $esActiva100 ? 'tag-proceso'   : 'tag-entregada';
+          $tagTxt      = $esActiva100 ? 'Lista p/entregar' : 'Entregada';
+        ?>
+        <a class="orden-card" href="<?= htmlspecialchars($url) ?>">
+          <div class="card-top">
+            <div>
+              <div class="card-folio"><?= htmlspecialchars($o['folio']) ?></div>
+              <?php if ($o['proyecto']): ?><div class="card-proyecto"><?= htmlspecialchars($o['proyecto']) ?></div><?php endif; ?>
+            </div>
+            <span class="tag <?= $tagCls ?>"><span class="tag-dot"></span><?= $tagTxt ?></span>
+          </div>
+          <div class="card-row"><span class="card-row-label">Fecha pedido</span><span class="card-row-val"><?= $fecha_pedido ?></span></div>
+          <div class="card-row"><span class="card-row-label">Fecha entrega</span><span class="card-row-val"><?= $fecha_cierre ?></span></div>
         </a>
         <?php endforeach; ?>
       </div>
