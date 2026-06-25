@@ -181,8 +181,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $conv = $stmtConv->fetch(PDO::FETCH_ASSOC);
 
                 if (!$conv) {
-                    $stmtCli = $db->prepare("SELECT id FROM clientes WHERE REGEXP_REPLACE(telefono,'[^0-9]','') LIKE ?");
-                    $stmtCli->execute(['%' . substr($telefono, -10)]);
+                    $stmtCli = $db->prepare("SELECT id FROM clientes WHERE REGEXP_REPLACE(telefono,'[^0-9]','') LIKE ? OR REGEXP_REPLACE(telefono_alterno,'[^0-9]','') LIKE ?");
+                    $stmtCli->execute(['%' . substr($telefono, -10), '%' . substr($telefono, -10)]);
                     $cli = $stmtCli->fetch(PDO::FETCH_ASSOC);
                     $clienteId = $cli ? $cli['id'] : null;
 
@@ -193,8 +193,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $convId = $conv['id'];
                     // Si la conversación existe pero sin cliente vinculado, intentar enlazar ahora
                     if (!$conv['cliente_id']) {
-                        $stmtCli2 = $db->prepare("SELECT id FROM clientes WHERE REGEXP_REPLACE(telefono,'[^0-9]','') LIKE ?");
-                        $stmtCli2->execute(['%' . substr($telefono, -10)]);
+                        $stmtCli2 = $db->prepare("SELECT id FROM clientes WHERE REGEXP_REPLACE(telefono,'[^0-9]','') LIKE ? OR REGEXP_REPLACE(telefono_alterno,'[^0-9]','') LIKE ?");
+                        $stmtCli2->execute(['%' . substr($telefono, -10), '%' . substr($telefono, -10)]);
                         $cli2 = $stmtCli2->fetch(PDO::FETCH_ASSOC);
                         if ($cli2) {
                             $db->prepare("UPDATE whatsapp_conversaciones SET cliente_id=? WHERE id=?")
