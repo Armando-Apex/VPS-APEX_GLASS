@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 25 junio 2026 | Próximo UPD disponible: UPD-217
+# Última actualización: 25 junio 2026 | Próximo UPD disponible: UPD-219
 
 **REGLA DE ORO:** Este archivo es la memoria compartida del proyecto. Claude lo lee al inicio de cada sesión y lo actualiza al terminar. Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -509,4 +509,6 @@ Al terminar cualquier sesión con cambios:
 | UPD-214 | 25-jun | Armando | Resumen órdenes activas: ORDER BY cambiado a grupo (Sin Iniciar→En proceso→Lista) usando CASE sobre agregados SQL + o.id DESC para folio desc dentro de cada grupo |
 | UPD-215 | 25-jun | Mando | Permisos desarrollo: rol 'desarrollo' recibe acceso total equivalente a dir_admin en todas las APIs y módulos — correcciones, admin_ordenes, croquis, archivos_ordenes, servicios_catalogo, comunicados, autorizaciones, cotizaciones, cristales, clientes, saldo_favor, campanas, omisiones, finanzas, prioridad, portal_clientes, ordenes_compra, reproceso, orden_comentarios, notificaciones; módulos frontend compras/cotizacion/cotizaciones |
 | UPD-216 | 25-jun | Mando | NUEVO módulo Facturación WIP: app/modulos/facturacion.php — solo visible para rol desarrollo en sección Finanzas; lista de facturas, formulario Nueva/Editar con campos CFDI (RFC, uso CFDI, régimen fiscal, forma/método de pago), conceptos con importes, IVA 16%, cambio de estatus (pendiente/timbrada/cancelada); datos en localStorage (sin BD real) |
-**Próximo UPD disponible: UPD-217**
+| UPD-217 | 25-jun | Mando | Facturación WIP ampliado: CP fiscal del receptor; conceptos += Clave SAT (dropdown con claves vidrio) + Unidad SAT (M2/PZA/MTR/H87); modal Estatus: UUID/folio fiscal al seleccionar Timbrada + motivo cancelación SAT 01-04 al seleccionar Cancelada; banner rojo advierte que claves SAT son de ejemplo; cliente fijo PRUEBA DE PORTAL (CTN-259); fix permisos croquis.php frontend faltaba 'desarrollo' en $puede_editar |
+| UPD-218 | 25-jun | Armando | Portal clientes: nueva sección Cotizaciones — tabla desktop + cards mobile; folio, fecha, proyecto, asesor, total, estatus traducido (Pendiente/En producción/Entregada/Cancelada/No aprobada); query por cliente_id o cliente_nombre; sin link a detalle (no existe portal/cotizacion.php) |
+**Próximo UPD disponible: UPD-219**
