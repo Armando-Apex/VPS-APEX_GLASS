@@ -518,4 +518,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-223 | 25-jun | Armando | Portal cotizaciones: excluir canceladas y rechazadas del query — eliminado toggle CSS/JS/HTML completo, sección queda limpia |
 | UPD-224 | 25-jun | Armando | Portal dashboard: reorden secciones (Activas→Cotizaciones→Historial) + historial limitado a últimas 3 entregas |
 | UPD-225 | 25-jun | Armando | Clientes: editar teléfono y tel. alterno WA inline desde panel — botón Editar en cada fila, accion=editar_telefono en API con bitácora |
-**Próximo UPD disponible: UPD-226**
+| UPD-226 | 25-jun | Armando | WA inbox: búsqueda de cliente por telefono Y telefono_alterno — fallback, auto-vinculación y webhook ahora revisan ambos campos |
+**Próximo UPD disponible: UPD-227**
