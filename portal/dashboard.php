@@ -562,8 +562,9 @@ tbody td { padding: 14px 20px; font-size: 13px; vertical-align: middle; }
               $fecha     = $c['fecha'] ? date('d M Y', strtotime($c['fecha'])) : '—';
               $total     = '$' . number_format((float)$c['total'], 2, '.', ',');
               $esCancela = in_array($c['estatus'], ['cancelada','rechazada']);
+              $urlCot    = 'cotizacion.php?folio=' . urlencode($c['folio']);
             ?>
-            <tr class="<?= $esCancela ? 'cot-cancelada' : '' ?>">
+            <tr class="<?= $esCancela ? 'cot-cancelada' : '' ?>" onclick="window.location='<?= htmlspecialchars($urlCot) ?>'">
               <td><div class="folio-txt"><?= htmlspecialchars($c['folio']) ?></div></td>
               <td><span class="fecha-txt"><?= $fecha ?></span></td>
               <td><span class="fecha-txt"><?= htmlspecialchars($c['proyecto'] ?: '—') ?></span></td>
@@ -583,8 +584,9 @@ tbody td { padding: 14px 20px; font-size: 13px; vertical-align: middle; }
           $fecha     = $c['fecha'] ? date('d M Y', strtotime($c['fecha'])) : '—';
           $total     = '$' . number_format((float)$c['total'], 2, '.', ',');
           $esCancela = in_array($c['estatus'], ['cancelada','rechazada']);
+          $urlCot    = 'cotizacion.php?folio=' . urlencode($c['folio']);
         ?>
-        <div class="orden-card <?= $esCancela ? 'cot-cancelada' : '' ?>">
+        <a class="orden-card <?= $esCancela ? 'cot-cancelada' : '' ?>" href="<?= htmlspecialchars($urlCot) ?>">
           <div class="card-top">
             <div>
               <div class="card-folio"><?= htmlspecialchars($c['folio']) ?></div>
@@ -597,7 +599,7 @@ tbody td { padding: 14px 20px; font-size: 13px; vertical-align: middle; }
           <div class="card-row"><span class="card-row-label">Asesor</span><span class="card-row-val"><?= htmlspecialchars($c['asesor_nombre']) ?></span></div>
           <?php endif; ?>
           <div class="card-row"><span class="card-row-label">Total</span><span class="card-row-val" style="font-weight:600"><?= $total ?></span></div>
-        </div>
+        </a>
         <?php endforeach; ?>
       </div>
 
