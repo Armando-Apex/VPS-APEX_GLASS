@@ -282,7 +282,7 @@ if ($hasEl) {
         if ($el['tipo']==='tp') $det = '&#216;'.$el['d'].'mm';
         if ($el['tipo']==='ta') $det = '&#216;'.$el['de'].'/'.$el['di'];
         if ($el['tipo']==='rs') $det = $el['w'].'&#215;'.$el['h'].'mm';
-        if ($el['tipo']==='bi') $det = $el['w'].'&#215;'.$el['h'].'mm';
+        if ($el['tipo']==='bi') $det = $el['w'].'&#215;'.$el['h'].'mm'.((!empty($el['bi_ref'])&&$el['bi_ref']!=='inicio')?' ['.$el['bi_ref'].']':'');
         $svg .= '<text x="'.($tblX+$tblW-2).'" y="'.($ry+18).'" text-anchor="end" font-size="14" fill="'.$ec.'" font-family="monospace">'.$det.'</text>';
         $svg .= '<text x="'.($tblX+12).'" y="'.($ry+$cardH-6).'" font-size="12" fill="#333333" font-family="monospace">X: '.$el['x'].'  Y: '.$el['y'].'</text>';
     }
