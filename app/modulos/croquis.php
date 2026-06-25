@@ -164,6 +164,10 @@ header('Content-Type: text/html; charset=utf-8');
                 <svg viewBox="0 0 38 28"><polygon points="6,4 28,3 35,14 24,25 3,20" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
                 Forma libre
               </button>
+              <button class="cq-shape-btn" onclick="CroquisMod._setForma('esq')" id="cq-btn-esq">
+                <svg viewBox="0 0 38 28"><polygon points="3,25 35,25 3,3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+                Esquinero
+              </button>
             </div>
           </div>
 
@@ -192,6 +196,15 @@ header('Content-Type: text/html; charset=utf-8');
             </div>
             <div id="cq-extra-trap" style="display:none">
               <div class="cq-field-row"><span class="cq-field-label">Base menor</span><input class="cq-fi" type="number" id="cq-trap-b" value="500" min="10" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
+            </div>
+            <div id="cq-extra-esq" style="display:none">
+              <div class="cq-panel-title" style="margin-bottom:6px">Ángulo recto en</div>
+              <div class="cq-canteo-grid">
+                <button class="cq-canteo-btn" id="cq-esqc-si" onclick="CroquisMod._toggleEsqCorner('si')">&#8598; Sup Izq</button>
+                <button class="cq-canteo-btn" id="cq-esqc-sd" onclick="CroquisMod._toggleEsqCorner('sd')">&#8599; Sup Der</button>
+                <button class="cq-canteo-btn on" id="cq-esqc-ii" onclick="CroquisMod._toggleEsqCorner('ii')">&#8601; Inf Izq</button>
+                <button class="cq-canteo-btn" id="cq-esqc-id" onclick="CroquisMod._toggleEsqCorner('id')">&#8600; Inf Der</button>
+              </div>
             </div>
             <div id="cq-extra-poligono" style="display:none">
               <div class="cq-hint" style="margin-top:0">Haz clic para ir colocando los puntos <b>en orden, siguiendo el contorno</b> (no saltes de un lado a otro). El punto naranja es el último — la línea punteada te muestra hacia dónde se conectará el siguiente clic. Arrastra un punto para moverlo, doble clic para borrarlo, o usa "Deshacer último" si te equivocaste.</div>
@@ -295,6 +308,7 @@ var PUEDE_EDITAR = <?= $puede_editar ? 'true' : 'false' ?>;
 var _forma       = 'rect';
 var _canteo      = {sup:false,der:false,inf:false,izq:false};
 var _corteEsquinas = {si:true,sd:false,ii:false,id:false};
+var _esqCorner   = 'ii'; // esquinero: esquina con el ángulo recto (si/sd/ii/id)
 var _elementos   = [];
 var _elemCounter = 0;
 var _draggingChip = null;
@@ -435,7 +449,7 @@ function abrirConstructor(croquis) {
   _polPreviewPt    = null;
 
   // Resetear UI forma
-  ['rect','corte','L','trap','poligono'].forEach(function(f) {
+  ['rect','corte','L','trap','poligono','esq'].forEach(function(f) {
     document.getElementById('cq-btn-' + f).classList.remove('active');
   });
   document.getElementById('cq-btn-' + _forma).classList.add('active');
@@ -443,6 +457,7 @@ function abrirConstructor(croquis) {
   document.getElementById('cq-extra-L').style.display        = _forma==='L'?'block':'none';
   document.getElementById('cq-extra-trap').style.display     = _forma==='trap'?'block':'none';
   document.getElementById('cq-extra-poligono').style.display = _forma==='poligono'?'block':'none';
+  document.getElementById('cq-extra-esq').style.display      = _forma==='esq'?'block':'none';
   document.getElementById('cq-medidas-rect-fields').style.display = _forma==='poligono'?'none':'block';
   _renderPolInfo();
 
@@ -465,6 +480,11 @@ function abrirConstructor(croquis) {
     if (pf['l-cw'])    document.getElementById('cq-l-cw').value    = pf['l-cw'];
     if (pf['l-ch'])    document.getElementById('cq-l-ch').value    = pf['l-ch'];
     if (pf['trap-b'])  document.getElementById('cq-trap-b').value  = pf['trap-b'];
+    _esqCorner = pf['esq-corner'] || 'ii';
+    ['si','sd','ii','id'].forEach(function(c) {
+      var btn = document.getElementById('cq-esqc-'+c);
+      if (btn) btn.classList.toggle('on', c===_esqCorner);
+    });
     document.getElementById('cq-nota').value  = croquis.notas || '';
 
     // Seleccionar la partida correspondiente
@@ -478,6 +498,11 @@ function abrirConstructor(croquis) {
     ['si','sd','ii','id'].forEach(function(c) {
       var btn = document.getElementById('cq-esq-'+c);
       if (btn) btn.classList.toggle('on', _corteEsquinas[c]);
+    });
+    _esqCorner = 'ii';
+    ['si','sd','ii','id'].forEach(function(c) {
+      var btn = document.getElementById('cq-esqc-'+c);
+      if (btn) btn.classList.toggle('on', c==='ii');
     });
   }
 
@@ -553,6 +578,7 @@ async function _guardar() {
   if (_forma === 'L')        { pf['l-cw']    = +document.getElementById('cq-l-cw').value;    pf['l-ch']    = +document.getElementById('cq-l-ch').value; }
   if (_forma === 'trap')     { pf['trap-b']  = +document.getElementById('cq-trap-b').value; }
   if (_forma === 'poligono') { pf['puntos']  = _poligonoPuntos; }
+  if (_forma === 'esq')      { pf['esq-corner'] = _esqCorner; }
 
   var payload = {
     cotizacion_id: ID_COT,
@@ -588,14 +614,24 @@ async function _guardar() {
 // ── Forma ──────────────────────────────────────────────────────────────────
 function _setForma(f) {
   _forma = f;
-  ['rect','corte','L','trap','poligono'].forEach(function(x) { document.getElementById('cq-btn-'+x).classList.remove('active'); });
+  ['rect','corte','L','trap','poligono','esq'].forEach(function(x) { document.getElementById('cq-btn-'+x).classList.remove('active'); });
   document.getElementById('cq-btn-'+f).classList.add('active');
   document.getElementById('cq-extra-corte').style.display    = f==='corte'?'block':'none';
   document.getElementById('cq-extra-L').style.display        = f==='L'?'block':'none';
   document.getElementById('cq-extra-trap').style.display     = f==='trap'?'block':'none';
   document.getElementById('cq-extra-poligono').style.display = f==='poligono'?'block':'none';
+  document.getElementById('cq-extra-esq').style.display      = f==='esq'?'block':'none';
   document.getElementById('cq-medidas-rect-fields').style.display = f==='poligono'?'none':'block';
   _renderPolInfo();
+  _redraw();
+}
+
+function _toggleEsqCorner(c) {
+  _esqCorner = c;
+  ['si','sd','ii','id'].forEach(function(k) {
+    var btn = document.getElementById('cq-esqc-'+k);
+    if (btn) btn.classList.toggle('on', k===c);
+  });
   _redraw();
 }
 
@@ -1039,6 +1075,15 @@ function _buildPath(ox, oy, gw, gh) {
     });
     return d + 'Z';
   }
+  if (_forma === 'esq') {
+    // Triángulo rectángulo: el ángulo recto va en la esquina indicada por _esqCorner
+    // si = sup-izq (top-left), sd = sup-der, ii = inf-izq, id = inf-der
+    var TL = ox+','+oy, TR = (ox+gw)+','+oy, BL = ox+','+(oy+gh), BR = (ox+gw)+','+(oy+gh);
+    if (_esqCorner === 'ii') return 'M'+BL+' L'+BR+' L'+TL+' Z'; // ángulo recto inf-izq
+    if (_esqCorner === 'id') return 'M'+BL+' L'+BR+' L'+TR+' Z'; // ángulo recto inf-der
+    if (_esqCorner === 'si') return 'M'+TL+' L'+TR+' L'+BL+' Z'; // ángulo recto sup-izq
+    if (_esqCorner === 'sd') return 'M'+TL+' L'+TR+' L'+BR+' Z'; // ángulo recto sup-der
+  }
   return '';
 }
 
@@ -1288,6 +1333,7 @@ return {
   _setForma:       _setForma,
   _toggleCanteo:        _toggleCanteo,
   _toggleCorteEsquina:  _toggleCorteEsquina,
+  _toggleEsqCorner:     _toggleEsqCorner,
   _startDrag:      _startDrag,
   _onDrop:         _onDrop,
   _onMouseMove:    _onMouseMove,
