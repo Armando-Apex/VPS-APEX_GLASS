@@ -514,4 +514,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-219 | 25-jun | Armando | Portal cotizaciones: canceladas/rechazadas ocultas por defecto; botón "+ N cancelada(s)" en header de sección las muestra/oculta con JS toggle; texto cambia a "Ocultar canceladas" al expandir |
 | UPD-220 | 25-jun | Armando | Portal clientes: nueva página portal/cotizacion.php con desglose completo — partidas (cristal, medidas, m², cantidad, precio/m², subtotal), trabajos (CPB/resaques/taladros/templado), resumen (subtotal, descuento, IVA 16%, total); filas/cards en dashboard.php ahora son clickables |
 | UPD-221 | 25-jun | Armando | portal/cotizacion.php mejoras UX: <main>+<h1> semánticos, focus-visible rings, touch target 44px en botones nav, tabular-nums en precios, cards por partida en móvil (reemplaza tabla 7 cols), meta-label 10px, total 20px amber, SVG icons en tags de estatus |
-**Próximo UPD disponible: UPD-222**
+| UPD-222 | 25-jun | Armando | Portal cotizaciones: excluir estatus 'orden' del listado — ya aparecen en sección Órdenes activas, mostrarlas en cotizaciones era redundante |
+**Próximo UPD disponible: UPD-223**
