@@ -296,12 +296,18 @@ window.cliAbrirPanel = function(id) {
       <div class="cli-info-valor muted">${c.email || '—'}</div>
     </div>
     <div class="cli-info-row">
-      <div class="cli-info-label">Teléfono</div>
-      <div class="cli-info-valor muted">${c.telefono || '—'}</div>
+      <div class="cli-info-label" style="display:flex;justify-content:space-between;align-items:center">
+        Teléfono
+        <button class="cli-btn-sm" style="font-size:10px;padding:2px 8px" onclick="cliEditarTelefono(${c.id},'telefono')">Editar</button>
+      </div>
+      <div class="cli-info-valor muted" id="panel-telefono-val">${c.telefono || '—'}</div>
     </div>
     <div class="cli-info-row">
-      <div class="cli-info-label">Tel. Alterno WhatsApp</div>
-      <div class="cli-info-valor muted">${c.telefono_alterno || '—'}</div>
+      <div class="cli-info-label" style="display:flex;justify-content:space-between;align-items:center">
+        Tel. Alterno WhatsApp
+        <button class="cli-btn-sm" style="font-size:10px;padding:2px 8px" onclick="cliEditarTelefono(${c.id},'telefono_alterno')">Editar</button>
+      </div>
+      <div class="cli-info-valor muted" id="panel-telefono-alterno-val">${c.telefono_alterno || '—'}</div>
     </div>
     <div class="cli-info-row">
       <div class="cli-info-label">Usuario Portal</div>
@@ -523,6 +529,48 @@ window.cliGuardarContacto = async function(id) {
     const idx = _cliData.findIndex(x => x.id == id);
     if (idx >= 0) _cliData[idx].contacto = nuevoContacto;
     renderTabla();
+    cliAbrirPanel(id);
+  } catch(e) { alert('Error: ' + e.message); }
+};
+
+window.cliEditarTelefono = function(id, campo) {
+  const c      = _cliData.find(x => x.id == id);
+  if (!c) return;
+  var actual   = (campo === 'telefono' ? c.telefono : c.telefono_alterno) || '';
+  var elId     = campo === 'telefono' ? 'panel-telefono-val' : 'panel-telefono-alterno-val';
+  var etiqueta = campo === 'telefono' ? 'Teléfono' : 'Tel. Alterno WA';
+  var valEl    = document.getElementById(elId);
+  if (!valEl) return;
+
+  valEl.innerHTML = '<input id="edit-tel-input" type="tel" class="cli-form-input" value="' + actual.replace(/"/g,'&quot;') + '" placeholder="812 000 0000" style="width:100%;margin-bottom:6px">'
+    + '<div style="display:flex;gap:6px">'
+    + '<button class="cli-btn-sm cli-btn-gen" onclick="cliGuardarTelefono(' + id + ',\'' + campo + '\')">&#10003; Guardar</button>'
+    + '<button class="cli-btn-sm" onclick="cliAbrirPanel(' + id + ')">Cancelar</button>'
+    + '</div>';
+  var inp = document.getElementById('edit-tel-input');
+  if (inp) { inp.focus(); inp.select(); }
+};
+
+window.cliGuardarTelefono = async function(id, campo) {
+  var input = document.getElementById('edit-tel-input');
+  if (!input) return;
+  var nuevoValor = input.value.trim();
+
+  var c      = _cliData.find(x => x.id == id);
+  var actual = (campo === 'telefono' ? c.telefono : c.telefono_alterno) || '';
+  if (nuevoValor === actual) { cliAbrirPanel(id); return; }
+
+  try {
+    var fd = new FormData();
+    fd.append('id',    id);
+    fd.append('campo', campo);
+    fd.append('valor', nuevoValor);
+    var r = await fetch('../api/clientes.php?accion=editar_telefono', { method:'POST', body:fd });
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error desconocido');
+
+    var idx = _cliData.findIndex(x => x.id == id);
+    if (idx >= 0) _cliData[idx][campo] = nuevoValor;
     cliAbrirPanel(id);
   } catch(e) { alert('Error: ' + e.message); }
 };

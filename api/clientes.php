@@ -133,6 +133,40 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_nombre') {
     ]); exit;
 }
 
+// ─── POST accion=editar_telefono ─────────────────────────────────────────────
+if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_telefono') {
+    if (!in_array($rol, ['dir_admin', 'administracion', 'comercial', 'desarrollo'])) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Sin permiso']); exit;
+    }
+
+    $id      = (int)($_POST['id']    ?? 0);
+    $campo   = $_POST['campo']        ?? '';
+    $valor   = trim($_POST['valor']   ?? '');
+
+    if (!$id) { echo json_encode(['error' => 'ID requerido']); exit; }
+    if (!in_array($campo, ['telefono', 'telefono_alterno'])) {
+        echo json_encode(['error' => 'Campo inválido']); exit;
+    }
+
+    $stmt = $pdo->prepare("SELECT telefono, telefono_alterno FROM clientes WHERE id = ?");
+    $stmt->execute([$id]);
+    $actual = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$actual) { echo json_encode(['error' => 'Cliente no encontrado']); exit; }
+
+    $valorAnterior = $actual[$campo] ?? '';
+    $nuevoValor    = $valor ?: null;
+
+    $pdo->prepare("UPDATE clientes SET $campo = ? WHERE id = ?")
+        ->execute([$nuevoValor, $id]);
+
+    $etiqueta = $campo === 'telefono' ? 'Teléfono' : 'Teléfono Alterno WA';
+    $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, ?, ?, ?, ?, ?)")
+        ->execute([$id, $etiqueta, $valorAnterior, $nuevoValor ?? '', $usuario_id, $usuario_nombre]);
+
+    echo json_encode(['ok' => true, 'campo' => $campo, 'valor' => $nuevoValor ?? '']); exit;
+}
+
 // ─── POST ──────────────────────────────────────────────────────────────────────
 if ($method === 'POST') {
     $razon_social     = strtoupper(trim($body['razon_social']     ?? ''));
