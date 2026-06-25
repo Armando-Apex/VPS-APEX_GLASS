@@ -231,8 +231,11 @@ foreach ($elementos as $idxEl => $e) {
     if ($e['tipo'] === 'bi') {
         $rw = max(8, (float)$e['h']*$sc);
         $rh = max(4, (float)$e['w']*$sc);
+        $biOff = 0;
+        if (($e['bi_ref'] ?? '') === 'centro') $biOff = $rh/2;
+        if (($e['bi_ref'] ?? '') === 'final')  $biOff = $rh;
         $exD = min($ex, $ox+$gw-$rw);
-        $rySVG = max($ey - $rh, $oy);
+        $rySVG = max(($ey + $biOff) - $rh, $oy);
         $colBI = '#333333';
         $distR = $ancho - (float)$e['x']; $distL = (float)$e['x'];
         $distT = $alto  - (float)$e['y']; $distB = (float)$e['y'];
