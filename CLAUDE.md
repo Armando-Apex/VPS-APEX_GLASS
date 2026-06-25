@@ -495,4 +495,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-209 | 25-jun | Mando | Fix campañas WA: `$esCampanas` en `api/campanas.php` agregó `administracion` — Lina no podía ver conversaciones ni inbox (API devolvía 403) |
 | UPD-210 | 25-jun | Mando | Croquis nueva forma `esq` (Esquinero de vidrio): 3 subtipos — Recto (triángulo 90° con selector de 4 esquinas), Isósceles (apex arriba, base plana), Curvo (apex arriba, base en arco); selector con íconos SVG en el panel; aplica en editor y PDF |
 | UPD-211 | 25-jun | Mando | Croquis bisagra `bi_ref`: nuevo campo inicio/centro/final que indica desde qué punto de la bisagra se mide la posición Y; selector de 3 botones en modal de doble clic; afecta dibujo SVG y tabla de elementos en editor y PDF |
-**Próximo UPD disponible: UPD-212**
+| UPD-212 | 25-jun | Armando | Quick wins UX dashboard: (1) todos los emojis del sidebar reemplazados por SVG Lucide inline (20 íconos); campana y hamburger también con SVG; (2) focus-visible ring azul en sidebar-link, hamburger y notif-btn (accesibilidad); (3) etiquetas de rol legibles: dir_admin→Director Admin, dueno→Propietario, etc. |
+**Próximo UPD disponible: UPD-213**
