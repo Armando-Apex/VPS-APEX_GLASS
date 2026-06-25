@@ -75,7 +75,10 @@
       "Bash(cp ~/.claude/plugins/marketplaces/voltagent-subagents/categories/02-language-specialists/php-pro.md ~/.claude/agents/php-pro.md)",
       "Bash(cp ~/.claude/plugins/marketplaces/voltagent-subagents/categories/02-language-specialists/sql-pro.md ~/.claude/agents/sql-pro.md)",
       "Bash(npx --version)",
-      "Bash(intelephense --version)"
+      "Bash(intelephense --version)",
+      "Bash(rpm -q --whatrequires python3)",
+      "Bash(crontab -l)",
+      "Bash(/usr/bin/python3.11 -c \"import sys; sys.path.insert\\(0, '/root/.claude/security/agent-sdk-venv/lib/python3.11/site-packages'\\); import claude_agent_sdk; print\\('SDK OK'\\)\")"
     ]
   },
   "hooks": {
