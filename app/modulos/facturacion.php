@@ -154,10 +154,19 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 
       <!-- Datos generales -->
       <div class="fac-section-title">Datos Generales</div>
-      <div class="fac-row cols2">
+      <div class="fac-row cols4">
         <div class="fac-field">
           <label>Folio interno</label>
           <input type="text" id="fac-folio" readonly style="background:#f8fafc;color:#64748b">
+        </div>
+        <div class="fac-field">
+          <label>Serie CFDI</label>
+          <input type="text" id="fac-serie" value="A" maxlength="10">
+          <div class="fac-hint">Letra(s) que identifica la serie de folios en el SAT</div>
+        </div>
+        <div class="fac-field">
+          <label>Moneda</label>
+          <input type="text" id="fac-moneda" value="MXN" readonly style="background:#f8fafc;color:#64748b">
         </div>
         <div class="fac-field">
           <label>Fecha</label>
@@ -167,11 +176,18 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 
       <!-- Receptor -->
       <div class="fac-section-title">Receptor (Cliente)</div>
-      <div class="fac-row cols3">
+      <div class="fac-row cols2">
         <div class="fac-field">
           <label>Nombre / Razón Social</label>
           <input type="text" id="fac-nombre" value="PRUEBA DE PORTAL" readonly style="background:#f8fafc;color:#64748b;cursor:not-allowed">
         </div>
+        <div class="fac-field">
+          <label>Correo electrónico</label>
+          <input type="email" id="fac-email" placeholder="cliente@empresa.com">
+          <div class="fac-hint">Facturama / FacturAPI envía el XML+PDF a este correo al timbrar</div>
+        </div>
+      </div>
+      <div class="fac-row cols3">
         <div class="fac-field">
           <label>RFC <span style="font-weight:400;text-transform:none;font-size:10px;color:#94a3b8">(prueba)</span></label>
           <input type="text" id="fac-rfc" value="XAXX010101000" maxlength="13" style="text-transform:uppercase">
@@ -181,6 +197,11 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
           <label>CP Fiscal del receptor</label>
           <input type="text" id="fac-cp" placeholder="64000" maxlength="5">
           <div class="fac-hint">Código postal del domicilio fiscal</div>
+        </div>
+        <div class="fac-field">
+          <label>Tipo de comprobante</label>
+          <input type="text" value="I – Ingreso" readonly style="background:#f8fafc;color:#64748b">
+          <div class="fac-hint">Fijo para facturas de venta</div>
         </div>
       </div>
 
@@ -239,11 +260,12 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
       <table class="fac-conceptos">
         <thead>
           <tr>
-            <th style="width:34%">Descripción</th>
+            <th style="width:30%">Descripción</th>
             <th style="width:11%">Clave SAT <span style="color:#ef4444;font-weight:700">*</span></th>
-            <th style="width:8%">Unidad</th>
-            <th style="width:7%">Cant.</th>
-            <th style="width:14%">Precio unit.</th>
+            <th style="width:7%">Unidad</th>
+            <th style="width:6%">Cant.</th>
+            <th style="width:13%">Precio unit.</th>
+            <th style="width:6%">IVA</th>
             <th style="width:13%">Importe</th>
             <th style="width:4%"></th>
           </tr>
@@ -415,7 +437,8 @@ var ModFacturacion = (function() {
     return html;
   }
 
-  function _conceptoRow(desc, clave, unidad, cant, precio) {
+  function _conceptoRow(desc, clave, unidad, cant, precio, iva) {
+    var applyIva = (iva === false || iva === 0) ? false : true;
     var imp = (parseFloat(cant)||0) * (parseFloat(precio)||0);
     return '<tr>' +
       '<td><input type="text" class="fac-c-desc" value="' + (desc||'') + '" placeholder="Descripción" oninput="ModFacturacion.recalc()"></td>' +
@@ -423,6 +446,7 @@ var ModFacturacion = (function() {
       '<td>' + _unidadWidget(unidad||'M2') + '</td>' +
       '<td><input type="number" class="fac-c-cant" value="' + (cant||1) + '" min="1" oninput="ModFacturacion.recalc()"></td>' +
       '<td><input type="number" class="fac-c-precio" value="' + (precio||'') + '" min="0" step="0.01" placeholder="0.00" oninput="ModFacturacion.recalc()"></td>' +
+      '<td style="text-align:center"><input type="checkbox" class="fac-c-iva" ' + (applyIva ? 'checked' : '') + ' title="Aplica IVA 16%" onchange="ModFacturacion.recalc()"></td>' +
       '<td class="fac-c-imp" style="color:#475569;font-weight:600">' + _fmt(imp) + '</td>' +
       '<td><button class="fac-del-row" onclick="this.closest(\'tr\').remove();ModFacturacion.recalc()">&times;</button></td>' +
       '</tr>';
@@ -461,13 +485,15 @@ var ModFacturacion = (function() {
     document.getElementById('fac-folio').value   = _nextFolio();
     document.getElementById('fac-fecha').value   = new Date().toISOString().slice(0,10);
     document.getElementById('fac-nombre').value  = 'PRUEBA DE PORTAL';
+    document.getElementById('fac-email').value   = '';
     document.getElementById('fac-rfc').value     = 'XAXX010101000';
     document.getElementById('fac-cp').value      = '';
+    document.getElementById('fac-serie').value   = 'A';
     document.getElementById('fac-uso-cfdi').value    = 'G03';
     document.getElementById('fac-regimen').value     = '612';
     document.getElementById('fac-forma-pago').value  = '03';
     document.getElementById('fac-metodo-pago').value = 'PUE';
-    document.getElementById('fac-conceptos-body').innerHTML = _conceptoRow('Vidrio templado', '44111702', 'M2', 1, '');
+    document.getElementById('fac-conceptos-body').innerHTML = _conceptoRow('Vidrio templado', '44111702', 'M2', 1, '', true);
     recalc();
   }
 
@@ -478,26 +504,31 @@ var ModFacturacion = (function() {
       var desc   = rows[i].querySelector('.fac-c-desc').value;
       var clave  = rows[i].querySelector('.fac-c-clave').value;
       var unidadEl = rows[i].querySelector('.fac-c-unidad');
-      var unidad = unidadEl ? unidadEl.value : 'M2';
-      var cant   = parseFloat(rows[i].querySelector('.fac-c-cant').value)   || 0;
-      var precio = parseFloat(rows[i].querySelector('.fac-c-precio').value) || 0;
-      if (desc || precio) out.push({desc:desc, clave:clave, unidad:unidad, cant:cant, precio:precio});
+      var unidad   = unidadEl ? unidadEl.value : 'M2';
+      var cant     = parseFloat(rows[i].querySelector('.fac-c-cant').value)   || 0;
+      var precio   = parseFloat(rows[i].querySelector('.fac-c-precio').value) || 0;
+      var ivaChk   = rows[i].querySelector('.fac-c-iva');
+      var applyIva = ivaChk ? ivaChk.checked : true;
+      if (desc || precio) out.push({desc:desc, clave:clave, unidad:unidad, cant:cant, precio:precio, iva:applyIva});
     }
     return out;
   }
 
   function recalc() {
     var rows = document.querySelectorAll('#fac-conceptos-body tr');
-    var sub  = 0;
+    var sub = 0;
+    var iva = 0;
     for (var i = 0; i < rows.length; i++) {
-      var cant   = parseFloat(rows[i].querySelector('.fac-c-cant').value)   || 0;
-      var precio = parseFloat(rows[i].querySelector('.fac-c-precio').value) || 0;
-      var imp    = cant * precio;
+      var cant      = parseFloat(rows[i].querySelector('.fac-c-cant').value)   || 0;
+      var precio    = parseFloat(rows[i].querySelector('.fac-c-precio').value) || 0;
+      var ivaCheck  = rows[i].querySelector('.fac-c-iva');
+      var applyIva  = ivaCheck ? ivaCheck.checked : true;
+      var imp       = cant * precio;
       sub += imp;
+      if (applyIva) iva += imp * 0.16;
       var cell = rows[i].querySelector('.fac-c-imp');
       if (cell) cell.textContent = _fmt(imp);
     }
-    var iva   = sub * 0.16;
     var total = sub + iva;
     document.getElementById('fac-t-sub').textContent   = _fmt(sub);
     document.getElementById('fac-t-iva').textContent   = _fmt(iva);
@@ -520,8 +551,10 @@ var ModFacturacion = (function() {
     document.getElementById('fac-folio').value   = f.folio;
     document.getElementById('fac-fecha').value   = f.fecha || '';
     document.getElementById('fac-nombre').value  = f.nombre || 'PRUEBA DE PORTAL';
-    document.getElementById('fac-rfc').value     = f.rfc   || '';
-    document.getElementById('fac-cp').value      = f.cp    || '';
+    document.getElementById('fac-email').value   = f.email  || '';
+    document.getElementById('fac-rfc').value     = f.rfc    || '';
+    document.getElementById('fac-cp').value      = f.cp     || '';
+    document.getElementById('fac-serie').value   = f.serie  || 'A';
     document.getElementById('fac-uso-cfdi').value    = f.uso_cfdi    || 'G03';
     document.getElementById('fac-regimen').value     = f.regimen     || '612';
     document.getElementById('fac-forma-pago').value  = f.forma_pago_cod || '03';
@@ -531,9 +564,9 @@ var ModFacturacion = (function() {
     var conceptos = f.conceptos || [];
     for (var j = 0; j < conceptos.length; j++) {
       var c = conceptos[j];
-      tbody.innerHTML += _conceptoRow(c.desc, c.clave, c.unidad, c.cant, c.precio);
+      tbody.innerHTML += _conceptoRow(c.desc, c.clave, c.unidad, c.cant, c.precio, c.iva);
     }
-    if (!conceptos.length) tbody.innerHTML = _conceptoRow('', '44111702', 'M2', 1, '');
+    if (!conceptos.length) tbody.innerHTML = _conceptoRow('', '44111702', 'M2', 1, '', true);
     recalc();
     document.getElementById('fac-overlay').classList.add('open');
   }
@@ -543,8 +576,10 @@ var ModFacturacion = (function() {
   }
 
   function guardar() {
-    var rfc = document.getElementById('fac-rfc').value.trim().toUpperCase() || 'XAXX010101000';
-    var cp  = document.getElementById('fac-cp').value.trim();
+    var rfc   = document.getElementById('fac-rfc').value.trim().toUpperCase() || 'XAXX010101000';
+    var cp    = document.getElementById('fac-cp').value.trim();
+    var email = document.getElementById('fac-email').value.trim();
+    var serie = document.getElementById('fac-serie').value.trim() || 'A';
     var conceptos = _getConceptos();
     var sub = 0;
     for (var i = 0; i < conceptos.length; i++) sub += conceptos[i].cant * conceptos[i].precio;
@@ -562,6 +597,8 @@ var ModFacturacion = (function() {
         if (String(data[j].id) === String(editId)) {
           data[j].rfc           = rfc;
           data[j].cp            = cp;
+          data[j].email         = email;
+          data[j].serie         = serie;
           data[j].fecha         = document.getElementById('fac-fecha').value;
           data[j].uso_cfdi      = document.getElementById('fac-uso-cfdi').value;
           data[j].regimen       = document.getElementById('fac-regimen').value;
@@ -583,6 +620,10 @@ var ModFacturacion = (function() {
         nombre:         'PRUEBA DE PORTAL',
         rfc:            rfc,
         cp:             cp,
+        email:          email,
+        serie:          serie,
+        moneda:         'MXN',
+        tipo_cfdi:      'I',
         uso_cfdi:       document.getElementById('fac-uso-cfdi').value,
         regimen:        document.getElementById('fac-regimen').value,
         forma_pago:     fpText,
