@@ -60,7 +60,13 @@ $stmt = $db->prepare("
       AND (o.fecha_cierre IS NULL OR o.fecha_cierre >= DATE_SUB(NOW(), INTERVAL 7 DAY))
       $filtroAsesor
     GROUP BY o.id
-    ORDER BY o.prioridad DESC, o.fecha_entrega ASC, o.folio ASC
+    ORDER BY
+      CASE
+        WHEN SUM(p.estatus = 'pendiente') = COUNT(p.id) THEN 0
+        WHEN SUM(p.estatus IN ('terminado','entregado')) = COUNT(p.id) THEN 2
+        ELSE 1
+      END ASC,
+      o.id DESC
     LIMIT ? OFFSET ?
 ");
 $stmt->execute(array_merge($paramAsesor, [$porPagina, $offset]));
