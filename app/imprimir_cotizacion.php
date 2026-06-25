@@ -394,7 +394,7 @@ function waEnviar() {
   $total_piezas = 0;
   $total_m2_general = 0;
   foreach ($partidas as $p) {
-      $cristal = $p['cristal_etiqueta'] ?: $p['cristal_nombre'];
+      $cristal = $p['cristal_nombre'] ?: $p['cristal_etiqueta'];
       $m2 = round($p['m2'] * $p['cantidad'], 4);
       if (!isset($resumen_cristal[$cristal])) $resumen_cristal[$cristal] = 0;
       $resumen_cristal[$cristal] += $m2;

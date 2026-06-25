@@ -108,8 +108,9 @@ table.lr-tbl { width:100%; border-collapse:collapse; font-size:13px; }
 .btn-planificar:hover { background:#6d28d9; }
 .btn-planificar:disabled { background:#c4b5fd; cursor:not-allowed; }
 .plan-tiempo { font-size:11px; color:#7c3aed; font-weight:600; margin-left:4px; }
-.unit-mapa { width:100%; height:200px; border-radius:0; border-top:1px solid #f1f5f9; display:none; }
+.unit-mapa { width:100%; height:260px; border-radius:0; border-top:1px solid #f1f5f9; display:none; }
 .unit-mapa.visible { display:block; }
+.lr-map-label { background:#1e40af; color:#fff; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:700; white-space:nowrap; }
 /* Autocomplete nuevo — forzar estilo claro */
 .pac-container { z-index:99999 !important; font-family:-apple-system,sans-serif; font-size:13px; }
 gmp-place-autocomplete {
@@ -387,6 +388,7 @@ var LR = (function() {
   async function cargarRutas() {
     var r = await fetch(API_RUTAS + '?accion=rutas_fecha&fecha=' + _fecha);
     _rutas = await r.json();
+    window._lrRutas = _rutas;
     renderUnidades();
   }
 
@@ -407,11 +409,21 @@ var LR = (function() {
 
   function renderUnidades() {
     var el = document.getElementById('lr-unidades');
+    // Limpiar instancias de mapas anteriores
+    _mapas = {};
     if (!_rutas.length) {
       el.innerHTML = '<div class="no-rutas" style="grid-column:1/-1">No hay rutas para este día. Crea una con "+ Nueva Ruta".</div>';
       return;
     }
     el.innerHTML = _rutas.map(renderUnitCard).join('');
+    // Dibujar pins después de que el DOM esté listo
+    if (window.google && window.google.maps) {
+      setTimeout(function() {
+        _rutas.forEach(function(r) {
+          if (r.entregas && r.entregas.length) dibujarPines(r.id);
+        });
+      }, 100);
+    }
   }
 
   function renderUnitCard(ruta) {
@@ -449,9 +461,11 @@ var LR = (function() {
     var btnIniciar = '';
     var btnPlanificar = '';
     if (ruta.estado === 'planificada' && ruta.entregas && ruta.entregas.length) {
-      btnPlanificar = '<button class="btn-planificar" id="btn-plan-'+ruta.id+'" onclick="LR.planificar('+ruta.id+')">🗺️ Planificar</button>';
+      btnPlanificar = '<button class="btn-planificar" id="btn-plan-'+ruta.id+'" onclick="LR.planificar('+ruta.id+')">🗺️ Ruta óptima</button>';
       btnIniciar    = '<button class="btn-iniciar" onclick="LR.iniciarRuta('+ruta.id+')">🚛 Iniciar Ruta</button>';
     }
+
+    var tieneEntregas = ruta.entregas && ruta.entregas.length > 0;
 
     return '<div class="unit-card">'
       + '<div class="unit-card-head">'
@@ -464,7 +478,7 @@ var LR = (function() {
       +   '<div class="unit-peso-txt">'+fmtKg(usado)+' / '+cap.toLocaleString()+' kg ('+pct+'%)</div>'
       + '</div>'
       + '<div class="unit-entregas" id="entregas-ruta-'+ruta.id+'">'+rows+'</div>'
-      + '<div id="mapa-ruta-'+ruta.id+'" class="unit-mapa"></div>'
+      + '<div id="mapa-ruta-'+ruta.id+'" class="unit-mapa'+(tieneEntregas ? ' visible' : '')+'"></div>'
       + '<div class="unit-footer">'
       +   '<span class="unit-estado '+eClass+'">'+(ruta.estado==='planificada'?'Planificada':ruta.estado==='en_ruta'?'En ruta':'Completada')+'</span>'
       +   btnPlanificar
@@ -776,7 +790,11 @@ var LR = (function() {
     }
   }
 
-  function dibujarMapa(ruta_id) {
+  // Mapa de instancias activas { ruta_id: { map, markers, renderer } }
+  var _mapas = {};
+
+  function dibujarPines(ruta_id) {
+    if (!window.google || !window.google.maps) return;
     var ruta = null;
     for (var i = 0; i < _rutas.length; i++) {
       if (_rutas[i].id == ruta_id) { ruta = _rutas[i]; break; }
@@ -784,25 +802,135 @@ var LR = (function() {
     if (!ruta || !ruta.entregas || !ruta.entregas.length) return;
 
     var mapEl = document.getElementById('mapa-ruta-' + ruta_id);
-    if (!mapEl || !window.google) return;
-    mapEl.classList.add('visible');
+    if (!mapEl) return;
 
     var origenLatLng = { lat: 25.6752, lng: -100.4573 };
-    var map = new google.maps.Map(mapEl, {
-      zoom: 11, center: origenLatLng,
-      disableDefaultUI: true, zoomControl: true,
+
+    // Crear o reusar mapa
+    var inst = _mapas[ruta_id];
+    if (!inst) {
+      var map = new google.maps.Map(mapEl, {
+        zoom: 11,
+        center: origenLatLng,
+        disableDefaultUI: true,
+        zoomControl: true,
+        mapTypeControl: false,
+        streetViewControl: false,
+      });
+      inst = { map: map, markers: [], infoWindow: new google.maps.InfoWindow(), renderer: null };
+      _mapas[ruta_id] = inst;
+    }
+
+    // Limpiar markers anteriores
+    inst.markers.forEach(function(m) { m.setMap(null); });
+    inst.markers = [];
+
+    // Pin origen (planta)
+    var pinOrigen = new google.maps.Marker({
+      position: origenLatLng,
+      map: inst.map,
+      title: 'Planta — Santa Catarina',
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 10,
+        fillColor: '#1e40af',
+        fillOpacity: 1,
+        strokeColor: '#fff',
+        strokeWeight: 2,
+      },
+      zIndex: 999,
     });
+    inst.markers.push(pinOrigen);
+
+    var geocoder = new google.maps.Geocoder();
+    var bounds   = new google.maps.LatLngBounds();
+    bounds.extend(origenLatLng);
+
+    var COLORES = { pendiente: '#f59e0b', entregado: '#16a34a', no_entregado: '#dc2626' };
+
+    ruta.entregas.forEach(function(e, idx) {
+      var num    = idx + 1;
+      var addr   = [e.direccion, e.colonia, e.ciudad].filter(Boolean).join(', ') || 'Monterrey, Nuevo León';
+      var color  = COLORES[e.entrega_estado] || '#f59e0b';
+      var estado = { pendiente: 'Pendiente', entregado: 'Entregado ✅', no_entregado: 'No entregado ❌' }[e.entrega_estado] || '';
+
+      geocoder.geocode({ address: addr + ', México' }, function(results, status) {
+        if (status !== 'OK' || !results[0]) return;
+        var pos = results[0].geometry.location;
+        bounds.extend(pos);
+
+        // Pin numerado con SVG
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">'
+          + '<path d="M16 0C7.16 0 0 7.16 0 16c0 11.65 16 26 16 26S32 27.65 32 16C32 7.16 24.84 0 16 0z" fill="' + color + '"/>'
+          + '<circle cx="16" cy="16" r="10" fill="white"/>'
+          + '<text x="16" y="21" text-anchor="middle" font-size="12" font-weight="bold" fill="' + color + '">' + num + '</text>'
+          + '</svg>';
+
+        var marker = new google.maps.Marker({
+          position: pos,
+          map: inst.map,
+          icon: { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(32, 42), anchor: new google.maps.Point(16, 42) },
+          title: e.folio + ' — ' + e.cliente_nombre,
+          zIndex: num,
+        });
+        inst.markers.push(marker);
+
+        // Popup al hacer clic
+        marker.addListener('click', function() {
+          var content = '<div style="font-family:-apple-system,sans-serif;min-width:180px;padding:4px">'
+            + '<div style="font-weight:700;color:#2563eb;font-size:13px">' + escH(e.folio) + '</div>'
+            + '<div style="font-size:13px;color:#0f172a;margin:2px 0">' + escH(e.cliente_nombre) + '</div>'
+            + '<div style="font-size:11px;color:#64748b">' + escH(addr) + '</div>'
+            + (e.referencias ? '<div style="font-size:11px;color:#64748b;margin-top:2px">Ref: ' + escH(e.referencias) + '</div>' : '')
+            + '<div style="margin-top:6px;font-size:11px;font-weight:600;color:' + color + '">' + estado + '</div>'
+            + '<div style="font-size:11px;color:#64748b">' + fmtKg(e.peso_kg) + '</div>'
+            + '</div>';
+          inst.infoWindow.setContent(content);
+          inst.infoWindow.open(inst.map, marker);
+        });
+
+        inst.map.fitBounds(bounds);
+      });
+    });
+  }
+
+  function dibujarMapa(ruta_id) {
+    if (!window.google || !window.google.maps) return;
+    var ruta = null;
+    for (var i = 0; i < _rutas.length; i++) {
+      if (_rutas[i].id == ruta_id) { ruta = _rutas[i]; break; }
+    }
+    if (!ruta || !ruta.entregas || !ruta.entregas.length) return;
+
+    var mapEl = document.getElementById('mapa-ruta-' + ruta_id);
+    if (!mapEl) return;
+
+    var origenLatLng = { lat: 25.6752, lng: -100.4573 };
+    var inst = _mapas[ruta_id];
+    if (!inst) {
+      var map = new google.maps.Map(mapEl, {
+        zoom: 11, center: origenLatLng,
+        disableDefaultUI: true, zoomControl: true,
+      });
+      inst = { map: map, markers: [], infoWindow: new google.maps.InfoWindow(), renderer: null };
+      _mapas[ruta_id] = inst;
+    }
 
     var pendientes = ruta.entregas.filter(function(e) { return e.entrega_estado !== 'entregado'; });
-    if (!pendientes.length) return;
+    if (!pendientes.length) { toast('Todas las entregas ya están completadas'); return; }
 
     var waypoints = pendientes.map(function(e) {
       var addr = [e.direccion, e.colonia, e.ciudad].filter(Boolean).join(', ');
       return { location: addr || 'Monterrey, Nuevo León', stopover: true };
     });
 
-    var svc = new google.maps.DirectionsService();
-    var renderer = new google.maps.DirectionsRenderer({ map: map, suppressMarkers: false });
+    // Limpiar ruta anterior si existe
+    if (inst.renderer) { inst.renderer.setMap(null); inst.renderer = null; }
+
+    var svc      = new google.maps.DirectionsService();
+    var renderer = new google.maps.DirectionsRenderer({ map: inst.map, suppressMarkers: true });
+    inst.renderer = renderer;
+
     svc.route({
       origin: origenLatLng,
       destination: origenLatLng,
@@ -810,6 +938,7 @@ var LR = (function() {
       travelMode: google.maps.TravelMode.DRIVING,
     }, function(result, status) {
       if (status === 'OK') renderer.setDirections(result);
+      else toast('No se pudo trazar la ruta en el mapa', true);
     });
   }
 
@@ -871,6 +1000,7 @@ var LR = (function() {
     abrirModalAsignar:abrirModalAsignar, cerrarModalAsignar:cerrarModalAsignar, guardarAsignacion:guardarAsignacion,
     abrirEditDir:abrirEditDir, cerrarEditDir:cerrarEditDir, guardarEditDir:guardarEditDir,
     mover:mover, quitar:quitar, iniciarRuta:iniciarRuta, planificar:planificar,
+    dibujarPines:dibujarPines,
     initAutocomplete:initAutocomplete,
     actualizarContPiezas:actualizarContPiezas, toggleTodasPiezas:toggleTodasPiezas,
     togglePartidaExpand:togglePartidaExpand, togglePartida:togglePartida, onPiezaCb:onPiezaCb,
@@ -884,7 +1014,19 @@ var LR = (function() {
   script.src = 'https://maps.googleapis.com/maps/api/js?key=<?= htmlspecialchars($maps_key) ?>&libraries=places&v=beta&loading=async';
   script.async = true;
   script.defer = true;
-  script.onload = function() { if (window.LR && LR.initAutocomplete) LR.initAutocomplete(); };
+  script.onload = function() {
+    if (window.LR) {
+      LR.initAutocomplete();
+      // Dibujar pins si ya hay rutas cargadas
+      setTimeout(function() {
+        if (window._lrRutas) {
+          window._lrRutas.forEach(function(r) {
+            if (r.entregas && r.entregas.length) LR.dibujarPines(r.id);
+          });
+        }
+      }, 300);
+    }
+  };
   document.head.appendChild(script);
 })();
 </script>

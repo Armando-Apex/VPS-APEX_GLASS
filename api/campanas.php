@@ -14,7 +14,7 @@ $db     = getDB();
 $accion = $_GET['accion'] ?? '';
 $metodo = $_SERVER['REQUEST_METHOD'];
 
-$esCampanas  = in_array($rol, ['dir_admin','dueno','comercial']);
+$esCampanas  = in_array($rol, ['dir_admin','dueno','comercial','administracion']);
 $puedeEnviar = in_array($rol, ['dir_admin','dueno']);
 
 if (!$esCampanas) {

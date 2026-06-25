@@ -63,11 +63,18 @@ $cond_pago   = $c['condicion_pago'] ?? '—';
 $epago_display = $pago_completo ? 'pagado' : $epago;
 $epago_label   = ['pendiente'=>'Pendiente','en_proceso'=>'En proceso','pago_entrega'=>'Pago a la entrega','pagado'=>'Pagado'][$epago_display] ?? $epago_display;
 
-$total_pzas = 0;
-$m2_total   = 0;
+$total_pzas  = 0;
+$m2_total    = 0;
+$resumen_mat = [];
 foreach ($parts as $p) {
     $total_pzas += $p['cantidad'];
-    $m2_total   += round(($p['ancho'] / 1000) * ($p['alto'] / 1000), 4) * $p['cantidad'];
+    $m2u = round(($p['ancho'] / 1000) * ($p['alto'] / 1000), 4);
+    $m2t = round($m2u * $p['cantidad'], 4);
+    $m2_total   += $m2t;
+    $mat = $p['cristal_nombre'] ?? '—';
+    if (!isset($resumen_mat[$mat])) $resumen_mat[$mat] = ['pzas' => 0, 'm2' => 0];
+    $resumen_mat[$mat]['pzas'] += $p['cantidad'];
+    $resumen_mat[$mat]['m2']   += $m2t;
 }
 ?>
 <!DOCTYPE html>
@@ -128,6 +135,16 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 /* Totales */
 .totales-row { margin-top: 12px; display: flex; justify-content: space-between; align-items: flex-start; }
 .total-box { border: 2px solid #1a1a2e; border-radius: 4px; padding: 8px 20px; font-size: 13px; font-weight: 800; }
+
+/* Resumen material */
+.resumen-mat { margin-top: 12px; border: 1.5px solid #1a1a2e; border-radius: 4px; }
+.resumen-mat-title { background: #1a1a2e; color: white; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 5px 12px; }
+.resumen-mat table { width: 100%; border-collapse: collapse; }
+.resumen-mat th { background: #f3f4f6; font-size: 10px; font-weight: 700; padding: 5px 10px; text-align: left; border-bottom: 1px solid #d1d5db; }
+.resumen-mat th:not(:first-child) { text-align: center; }
+.resumen-mat td { font-size: 11px; padding: 5px 10px; border-bottom: 1px solid #e5e7eb; }
+.resumen-mat td:not(:first-child) { text-align: center; font-weight: 600; }
+.resumen-mat tr:last-child td { border-bottom: none; }
 
 /* Logística */
 .logistica { margin-top: 18px; border: 1.5px solid #000; border-radius: 4px; }
@@ -258,6 +275,31 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
   <div class="totales-row">
     <div class="total-box">TOTAL PIEZAS: <?= $total_pzas ?> &nbsp;|&nbsp; TOTAL M²: <?= number_format($m2_total, 4) ?></div>
   </div>
+
+  <!-- Resumen de material -->
+  <?php if (count($resumen_mat) > 1): ?>
+  <div class="resumen-mat">
+    <div class="resumen-mat-title">Resumen de material</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Material</th>
+          <th style="width:90px">Piezas</th>
+          <th style="width:110px">M² total</th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php foreach ($resumen_mat as $mat => $datos): ?>
+        <tr>
+          <td><?= htmlspecialchars($mat) ?></td>
+          <td><?= $datos['pzas'] ?></td>
+          <td><?= number_format($datos['m2'], 4) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php endif; ?>
 
   <!-- Logística -->
   <div class="logistica">
