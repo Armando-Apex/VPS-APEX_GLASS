@@ -61,6 +61,32 @@ $ordenes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $activas    = array_filter($ordenes, fn($o) => $o['estado'] === 'activa');
 $entregadas = array_filter($ordenes, fn($o) => $o['estado'] === 'entregada');
+
+$stmtCot = $pdo->prepare("
+    SELECT
+        c.folio,
+        c.fecha,
+        c.proyecto,
+        c.total,
+        c.estatus,
+        c.asesor_nombre
+    FROM cotizaciones c
+    WHERE (c.cliente_id = ? OR c.cliente_nombre = ?)
+    ORDER BY c.fecha DESC
+");
+$stmtCot->execute([$cliente_id, $cliente_razon]);
+$cotizaciones = $stmtCot->fetchAll(PDO::FETCH_ASSOC);
+
+function cotTag($estatus) {
+    switch ($estatus) {
+        case 'cotizacion': return ['Pendiente',      'tag-proceso'];
+        case 'orden':      return ['En producción',  'tag-activa'];
+        case 'entregada':  return ['Entregada',      'tag-entregada'];
+        case 'cancelada':  return ['Cancelada',      'tag-cancelada'];
+        case 'rechazada':  return ['No aprobada',    'tag-cancelada'];
+        default:           return [ucfirst($estatus),'tag-cancelada'];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -236,6 +262,7 @@ tbody td { padding: 14px 20px; font-size: 13px; vertical-align: middle; }
 .tag-proceso   { background: var(--amber-bg); color: #92400e; }
 .tag-listo     { background: rgba(6,182,212,.10); color: #0891b2; }
 .tag-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
+.tag-cancelada { background: #f1f5f9; color: #64748b; }
 
 /* barra avance */
 .avance-wrap { display: flex; align-items: center; gap: 10px; }
@@ -480,6 +507,78 @@ tbody td { padding: 14px 20px; font-size: 13px; vertical-align: middle; }
           <div class="card-row"><span class="card-row-label">Fecha pedido</span><span class="card-row-val"><?= $fecha_pedido ?></span></div>
           <div class="card-row"><span class="card-row-label">Fecha entrega</span><span class="card-row-val"><?= $fecha_cierre ?></span></div>
         </a>
+        <?php endforeach; ?>
+      </div>
+
+    <?php endif; ?>
+  </div>
+
+
+  <!-- ── Cotizaciones ── -->
+  <div class="section">
+    <div class="section-label">
+      <span class="section-label-txt">Cotizaciones</span>
+      <span class="section-label-line"></span>
+      <span class="section-count"><?= count($cotizaciones) ?></span>
+    </div>
+
+    <?php if (empty($cotizaciones)): ?>
+      <div class="table-wrap"><div class="empty">No tienes cotizaciones registradas</div></div>
+    <?php else: ?>
+
+      <!-- DESKTOP -->
+      <div class="table-wrap desktop-only">
+        <table>
+          <thead>
+            <tr>
+              <th>Folio</th>
+              <th>Fecha</th>
+              <th>Proyecto</th>
+              <th>Asesor</th>
+              <th style="text-align:right">Total</th>
+              <th>Estatus</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($cotizaciones as $c):
+              [$tagTxt, $tagCls] = cotTag($c['estatus']);
+              $fecha  = $c['fecha'] ? date('d M Y', strtotime($c['fecha'])) : '—';
+              $total  = '$' . number_format((float)$c['total'], 2, '.', ',');
+            ?>
+            <tr>
+              <td><div class="folio-txt"><?= htmlspecialchars($c['folio']) ?></div></td>
+              <td><span class="fecha-txt"><?= $fecha ?></span></td>
+              <td><span class="fecha-txt"><?= htmlspecialchars($c['proyecto'] ?: '—') ?></span></td>
+              <td><span class="fecha-txt"><?= htmlspecialchars($c['asesor_nombre'] ?: '—') ?></span></td>
+              <td style="text-align:right"><span class="fecha-txt" style="font-weight:600;color:var(--text-1)"><?= $total ?></span></td>
+              <td><span class="tag <?= $tagCls ?>"><span class="tag-dot"></span><?= $tagTxt ?></span></td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- MOBILE -->
+      <div class="cards-list mobile-only">
+        <?php foreach ($cotizaciones as $c):
+          [$tagTxt, $tagCls] = cotTag($c['estatus']);
+          $fecha = $c['fecha'] ? date('d M Y', strtotime($c['fecha'])) : '—';
+          $total = '$' . number_format((float)$c['total'], 2, '.', ',');
+        ?>
+        <div class="orden-card">
+          <div class="card-top">
+            <div>
+              <div class="card-folio"><?= htmlspecialchars($c['folio']) ?></div>
+              <?php if ($c['proyecto']): ?><div class="card-proyecto"><?= htmlspecialchars($c['proyecto']) ?></div><?php endif; ?>
+            </div>
+            <span class="tag <?= $tagCls ?>"><span class="tag-dot"></span><?= $tagTxt ?></span>
+          </div>
+          <div class="card-row"><span class="card-row-label">Fecha</span><span class="card-row-val"><?= $fecha ?></span></div>
+          <?php if ($c['asesor_nombre']): ?>
+          <div class="card-row"><span class="card-row-label">Asesor</span><span class="card-row-val"><?= htmlspecialchars($c['asesor_nombre']) ?></span></div>
+          <?php endif; ?>
+          <div class="card-row"><span class="card-row-label">Total</span><span class="card-row-val" style="font-weight:600"><?= $total ?></span></div>
+        </div>
         <?php endforeach; ?>
       </div>
 
