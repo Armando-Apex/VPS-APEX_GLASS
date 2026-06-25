@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 24 junio 2026 | Próximo UPD disponible: UPD-204
+# Última actualización: 25 junio 2026 | Próximo UPD disponible: UPD-215
 
 **REGLA DE ORO:** Este archivo es la memoria compartida del proyecto. Claude lo lee al inicio de cada sesión y lo actualiza al terminar. Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -54,6 +54,12 @@ Mando y Areyna son la misma persona. Sus cambios se registran como "Mando".
   $iva   = round($subtotal_neto * 0.16, 2);
   $total = round($subtotal_neto * 1.16, 2);
   ```
+
+**Íconos SVG en dashboard.php (UPD-212):**
+- `dashboard.php` tiene función PHP `icono($nombre, $size=16)` con paths Lucide inline
+- Usar `<?= icono('bar-chart-2') ?>` en lugar de emojis en cualquier archivo PHP del dashboard
+- NO usar CDN de Lucide — el CSP del servidor bloquea scripts externos
+- Íconos disponibles: bar-chart-2, clipboard-list, layers, alert-triangle, ban, file-text, users, box, scissors, message-square, trending-up, activity, settings, megaphone, package, shopping-cart, check-square, credit-card, truck, map-pin, bell, menu
 
 **Patrón SPA (obligatorio en TODOS los módulos):**
 El SPA loader del dashboard agrega scripts al head sin limpiarlos entre navegaciones.
@@ -381,6 +387,9 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | ALTA | Ambos | SEGURIDAD: Rate limiting en login.php — verificar/implementar bloqueo por intentos fallidos | Pendiente |
 | MEDIA | Armando | SEGURIDAD: SSH hardening — verificar que solo acepta llaves, no password | Pendiente |
 | MEDIA | Armando | SEGURIDAD: Revisar permisos de archivos en servidor (buscar 777) | Pendiente |
+| MEDIA | Armando | UX: Dark mode en dashboard (topbar ya es oscuro, extender al sidebar y contenido) | Pendiente |
+| BAJA | Armando | UX: Badge órdenes vencidas global — actualmente solo se actualiza desde módulo Resumen | Pendiente |
+| BAJA | Armando | UX: Paginación resumen con total de registros "Mostrando X–Y de Z órdenes" | Pendiente |
 
 ---
 
