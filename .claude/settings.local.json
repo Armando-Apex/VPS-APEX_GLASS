@@ -74,7 +74,8 @@
       "Bash(claude plugin *)",
       "Bash(cp ~/.claude/plugins/marketplaces/voltagent-subagents/categories/02-language-specialists/php-pro.md ~/.claude/agents/php-pro.md)",
       "Bash(cp ~/.claude/plugins/marketplaces/voltagent-subagents/categories/02-language-specialists/sql-pro.md ~/.claude/agents/sql-pro.md)",
-      "Bash(npx --version)"
+      "Bash(npx --version)",
+      "Bash(intelephense --version)"
     ]
   },
   "hooks": {
