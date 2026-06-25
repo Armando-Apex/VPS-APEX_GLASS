@@ -90,6 +90,9 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
 .sidebar-icon{width:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:inherit;}
 .sidebar-link:focus-visible{outline:2px solid var(--c-blue);outline-offset:-2px;border-radius:4px;}
 .topbar-hamburger:focus-visible,.notif-btn:focus-visible{outline:2px solid #60a5fa;outline-offset:2px;border-radius:4px;}
+.sidebar-link{cursor:pointer;}
+.sidebar{scrollbar-width:thin;scrollbar-color:#e2e8f0 transparent;}
+.topbar-logout{padding:8px 10px;min-height:44px;display:flex;align-items:center;}
 .sidebar-badge{margin-left:auto;background:var(--c-red);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;display:none;}
 .content-area{flex:1;overflow-y:auto;position:relative;}
 #spa-content{min-height:100%;}
@@ -114,7 +117,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
   .topbar-sep{display:none;}
   .topbar-sub{display:none;}
   .topbar-hamburger{display:block;}
-  #reloj{display:none;}
+  #reloj{font-size:11px;letter-spacing:0;}
   .topbar-user{display:none;}
   .topbar-rol{display:none;}
   .topbar-logout{font-size:13px;}
@@ -159,24 +162,24 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
 .notif-btn:hover{color:#cbd5e1;}
 .notif-badge{position:absolute;top:-2px;right:-2px;background:var(--c-red);color:white;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:99px;display:none;align-items:center;justify-content:center;padding:0 4px;line-height:1;}
 .notif-badge.show{display:flex;}
-.notif-panel{display:none;position:absolute;top:calc(100% + 8px);right:0;width:340px;background:#1e293b;border:1px solid #334155;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:200;overflow:hidden;}
+.notif-panel{display:none;position:absolute;top:calc(100% + 8px);right:0;width:340px;background:var(--c-white);border:1px solid var(--c-border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:200;overflow:hidden;}
 .notif-panel.open{display:block;}
-.notif-panel-head{padding:12px 16px;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center;}
-.notif-panel-titulo{font-size:13px;font-weight:700;color:#f0f0f0;}
-.notif-btn-leer-todas{font-size:11px;color:#64748b;background:none;border:none;cursor:pointer;padding:0;}
-.notif-btn-leer-todas:hover{color:#93c5fd;}
+.notif-panel-head{padding:12px 16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;}
+.notif-panel-titulo{font-size:13px;font-weight:700;color:var(--c-text);}
+.notif-btn-leer-todas{font-size:11px;color:var(--c-muted);background:none;border:none;cursor:pointer;padding:0;}
+.notif-btn-leer-todas:hover{color:var(--c-blue);}
 .notif-lista{max-height:380px;overflow-y:auto;}
-.notif-item{padding:12px 16px;border-bottom:1px solid #273548;cursor:pointer;transition:background .1s;display:flex;gap:10px;align-items:flex-start;}
-.notif-item:hover{background:#273548;}
-.notif-item.no-leida{background:rgba(37,99,235,.08);}
-.notif-item.no-leida:hover{background:rgba(37,99,235,.15);}
+.notif-item{padding:12px 16px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s;display:flex;gap:10px;align-items:flex-start;}
+.notif-item:hover{background:#f8fafc;}
+.notif-item.no-leida{background:rgba(37,99,235,.04);}
+.notif-item.no-leida:hover{background:rgba(37,99,235,.08);}
 .notif-dot{width:8px;height:8px;border-radius:50%;background:var(--c-blue);flex-shrink:0;margin-top:4px;}
 .notif-dot.leida{background:transparent;}
 .notif-item-body{flex:1;min-width:0;}
-.notif-item-titulo{font-size:13px;font-weight:600;color:#f0f0f0;}
-.notif-item-msg{font-size:11px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.notif-item-tiempo{font-size:10px;color:#475569;margin-top:3px;}
-.notif-empty{padding:32px;text-align:center;color:#475569;font-size:13px;}
+.notif-item-titulo{font-size:13px;font-weight:600;color:var(--c-text);}
+.notif-item-msg{font-size:11px;color:var(--c-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.notif-item-tiempo{font-size:10px;color:#94a3b8;margin-top:3px;}
+.notif-empty{padding:32px;text-align:center;color:var(--c-muted);font-size:13px;}
 </style>
 </head>
 <body>
@@ -204,7 +207,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
     <?php endif; ?>
     <span class="topbar-user"><?= htmlspecialchars($_name) ?></span>
     <span class="topbar-rol"><?= htmlspecialchars($_rolLabel) ?></span>
-    <a href="../api/logout.php?redirect=login.php" class="topbar-logout">Salir &rarr;</a>
+    <a href="../api/logout.php?redirect=login.php" class="topbar-logout" onclick="return confirm('¿Cerrar sesión?')">Salir &rarr;</a>
   </div>
 </div>
 
@@ -334,7 +337,12 @@ const SPA_USER = {
 
 (function reloj() {
   const el = document.getElementById('reloj');
-  function tick() { el.textContent = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+  function tick() {
+    var opts = window.innerWidth <= 768
+      ? {hour:'2-digit',minute:'2-digit'}
+      : {hour:'2-digit',minute:'2-digit',second:'2-digit'};
+    el.textContent = new Date().toLocaleTimeString('es-MX', opts);
+  }
   tick(); window.setInterval(tick, 1000);
 })();
 
@@ -432,9 +440,9 @@ async function cargarModulo(nombre, params = {}) {
 
   } catch(e) {
     document.getElementById('spa-content').innerHTML =
-      `<div style="padding:40px;text-align:center;color:#dc2626">
-        <div style="font-size:28px">&#9888;&#65039;</div>
-        <div style="font-size:15px;font-weight:600;margin-top:12px">Error al cargar m&#243;dulo</div>
+      `<div style="padding:40px;text-align:center">
+        <div style="color:#dc2626;margin-bottom:12px"><?= icono('alert-triangle', 32) ?></div>
+        <div style="font-size:15px;font-weight:600;color:#dc2626">Error al cargar m&#243;dulo</div>
         <div style="font-size:13px;color:#64748b;margin-top:6px">${e.message}</div>
         <button onclick="cargarModulo('${nombre}')" style="margin-top:16px;padding:8px 20px;background:#2563eb;color:white;border:none;border-radius:8px;cursor:pointer">Reintentar</button>
       </div>`;

@@ -14,7 +14,8 @@ header('Content-Type: text/html; charset=utf-8');
 .stat-card { background: #fff; border-radius: 12px; padding: 16px 18px; min-width: 110px; flex: 1;
   box-shadow: 0 1px 3px rgba(0,0,0,.06); border-top: 3px solid transparent; text-align: center; }
 .stat-card .num { font-size: 28px; font-weight: 800; line-height: 1; }
-.stat-card .lbl { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: #64748b; margin-top: 4px; }
+.stat-card .lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: #64748b; margin-top: 4px; }
+h2.sec-title { margin: 0; font-size: 13px; }
 .sec-wrap { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px; overflow: hidden; }
 .sec-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #f1f5f9; }
 .sec-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #1e293b; }
@@ -85,7 +86,7 @@ tbody td { padding: 10px 14px; font-size: 13px; }
 
   <div class="sec-wrap">
     <div class="sec-head">
-      <span class="sec-title">&#128203; &#211;rdenes Activas</span>
+      <h2 class="sec-title">&#211;rdenes Activas</h2>
       <button class="sec-btn" onclick="irA('ordenes')">Ver todas &#8594;</button>
     </div>
     <table>
@@ -104,7 +105,7 @@ tbody td { padding: 10px 14px; font-size: 13px; }
 
   <div class="sec-wrap">
     <div class="sec-head">
-      <span class="sec-title">&#9201; Actividad Reciente</span>
+      <h2 class="sec-title">Actividad Reciente</h2>
       <div class="pag-btns">
         <button class="pag-btn activo" onclick="ModResumen.setPag(25)">25</button>
         <button class="pag-btn" onclick="ModResumen.setPag(50)">50</button>
@@ -209,7 +210,7 @@ window.ModResumen = (function() {
         <td>${badge}</td>
         <td style="min-width:120px">
           <div style="font-size:11px;color:#64748b">${pct}% &middot; ${o.piezas_listas||0}/${o.total_piezas||0} terminadas</div>
-          <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${pct===100?'#16a34a':'#2563eb'}"></div></div>
+          <div class="prog-bar" title="${pct}% — ${o.piezas_listas||0} de ${o.total_piezas||0} piezas terminadas"><div class="prog-fill" style="width:${pct}%;background:${pct===100?'#16a34a':'#2563eb'}"></div></div>
         </td>
         <td style="color:#64748b">${o.total_piezas||0}</td>
       </tr>`;
