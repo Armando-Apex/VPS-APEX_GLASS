@@ -517,4 +517,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-222 | 25-jun | Armando | Portal cotizaciones: excluir estatus 'orden' del listado — ya aparecen en sección Órdenes activas, mostrarlas en cotizaciones era redundante |
 | UPD-223 | 25-jun | Armando | Portal cotizaciones: excluir canceladas y rechazadas del query — eliminado toggle CSS/JS/HTML completo, sección queda limpia |
 | UPD-224 | 25-jun | Armando | Portal dashboard: reorden secciones (Activas→Cotizaciones→Historial) + historial limitado a últimas 3 entregas |
-**Próximo UPD disponible: UPD-225**
+| UPD-225 | 25-jun | Armando | Clientes: editar teléfono y tel. alterno WA inline desde panel — botón Editar en cada fila, accion=editar_telefono en API con bitácora |
+**Próximo UPD disponible: UPD-226**
