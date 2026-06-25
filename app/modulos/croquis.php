@@ -198,12 +198,26 @@ header('Content-Type: text/html; charset=utf-8');
               <div class="cq-field-row"><span class="cq-field-label">Base menor</span><input class="cq-fi" type="number" id="cq-trap-b" value="500" min="10" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
             </div>
             <div id="cq-extra-esq" style="display:none">
-              <div class="cq-panel-title" style="margin-bottom:6px">Ángulo recto en</div>
-              <div class="cq-canteo-grid">
-                <button class="cq-canteo-btn" id="cq-esqc-si" onclick="CroquisMod._toggleEsqCorner('si')">&#8598; Sup Izq</button>
-                <button class="cq-canteo-btn" id="cq-esqc-sd" onclick="CroquisMod._toggleEsqCorner('sd')">&#8599; Sup Der</button>
-                <button class="cq-canteo-btn on" id="cq-esqc-ii" onclick="CroquisMod._toggleEsqCorner('ii')">&#8601; Inf Izq</button>
-                <button class="cq-canteo-btn" id="cq-esqc-id" onclick="CroquisMod._toggleEsqCorner('id')">&#8600; Inf Der</button>
+              <div class="cq-panel-title" style="margin-bottom:6px">Tipo de esquinero</div>
+              <div style="display:flex;gap:4px;margin-bottom:8px">
+                <button class="cq-canteo-btn on" id="cq-esqt-recto"    onclick="CroquisMod._toggleEsqTipo('recto')">
+                  <svg width="22" height="18" viewBox="0 0 22 18"><polygon points="1,17 21,17 1,1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                </button>
+                <button class="cq-canteo-btn" id="cq-esqt-isoceles" onclick="CroquisMod._toggleEsqTipo('isoceles')">
+                  <svg width="22" height="18" viewBox="0 0 22 18"><polygon points="11,1 21,17 1,17" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                </button>
+                <button class="cq-canteo-btn" id="cq-esqt-curvo"    onclick="CroquisMod._toggleEsqTipo('curvo')">
+                  <svg width="22" height="18" viewBox="0 0 22 18"><path d="M11,1 L21,17 A10,6 0 0,1 1,17 Z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                </button>
+              </div>
+              <div id="cq-esq-corner-panel">
+                <div class="cq-panel-title" style="margin-bottom:6px">Ángulo recto en</div>
+                <div class="cq-canteo-grid">
+                  <button class="cq-canteo-btn" id="cq-esqc-si" onclick="CroquisMod._toggleEsqCorner('si')">&#8598; Sup Izq</button>
+                  <button class="cq-canteo-btn" id="cq-esqc-sd" onclick="CroquisMod._toggleEsqCorner('sd')">&#8599; Sup Der</button>
+                  <button class="cq-canteo-btn on" id="cq-esqc-ii" onclick="CroquisMod._toggleEsqCorner('ii')">&#8601; Inf Izq</button>
+                  <button class="cq-canteo-btn" id="cq-esqc-id" onclick="CroquisMod._toggleEsqCorner('id')">&#8600; Inf Der</button>
+                </div>
               </div>
             </div>
             <div id="cq-extra-poligono" style="display:none">
@@ -308,7 +322,8 @@ var PUEDE_EDITAR = <?= $puede_editar ? 'true' : 'false' ?>;
 var _forma       = 'rect';
 var _canteo      = {sup:false,der:false,inf:false,izq:false};
 var _corteEsquinas = {si:true,sd:false,ii:false,id:false};
-var _esqCorner   = 'ii'; // esquinero: esquina con el ángulo recto (si/sd/ii/id)
+var _esqTipo     = 'recto'; // esquinero: 'recto'|'isoceles'|'curvo'
+var _esqCorner   = 'ii';   // para tipo recto: esquina con el ángulo recto (si/sd/ii/id)
 var _elementos   = [];
 var _elemCounter = 0;
 var _draggingChip = null;
@@ -480,7 +495,14 @@ function abrirConstructor(croquis) {
     if (pf['l-cw'])    document.getElementById('cq-l-cw').value    = pf['l-cw'];
     if (pf['l-ch'])    document.getElementById('cq-l-ch').value    = pf['l-ch'];
     if (pf['trap-b'])  document.getElementById('cq-trap-b').value  = pf['trap-b'];
+    _esqTipo   = pf['esq-tipo']   || 'recto';
     _esqCorner = pf['esq-corner'] || 'ii';
+    ['recto','isoceles','curvo'].forEach(function(t) {
+      var btn = document.getElementById('cq-esqt-'+t);
+      if (btn) btn.classList.toggle('on', t===_esqTipo);
+    });
+    var cp = document.getElementById('cq-esq-corner-panel');
+    if (cp) cp.style.display = _esqTipo==='recto' ? 'block' : 'none';
     ['si','sd','ii','id'].forEach(function(c) {
       var btn = document.getElementById('cq-esqc-'+c);
       if (btn) btn.classList.toggle('on', c===_esqCorner);
@@ -499,7 +521,14 @@ function abrirConstructor(croquis) {
       var btn = document.getElementById('cq-esq-'+c);
       if (btn) btn.classList.toggle('on', _corteEsquinas[c]);
     });
+    _esqTipo   = 'recto';
     _esqCorner = 'ii';
+    ['recto','isoceles','curvo'].forEach(function(t) {
+      var btn = document.getElementById('cq-esqt-'+t);
+      if (btn) btn.classList.toggle('on', t==='recto');
+    });
+    var cp2 = document.getElementById('cq-esq-corner-panel');
+    if (cp2) cp2.style.display = 'block';
     ['si','sd','ii','id'].forEach(function(c) {
       var btn = document.getElementById('cq-esqc-'+c);
       if (btn) btn.classList.toggle('on', c==='ii');
@@ -578,7 +607,7 @@ async function _guardar() {
   if (_forma === 'L')        { pf['l-cw']    = +document.getElementById('cq-l-cw').value;    pf['l-ch']    = +document.getElementById('cq-l-ch').value; }
   if (_forma === 'trap')     { pf['trap-b']  = +document.getElementById('cq-trap-b').value; }
   if (_forma === 'poligono') { pf['puntos']  = _poligonoPuntos; }
-  if (_forma === 'esq')      { pf['esq-corner'] = _esqCorner; }
+  if (_forma === 'esq')      { pf['esq-tipo'] = _esqTipo; pf['esq-corner'] = _esqCorner; }
 
   var payload = {
     cotizacion_id: ID_COT,
@@ -623,6 +652,17 @@ function _setForma(f) {
   document.getElementById('cq-extra-esq').style.display      = f==='esq'?'block':'none';
   document.getElementById('cq-medidas-rect-fields').style.display = f==='poligono'?'none':'block';
   _renderPolInfo();
+  _redraw();
+}
+
+function _toggleEsqTipo(t) {
+  _esqTipo = t;
+  ['recto','isoceles','curvo'].forEach(function(k) {
+    var btn = document.getElementById('cq-esqt-'+k);
+    if (btn) btn.classList.toggle('on', k===t);
+  });
+  var panel = document.getElementById('cq-esq-corner-panel');
+  if (panel) panel.style.display = t==='recto' ? 'block' : 'none';
   _redraw();
 }
 
