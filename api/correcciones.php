@@ -13,8 +13,8 @@ header('Access-Control-Allow-Origin: https://apex.glass');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit;
 
-// Solo dir_admin
-if (empty($_SESSION['user_id']) || ($_SESSION['user_rol'] ?? '') !== 'dir_admin') {
+// Solo dir_admin o desarrollo
+if (empty($_SESSION['user_id']) || !in_array(($_SESSION['user_rol'] ?? ''), ['dir_admin', 'desarrollo'])) {
     jsonResponse(['error' => 'Sin permiso'], 403);
 }
 

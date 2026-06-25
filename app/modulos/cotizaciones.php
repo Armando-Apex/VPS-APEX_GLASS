@@ -5,7 +5,7 @@ requirePermiso('ver_ordenes');
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=cotizaciones'); exit;
 }
-$es_dir_admin_cots = (($_SESSION['user_rol'] ?? '') === 'dir_admin');
+$es_dir_admin_cots = in_array(($_SESSION['user_rol'] ?? ''), ['dir_admin', 'desarrollo']);
 ?>
 <style>
 .cot-wrap { padding: 24px; }

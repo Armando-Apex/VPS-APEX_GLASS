@@ -6,7 +6,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 $user = requirePermiso('ver_dashboard');
 $rol  = $user['rol'];
-if (!in_array($rol, ['dir_admin','dueno','director','jefe_piso'])) {
+if (!in_array($rol, ['dir_admin','dueno','director','jefe_piso','desarrollo'])) {
     jsonResponse(['error' => 'Sin permisos'], 403);
 }
 

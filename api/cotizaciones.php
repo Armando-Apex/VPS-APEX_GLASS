@@ -15,8 +15,8 @@ $usuario_nombre = $user['nombre'];
 $method         = $_SERVER['REQUEST_METHOD'];
 $db             = getDB();
 
-$puede_editar = in_array($rol, ['dir_admin', 'dueno', 'comercial']);
-$es_admin     = in_array($rol, ['dir_admin', 'dueno']);
+$puede_editar = in_array($rol, ['dir_admin', 'dueno', 'comercial', 'desarrollo']);
+$es_admin     = in_array($rol, ['dir_admin', 'dueno', 'desarrollo']);
 
 // ─── Función: generar siguiente folio de COTIZACIÓN ─────────────────────────
 function generarFolio($db) {
@@ -221,7 +221,7 @@ if ($method === 'POST') {
         if ($cot['estatus'] !== 'cotizacion') { echo json_encode(['error' => 'Solo se pueden convertir cotizaciones']); exit; }
 
         // Bloquear conversión si descuento > 10% sin autorización aprobada (excepto dir_admin)
-        if ((float)$cot['descuento'] > 10 && $rol !== 'dir_admin') {
+        if ((float)$cot['descuento'] > 10 && !in_array($rol, ['dir_admin', 'desarrollo'])) {
             $authStmt = $db->prepare("SELECT id FROM autorizaciones_descuento WHERE cotizacion_id = ? AND estatus = 'aprobado' LIMIT 1");
             $authStmt->execute([$id]);
             if (!$authStmt->fetch()) {
@@ -529,7 +529,7 @@ if ($method === 'POST') {
         $db->commit();
 
         // Solicitud de autorización si descuento > 10% y no es dir_admin
-        if ($descuento > 10 && $rol !== 'dir_admin') {
+        if ($descuento > 10 && !in_array($rol, ['dir_admin', 'desarrollo'])) {
             $motivo_auth = trim($body['motivo_descuento'] ?? '');
             try {
                 $db->prepare("INSERT INTO autorizaciones_descuento (cotizacion_id, folio, descuento, motivo, solicitado_por) VALUES (?,?,?,?,?)")
@@ -730,7 +730,7 @@ if ($method === 'PUT') {
             $db->commit();
 
             // Gestionar autorización de descuento al actualizar
-            if ($descuento > 10 && $rol !== 'dir_admin') {
+            if ($descuento > 10 && !in_array($rol, ['dir_admin', 'desarrollo'])) {
                 $motivo_auth = trim($body['motivo_descuento'] ?? '');
                 $chk = $db->prepare("SELECT id, descuento, estatus FROM autorizaciones_descuento WHERE cotizacion_id = ? ORDER BY fecha_solicitud DESC LIMIT 1");
                 $chk->execute([$id]);

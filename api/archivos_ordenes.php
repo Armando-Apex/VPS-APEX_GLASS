@@ -13,7 +13,7 @@ $method         = $_SERVER['REQUEST_METHOD'];
 $pdo = getDB();
 
 // Roles con acceso base
-$puede_acceder = in_array($rol, ['dir_admin', 'administracion', 'comercial']);
+$puede_acceder = in_array($rol, ['dir_admin', 'administracion', 'comercial', 'desarrollo']);
 if (!$puede_acceder) {
     http_response_code(403);
     echo json_encode(['error' => 'Sin permiso']); exit;
@@ -170,7 +170,7 @@ if ($method === 'GET' && $accion === 'descargar') {
 
 // ── BORRAR ────────────────────────────────────────────────────────────────────
 if ($method === 'POST' && $accion === 'borrar') {
-    if ($rol !== 'dir_admin') {
+    if (!in_array($rol, ['dir_admin', 'desarrollo'])) {
         http_response_code(403);
         echo json_encode(['error' => 'Solo dir_admin puede borrar archivos']); exit;
     }

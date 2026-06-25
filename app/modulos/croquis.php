@@ -10,7 +10,7 @@ require_once __DIR__ . '/../../api/permisos.php';
 $user         = requirePermiso('ver_ordenes');
 $_rol         = $user['rol'];
 $id_cot_php   = (int)($_GET['id'] ?? 0);
-$puede_editar = in_array($_rol, ['dir_admin','dueno','comercial','administracion']);
+$puede_editar = in_array($_rol, ['dir_admin','dueno','comercial','administracion','desarrollo']);
 
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=cotizacion&id='.$id_cot_php); exit;

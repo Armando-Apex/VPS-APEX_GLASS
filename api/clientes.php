@@ -9,8 +9,8 @@ $rol            = $user['rol'];
 $usuario_id     = $user['id'];
 $usuario_nombre = $user['nombre'];
 $method         = $_SERVER['REQUEST_METHOD'];
-$puede_editar   = in_array($rol, ['dir_admin', 'dueno', 'comercial']);
-$es_admin       = in_array($rol, ['dir_admin', 'dueno']);
+$puede_editar   = in_array($rol, ['dir_admin', 'dueno', 'comercial', 'desarrollo']);
+$es_admin       = in_array($rol, ['dir_admin', 'dueno', 'desarrollo']);
 	
 $pdo = getDB();
 
@@ -20,7 +20,7 @@ if ($method === 'GET') {
     $q       = isset($_GET['q'])  ? trim($_GET['q'])  : '';
     $activos = ($_GET['activos'] ?? '1') === '1';
 
-    $ver_pass = in_array($rol, ['dir_admin', 'dueno', 'comercial']);
+    $ver_pass = in_array($rol, ['dir_admin', 'dueno', 'comercial', 'desarrollo']);
 
     if ($id) {
         $stmt = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
@@ -64,7 +64,7 @@ $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
 // ─── POST accion=editar_contacto ─────────────────────────────────────────────
 if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_contacto') {
-    if (!in_array($rol, ['dir_admin', 'administracion'])) {
+    if (!in_array($rol, ['dir_admin', 'administracion', 'desarrollo'])) {
         http_response_code(403);
         echo json_encode(['error' => 'Sin permiso']); exit;
     }
@@ -90,7 +90,7 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_contacto') {
 
 // ─── POST accion=editar_nombre ────────────────────────────────────────────────
 if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_nombre') {
-    if (!in_array($rol, ['dir_admin', 'administracion'])) {
+    if (!in_array($rol, ['dir_admin', 'administracion', 'desarrollo'])) {
         http_response_code(403);
         echo json_encode(['error' => 'Sin permiso']); exit;
     }

@@ -7,7 +7,7 @@ $db   = getDB();
 $accion = $_GET['accion'] ?? $_POST['accion'] ?? (json_decode(file_get_contents('php://input'), true)['accion'] ?? '');
 $body   = json_decode(file_get_contents('php://input'), true) ?? [];
 
-$esAdmin = in_array($user['rol'], ['dir_admin', 'dueno', 'administracion']);
+$esAdmin = in_array($user['rol'], ['dir_admin', 'dueno', 'administracion', 'desarrollo']);
 
 // Verifica que el usuario tiene acceso a la cotización (default-deny: no-admin debe ser asesor)
 function verificarAccesoCotizacion($db, $cid, $user, $esAdmin) {

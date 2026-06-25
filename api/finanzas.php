@@ -14,7 +14,7 @@ $usuario_nombre = $user['nombre'];
 $method         = $_SERVER['REQUEST_METHOD'];
 $db             = getDB();
 
-$es_finanzas = in_array($rol, ['administracion', 'dir_admin', 'dueno']);
+$es_finanzas = in_array($rol, ['administracion', 'dir_admin', 'dueno', 'desarrollo']);
 if (!$es_finanzas) {
     http_response_code(403);
     echo json_encode(['error' => 'Sin permiso']); exit;

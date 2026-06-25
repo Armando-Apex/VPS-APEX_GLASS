@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 25 junio 2026 | Próximo UPD disponible: UPD-215
+# Última actualización: 25 junio 2026 | Próximo UPD disponible: UPD-217
 
 **REGLA DE ORO:** Este archivo es la memoria compartida del proyecto. Claude lo lee al inicio de cada sesión y lo actualiza al terminar. Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -507,4 +507,6 @@ Al terminar cualquier sesión con cambios:
 | UPD-212 | 25-jun | Armando | Quick wins UX dashboard: (1) todos los emojis del sidebar reemplazados por SVG Lucide inline (20 íconos); campana y hamburger también con SVG; (2) focus-visible ring azul en sidebar-link, hamburger y notif-btn (accesibilidad); (3) etiquetas de rol legibles: dir_admin→Director Admin, dueno→Propietario, etc. |
 | UPD-213 | 25-jun | Armando | Mejoras UX completas auditoría: panel notificaciones tema claro; cursor:pointer sidebar; scrollbar thin; logout touch 44px + confirm; reloj móvil HH:MM visible; error SPA con SVG; h2 headings en resumen; stat lbl 11px; títulos sin emoji; prog-bar con title tooltip |
 | UPD-214 | 25-jun | Armando | Resumen órdenes activas: ORDER BY cambiado a grupo (Sin Iniciar→En proceso→Lista) usando CASE sobre agregados SQL + o.id DESC para folio desc dentro de cada grupo |
-**Próximo UPD disponible: UPD-215**
+| UPD-215 | 25-jun | Mando | Permisos desarrollo: rol 'desarrollo' recibe acceso total equivalente a dir_admin en todas las APIs y módulos — correcciones, admin_ordenes, croquis, archivos_ordenes, servicios_catalogo, comunicados, autorizaciones, cotizaciones, cristales, clientes, saldo_favor, campanas, omisiones, finanzas, prioridad, portal_clientes, ordenes_compra, reproceso, orden_comentarios, notificaciones; módulos frontend compras/cotizacion/cotizaciones |
+| UPD-216 | 25-jun | Mando | NUEVO módulo Facturación WIP: app/modulos/facturacion.php — solo visible para rol desarrollo en sección Finanzas; lista de facturas, formulario Nueva/Editar con campos CFDI (RFC, uso CFDI, régimen fiscal, forma/método de pago), conceptos con importes, IVA 16%, cambio de estatus (pendiente/timbrada/cancelada); datos en localStorage (sin BD real) |
+**Próximo UPD disponible: UPD-217**

@@ -5,8 +5,8 @@ requirePermiso('ver_inventario');
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=compras'); exit;
 }
-$puede_gestionar = in_array($_SESSION['user_rol'] ?? '', ['dir_admin','dueno','administracion']);
-$es_dir_admin    = in_array($_SESSION['user_rol'] ?? '', ['dir_admin','dueno']);
+$puede_gestionar = in_array($_SESSION['user_rol'] ?? '', ['dir_admin','dueno','administracion','desarrollo']);
+$es_dir_admin    = in_array($_SESSION['user_rol'] ?? '', ['dir_admin','dueno','desarrollo']);
 ?>
 <style>
 .cmp-wrap { padding: 24px; }

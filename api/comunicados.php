@@ -49,7 +49,7 @@ if ($metodo === 'GET' && $accion === 'imagenes') {
 
 // ── Resto requiere dir_admin ──────────────────────────────────────────────────
 $user = requirePermiso('ver_dashboard');
-if ($user['rol'] !== 'dir_admin') {
+if (!in_array($user['rol'], ['dir_admin', 'desarrollo'])) {
     http_response_code(403);
     echo json_encode(['error' => 'Sin permiso']); exit;
 }

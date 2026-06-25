@@ -16,7 +16,7 @@ $rol    = $user['rol'];
 $method = $_SERVER['REQUEST_METHOD'];
 $db     = getDB();
 
-$es_admin = $rol === 'dir_admin';
+$es_admin = in_array($rol, ['dir_admin', 'desarrollo']);
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 if ($method === 'GET') {

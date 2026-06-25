@@ -21,8 +21,8 @@ $pdo    = getDB();
 // Crear/editar: comercial, dir_admin, dueno, administracion
 // Eliminar: solo dir_admin
 
-$puedeEditar  = in_array($rol, ['comercial','dir_admin','dueno','administracion']);
-$puedeEliminar = $rol === 'dir_admin';
+$puedeEditar  = in_array($rol, ['comercial','dir_admin','dueno','administracion','desarrollo']);
+$puedeEliminar = in_array($rol, ['dir_admin','desarrollo']);
 
 // ════════════════════════════════════════════════════════════════════════════
 //  GET

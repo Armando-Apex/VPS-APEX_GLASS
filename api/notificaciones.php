@@ -19,8 +19,8 @@ $accion  = $_GET['accion'] ?? 'listar';
 // ── GET listar notificaciones ─────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'listar') {
 
-    if ($rol === 'dir_admin' || $rol === 'administracion') {
-        $dest = $rol === 'dir_admin' ? 'dir_admin' : 'administracion';
+    if ($rol === 'dir_admin' || $rol === 'administracion' || $rol === 'desarrollo') {
+        $dest = ($rol === 'dir_admin' || $rol === 'desarrollo') ? 'dir_admin' : 'administracion';
         $stmt = $db->prepare("
             SELECT id, tipo, titulo, mensaje, folio, orden_id, leida, created_at
             FROM notificaciones
@@ -96,8 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'leer') {
 
 // ── POST marcar todas leídas ──────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'leer_todas') {
-    if ($rol === 'dir_admin' || $rol === 'administracion') {
-        $dest = $rol === 'dir_admin' ? 'dir_admin' : 'administracion';
+    if ($rol === 'dir_admin' || $rol === 'administracion' || $rol === 'desarrollo') {
+        $dest = ($rol === 'dir_admin' || $rol === 'desarrollo') ? 'dir_admin' : 'administracion';
         $db->prepare("
             UPDATE notificaciones SET leida = 1
             WHERE rol_destino = ? AND leida = 0

@@ -18,7 +18,7 @@ $id     = (int)($_GET['id'] ?? 0);
 
 // ── Helper: ¿puede editarse el encabezado / agregar partidas? ─
 // Borrador: cualquiera con gestionar_inventario.
-$ROLES_GESTIONAR_OC = ['dir_admin', 'administracion', 'dueno'];
+$ROLES_GESTIONAR_OC = ['dir_admin', 'administracion', 'dueno', 'desarrollo'];
 
 // Abierta: roles con gestión de inventario (con o sin entregas).
 function ocHeaderEsEditable($db, $oc_id, $rol) {
@@ -56,7 +56,7 @@ if ($method === 'GET') {
 
     // OCs abiertas sin correo enviado (badge sidebar dir_admin)
     if ($accion === 'pendientes_envio') {
-        if (!in_array($user['rol'], ['dir_admin','dueno']))
+        if (!in_array($user['rol'], ['dir_admin','dueno','desarrollo']))
             jsonResponse(['total' => 0]);
         $s = $db->query("SELECT COUNT(*) FROM ordenes_compra WHERE estado='abierta' AND correo_enviado=0");
         jsonResponse(['total' => (int)$s->fetchColumn()]);
@@ -571,7 +571,7 @@ if ($method === 'POST') {
 
         // Auto-envío cuando dir_admin/dueno abre una OC
         $correo_enviado = false;
-        if ($estado === 'abierta' && in_array($user['rol'], ['dir_admin','dueno'])) {
+        if ($estado === 'abierta' && in_array($user['rol'], ['dir_admin','dueno','desarrollo'])) {
             $soc = $db->prepare("
                 SELECT oc.numero_oc, oc.notas,
                        p.nombre AS proveedor_nombre,
@@ -604,7 +604,7 @@ if ($method === 'POST') {
 
     // ── Enviar correo OC manualmente (dir_admin) ──────────────
     if ($accion === 'enviar_correo') {
-        if (!in_array($user['rol'], ['dir_admin','dueno']))
+        if (!in_array($user['rol'], ['dir_admin','dueno','desarrollo']))
             jsonResponse(['error' => 'Sin permiso'], 403);
         $oc_id = (int)($body['orden_compra_id'] ?? 0);
         if (!$oc_id) jsonResponse(['error' => 'orden_compra_id requerido'], 422);

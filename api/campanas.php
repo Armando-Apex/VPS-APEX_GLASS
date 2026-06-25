@@ -14,8 +14,8 @@ $db     = getDB();
 $accion = $_GET['accion'] ?? '';
 $metodo = $_SERVER['REQUEST_METHOD'];
 
-$esCampanas  = in_array($rol, ['dir_admin','dueno','comercial','administracion']);
-$puedeEnviar = in_array($rol, ['dir_admin','dueno']);
+$esCampanas  = in_array($rol, ['dir_admin','dueno','comercial','administracion','desarrollo']);
+$puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo']);
 
 if (!$esCampanas) {
     http_response_code(403);
@@ -579,7 +579,7 @@ if ($metodo === 'POST' && $accion === 'enviar_cotizacion_wa') {
         exit;
     }
 
-    $esAdminWA = in_array($user['rol'], ['dir_admin', 'dueno', 'administracion']);
+    $esAdminWA = in_array($user['rol'], ['dir_admin', 'dueno', 'administracion', 'desarrollo']);
 
     // Cargar cotización — si no es admin, restringir a cotizaciones propias
     $sqlCot = "

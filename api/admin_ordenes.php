@@ -13,7 +13,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: https://apex.glass');
 
 $user = requirePermiso('cambiar_cualquier_estatus');
-if ($user['rol'] !== 'dir_admin') {
+if (!in_array($user['rol'], ['dir_admin', 'desarrollo'])) {
     http_response_code(403);
     echo json_encode(['error' => 'Acceso denegado']);
     exit;

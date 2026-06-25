@@ -12,7 +12,7 @@ $user = requireSessionApi();
 $db   = getDB();
 
 // Roles que pueden reportar retrabajo
-$rolesPermitidos = ['operador', 'jefe_piso', 'dir_admin', 'director', 'administracion'];
+$rolesPermitidos = ['operador', 'jefe_piso', 'dir_admin', 'director', 'administracion', 'desarrollo'];
 if (!in_array($user['rol'], $rolesPermitidos)) {
     jsonResponse(['ok' => false, 'error' => 'Sin permiso para reportar retrabajo']);
 }

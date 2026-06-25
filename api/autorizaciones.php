@@ -25,7 +25,7 @@ if ($method === 'GET') {
 
     // Lista de pendientes — solo dir_admin
     if (isset($_GET['pendientes'])) {
-        if ($rol !== 'dir_admin') jsonResponse(['error' => 'Sin permiso'], 403);
+        if (!in_array($rol, ['dir_admin', 'desarrollo'])) jsonResponse(['error' => 'Sin permiso'], 403);
 
         $stmt = $db->prepare("
             SELECT a.id, a.cotizacion_id, a.descuento, a.motivo,

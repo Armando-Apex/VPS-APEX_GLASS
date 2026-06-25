@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit(0);
 requireSessionApi();
 
 $rol = $_SESSION['user_rol'] ?? '';
-if (!in_array($rol, ['dir_admin','dueno'])) {
+if (!in_array($rol, ['dir_admin','dueno','desarrollo'])) {
     jsonResponse(['error' => 'Sin permiso'], 403);
 }
 

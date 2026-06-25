@@ -44,7 +44,7 @@ if ($method === 'GET') {
 }
 
 // ─── Solo dir_admin puede escribir ───────────────────────────────────────────
-if (!in_array($rol, ['dir_admin', 'dueno'])) {
+if (!in_array($rol, ['dir_admin', 'dueno', 'desarrollo'])) {
     http_response_code(403);
     echo json_encode(['error' => 'Sin permiso']);
     exit;

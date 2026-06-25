@@ -12,10 +12,10 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 header('Content-Type: text/html; charset=utf-8');
 
 // Variables de control para el JS
-$es_admin      = in_array($_rol, ['dir_admin','dueno']);
-$puede_editar  = in_array($_rol, ['dir_admin','dueno','comercial']);
-$es_dir_admin  = ($_rol === 'dir_admin');
-$puede_archivos = in_array($_rol, ['dir_admin','dueno','comercial','administracion']);
+$es_admin      = in_array($_rol, ['dir_admin','dueno','desarrollo']);
+$puede_editar  = in_array($_rol, ['dir_admin','dueno','comercial','desarrollo']);
+$es_dir_admin  = in_array($_rol, ['dir_admin','desarrollo']);
+$puede_archivos = in_array($_rol, ['dir_admin','dueno','comercial','administracion','desarrollo']);
 $modo         = $id_php ? 'ver' : 'nuevo';
 $id_cot       = $id_php;
 ?>

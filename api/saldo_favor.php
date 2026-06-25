@@ -11,7 +11,7 @@ $rol    = $user['rol'];
 $db     = getDB();
 $method = $_SERVER['REQUEST_METHOD'];
 
-$puede_registrar = in_array($rol, ['administracion', 'dir_admin', 'dueno']);
+$puede_registrar = in_array($rol, ['administracion', 'dir_admin', 'dueno', 'desarrollo']);
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
 if ($method === 'GET') {

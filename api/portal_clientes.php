@@ -13,7 +13,7 @@ $accion = $_GET['accion'] ?? '';
 // ── Generar / regenerar password (solo dir_admin) ────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'generar_pass') {
     $user = requirePermiso('ver_dashboard');
-    if (!in_array($user['rol'], ['dir_admin', 'dueno', 'comercial'])) {
+    if (!in_array($user['rol'], ['dir_admin', 'dueno', 'comercial', 'desarrollo'])) {
         http_response_code(403); echo json_encode(['error' => 'Sin permiso']); exit;
     }
 
@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'generar_pass') {
     if (!$cliente) { echo json_encode(['error' => 'Cliente no encontrado']); exit; }
 
     // comercial solo puede generar si el cliente aún no tiene acceso
-    if (!empty($cliente['portal_password_hash']) && !in_array($user['rol'], ['dir_admin', 'dueno'])) {
+    if (!empty($cliente['portal_password_hash']) && !in_array($user['rol'], ['dir_admin', 'dueno', 'desarrollo'])) {
         http_response_code(403); echo json_encode(['error' => 'Solo dir_admin puede regenerar un acceso existente']); exit;
     }
 
