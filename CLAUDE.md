@@ -497,4 +497,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-211 | 25-jun | Mando | Croquis bisagra `bi_ref`: nuevo campo inicio/centro/final que indica desde qué punto de la bisagra se mide la posición Y; selector de 3 botones en modal de doble clic; afecta dibujo SVG y tabla de elementos en editor y PDF |
 | UPD-212 | 25-jun | Armando | Quick wins UX dashboard: (1) todos los emojis del sidebar reemplazados por SVG Lucide inline (20 íconos); campana y hamburger también con SVG; (2) focus-visible ring azul en sidebar-link, hamburger y notif-btn (accesibilidad); (3) etiquetas de rol legibles: dir_admin→Director Admin, dueno→Propietario, etc. |
 | UPD-213 | 25-jun | Armando | Mejoras UX completas auditoría: panel notificaciones tema claro; cursor:pointer sidebar; scrollbar thin; logout touch 44px + confirm; reloj móvil HH:MM visible; error SPA con SVG; h2 headings en resumen; stat lbl 11px; títulos sin emoji; prog-bar con title tooltip |
-**Próximo UPD disponible: UPD-214**
+| UPD-214 | 25-jun | Armando | Resumen órdenes activas: ORDER BY cambiado a grupo (Sin Iniciar→En proceso→Lista) usando CASE sobre agregados SQL + o.id DESC para folio desc dentro de cada grupo |
+**Próximo UPD disponible: UPD-215**
