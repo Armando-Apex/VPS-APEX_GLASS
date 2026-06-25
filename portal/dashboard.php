@@ -263,6 +263,14 @@ tbody td { padding: 14px 20px; font-size: 13px; vertical-align: middle; }
 .tag-listo     { background: rgba(6,182,212,.10); color: #0891b2; }
 .tag-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
 .tag-cancelada { background: #f1f5f9; color: #64748b; }
+.cot-cancelada { display: none; }
+.btn-toggle-cancel {
+  font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--text-2); background: none; border: none; cursor: pointer;
+  padding: 0; text-decoration: underline; text-underline-offset: 2px;
+  white-space: nowrap;
+}
+.btn-toggle-cancel:hover { color: var(--text-1); }
 
 /* barra avance */
 .avance-wrap { display: flex; align-items: center; gap: 10px; }
@@ -515,10 +523,19 @@ tbody td { padding: 14px 20px; font-size: 13px; vertical-align: middle; }
 
 
   <!-- ── Cotizaciones ── -->
+  <?php
+    $cotActivas    = array_filter($cotizaciones, fn($c) => !in_array($c['estatus'], ['cancelada','rechazada']));
+    $cotCanceladas = array_filter($cotizaciones, fn($c) =>  in_array($c['estatus'], ['cancelada','rechazada']));
+  ?>
   <div class="section">
     <div class="section-label">
       <span class="section-label-txt">Cotizaciones</span>
       <span class="section-label-line"></span>
+      <?php if (count($cotCanceladas) > 0): ?>
+        <button class="btn-toggle-cancel" id="btnToggleCancel" onclick="toggleCanceladas()">
+          + <?= count($cotCanceladas) ?> cancelada<?= count($cotCanceladas) > 1 ? 's' : '' ?>
+        </button>
+      <?php endif; ?>
       <span class="section-count"><?= count($cotizaciones) ?></span>
     </div>
 
@@ -542,10 +559,11 @@ tbody td { padding: 14px 20px; font-size: 13px; vertical-align: middle; }
           <tbody>
             <?php foreach ($cotizaciones as $c):
               [$tagTxt, $tagCls] = cotTag($c['estatus']);
-              $fecha  = $c['fecha'] ? date('d M Y', strtotime($c['fecha'])) : '—';
-              $total  = '$' . number_format((float)$c['total'], 2, '.', ',');
+              $fecha     = $c['fecha'] ? date('d M Y', strtotime($c['fecha'])) : '—';
+              $total     = '$' . number_format((float)$c['total'], 2, '.', ',');
+              $esCancela = in_array($c['estatus'], ['cancelada','rechazada']);
             ?>
-            <tr>
+            <tr class="<?= $esCancela ? 'cot-cancelada' : '' ?>">
               <td><div class="folio-txt"><?= htmlspecialchars($c['folio']) ?></div></td>
               <td><span class="fecha-txt"><?= $fecha ?></span></td>
               <td><span class="fecha-txt"><?= htmlspecialchars($c['proyecto'] ?: '—') ?></span></td>
@@ -562,10 +580,11 @@ tbody td { padding: 14px 20px; font-size: 13px; vertical-align: middle; }
       <div class="cards-list mobile-only">
         <?php foreach ($cotizaciones as $c):
           [$tagTxt, $tagCls] = cotTag($c['estatus']);
-          $fecha = $c['fecha'] ? date('d M Y', strtotime($c['fecha'])) : '—';
-          $total = '$' . number_format((float)$c['total'], 2, '.', ',');
+          $fecha     = $c['fecha'] ? date('d M Y', strtotime($c['fecha'])) : '—';
+          $total     = '$' . number_format((float)$c['total'], 2, '.', ',');
+          $esCancela = in_array($c['estatus'], ['cancelada','rechazada']);
         ?>
-        <div class="orden-card">
+        <div class="orden-card <?= $esCancela ? 'cot-cancelada' : '' ?>">
           <div class="card-top">
             <div>
               <div class="card-folio"><?= htmlspecialchars($c['folio']) ?></div>
@@ -597,6 +616,21 @@ async function cerrarSesion() {
   } catch(e) {}
   window.location.href = 'index.php';
 }
+
+var _canceladasVisible = false;
+function toggleCanceladas() {
+  _canceladasVisible = !_canceladasVisible;
+  var items = document.querySelectorAll('.cot-cancelada');
+  var btn   = document.getElementById('btnToggleCancel');
+  for (var i = 0; i < items.length; i++) {
+    items[i].style.display = _canceladasVisible ? '' : 'none';
+  }
+  if (btn) btn.textContent = _canceladasVisible ? 'Ocultar canceladas' : btn.dataset.original;
+}
+document.addEventListener('DOMContentLoaded', function() {
+  var btn = document.getElementById('btnToggleCancel');
+  if (btn) btn.dataset.original = btn.textContent.trim();
+});
 </script>
 </body>
 </html>
