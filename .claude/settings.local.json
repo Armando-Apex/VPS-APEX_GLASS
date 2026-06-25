@@ -70,7 +70,8 @@
       "Read(//home/apexglass2025/apex.glass/**)",
       "Skill(claude-api)",
       "Bash(claude --version)",
-      "Bash(claude plugins *)"
+      "Bash(claude plugins *)",
+      "Bash(claude plugin *)"
     ]
   },
   "hooks": {
