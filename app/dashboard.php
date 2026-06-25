@@ -300,6 +300,11 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
       <button class="sidebar-link" data-modulo="finanzas_cobranza" onclick="cargarModulo('finanzas_cobranza')">
         <span class="sidebar-icon"><?= icono('credit-card') ?></span>Cobranza
       </button>
+      <?php if ($esDesarrollo): ?>
+      <button class="sidebar-link" data-modulo="facturacion" onclick="cargarModulo('facturacion')">
+        <span class="sidebar-icon"><?= icono('file-text') ?></span>Facturación <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px">WIP</span>
+      </button>
+      <?php endif; ?>
     </div>
     <?php endif; ?>
     <?php if ($esLogistica): ?>
@@ -356,6 +361,7 @@ const MODULOS = {
   inventario:'modulos/inventario.php', compras:'modulos/compras.php',
   finanzas_vobo:'modulos/finanzas_vobo.php',
   finanzas_cobranza:'modulos/finanzas_cobranza.php',
+  facturacion:'modulos/facturacion.php',
   logistica_rutas:'modulos/logistica_rutas.php', chofer_ruta:'modulos/chofer_ruta.php',
   omisiones:'modulos/omisiones.php',
   campanas:'modulos/campanas.php',
@@ -423,7 +429,7 @@ async function cargarModulo(nombre, params = {}) {
         await new Promise(r => { ns.onload = r; ns.onerror = r; });
       } else {
         let code = s.textContent
-          .replace(/\bconst\s+(?!ModResumen|ModOrdenes|ModEstaciones|ModCotizaciones|ModClientes|ModCristales|ModProductividad|ModReporte|ModAdminOrdenes|ModAdminComunicados|ModInventario|ModCompras|ModRetrabajo|ModCotizacion|ModFinanzasVobo|ModFinanzasCobranza|ModArchivos|LR|CR\b)/g, 'var ')
+          .replace(/\bconst\s+(?!ModResumen|ModOrdenes|ModEstaciones|ModCotizaciones|ModClientes|ModCristales|ModProductividad|ModReporte|ModAdminOrdenes|ModAdminComunicados|ModInventario|ModCompras|ModRetrabajo|ModCotizacion|ModFinanzasVobo|ModFinanzasCobranza|ModArchivos|ModFacturacion|LR|CR\b)/g, 'var ')
           .replace(/\blet\s+/g, 'var ');
         const ns = document.createElement('script');
         ns.textContent = code;
@@ -604,7 +610,7 @@ window.cargarModulo = function(nombre, params) {
       .catch(function() {});
   }
   actualizarBadgeAuth();
-  setInterval(actualizarBadgeAuth, 60000);
+  setInterval(actualizarBadgeAuth, 10000);
   window.actualizarBadgeAuth = actualizarBadgeAuth;
 })();
 
@@ -654,7 +660,7 @@ window.actualizarBadgeCompras = function() {};
       .catch(function() {});
   }
   actualizarBadgeWA();
-  setInterval(actualizarBadgeWA, 30000);
+  setInterval(actualizarBadgeWA, 10000);
   window.actualizarBadgeWA = actualizarBadgeWA;
 })();
 </script>
