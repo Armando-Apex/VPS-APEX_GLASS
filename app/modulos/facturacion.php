@@ -399,11 +399,19 @@ var ModFacturacion = (function() {
     list.classList.remove('open');
   }
 
-  function _unidadesOpts(sel) {
-    var html = '';
+  function _unidadWidget(sel) {
+    var label = sel || 'M2';
+    var html = '<div class="fac-csat">';
+    html += '<input type="hidden" class="fac-c-unidad" value="' + (sel||'M2') + '">';
+    html += '<div class="fac-csat-display" onclick="ModFacturacion._csatToggle(this)">' + label + '</div>';
+    html += '<div class="fac-csat-list">';
     for (var i = 0; i < UNIDADES_SAT.length; i++) {
-      html += '<option value="' + UNIDADES_SAT[i].v + '"' + (UNIDADES_SAT[i].v === sel ? ' selected' : '') + '>' + UNIDADES_SAT[i].l + '</option>';
+      html += '<div class="fac-csat-opt" onclick="ModFacturacion._csatPick(this,\'' + UNIDADES_SAT[i].v + '\')">';
+      html += '<span class="fac-csat-cod">' + UNIDADES_SAT[i].v + '</span>';
+      html += '<span class="fac-csat-desc">' + UNIDADES_SAT[i].l.split(' – ')[1] + '</span>';
+      html += '</div>';
     }
+    html += '</div></div>';
     return html;
   }
 
@@ -412,7 +420,7 @@ var ModFacturacion = (function() {
     return '<tr>' +
       '<td><input type="text" class="fac-c-desc" value="' + (desc||'') + '" placeholder="Descripción" oninput="ModFacturacion.recalc()"></td>' +
       '<td>' + _csatWidget(clave||'44111702') + '</td>' +
-      '<td><select class="fac-c-unidad">' + _unidadesOpts(unidad||'M2') + '</select></td>' +
+      '<td>' + _unidadWidget(unidad||'M2') + '</td>' +
       '<td><input type="number" class="fac-c-cant" value="' + (cant||1) + '" min="1" oninput="ModFacturacion.recalc()"></td>' +
       '<td><input type="number" class="fac-c-precio" value="' + (precio||'') + '" min="0" step="0.01" placeholder="0.00" oninput="ModFacturacion.recalc()"></td>' +
       '<td class="fac-c-imp" style="color:#475569;font-weight:600">' + _fmt(imp) + '</td>' +
@@ -469,7 +477,8 @@ var ModFacturacion = (function() {
     for (var i = 0; i < rows.length; i++) {
       var desc   = rows[i].querySelector('.fac-c-desc').value;
       var clave  = rows[i].querySelector('.fac-c-clave').value;
-      var unidad = rows[i].querySelector('.fac-c-unidad').value;
+      var unidadEl = rows[i].querySelector('.fac-c-unidad');
+      var unidad = unidadEl ? unidadEl.value : 'M2';
       var cant   = parseFloat(rows[i].querySelector('.fac-c-cant').value)   || 0;
       var precio = parseFloat(rows[i].querySelector('.fac-c-precio').value) || 0;
       if (desc || precio) out.push({desc:desc, clave:clave, unidad:unidad, cant:cant, precio:precio});
