@@ -176,6 +176,16 @@ header('Content-Type: text/html; charset=utf-8');
             <div id="cq-medidas-rect-fields">
             <div class="cq-field-row"><span class="cq-field-label">Ancho</span><input class="cq-fi" type="number" id="cq-ancho" value="800" min="50" max="3000" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
             <div class="cq-field-row"><span class="cq-field-label">Alto</span><input class="cq-fi" type="number" id="cq-alto" value="600" min="50" max="3000" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
+            <div style="margin-top:8px">
+              <button class="cq-canteo-btn" id="cq-ds-btn" onclick="CroquisMod._toggleDescuadre()" style="width:100%;font-size:11px">+ Descuadre</button>
+            </div>
+            <div id="cq-ds-fields" style="display:none;margin-top:6px;border-top:1px dashed #e2e8f0;padding-top:6px">
+              <div style="font-size:10px;color:#94a3b8;margin-bottom:4px;text-align:center">Medida real de cada lado</div>
+              <div class="cq-field-row"><span class="cq-field-label" style="font-size:10px">Ancho inf</span><input class="cq-fi" type="number" id="cq-ds-ainf" min="10" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
+              <div class="cq-field-row"><span class="cq-field-label" style="font-size:10px">Ancho sup</span><input class="cq-fi" type="number" id="cq-ds-asup" min="10" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
+              <div class="cq-field-row"><span class="cq-field-label" style="font-size:10px">Alto izq</span><input class="cq-fi" type="number" id="cq-ds-hizq" min="10" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
+              <div class="cq-field-row"><span class="cq-field-label" style="font-size:10px">Alto der</span><input class="cq-fi" type="number" id="cq-ds-hder" min="10" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
+            </div>
             </div>
             <div id="cq-extra-corte" style="display:none">
               <div class="cq-panel-title" style="margin-bottom:6px">Esquinas a cortar</div>
@@ -324,6 +334,7 @@ var _canteo      = {sup:false,der:false,inf:false,izq:false};
 var _corteEsquinas = {si:true,sd:false,ii:false,id:false};
 var _esqTipo     = 'recto'; // esquinero: 'recto'|'isoceles'|'curvo'
 var _esqCorner   = 'ii';   // para tipo recto: esquina con el ángulo recto (si/sd/ii/id)
+var _descuadre   = false;   // activar medidas independientes por lado
 var _elementos   = [];
 var _elemCounter = 0;
 var _draggingChip = null;
@@ -497,6 +508,18 @@ function abrirConstructor(croquis) {
     if (pf['trap-b'])  document.getElementById('cq-trap-b').value  = pf['trap-b'];
     _esqTipo   = pf['esq-tipo']   || 'recto';
     _esqCorner = pf['esq-corner'] || 'ii';
+    _descuadre = !!(pf['ds']);
+    var dsBtn    = document.getElementById('cq-ds-btn');
+    var dsFields = document.getElementById('cq-ds-fields');
+    if (dsBtn)    dsBtn.classList.toggle('on', _descuadre);
+    if (dsFields) dsFields.style.display = _descuadre ? 'block' : 'none';
+    if (_descuadre && pf['ds']) {
+      var dsd = pf['ds'];
+      ['ainf','asup','hizq','hder'].forEach(function(k) {
+        var el = document.getElementById('cq-ds-'+k);
+        if (el) el.value = dsd[k] || '';
+      });
+    }
     ['recto','isoceles','curvo'].forEach(function(t) {
       var btn = document.getElementById('cq-esqt-'+t);
       if (btn) btn.classList.toggle('on', t===_esqTipo);
@@ -521,6 +544,12 @@ function abrirConstructor(croquis) {
       var btn = document.getElementById('cq-esq-'+c);
       if (btn) btn.classList.toggle('on', _corteEsquinas[c]);
     });
+    _descuadre = false;
+    var dsBtnN = document.getElementById('cq-ds-btn');
+    var dsFldN = document.getElementById('cq-ds-fields');
+    if (dsBtnN)    dsBtnN.classList.remove('on');
+    if (dsFldN)    dsFldN.style.display = 'none';
+    ['ainf','asup','hizq','hder'].forEach(function(k) { var el = document.getElementById('cq-ds-'+k); if (el) el.value = ''; });
     _esqTipo   = 'recto';
     _esqCorner = 'ii';
     ['recto','isoceles','curvo'].forEach(function(t) {
@@ -608,6 +637,14 @@ async function _guardar() {
   if (_forma === 'trap')     { pf['trap-b']  = +document.getElementById('cq-trap-b').value; }
   if (_forma === 'poligono') { pf['puntos']  = _poligonoPuntos; }
   if (_forma === 'esq')      { pf['esq-tipo'] = _esqTipo; pf['esq-corner'] = _esqCorner; }
+  if (_descuadre) {
+    pf['ds'] = {
+      ainf: +document.getElementById('cq-ds-ainf').value || ancho,
+      asup: +document.getElementById('cq-ds-asup').value || ancho,
+      hizq: +document.getElementById('cq-ds-hizq').value || alto,
+      hder: +document.getElementById('cq-ds-hder').value || alto
+    };
+  }
 
   var payload = {
     cotizacion_id: ID_COT,
@@ -652,6 +689,22 @@ function _setForma(f) {
   document.getElementById('cq-extra-esq').style.display      = f==='esq'?'block':'none';
   document.getElementById('cq-medidas-rect-fields').style.display = f==='poligono'?'none':'block';
   _renderPolInfo();
+  _redraw();
+}
+
+function _toggleDescuadre() {
+  _descuadre = !_descuadre;
+  var btn = document.getElementById('cq-ds-btn');
+  var fields = document.getElementById('cq-ds-fields');
+  if (btn) btn.classList.toggle('on', _descuadre);
+  if (fields) fields.style.display = _descuadre ? 'block' : 'none';
+  if (_descuadre) {
+    // inicializar con los valores actuales de ancho/alto
+    var a = document.getElementById('cq-ancho').value || 800;
+    var h = document.getElementById('cq-alto').value  || 600;
+    ['ainf','asup'].forEach(function(k) { var el = document.getElementById('cq-ds-'+k); if (el && !el.value) el.value = a; });
+    ['hizq','hder'].forEach(function(k) { var el = document.getElementById('cq-ds-'+k); if (el && !el.value) el.value = h; });
+  }
   _redraw();
 }
 
@@ -1023,12 +1076,37 @@ function _svgPoint(event) {
   };
 }
 
+function _getDsCorners(ox, oy, gw, gh) {
+  var ancho = Math.max(50, +document.getElementById('cq-ancho').value || 800);
+  var alto  = Math.max(50, +document.getElementById('cq-alto').value  || 600);
+  var sc = gw / ancho;
+  var aInf = _descuadre ? Math.max(10, +document.getElementById('cq-ds-ainf').value || ancho) : ancho;
+  var aSup = _descuadre ? Math.max(10, +document.getElementById('cq-ds-asup').value || ancho) : ancho;
+  var hIzq = _descuadre ? Math.max(10, +document.getElementById('cq-ds-hizq').value || alto)  : alto;
+  var hDer = _descuadre ? Math.max(10, +document.getElementById('cq-ds-hder').value || alto)  : alto;
+  var dx = (aInf - aSup) / 2; // centrar ancho superior
+  return {
+    BL: {x: ox,                   y: oy + gh},
+    BR: {x: ox + aInf*sc,         y: oy + gh},
+    TR: {x: ox + (dx+aSup)*sc,    y: oy + gh - hDer*sc},
+    TL: {x: ox + dx*sc,           y: oy + gh - hIzq*sc}
+  };
+}
+
+function _mapDs(u, v, ds) {
+  // interpolación bilineal: u=0-1 izq→der, v=0-1 inf→sup
+  var x = (1-u)*(1-v)*ds.BL.x + u*(1-v)*ds.BR.x + u*v*ds.TR.x + (1-u)*v*ds.TL.x;
+  var y = (1-u)*(1-v)*ds.BL.y + u*(1-v)*ds.BR.y + u*v*ds.TR.y + (1-u)*v*ds.TL.y;
+  return {x: Math.round(x*10)/10, y: Math.round(y*10)/10};
+}
+
 function _getOrigin() {
   var ancho = Math.max(50, +document.getElementById('cq-ancho').value || 800);
   var alto  = Math.max(50, +document.getElementById('cq-alto').value  || 600);
   var hasEl = _elementos.length > 0;
   var canvW = hasEl ? SVG_W + 120 : SVG_W;
-  var MB = EL_BASE; // solo espacio para cota ancho — cotas de elementos van dentro del vidrio
+  var MB = EL_BASE;
+  if (_forma === 'esq' && _esqTipo === 'curvo') MB += 70; // espacio para el arco convexo
   var svgH = Math.max(SVG_H, 220 + MB);
   var ML=86, MR=hasEl?210:80, MT=20;
   var sc = Math.min((canvW-ML-MR)/ancho, (svgH-MT-MB)/alto);
@@ -1100,36 +1178,39 @@ function _buildPath(ox, oy, gw, gh) {
   var ancho = +document.getElementById('cq-ancho').value || 800;
   var alto  = +document.getElementById('cq-alto').value  || 600;
   var sc    = gw / ancho;
+  var ds    = _getDsCorners(ox, oy, gw, gh);
+
+  // helper: punto en la cuadrícula bilineal del descuadre
+  function P(u, v) { var p = _mapDs(u, v, ds); return p.x+' '+p.y; }
+
   if (_forma === 'rect') {
-    return 'M'+ox+' '+oy+' L'+(ox+gw)+' '+oy+' L'+(ox+gw)+' '+(oy+gh)+' L'+ox+' '+(oy+gh)+' Z';
+    return 'M'+P(0,0)+' L'+P(1,0)+' L'+P(1,1)+' L'+P(0,1)+' Z';
   }
   if (_forma === 'corte') {
-    var cx = Math.min(+document.getElementById('cq-corte-x').value||150, ancho*.4)*sc;
-    var cy = Math.min(+document.getElementById('cq-corte-y').value||150, alto*.4)*sc;
-    var eSI = _corteEsquinas.si; // sup-izq (top-left)
-    var eSD = _corteEsquinas.sd; // sup-der (top-right)
-    var eII = _corteEsquinas.ii; // inf-izq (bottom-left)
-    var eID = _corteEsquinas.id; // inf-der (bottom-right)
+    var cxF = Math.min(+document.getElementById('cq-corte-x').value||150, ancho*.4) / ancho;
+    var cyF = Math.min(+document.getElementById('cq-corte-y').value||150, alto*.4)  / alto;
+    var eSI = _corteEsquinas.si, eSD = _corteEsquinas.sd;
+    var eII = _corteEsquinas.ii, eID = _corteEsquinas.id;
     var d = '';
-    d += eSI ? 'M'+(ox+cx)+' '+oy+' ' : 'M'+ox+' '+oy+' ';
-    if (eSD) d += 'L'+(ox+gw-cx)+' '+oy+' L'+(ox+gw)+' '+(oy+cy)+' ';
-    else     d += 'L'+(ox+gw)+' '+oy+' ';
-    if (eID) d += 'L'+(ox+gw)+' '+(oy+gh-cy)+' L'+(ox+gw-cx)+' '+(oy+gh)+' ';
-    else     d += 'L'+(ox+gw)+' '+(oy+gh)+' ';
-    if (eII) d += 'L'+(ox+cx)+' '+(oy+gh)+' L'+ox+' '+(oy+gh-cy)+' ';
-    else     d += 'L'+ox+' '+(oy+gh)+' ';
-    if (eSI) d += 'L'+ox+' '+(oy+cy)+' ';
+    d += eSI ? 'M'+P(cxF,1)+' ' : 'M'+P(0,1)+' ';
+    if (eSD) d += 'L'+P(1-cxF,1)+' L'+P(1,1-cyF)+' ';
+    else     d += 'L'+P(1,1)+' ';
+    if (eID) d += 'L'+P(1,cyF)+' L'+P(1-cxF,0)+' ';
+    else     d += 'L'+P(1,0)+' ';
+    if (eII) d += 'L'+P(cxF,0)+' L'+P(0,cyF)+' ';
+    else     d += 'L'+P(0,0)+' ';
+    if (eSI) d += 'L'+P(0,1-cyF)+' ';
     return d + 'Z';
   }
   if (_forma === 'L') {
-    var lw = Math.min(+document.getElementById('cq-l-cw').value||200, ancho*.7)*sc;
-    var lh = Math.min(+document.getElementById('cq-l-ch').value||200, alto*.7)*sc;
-    return 'M'+ox+' '+oy+' L'+(ox+lw)+' '+oy+' L'+(ox+lw)+' '+(oy+lh)+' L'+(ox+gw)+' '+(oy+lh)+' L'+(ox+gw)+' '+(oy+gh)+' L'+ox+' '+(oy+gh)+' Z';
+    var lwF = Math.min(+document.getElementById('cq-l-cw').value||200, ancho*.7) / ancho;
+    var lhF = Math.min(+document.getElementById('cq-l-ch').value||200, alto*.7)  / alto;
+    return 'M'+P(0,1)+' L'+P(lwF,1)+' L'+P(lwF,1-lhF)+' L'+P(1,1-lhF)+' L'+P(1,0)+' L'+P(0,0)+' Z';
   }
   if (_forma === 'trap') {
-    var tb  = Math.min(+document.getElementById('cq-trap-b').value||500, ancho-10)*sc;
-    var off = (gw-tb)/2;
-    return 'M'+(ox+off)+' '+oy+' L'+(ox+gw-off)+' '+oy+' L'+(ox+gw)+' '+(oy+gh)+' L'+ox+' '+(oy+gh)+' Z';
+    var tbF = Math.min(+document.getElementById('cq-trap-b').value||500, ancho-10) / ancho;
+    var offF = (1-tbF)/2;
+    return 'M'+P(offF,1)+' L'+P(1-offF,1)+' L'+P(1,0)+' L'+P(0,0)+' Z';
   }
   if (_forma === 'poligono') {
     if (_poligonoPuntos.length < 3) return '';
@@ -1141,23 +1222,20 @@ function _buildPath(ox, oy, gw, gh) {
     return d + 'Z';
   }
   if (_forma === 'esq') {
-    var TL = ox+','+oy, TR = (ox+gw)+','+oy, BL = ox+','+(oy+gh), BR = (ox+gw)+','+(oy+gh);
-    var cx = ox+gw/2;
     if (_esqTipo === 'recto') {
-      // Triángulo rectángulo — ángulo de 90° en la esquina seleccionada
-      if (_esqCorner === 'ii') return 'M'+ox+' '+oy+' L'+ox+' '+(oy+gh)+' L'+(ox+gw)+' '+(oy+gh)+' Z';
-      if (_esqCorner === 'id') return 'M'+(ox+gw)+' '+oy+' L'+ox+' '+(oy+gh)+' L'+(ox+gw)+' '+(oy+gh)+' Z';
-      if (_esqCorner === 'si') return 'M'+ox+' '+oy+' L'+(ox+gw)+' '+oy+' L'+ox+' '+(oy+gh)+' Z';
-      if (_esqCorner === 'sd') return 'M'+ox+' '+oy+' L'+(ox+gw)+' '+oy+' L'+(ox+gw)+' '+(oy+gh)+' Z';
+      if (_esqCorner === 'ii') return 'M'+P(0,1)+' L'+P(0,0)+' L'+P(1,0)+' Z';
+      if (_esqCorner === 'id') return 'M'+P(1,1)+' L'+P(0,0)+' L'+P(1,0)+' Z';
+      if (_esqCorner === 'si') return 'M'+P(0,1)+' L'+P(1,1)+' L'+P(0,0)+' Z';
+      if (_esqCorner === 'sd') return 'M'+P(0,1)+' L'+P(1,1)+' L'+P(1,0)+' Z';
     }
     if (_esqTipo === 'isoceles') {
-      // Apex arriba-centro, base plana abajo
-      return 'M'+cx+' '+oy+' L'+(ox+gw)+' '+(oy+gh)+' L'+ox+' '+(oy+gh)+' Z';
+      return 'M'+P(0.5,1)+' L'+P(1,0)+' L'+P(0,0)+' Z';
     }
     if (_esqTipo === 'curvo') {
-      // Apex arriba-centro, base en arco cóncavo (curva hacia arriba, dentro del diagrama)
-      var rx = gw/2, ry = gh*0.3;
-      return 'M'+cx+' '+oy+' L'+(ox+gw)+' '+(oy+gh)+' A'+rx+' '+ry+' 0 0 0 '+ox+' '+(oy+gh)+' Z';
+      // Apex arriba-centro, base convexa hacia abajo (arco exterior al bounding box)
+      var pBL = _mapDs(0,0,ds), pBR = _mapDs(1,0,ds), pApex = _mapDs(0.5,1,ds);
+      var rx = Math.abs(pBR.x-pBL.x)/2, ry = Math.abs(pApex.y-pBL.y)*0.3;
+      return 'M'+pApex.x+' '+pApex.y+' L'+pBR.x+' '+pBR.y+' A'+rx+' '+ry+' 0 0 1 '+pBL.x+' '+pBL.y+' Z';
     }
   }
   return '';
@@ -1413,6 +1491,7 @@ return {
   _setForma:       _setForma,
   _toggleCanteo:        _toggleCanteo,
   _toggleCorteEsquina:  _toggleCorteEsquina,
+  _toggleDescuadre:     _toggleDescuadre,
   _toggleEsqTipo:       _toggleEsqTipo,
   _toggleEsqCorner:     _toggleEsqCorner,
   _startDrag:      _startDrag,

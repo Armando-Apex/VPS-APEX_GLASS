@@ -42,7 +42,7 @@ $SVG_W = 760; $SVG_H = 960;
 $hasEl      = count($elementos) > 0;
 $canvW = $hasEl ? $SVG_W + round(120 * $SVG_W / 450) : $SVG_W;
 $ML = 110; $MR = $hasEl ? round(220 * $SVG_W / 450) : 80; $MT = 20;
-$MB = 140; // solo espacio para cota ancho — cotas de elementos van dentro del vidrio
+$MB = 140 + ($forma==='esq' && ($params['esq-tipo']??'recto')==='curvo' ? 90 : 0);
 $sc = min(($canvW - $ML - $MR) / max($ancho, 1), ($SVG_H - $MT - $MB) / max($alto, 1));
 $gw = $ancho * $sc;
 $gh = $alto  * $sc;
@@ -54,32 +54,54 @@ function toPX($mmX, $mmY, $ox, $oyBottom, $sc) {
     return ['x' => $ox + $mmX * $sc, 'y' => $oyBottom - $mmY * $sc];
 }
 
+function buildDsCorners($params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc) {
+    $ds = $params['ds'] ?? null;
+    $aInf = $ds ? max(10, (float)($ds['ainf'] ?? $ancho)) : $ancho;
+    $aSup = $ds ? max(10, (float)($ds['asup'] ?? $ancho)) : $ancho;
+    $hIzq = $ds ? max(10, (float)($ds['hizq'] ?? $alto))  : $alto;
+    $hDer = $ds ? max(10, (float)($ds['hder'] ?? $alto))  : $alto;
+    $dx = ($aInf - $aSup) / 2;
+    return [
+        'BL' => ['x' => $ox,                        'y' => $oy + $gh],
+        'BR' => ['x' => $ox + $aInf*$sc,             'y' => $oy + $gh],
+        'TR' => ['x' => $ox + ($dx+$aSup)*$sc,       'y' => $oy + $gh - $hDer*$sc],
+        'TL' => ['x' => $ox + $dx*$sc,               'y' => $oy + $gh - $hIzq*$sc],
+    ];
+}
+
+function mapDs($u, $v, $ds) {
+    $x = (1-$u)*(1-$v)*$ds['BL']['x'] + $u*(1-$v)*$ds['BR']['x'] + $u*$v*$ds['TR']['x'] + (1-$u)*$v*$ds['TL']['x'];
+    $y = (1-$u)*(1-$v)*$ds['BL']['y'] + $u*(1-$v)*$ds['BR']['y'] + $u*$v*$ds['TR']['y'] + (1-$u)*$v*$ds['TL']['y'];
+    return round($x,1).' '.round($y,1);
+}
+
 function buildPath($forma, $params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc) {
+    $ds = buildDsCorners($params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc);
+    $P  = function($u, $v) use ($ds) { return mapDs($u, $v, $ds); };
     if ($forma === 'rect') {
-        return "M$ox $oy L".($ox+$gw)." $oy L".($ox+$gw)." ".($oy+$gh)." L$ox ".($oy+$gh)." Z";
+        return "M".$P(0,0)." L".$P(1,0)." L".$P(1,1)." L".$P(0,1)." Z";
     }
     if ($forma === 'corte') {
-        $cx  = min((float)($params['corte-x'] ?? 150), $ancho*0.4) * $sc;
-        $cy  = min((float)($params['corte-y'] ?? 150), $alto*0.4)  * $sc;
+        $cxF = min((float)($params['corte-x'] ?? 150), $ancho*0.4) / $ancho;
+        $cyF = min((float)($params['corte-y'] ?? 150), $alto*0.4)  / $alto;
         $esq = $params['corte-esq'] ?? ['si'=>true,'sd'=>false,'ii'=>false,'id'=>false];
-        $eSI = !empty($esq['si']); $eSD = !empty($esq['sd']);
-        $eII = !empty($esq['ii']); $eID = !empty($esq['id']);
-        $d  = $eSI ? "M".($ox+$cx)." $oy " : "M$ox $oy ";
-        $d .= $eSD ? "L".($ox+$gw-$cx)." $oy L".($ox+$gw)." ".($oy+$cy)." " : "L".($ox+$gw)." $oy ";
-        $d .= $eID ? "L".($ox+$gw)." ".($oy+$gh-$cy)." L".($ox+$gw-$cx)." ".($oy+$gh)." " : "L".($ox+$gw)." ".($oy+$gh)." ";
-        $d .= $eII ? "L".($ox+$cx)." ".($oy+$gh)." L$ox ".($oy+$gh-$cy)." " : "L$ox ".($oy+$gh)." ";
-        if ($eSI) $d .= "L$ox ".($oy+$cy)." ";
+        $eSI=!empty($esq['si']); $eSD=!empty($esq['sd']); $eII=!empty($esq['ii']); $eID=!empty($esq['id']);
+        $d  = $eSI ? "M".$P($cxF,1)." "        : "M".$P(0,1)." ";
+        $d .= $eSD ? "L".$P(1-$cxF,1)." L".$P(1,1-$cyF)." " : "L".$P(1,1)." ";
+        $d .= $eID ? "L".$P(1,$cyF)." L".$P(1-$cxF,0)." "   : "L".$P(1,0)." ";
+        $d .= $eII ? "L".$P($cxF,0)." L".$P(0,$cyF)." "      : "L".$P(0,0)." ";
+        if ($eSI) $d .= "L".$P(0,1-$cyF)." ";
         return $d . 'Z';
     }
     if ($forma === 'L') {
-        $lw = min((float)($params['l-cw'] ?? 200), $ancho*0.7) * $sc;
-        $lh = min((float)($params['l-ch'] ?? 200), $alto*0.7)  * $sc;
-        return "M$ox $oy L".($ox+$lw)." $oy L".($ox+$lw)." ".($oy+$lh)." L".($ox+$gw)." ".($oy+$lh)." L".($ox+$gw)." ".($oy+$gh)." L$ox ".($oy+$gh)." Z";
+        $lwF = min((float)($params['l-cw'] ?? 200), $ancho*0.7) / $ancho;
+        $lhF = min((float)($params['l-ch'] ?? 200), $alto*0.7)  / $alto;
+        return "M".$P(0,1)." L".$P($lwF,1)." L".$P($lwF,1-$lhF)." L".$P(1,1-$lhF)." L".$P(1,0)." L".$P(0,0)." Z";
     }
     if ($forma === 'trap') {
-        $tb  = min((float)($params['trap-b'] ?? 500), $ancho-10) * $sc;
-        $off = ($gw - $tb) / 2;
-        return "M".($ox+$off)." $oy L".($ox+$gw-$off)." $oy L".($ox+$gw)." ".($oy+$gh)." L$ox ".($oy+$gh)." Z";
+        $tbF = min((float)($params['trap-b'] ?? 500), $ancho-10) / $ancho;
+        $offF = (1 - $tbF) / 2;
+        return "M".$P($offF,1)." L".$P(1-$offF,1)." L".$P(1,0)." L".$P(0,0)." Z";
     }
     if ($forma === 'poligono') {
         $puntos = $params['puntos'] ?? [];
@@ -95,24 +117,27 @@ function buildPath($forma, $params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc) {
     if ($forma === 'esq') {
         $tipo   = $params['esq-tipo']   ?? 'recto';
         $corner = $params['esq-corner'] ?? 'ii';
-        $cx = $ox + $gw/2;
         if ($tipo === 'recto') {
-            if ($corner === 'ii') return "M$ox,$oy L$ox,".($oy+$gh)." L".($ox+$gw).",".($oy+$gh)." Z";
-            if ($corner === 'id') return "M".($ox+$gw).",$oy L$ox,".($oy+$gh)." L".($ox+$gw).",".($oy+$gh)." Z";
-            if ($corner === 'si') return "M$ox,$oy L".($ox+$gw).",$oy L$ox,".($oy+$gh)." Z";
-            if ($corner === 'sd') return "M$ox,$oy L".($ox+$gw).",$oy L".($ox+$gw).",".($oy+$gh)." Z";
+            if ($corner === 'ii') return "M".$P(0,1)." L".$P(0,0)." L".$P(1,0)." Z";
+            if ($corner === 'id') return "M".$P(1,1)." L".$P(0,0)." L".$P(1,0)." Z";
+            if ($corner === 'si') return "M".$P(0,1)." L".$P(1,1)." L".$P(0,0)." Z";
+            if ($corner === 'sd') return "M".$P(0,1)." L".$P(1,1)." L".$P(1,0)." Z";
         }
         if ($tipo === 'isoceles') {
-            return "M$cx,$oy L".($ox+$gw).",".($oy+$gh)." L$ox,".($oy+$gh)." Z";
+            return "M".$P(0.5,1)." L".$P(1,0)." L".$P(0,0)." Z";
         }
         if ($tipo === 'curvo') {
-            $rx = $gw/2; $ry = $gh*0.3;
-            return "M$cx,$oy L".($ox+$gw).",".($oy+$gh)." A$rx $ry 0 0 0 $ox,".($oy+$gh)." Z";
+            $pBL = $ds['BL']; $pBR = $ds['BR'];
+            $pAp = ['x' => ($ds['TL']['x']+$ds['TR']['x'])/2, 'y' => min($ds['TL']['y'],$ds['TR']['y'])];
+            $rx  = abs($pBR['x']-$pBL['x'])/2;
+            $ry  = abs($pAp['y']-$pBL['y'])*0.3;
+            return "M".$pAp['x']." ".$pAp['y']." L".$pBR['x']." ".$pBR['y']." A$rx $ry 0 0 1 ".$pBL['x']." ".$pBL['y']." Z";
         }
     }
     return '';
 }
 
+$MB_extra = ($forma==='esq' && ($params['esq-tipo']??'recto')==='curvo') ? 90 : 0;
 $fz=14; $fzSm=12; $sw='1.2'; $tk=5; $cOff=32; $cxOff=28;
 $arwSz=5; $arwLen=10; $lblW=52; $lblH=16; $lblWEj=52; $rotW=14; $rotH=52;
 
