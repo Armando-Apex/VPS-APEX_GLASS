@@ -38,7 +38,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 /* Modal */
 .fac-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1500; align-items: center; justify-content: center; }
 .fac-overlay.open { display: flex; }
-.fac-modal { background: #fff; border-radius: 12px; width: 860px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+.fac-modal { background: #fff; border-radius: 12px; width: 1020px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
 .fac-modal-head { padding: 20px 24px 16px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: #fff; z-index: 1; }
 .fac-modal-head h3 { margin: 0; font-size: 16px; font-weight: 600; }
 .fac-modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #94a3b8; line-height: 1; }
@@ -221,16 +221,19 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 
       <!-- Conceptos -->
       <div class="fac-section-title">Conceptos</div>
+      <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:7px;padding:8px 12px;font-size:11px;color:#991b1b;margin-bottom:10px;">
+        ⚠️ <strong>Las claves SAT y unidades son de ejemplo — NO están verificadas con el SAT.</strong> Antes de timbrar, el contador debe confirmar la clave correcta para cada producto/servicio.
+      </div>
       <table class="fac-conceptos">
         <thead>
           <tr>
-            <th style="width:28%">Descripción</th>
-            <th style="width:14%">Clave SAT</th>
-            <th style="width:10%">Unidad SAT</th>
-            <th style="width:8%">Cant.</th>
+            <th style="width:34%">Descripción</th>
+            <th style="width:11%">Clave SAT <span style="color:#ef4444;font-weight:700">*</span></th>
+            <th style="width:8%">Unidad</th>
+            <th style="width:7%">Cant.</th>
             <th style="width:14%">Precio unit.</th>
             <th style="width:13%">Importe</th>
-            <th style="width:5%"></th>
+            <th style="width:4%"></th>
           </tr>
         </thead>
         <tbody id="fac-conceptos-body"></tbody>
@@ -308,22 +311,22 @@ var ModFacturacion = (function() {
   var _estatusSel   = null;
 
   var CLAVES_SAT = [
-    {v:'44111702', l:'44111702 – Vidrio de seguridad templado'},
-    {v:'44111701', l:'44111701 – Vidrio de seguridad laminado'},
+    {v:'44111702', l:'44111702 – Vidrio templado'},
+    {v:'44111701', l:'44111701 – Vidrio laminado'},
     {v:'44111700', l:'44111700 – Vidrio de seguridad'},
     {v:'44111500', l:'44111500 – Vidrio plano'},
-    {v:'30171500', l:'30171500 – Materiales de construcción'},
-    {v:'72154100', l:'72154100 – Instalación de vidrio'},
-    {v:'78181500', l:'78181500 – Servicios de transporte'},
-    {v:'84111506', l:'84111506 – Servicio profesional general'},
+    {v:'30171500', l:'30171500 – Mat. construcción'},
+    {v:'72154100', l:'72154100 – Instalación vidrio'},
+    {v:'78181500', l:'78181500 – Transporte'},
+    {v:'84111506', l:'84111506 – Serv. profesional'},
   ];
 
   var UNIDADES_SAT = [
     {v:'M2',  l:'M2 – Metro cuadrado'},
     {v:'PZA', l:'PZA – Pieza'},
-    {v:'MTR', l:'MTR – Metro'},
-    {v:'H87', l:'H87 – Pieza (clave SAT)'},
-    {v:'E48', l:'E48 – Unidad de servicio'},
+    {v:'MTR', l:'MTR – Metro lineal'},
+    {v:'H87', l:'H87 – Pieza (SAT)'},
+    {v:'E48', l:'E48 – Unidad servicio'},
     {v:'ACT', l:'ACT – Actividad'},
   ];
 
@@ -350,7 +353,7 @@ var ModFacturacion = (function() {
   }
 
   function _clavesOpts(sel) {
-    var html = '<option value="">-- Clave SAT --</option>';
+    var html = '<option value="">-- Clave --</option>';
     for (var i = 0; i < CLAVES_SAT.length; i++) {
       html += '<option value="' + CLAVES_SAT[i].v + '"' + (CLAVES_SAT[i].v === sel ? ' selected' : '') + '>' + CLAVES_SAT[i].l + '</option>';
     }
