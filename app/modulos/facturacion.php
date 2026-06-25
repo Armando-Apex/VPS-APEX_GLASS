@@ -66,6 +66,18 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .fac-conceptos td { padding: 4px 5px; border: 1px solid #f1f5f9; vertical-align: middle; }
 .fac-conceptos input, .fac-conceptos select { border: none; outline: none; width: 100%; font-size: 12px; padding: 4px; background: transparent; font-family: inherit; }
 .fac-conceptos input:focus, .fac-conceptos select:focus { background: #f0f9ff; border-radius: 3px; }
+
+/* Custom dropdown clave SAT */
+.fac-csat { position: relative; }
+.fac-csat-display { padding: 4px 20px 4px 4px; font-size: 12px; cursor: pointer; font-family: monospace; font-weight: 600; color: #1e293b; white-space: nowrap; position: relative; min-width: 80px; }
+.fac-csat-display::after { content: '▾'; position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 10px; color: #94a3b8; }
+.fac-csat-display:hover { background: #f0f9ff; border-radius: 3px; }
+.fac-csat-list { display: none; position: absolute; top: 100%; left: 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 2000; min-width: 280px; padding: 4px 0; }
+.fac-csat-list.open { display: block; }
+.fac-csat-opt { padding: 8px 12px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.fac-csat-opt:hover { background: #eff6ff; }
+.fac-csat-opt .fac-csat-cod { font-family: monospace; font-weight: 700; color: #2563eb; margin-right: 6px; }
+.fac-csat-opt .fac-csat-desc { color: #475569; }
 .fac-add-concepto { font-size: 11px; color: #2563eb; background: none; border: none; cursor: pointer; padding: 0; margin-top: 6px; }
 .fac-add-concepto:hover { text-decoration: underline; }
 .fac-del-row { background: none; border: none; color: #dc2626; cursor: pointer; font-size: 14px; padding: 0 4px; }
@@ -352,12 +364,39 @@ var ModFacturacion = (function() {
     return '<span class="fac-badge ' + est + '">' + (labels[est] || est) + '</span>';
   }
 
-  function _clavesOpts(sel) {
-    var html = '<option value="">-- Clave --</option>';
+  function _csatWidget(sel) {
+    var label = sel || '-- Clave --';
+    var html = '<div class="fac-csat">';
+    html += '<input type="hidden" class="fac-c-clave" value="' + (sel||'') + '">';
+    html += '<div class="fac-csat-display" onclick="ModFacturacion._csatToggle(this)">' + label + '</div>';
+    html += '<div class="fac-csat-list">';
     for (var i = 0; i < CLAVES_SAT.length; i++) {
-      html += '<option value="' + CLAVES_SAT[i].v + '"' + (CLAVES_SAT[i].v === sel ? ' selected' : '') + '>' + CLAVES_SAT[i].l + '</option>';
+      html += '<div class="fac-csat-opt" onclick="ModFacturacion._csatPick(this,\'' + CLAVES_SAT[i].v + '\')">';
+      html += '<span class="fac-csat-cod">' + CLAVES_SAT[i].v + '</span>';
+      html += '<span class="fac-csat-desc">' + CLAVES_SAT[i].l.split(' – ')[1] + '</span>';
+      html += '</div>';
     }
+    html += '</div></div>';
     return html;
+  }
+
+  function _csatToggle(display) {
+    var list = display.nextSibling;
+    var isOpen = list.classList.contains('open');
+    // cerrar todos los demás
+    var all = document.querySelectorAll('.fac-csat-list.open');
+    for (var i = 0; i < all.length; i++) all[i].classList.remove('open');
+    if (!isOpen) list.classList.add('open');
+  }
+
+  function _csatPick(opt, val) {
+    var wrap   = opt.closest('.fac-csat');
+    var hidden  = wrap.querySelector('.fac-c-clave');
+    var display = wrap.querySelector('.fac-csat-display');
+    var list    = wrap.querySelector('.fac-csat-list');
+    hidden.value   = val;
+    display.textContent = val;
+    list.classList.remove('open');
   }
 
   function _unidadesOpts(sel) {
@@ -372,7 +411,7 @@ var ModFacturacion = (function() {
     var imp = (parseFloat(cant)||0) * (parseFloat(precio)||0);
     return '<tr>' +
       '<td><input type="text" class="fac-c-desc" value="' + (desc||'') + '" placeholder="Descripción" oninput="ModFacturacion.recalc()"></td>' +
-      '<td><select class="fac-c-clave">' + _clavesOpts(clave||'44111702') + '</select></td>' +
+      '<td>' + _csatWidget(clave||'44111702') + '</td>' +
       '<td><select class="fac-c-unidad">' + _unidadesOpts(unidad||'M2') + '</select></td>' +
       '<td><input type="number" class="fac-c-cant" value="' + (cant||1) + '" min="1" oninput="ModFacturacion.recalc()"></td>' +
       '<td><input type="number" class="fac-c-precio" value="' + (precio||'') + '" min="0" step="0.01" placeholder="0.00" oninput="ModFacturacion.recalc()"></td>' +
@@ -622,6 +661,14 @@ var ModFacturacion = (function() {
     recalc();
   }
 
+  // Cerrar dropdown clave SAT al hacer click fuera
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.fac-csat')) {
+      var all = document.querySelectorAll('.fac-csat-list.open');
+      for (var i = 0; i < all.length; i++) all[i].classList.remove('open');
+    }
+  });
+
   _renderTabla();
 
   return {
@@ -635,7 +682,9 @@ var ModFacturacion = (function() {
     selEstatus:      selEstatus,
     confirmarEstatus: confirmarEstatus,
     agregarConcepto: agregarConcepto,
-    recalc:          recalc
+    recalc:          recalc,
+    _csatToggle:     _csatToggle,
+    _csatPick:       _csatPick
   };
 })();
 
