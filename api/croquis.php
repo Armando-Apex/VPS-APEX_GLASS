@@ -79,7 +79,7 @@ if ($metodo === 'POST') {
         exit;
     }
 
-    if (!in_array($forma, ['rect','corte','L','trap','poligono'])) {
+    if (!in_array($forma, ['rect','corte','L','trap','poligono','esq'])) {
         http_response_code(400);
         echo json_encode(['error' => 'Forma inválida']);
         exit;
@@ -135,7 +135,7 @@ if ($metodo === 'PUT') {
     $ancho_mm = (float)($body['ancho_mm'] ?? $actual['ancho_mm']);
     $alto_mm  = (float)($body['alto_mm']  ?? $actual['alto_mm']);
 
-    if (!in_array($forma, ['rect','corte','L','trap','poligono'])) {
+    if (!in_array($forma, ['rect','corte','L','trap','poligono','esq'])) {
         http_response_code(400);
         echo json_encode(['error' => 'Forma inválida']);
         exit;

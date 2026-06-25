@@ -13,7 +13,7 @@ $accion = $_GET['accion'] ?? '';
 // ── Generar / regenerar password (solo dir_admin) ────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'generar_pass') {
     $user = requirePermiso('ver_dashboard');
-    if ($user['rol'] !== 'dir_admin') {
+    if (!in_array($user['rol'], ['dir_admin', 'dueno', 'comercial'])) {
         http_response_code(403); echo json_encode(['error' => 'Sin permiso']); exit;
     }
 
@@ -21,10 +21,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'generar_pass') {
     if (!$id) { echo json_encode(['error' => 'ID inválido']); exit; }
 
     $pdo  = getDB();
-    $stmt = $pdo->prepare("SELECT id, codigo FROM clientes WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, codigo, portal_password_hash FROM clientes WHERE id = ?");
     $stmt->execute([$id]);
     $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$cliente) { echo json_encode(['error' => 'Cliente no encontrado']); exit; }
+
+    // comercial solo puede generar si el cliente aún no tiene acceso
+    if (!empty($cliente['portal_password_hash']) && !in_array($user['rol'], ['dir_admin', 'dueno'])) {
+        http_response_code(403); echo json_encode(['error' => 'Solo dir_admin puede regenerar un acceso existente']); exit;
+    }
 
     // ── Generar contraseña segura de 8 caracteres ─────────────────────────────
     // Garantiza al menos: 1 mayúscula, 1 minúscula, 1 número, 1 símbolo

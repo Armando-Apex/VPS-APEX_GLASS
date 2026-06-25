@@ -1142,21 +1142,22 @@ function _buildPath(ox, oy, gw, gh) {
   }
   if (_forma === 'esq') {
     var TL = ox+','+oy, TR = (ox+gw)+','+oy, BL = ox+','+(oy+gh), BR = (ox+gw)+','+(oy+gh);
-    var cx = ox+gw/2, cy = oy+gh/2;
+    var cx = ox+gw/2;
     if (_esqTipo === 'recto') {
-      if (_esqCorner === 'ii') return 'M'+BL+' L'+BR+' L'+TL+' Z';
-      if (_esqCorner === 'id') return 'M'+BL+' L'+BR+' L'+TR+' Z';
-      if (_esqCorner === 'si') return 'M'+TL+' L'+TR+' L'+BL+' Z';
-      if (_esqCorner === 'sd') return 'M'+TL+' L'+TR+' L'+BR+' Z';
+      // Triángulo rectángulo — ángulo de 90° en la esquina seleccionada
+      if (_esqCorner === 'ii') return 'M'+ox+' '+oy+' L'+ox+' '+(oy+gh)+' L'+(ox+gw)+' '+(oy+gh)+' Z';
+      if (_esqCorner === 'id') return 'M'+(ox+gw)+' '+oy+' L'+ox+' '+(oy+gh)+' L'+(ox+gw)+' '+(oy+gh)+' Z';
+      if (_esqCorner === 'si') return 'M'+ox+' '+oy+' L'+(ox+gw)+' '+oy+' L'+ox+' '+(oy+gh)+' Z';
+      if (_esqCorner === 'sd') return 'M'+ox+' '+oy+' L'+(ox+gw)+' '+oy+' L'+(ox+gw)+' '+(oy+gh)+' Z';
     }
     if (_esqTipo === 'isoceles') {
-      // apex arriba-centro, base plana abajo
+      // Apex arriba-centro, base plana abajo
       return 'M'+cx+' '+oy+' L'+(ox+gw)+' '+(oy+gh)+' L'+ox+' '+(oy+gh)+' Z';
     }
     if (_esqTipo === 'curvo') {
-      // apex arriba-centro, base curva (arco convexo hacia abajo)
-      var rx = gw/2, ry = gh*0.35;
-      return 'M'+cx+' '+oy+' L'+(ox+gw)+' '+(oy+gh)+' A'+rx+' '+ry+' 0 0 1 '+ox+' '+(oy+gh)+' Z';
+      // Apex arriba-centro, base en arco cóncavo (curva hacia arriba, dentro del diagrama)
+      var rx = gw/2, ry = gh*0.3;
+      return 'M'+cx+' '+oy+' L'+(ox+gw)+' '+(oy+gh)+' A'+rx+' '+ry+' 0 0 0 '+ox+' '+(oy+gh)+' Z';
     }
   }
   return '';

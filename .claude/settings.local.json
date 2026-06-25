@@ -67,7 +67,8 @@
       "Bash(curl *)",
       "Bash(grep -n '^\\\\$pdo\\\\|^\\\\$conn\\\\|^\\\\$db\\\\|new PDO\\\\|new mysqli\\\\|mysqli_connect' /home/apexglass2025/apex.glass/public_html/produccion/api/config.php)",
       "Read(//home/apexglass2025/**)",
-      "Read(//home/apexglass2025/apex.glass/**)"
+      "Read(//home/apexglass2025/apex.glass/**)",
+      "Skill(claude-api)"
     ]
   },
   "hooks": {
