@@ -14,6 +14,48 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno','desarroll
 $esLogistica  = in_array($_rol, ['dir_admin','administracion','dueno','chofer','desarrollo']);
 $esJefe       = in_array($_rol, ['jefe_piso','dir_admin','dueno','director','desarrollo']);
 $esArchivos   = in_array($_rol, ['dir_admin','administracion','comercial','desarrollo']);
+
+$ROL_LABELS = [
+    'dir_admin'      => 'Director Admin',
+    'administracion' => 'Administración',
+    'comercial'      => 'Asesor Comercial',
+    'jefe_piso'      => 'Jefe de Piso',
+    'operador'       => 'Operador',
+    'dueno'          => 'Propietario',
+    'chofer'         => 'Chofer',
+    'director'       => 'Director',
+    'desarrollo'     => 'Dev',
+];
+$_rolLabel = $ROL_LABELS[$_rol] ?? ucfirst(str_replace('_', ' ', $_rol));
+
+function icono($nombre, $size = 16) {
+    $p = [
+        'bar-chart-2'    => '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+        'clipboard-list' => '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="12" y1="11" x2="16" y2="11"/><line x1="12" y1="16" x2="16" y2="16"/><line x1="8" y1="11" x2="8.01" y2="11"/><line x1="8" y1="16" x2="8.01" y2="16"/>',
+        'layers'         => '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+        'alert-triangle' => '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+        'ban'            => '<circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>',
+        'file-text'      => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+        'users'          => '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+        'box'            => '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+        'scissors'       => '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/>',
+        'message-square' => '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+        'trending-up'    => '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
+        'activity'       => '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+        'settings'       => '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+        'megaphone'      => '<path d="M3 11l19-9v18L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+        'package'        => '<line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+        'shopping-cart'  => '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
+        'check-square'   => '<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+        'credit-card'    => '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>',
+        'truck'          => '<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+        'map-pin'        => '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+        'bell'           => '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+        'menu'           => '<line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>',
+    ];
+    $inner = $p[$nombre] ?? '';
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="'.$size.'" height="'.$size.'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'.$inner.'</svg>';
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -45,7 +87,9 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
 .sidebar-link:hover{background:#f8fafc;color:var(--c-text);}
 .sidebar-link.active{background:#eff6ff;color:var(--c-blue);font-weight:600;}
 .sidebar-link.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c-blue);border-radius:0 2px 2px 0;}
-.sidebar-icon{font-size:15px;width:20px;text-align:center;}
+.sidebar-icon{width:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:inherit;}
+.sidebar-link:focus-visible{outline:2px solid var(--c-blue);outline-offset:-2px;border-radius:4px;}
+.topbar-hamburger:focus-visible,.notif-btn:focus-visible{outline:2px solid #60a5fa;outline-offset:2px;border-radius:4px;}
 .sidebar-badge{margin-left:auto;background:var(--c-red);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;display:none;}
 .content-area{flex:1;overflow-y:auto;position:relative;}
 #spa-content{min-height:100%;}
@@ -138,7 +182,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
 <body>
 
 <div class="topbar">
-  <button class="topbar-hamburger" onclick="toggleSidebar()" aria-label="Menú">&#9776;</button>
+  <button class="topbar-hamburger" onclick="toggleSidebar()" aria-label="Menú"><?= icono('menu', 20) ?></button>
   <div class="topbar-logo" onclick="cargarModulo('resumen')">APEX GLASS</div>
   <div class="topbar-sep"></div>
   <div class="topbar-sub">Producci&oacute;n</div>
@@ -146,8 +190,8 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
     <span id="reloj"></span>
     <?php if ($esAdmin || $esComercial): ?>
     <div class="notif-wrap" id="notifWrap">
-      <button class="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones">
-        &#128276;<span class="notif-badge" id="notifBadge"></span>
+      <button class="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones" aria-label="Notificaciones">
+        <?= icono('bell', 18) ?><span class="notif-badge" id="notifBadge"></span>
       </button>
       <div class="notif-panel" id="notifPanel">
         <div class="notif-panel-head">
@@ -159,7 +203,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
     </div>
     <?php endif; ?>
     <span class="topbar-user"><?= htmlspecialchars($_name) ?></span>
-    <span class="topbar-rol"><?= htmlspecialchars($_rol) ?></span>
+    <span class="topbar-rol"><?= htmlspecialchars($_rolLabel) ?></span>
     <a href="../api/logout.php?redirect=login.php" class="topbar-logout">Salir &rarr;</a>
   </div>
 </div>
@@ -170,21 +214,21 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
     <div class="sidebar-section">
       <div class="sidebar-label">Producci&oacute;n</div>
       <button class="sidebar-link" data-modulo="resumen" onclick="cargarModulo('resumen')">
-        <span class="sidebar-icon">&#128202;</span>Resumen
+        <span class="sidebar-icon"><?= icono('bar-chart-2') ?></span>Resumen
       </button>
       <button class="sidebar-link" data-modulo="ordenes" onclick="cargarModulo('ordenes')">
-        <span class="sidebar-icon">&#128203;</span>&Oacute;rdenes
+        <span class="sidebar-icon"><?= icono('clipboard-list') ?></span>&Oacute;rdenes
         <span class="sidebar-badge" id="badge-vencidas">0</span>
       </button>
       <button class="sidebar-link" data-modulo="estaciones" onclick="cargarModulo('estaciones')">
-        <span class="sidebar-icon">&#11041;</span>Estaciones
+        <span class="sidebar-icon"><?= icono('layers') ?></span>Estaciones
       </button>
       <button class="sidebar-link" data-modulo="retrabajo" onclick="cargarModulo('retrabajo')">
-        <span class="sidebar-icon">&#9888;&#65039;</span>Retrabajo
+        <span class="sidebar-icon"><?= icono('alert-triangle') ?></span>Retrabajo
       </button>
       <?php if ($esJefe): ?>
       <button class="sidebar-link" data-modulo="omisiones" onclick="cargarModulo('omisiones')">
-        <span class="sidebar-icon">&#128683;</span>Omisiones
+        <span class="sidebar-icon"><?= icono('ban') ?></span>Omisiones
       </button>
       <?php endif; ?>
     </div>
@@ -192,20 +236,20 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
     <div class="sidebar-section">
       <div class="sidebar-label">Comercial</div>
       <button class="sidebar-link" data-modulo="cotizaciones" onclick="cargarModulo('cotizaciones')">
-        <span class="sidebar-icon">&#128188;</span>Cotizaciones
+        <span class="sidebar-icon"><?= icono('file-text') ?></span>Cotizaciones
         <span id="authBadge" style="display:none;background:#d97706;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;margin-left:auto;"></span>
       </button>
       <button class="sidebar-link" data-modulo="clientes" onclick="cargarModulo('clientes')">
-        <span class="sidebar-icon">&#128101;</span>Clientes
+        <span class="sidebar-icon"><?= icono('users') ?></span>Clientes
       </button>
       <button class="sidebar-link" data-modulo="cristales" onclick="cargarModulo('cristales')">
-        <span class="sidebar-icon">&#9647;</span>Cristales
+        <span class="sidebar-icon"><?= icono('box') ?></span>Cristales
       </button>
       <button class="sidebar-link" data-modulo="optimizador" onclick="cargarModulo('optimizador')">
-        <span class="sidebar-icon">&#9986;</span>Optimizador
+        <span class="sidebar-icon"><?= icono('scissors') ?></span>Optimizador
       </button>
       <button class="sidebar-link" data-modulo="campanas" onclick="cargarModulo('campanas')">
-        <span class="sidebar-icon">&#128241;</span>Campa&ntilde;as WA
+        <span class="sidebar-icon"><?= icono('message-square') ?></span>Campa&ntilde;as WA
         <span id="waBadge" style="display:none;background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;margin-left:auto;"></span>
       </button>
     </div>
@@ -214,10 +258,10 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
     <div class="sidebar-section">
       <div class="sidebar-label">Reportes</div>
       <button class="sidebar-link" data-modulo="reporte_direccion" onclick="cargarModulo('reporte_direccion')">
-        <span class="sidebar-icon">&#128200;</span>Direcci&oacute;n
+        <span class="sidebar-icon"><?= icono('trending-up') ?></span>Direcci&oacute;n
       </button>
       <button class="sidebar-link" data-modulo="productividad" onclick="cargarModulo('productividad')">
-        <span class="sidebar-icon">&#9201;</span>Productividad
+        <span class="sidebar-icon"><?= icono('activity') ?></span>Productividad
       </button>
     </div>
     <?php endif; ?>
@@ -225,10 +269,10 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
     <div class="sidebar-section">
       <div class="sidebar-label">Administraci&oacute;n</div>
       <button class="sidebar-link" data-modulo="admin_ordenes" onclick="cargarModulo('admin_ordenes')">
-        <span class="sidebar-icon">&#9881;</span>Admin &Oacute;rdenes
+        <span class="sidebar-icon"><?= icono('settings') ?></span>Admin &Oacute;rdenes
       </button>
       <button class="sidebar-link" data-modulo="admin_comunicados" onclick="cargarModulo('admin_comunicados')">
-        <span class="sidebar-icon">&#128226;</span>Admin Comunicados
+        <span class="sidebar-icon"><?= icono('megaphone') ?></span>Admin Comunicados
       </button>
     </div>
     <?php endif; ?>
@@ -236,10 +280,10 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
     <div class="sidebar-section">
       <div class="sidebar-label">Inventario</div>
       <button class="sidebar-link" data-modulo="inventario" onclick="cargarModulo('inventario')">
-        <span class="sidebar-icon">&#128230;</span>Inventario
+        <span class="sidebar-icon"><?= icono('package') ?></span>Inventario
       </button>
       <button class="sidebar-link" data-modulo="compras" onclick="cargarModulo('compras')">
-        <span class="sidebar-icon">&#128722;</span>Compras
+        <span class="sidebar-icon"><?= icono('shopping-cart') ?></span>Compras
         <?php if ($esAdmin): ?><span id="badge-compras-envio" style="display:none;background:#7c3aed;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:4px"></span><?php endif; ?>
       </button>
     </div>
@@ -248,10 +292,10 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
     <div class="sidebar-section">
       <div class="sidebar-label">Finanzas</div>
       <button class="sidebar-link" data-modulo="finanzas_vobo" onclick="cargarModulo('finanzas_vobo')">
-        <span class="sidebar-icon">&#9989;</span>VoBo &Oacute;rdenes
+        <span class="sidebar-icon"><?= icono('check-square') ?></span>VoBo &Oacute;rdenes
       </button>
       <button class="sidebar-link" data-modulo="finanzas_cobranza" onclick="cargarModulo('finanzas_cobranza')">
-        <span class="sidebar-icon">&#128184;</span>Cobranza
+        <span class="sidebar-icon"><?= icono('credit-card') ?></span>Cobranza
       </button>
     </div>
     <?php endif; ?>
@@ -260,12 +304,12 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
       <div class="sidebar-label">Log&iacute;stica</div>
       <?php if ($esDesarrollo): ?>
       <button class="sidebar-link" data-modulo="logistica_rutas" onclick="cargarModulo('logistica_rutas')">
-        <span class="sidebar-icon">&#128666;</span>Rutas de Entrega <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px">WIP</span>
+        <span class="sidebar-icon"><?= icono('truck') ?></span>Rutas de Entrega <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px">WIP</span>
       </button>
       <?php endif; ?>
       <?php if ($_rol === 'chofer'): ?>
       <button class="sidebar-link" data-modulo="chofer_ruta" onclick="cargarModulo('chofer_ruta')">
-        <span class="sidebar-icon">&#128205;</span>Mi Ruta
+        <span class="sidebar-icon"><?= icono('map-pin') ?></span>Mi Ruta
       </button>
       <?php endif; ?>
     </div>
