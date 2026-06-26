@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 26 junio 2026 | Próximo UPD disponible: UPD-230
+# Última actualización: 26 junio 2026 | Próximo UPD disponible: UPD-235
 
 **REGLA DE ORO:** Este archivo es la memoria compartida del proyecto. Claude lo lee al inicio de cada sesión y lo actualiza al terminar. Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -495,4 +495,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-231 | 26-jun | Armando | NUEVO feature Salidas/Entregas: BD += orden_salidas, orden_salida_piezas, ordenes.fecha_entrega_chofer; api/salidas.php (GET piezas_terminadas, POST registrar_salida con WA automático salida_recoleccion/salida_domicilio/salida_parcial_recoleccion/salida_parcial_domicilio); app/imprimir_salida.php reescrito con selector de piezas por partida, botones Todo/Ninguno por partida, campo fecha chofer, spinner en confirmar, leyenda de colores, aria-live en contador, pie mobile |
 | UPD-232 | 26-jun | Armando | Seguridad + bugs salidas: JSON_HEX_TAG en json_encode ($parts_json/$piezas_json); esc() helper en JS para innerHTML; requirePermisoApi('registrar_entrega') en API; validación cotizacion_id pertenece a orden_id; UPDATE piezas agrega AND estatus='terminado' (guard TOCTOU); $_SESSION['user_name'] en registrado_por; dos COUNT(*) fusionados en un SUM(); SELECT id conversación expandido a id+cliente_id con auto-vinculación; bloque WA envuelto en try-catch independiente; API devuelve pieza_ids validados; frontend usa pieza_ids de respuesta para doc impreso; seleccionadas={} reset en renderSelector(); volverAlSelector() re-fetchea piezas actualizadas; eliminada query PHP piezas muerta |
 | UPD-233 | 26-jun | Armando | Fix bug tipo_entrega salidas: página enviaba 'domicilio' pero API solo aceptaba 'chofer'/'recoleccion' — todas las domicilio se guardaban como recolección; corregido a 'chofer'; toggle UI en selector permite cambiar tipo en el momento (recoleccion/chofer con SVG icons, campo fecha aparece/oculta dinámicamente, doc imprimible actualiza la celda); plantillas WA parciales salida_parcial_recoleccion y salida_parcial_domicilio APROBADAS por Meta — feature 100% operativo |
-**Próximo UPD disponible: UPD-234**
+| UPD-234 | 26-jun | Armando | UI/UX finanzas_cobranza.php: 5 emojis eliminados (título, tabs, search, modal, btn-salida) → SVG Lucide inline; KPI cards con ícono semántico por tipo (azul/verde/rojo/gris) + .kpi-icon con fondo coloreado; tabs activo #2563eb→#1a1a2e con SVG íconos Lucide; filtros en panel #f8fafc unificado; form pago inline neutro (vs azulado anterior); btn-reg/btn-sf-nuevo/sf-btn-save/btn-salida unificados a color primario #1a1a2e; btn-salida outline dark con hover fill; btn-expand slate hover; sel-epago focus #1a1a2e |
+**Próximo UPD disponible: UPD-235**

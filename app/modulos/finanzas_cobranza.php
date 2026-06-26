@@ -18,34 +18,44 @@ header('Content-Type: text/html; charset=utf-8');
 .page-sub   { font-size: 12px; color: #94a3b8; margin-bottom: 20px; }
 
 /* Filtros */
-.filtros { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
-.filtro-field { display: flex; flex-direction: column; gap: 4px; }
-.filtro-field label { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; }
+.filtros { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end; padding: 14px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; }
+.filtro-field { display: flex; flex-direction: column; gap: 3px; }
+.filtro-field label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .4px; }
 .filtro-field input, .filtro-field select {
-  padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px;
-  font-size: 13px; color: #1e293b; background: white; min-width: 160px;
+  padding: 7px 11px; border: 1px solid #e2e8f0; border-radius: 6px;
+  font-size: 13px; color: #1e293b; background: white; min-width: 150px;
+  transition: border-color .15s;
 }
-.filtro-field input:focus, .filtro-field select:focus { outline: none; border-color: #2563eb; }
-.btn-filtrar { padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; align-self: flex-end; }
-.btn-filtrar:hover { background: #1d4ed8; }
-.btn-limpiar { padding: 8px 16px; background: #f1f5f9; color: #374151; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; align-self: flex-end; }
+.filtro-field input:focus, .filtro-field select:focus { outline: none; border-color: #1a1a2e; box-shadow: 0 0 0 3px rgba(26,26,46,.07); }
+.btn-limpiar { padding: 7px 14px; background: white; color: #64748b; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; align-self: flex-end; transition: background .15s; }
+.btn-limpiar:hover { background: #f1f5f9; color: #334155; }
 
 /* KPIs */
 .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
-.kpi-card { background: white; border-radius: 12px; padding: 16px 20px; border: 1px solid #e2e8f0; }
-.kpi-lbl { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 6px; }
-.kpi-val { font-size: 22px; font-weight: 800; color: #1e293b; }
+.kpi-card {
+  background: white; border-radius: 10px; padding: 16px 18px;
+  border: 1px solid #e2e8f0;
+  display: flex; align-items: flex-start; gap: 12px;
+}
+.kpi-icon { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.kpi-icon.azul  { background: #eff6ff; color: #2563eb; }
+.kpi-icon.verde { background: #f0fdf4; color: #16a34a; }
+.kpi-icon.rojo  { background: #fef2f2; color: #dc2626; }
+.kpi-icon.gris  { background: #f8fafc; color: #64748b; }
+.kpi-info { min-width: 0; }
+.kpi-lbl { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.kpi-val { font-size: 20px; font-weight: 800; color: #1e293b; font-variant-numeric: tabular-nums; }
 .kpi-val.verde  { color: #16a34a; }
 .kpi-val.rojo   { color: #dc2626; }
 .kpi-val.azul   { color: #2563eb; }
 
 /* Tabla */
-.cob-table { background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+.cob-table { background: white; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
 table { width: 100%; border-collapse: collapse; }
-thead tr { background: #f8fafc; border-bottom: 2px solid #e2e8f0; }
-thead th { padding: 10px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #64748b; text-align: left; }
-tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .1s; }
-tbody tr:hover { background: #f8fafc; }
+thead tr { background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+thead th { padding: 10px 14px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #94a3b8; text-align: left; }
+tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .12s; }
+tbody tr:hover { background: #fafafa; }
 tbody tr:last-child { border-bottom: none; }
 tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 
@@ -66,16 +76,16 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 
 /* Selector estatus pago Lina */
 .sel-epago { font-size: 11px; font-weight: 600; padding: 3px 7px; border-radius: 6px; border: 1.5px solid #e2e8f0; cursor: pointer; background: #f8fafc; outline: none; }
-.sel-epago:focus { border-color: #2563eb; }
+.sel-epago:focus { border-color: #1a1a2e; outline: none; }
 .sel-epago.ep-pendiente   { border-color: #fca5a5; color: #dc2626; background: #fef2f2; }
 .sel-epago.ep-en_proceso  { border-color: #fcd34d; color: #b45309; background: #fffbeb; }
 .sel-epago.ep-pago_entrega{ border-color: #93c5fd; color: #1d4ed8; background: #eff6ff; }
 .sel-epago.ep-pagado      { border-color: #6ee7b7; color: #15803d; background: #f0fdf4; }
 
 /* Botón imprimir salida */
-.btn-salida { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: none; cursor: pointer; background: #1a1a2e; color: white; white-space: nowrap; }
-.btn-salida:hover { background: #2d2d4a; }
-.btn-salida:disabled { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
+.btn-salida { font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 6px; border: 1px solid #1a1a2e; cursor: pointer; background: white; color: #1a1a2e; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; transition: background .15s; }
+.btn-salida:hover { background: #1a1a2e; color: white; }
+.btn-salida:disabled { background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0; cursor: not-allowed; }
 
 /* Badge estado orden */
 .ord-badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 99px; }
@@ -85,8 +95,8 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 .ord-cancelada { background: #f1f5f9; color: #94a3b8; }
 
 /* Botón expandir */
-.btn-expand { background: none; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; color: #2563eb; font-weight: 600; }
-.btn-expand:hover { background: #eff6ff; }
+.btn-expand { background: none; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; color: #475569; font-weight: 600; transition: background .12s, border-color .12s; }
+.btn-expand:hover { background: #f8fafc; border-color: #cbd5e1; color: #1e293b; }
 
 /* Panel de pagos expandido */
 .pagos-panel { display: none; background: #f8fafc; }
@@ -104,31 +114,31 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 .sin-pagos  { font-size: 13px; color: #94a3b8; padding: 8px 0; }
 
 /* Form pago inline */
-.pago-form-inline { background: #f0f9ff; border: 1.5px solid #bae6fd; border-radius: 10px; padding: 14px; }
-.pago-form-titulo { font-size: 12px; font-weight: 700; color: #0369a1; margin-bottom: 10px; }
+.pago-form-inline { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; }
+.pago-form-titulo { font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
 .pago-form-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
 .pf { display: flex; flex-direction: column; gap: 3px; }
 .pf label { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; }
 .pf input, .pf select { padding: 7px 10px; border: 1.5px solid #e2e8f0; border-radius: 6px; font-size: 13px; min-width: 110px; }
 .pf input:focus, .pf select:focus { outline: none; border-color: #0369a1; }
-.btn-reg { padding: 7px 14px; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; align-self: flex-end; }
-.btn-reg:hover { background: #1d4ed8; }
+.btn-reg { padding: 7px 14px; background: #1a1a2e; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; align-self: flex-end; transition: background .15s; }
+.btn-reg:hover { background: #2d2d4a; }
 
 .loading-msg { text-align: center; padding: 48px; color: #94a3b8; }
 .empty-msg   { text-align: center; padding: 48px; color: #94a3b8; }
 
 /* Tabs */
-.fin-tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; }
-.fin-tab  { padding: 10px 20px; font-size: 13px; font-weight: 700; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; background: none; border-top: none; border-left: none; border-right: none; }
-.fin-tab:hover  { color: #1e293b; }
-.fin-tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+.fin-tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1.5px solid #e2e8f0; }
+.fin-tab  { padding: 9px 20px; font-size: 13px; font-weight: 600; color: #94a3b8; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1.5px; background: none; border-top: none; border-left: none; border-right: none; transition: color .15s; display: flex; align-items: center; gap: 6px; }
+.fin-tab:hover  { color: #475569; }
+.fin-tab.active { color: #1a1a2e; border-bottom-color: #1a1a2e; font-weight: 700; }
 
 /* Saldo a Favor */
 .sf-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .sf-search  { flex: 1; min-width: 200px; padding: 8px 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; outline: none; }
 .sf-search:focus { border-color: #2563eb; }
-.btn-sf-nuevo { background: #16a34a; color: white; border: none; padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
-.btn-sf-nuevo:hover { background: #15803d; }
+.btn-sf-nuevo { background: #1a1a2e; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s; }
+.btn-sf-nuevo:hover { background: #2d2d4a; }
 .sf-table  { background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
 .sf-badge  { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: #dcfce7; color: #15803d; }
 .sf-badge.cero { background: #f1f5f9; color: #94a3b8; }
@@ -162,9 +172,10 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 .sf-form-input, .sf-form-select { width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; outline: none; box-sizing: border-box; background: white; }
 .sf-form-input:focus { border-color: #16a34a; }
 .sf-modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid #f1f5f9; }
-.sf-btn-cancel { background: none; border: 1px solid #e2e8f0; padding: 9px 18px; border-radius: 8px; font-size: 13px; cursor: pointer; color: #64748b; }
-.sf-btn-save   { background: #16a34a; color: white; border: none; padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
-.sf-btn-save:hover    { background: #15803d; }
+.sf-btn-cancel { background: none; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; color: #64748b; transition: background .15s; }
+.sf-btn-cancel:hover { background: #f8fafc; }
+.sf-btn-save   { background: #1a1a2e; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
+.sf-btn-save:hover    { background: #2d2d4a; }
 .sf-btn-save:disabled { opacity: .6; cursor: not-allowed; }
 .sf-cli-autocomplete { position: relative; }
 .sf-cli-lista { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 1300; max-height: 200px; overflow-y: auto; display: none; }
@@ -243,19 +254,25 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 </style>
 
 <div class="cob-wrap">
-  <div class="page-title">&#128184; Finanzas</div>
+  <div class="page-title">Finanzas</div>
   <div class="page-sub" id="cob-sub">Cargando...</div>
 
   <!-- Tabs -->
   <div class="fin-tabs">
-    <button class="fin-tab active" id="tab-cobranza" onclick="sfSwitchTab('cobranza')">Cobranza</button>
-    <button class="fin-tab" id="tab-saldo" onclick="sfSwitchTab('saldo')">&#128176; Saldo a Favor</button>
+    <button class="fin-tab active" id="tab-cobranza" onclick="sfSwitchTab('cobranza')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      Cobranza
+    </button>
+    <button class="fin-tab" id="tab-saldo" onclick="sfSwitchTab('saldo')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Saldo a Favor
+    </button>
   </div>
 
   <!-- Sección Saldo a Favor -->
   <div id="sec-saldo" style="display:none">
     <div class="sf-toolbar">
-      <input type="text" class="sf-search" id="sf-q" placeholder="&#128269; Buscar cliente..." oninput="sfFiltrar()">
+      <input type="text" class="sf-search" id="sf-q" placeholder="Buscar cliente..." oninput="sfFiltrar()">
       <button class="btn-sf-nuevo" onclick="sfAbrirModal()">&#43; Registrar Dep&#243;sito</button>
     </div>
     <div class="sf-table">
@@ -277,7 +294,7 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
   <div class="sf-modal-bg" id="sfModalBg">
     <div class="sf-modal">
       <div class="sf-modal-head">
-        <h3>&#128176; Registrar Dep&#243;sito — Saldo a Favor</h3>
+        <h3>Registrar Dep&#243;sito — Saldo a Favor</h3>
         <button style="background:none;border:none;color:#94a3b8;font-size:20px;cursor:pointer;padding:0" onclick="sfCerrarModal()">&#10005;</button>
       </div>
       <div class="sf-modal-body">
@@ -358,10 +375,22 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 
   <!-- KPIs -->
   <div class="kpis" id="cob-kpis">
-    <div class="kpi-card"><div class="kpi-lbl">Total facturado</div><div class="kpi-val azul" id="k-total">—</div></div>
-    <div class="kpi-card"><div class="kpi-lbl">Cobrado</div><div class="kpi-val verde" id="k-cobrado">—</div></div>
-    <div class="kpi-card"><div class="kpi-lbl">Por cobrar</div><div class="kpi-val rojo" id="k-porcobrar">—</div></div>
-    <div class="kpi-card"><div class="kpi-lbl">Órdenes</div><div class="kpi-val" id="k-ordenes">—</div></div>
+    <div class="kpi-card">
+      <div class="kpi-icon azul"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+      <div class="kpi-info"><div class="kpi-lbl">Total facturado</div><div class="kpi-val azul" id="k-total">—</div></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon verde"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="kpi-info"><div class="kpi-lbl">Cobrado</div><div class="kpi-val verde" id="k-cobrado">—</div></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon rojo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+      <div class="kpi-info"><div class="kpi-lbl">Por cobrar</div><div class="kpi-val rojo" id="k-porcobrar">—</div></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon gris"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+      <div class="kpi-info"><div class="kpi-lbl">&#211;rdenes</div><div class="kpi-val" id="k-ordenes">—</div></div>
+    </div>
   </div>
 
   <!-- Tabla -->
@@ -513,7 +542,7 @@ function renderTabla() {
     var puedeImprimir = pagado >= total || ['en_proceso','pago_entrega','pagado'].indexOf(epActual) !== -1;
     var btnSalida = '<button class="btn-salida" '
       + (puedeImprimir ? 'onclick="window.open(\'imprimir_salida.php?id=' + o.cot_id + '\',\'_blank\')"' : 'disabled')
-      + '>🖨 Salida</button>';
+      + '><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Salida</button>';
 
     rows += '<tr>'
       + '<td style="font-weight:700;color:#2563eb">' + escHtml(o.folio) + '</td>'
@@ -564,7 +593,7 @@ function renderPanelPagos(o) {
 
   // Form registrar pago
   html += '<div class="pago-form-inline">';
-  html += '<div class="pago-form-titulo">+ Registrar pago</div>';
+  html += '<div class="pago-form-titulo"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Registrar pago</div>';
   html += '<div class="pago-form-row">';
   html += '<div class="pf"><label>Fecha</label><input type="date" id="pf-fecha-' + o.cot_id + '" value="' + new Date().toISOString().substring(0,10) + '"></div>';
   html += '<div class="pf"><label>Hora</label><input type="time" id="pf-hora-' + o.cot_id + '" value="' + new Date().toTimeString().substring(0,5) + '"></div>';
