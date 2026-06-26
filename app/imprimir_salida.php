@@ -73,7 +73,7 @@ $fecha_chofer_php  = (!empty($orden['fecha_entrega_chofer'])) ? date('Y-m-d', st
 $tbody_html  = '';
 $totales_txt = 'TOTAL PIEZAS: — &nbsp;|&nbsp; TOTAL M²: —';
 if ($ya_entregada && $orden_id_php) {
-    $stmtPz = $db->prepare('SELECT id, partida, ancho_mm, alto_mm, m2, cristal_corto, comentarios_etiqueta FROM piezas WHERE orden_id = ? ORDER BY partida ASC, pieza_num ASC');
+    $stmtPz = $db->prepare('SELECT id, partida, ancho_mm, alto_mm, m2, cristal_corto FROM piezas WHERE orden_id = ? ORDER BY partida ASC, pieza_num ASC');
     $stmtPz->execute([$orden_id_php]);
     $piezas_doc = $stmtPz->fetchAll(PDO::FETCH_ASSOC);
 
