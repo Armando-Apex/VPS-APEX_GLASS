@@ -57,8 +57,8 @@ $fecha_hoy   = date('d/m/Y');
 $fecha_ent   = $orden && $orden['fecha_entrega'] ? date('d/m/Y', strtotime($orden['fecha_entrega'])) : '—';
 $asesor      = $c['asesor_nombre'] ?? '—';
 $proyecto    = $c['proyecto'] ?: '—';
-$tipo_ent    = ($c['tipo_entrega'] ?? $orden['tipo_entrega'] ?? '') === 'domicilio' ? 'domicilio' : 'recoleccion';
-$tipo_label  = $tipo_ent === 'domicilio' ? 'Domicilio / Ruta' : 'Recolección en planta';
+$tipo_ent    = ($c['tipo_entrega'] ?? $orden['tipo_entrega'] ?? '') === 'domicilio' ? 'chofer' : 'recoleccion';
+$tipo_label  = $tipo_ent === 'chofer' ? 'Domicilio / Ruta' : 'Recolección en planta';
 $localidad   = strtolower($c['localidad'] ?? '') === 'foraneo' ? 'Foráneo — ' . ($c['ciudad_destino'] ?? '') : 'Local';
 $cond_pago   = $c['condicion_pago'] ?? '—';
 $epago_display = $pago_completo ? 'pagado' : $epago;
@@ -282,7 +282,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
   <div class="sel-footer">
     <div class="sel-footer-left">
       <div class="sel-counter">Seleccionadas: <strong id="cnt-sel" aria-live="polite" aria-atomic="true">0</strong> piezas</div>
-      <?php if ($tipo_ent === 'domicilio'): ?>
+      <?php if ($tipo_ent === 'chofer'): ?>
       <div class="campo-fecha">
         <label for="fecha-chofer">Fecha de entrega por chofer</label>
         <input type="date" id="fecha-chofer" value="<?= date('Y-m-d') ?>">
