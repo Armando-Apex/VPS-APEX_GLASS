@@ -24,7 +24,6 @@ $stmt->execute([$id]);
 $c = $stmt->fetch();
 if (!$c) die('No encontrada');
 
-// Verificar que la orden tiene permiso de impresión
 $epago        = $c['estatus_pago'] ?? 'pendiente';
 $saldo_pagado = (float)($c['saldo_pagado'] ?? 0);
 $total_cot    = (float)($c['total'] ?? 0);
@@ -40,15 +39,29 @@ $stmt2 = $db->prepare('
     ORDER BY cp.num_partida ASC
 ');
 $stmt2->execute([$id]);
-$parts = $stmt2->fetchAll();
+$parts = $stmt2->fetchAll(PDO::FETCH_ASSOC);
 
-// Buscar orden de producción vinculada para obtener folio
 $orden = null;
+$piezas_json = '[]';
 if ($c['orden_id']) {
-    $stmt3 = $db->prepare('SELECT folio, fecha_entrega, tipo_entrega FROM ordenes WHERE id = ?');
+    $stmt3 = $db->prepare('SELECT id, folio, fecha_entrega, tipo_entrega FROM ordenes WHERE id = ?');
     $stmt3->execute([$c['orden_id']]);
-    $orden = $stmt3->fetch();
+    $orden = $stmt3->fetch(PDO::FETCH_ASSOC);
+
+    if ($orden) {
+        $stmt4 = $db->prepare('
+            SELECT p.id, p.partida, p.pieza_num, p.pieza_total,
+                   p.cristal_corto, p.ancho_mm, p.alto_mm, p.m2, p.estatus
+            FROM piezas p
+            WHERE p.orden_id = ?
+            ORDER BY p.partida ASC, p.pieza_num ASC
+        ');
+        $stmt4->execute([$orden['id']]);
+        $piezas_json = json_encode($stmt4->fetchAll(PDO::FETCH_ASSOC));
+    }
 }
+
+$parts_json = json_encode($parts);
 
 $cliente     = $c['cliente_nombre'] ?: '—';
 $folio_cot   = $c['folio'] ?: '—';
@@ -57,25 +70,15 @@ $fecha_hoy   = date('d/m/Y');
 $fecha_ent   = $orden && $orden['fecha_entrega'] ? date('d/m/Y', strtotime($orden['fecha_entrega'])) : '—';
 $asesor      = $c['asesor_nombre'] ?? '—';
 $proyecto    = $c['proyecto'] ?: '—';
-$tipo_ent    = ($c['tipo_entrega'] ?? $orden['tipo_entrega'] ?? '') === 'domicilio' ? 'Domicilio / Ruta' : 'Recolección en planta';
+$tipo_ent    = ($c['tipo_entrega'] ?? $orden['tipo_entrega'] ?? '') === 'domicilio' ? 'domicilio' : 'recoleccion';
+$tipo_label  = $tipo_ent === 'domicilio' ? 'Domicilio / Ruta' : 'Recolección en planta';
 $localidad   = strtolower($c['localidad'] ?? '') === 'foraneo' ? 'Foráneo — ' . ($c['ciudad_destino'] ?? '') : 'Local';
 $cond_pago   = $c['condicion_pago'] ?? '—';
 $epago_display = $pago_completo ? 'pagado' : $epago;
 $epago_label   = ['pendiente'=>'Pendiente','en_proceso'=>'En proceso','pago_entrega'=>'Pago a la entrega','pagado'=>'Pagado'][$epago_display] ?? $epago_display;
 
-$total_pzas  = 0;
-$m2_total    = 0;
-$resumen_mat = [];
-foreach ($parts as $p) {
-    $total_pzas += $p['cantidad'];
-    $m2u = round(($p['ancho'] / 1000) * ($p['alto'] / 1000), 4);
-    $m2t = round($m2u * $p['cantidad'], 4);
-    $m2_total   += $m2t;
-    $mat = $p['cristal_nombre'] ?? '—';
-    if (!isset($resumen_mat[$mat])) $resumen_mat[$mat] = ['pzas' => 0, 'm2' => 0];
-    $resumen_mat[$mat]['pzas'] += $p['cantidad'];
-    $resumen_mat[$mat]['m2']   += $m2t;
-}
+$orden_id_php      = (int)($orden['id'] ?? 0);
+$cotizacion_id_php = $id;
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -88,13 +91,67 @@ foreach ($parts as $p) {
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; background: white; }
 
-.print-bar { background: #1a1a2e; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; }
+/* ── Barra no-print ── */
+.print-bar {
+  background: #1a1a2e; padding: 10px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+}
 .print-bar span { color: #94a3b8; font-size: 12px; }
-.btn-print { background: #f5a623; color: #000; border: none; padding: 8px 20px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.btn-print  { background: #f5a623; color: #000; border: none; padding: 8px 20px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.btn-cancel { background: #334155; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; }
 
-.doc { padding: 20px 28px; max-width: 960px; margin: 0 auto; }
+/* ── Selector de piezas ── */
+#selector-view { padding: 20px 28px; max-width: 780px; margin: 0 auto; }
+.sel-titulo { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+.sel-sub    { font-size: 12px; color: #64748b; margin-bottom: 20px; }
 
-/* Header */
+.partida-bloque { border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+.partida-header {
+  background: #f8fafc; padding: 10px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid #e2e8f0;
+}
+.partida-header .ph-left { font-weight: 700; font-size: 13px; color: #1e293b; }
+.partida-header .ph-right { font-size: 11px; color: #64748b; }
+
+.piezas-grid {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 12px 16px;
+}
+.pieza-chip {
+  display: flex; align-items: center; gap: 6px;
+  border: 1.5px solid #cbd5e1; border-radius: 6px;
+  padding: 6px 10px; cursor: pointer; user-select: none;
+  font-size: 12px; font-weight: 600; color: #334155;
+  transition: all .15s;
+}
+.pieza-chip input[type=checkbox] { margin: 0; width: 14px; height: 14px; cursor: pointer; }
+.pieza-chip.checked { background: #ecfdf5; border-color: #16a34a; color: #15803d; }
+.pieza-chip.entregado { background: #f1f5f9; border-color: #cbd5e1; color: #94a3b8; cursor: not-allowed; }
+.pieza-chip.en-proceso { background: #fff7ed; border-color: #fed7aa; color: #9a3412; cursor: not-allowed; }
+
+.sel-footer { margin-top: 20px; display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+.sel-counter { font-size: 13px; color: #334155; }
+.sel-counter strong { color: #16a34a; font-size: 16px; }
+
+.campo-fecha { display: flex; flex-direction: column; gap: 4px; }
+.campo-fecha label { font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: .5px; }
+.campo-fecha input { border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 7px 10px; font-size: 13px; }
+.campo-fecha input:focus { outline: none; border-color: #3b82f6; }
+
+.btn-confirmar {
+  background: #16a34a; color: white; border: none;
+  padding: 10px 28px; border-radius: 8px; font-size: 14px; font-weight: 700;
+  cursor: pointer; margin-left: auto;
+}
+.btn-confirmar:disabled { background: #94a3b8; cursor: not-allowed; }
+
+.no-piezas { padding: 20px 16px; color: #94a3b8; font-size: 13px; text-align: center; }
+
+/* ── Documento imprimible ── */
+.doc { padding: 20px 28px; max-width: 960px; margin: 0 auto; display: none; }
+
 .header-wrap { display: flex; border: 2px solid #000; margin-bottom: 0; }
 .header-logo  { width: 90px; min-width: 90px; border-right: 2px solid #000; display: flex; align-items: center; justify-content: center; padding: 8px; }
 .header-logo img { max-width: 72px; max-height: 72px; object-fit: contain; }
@@ -102,11 +159,10 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .empresa  { font-family: 'Syncopate', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 1px; }
 .doc-tipo { font-size: 14px; font-weight: 700; margin-top: 2px; text-transform: uppercase; }
 .doc-sub  { font-size: 10px; color: #555; margin-top: 1px; }
-.header-right { width: 160px; min-width: 160px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+.header-right { width: 180px; min-width: 180px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
 .hdr-field { font-size: 10px; }
 .hdr-field span { font-weight: 700; }
 
-/* Info grid */
 .info-table { width: 100%; border-collapse: collapse; border: 1px solid #000; border-top: none; }
 .info-table td { border: 1px solid #000; padding: 5px 8px; font-size: 11px; }
 .info-table .lbl { font-weight: 700; background: #f3f4f6; white-space: nowrap; width: 120px; }
@@ -116,7 +172,8 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .epago-pago_entrega { background: #dbeafe; color: #1e40af; }
 .epago-pagado       { background: #dcfce7; color: #15803d; }
 
-/* Tabla partidas */
+.badge-parcial { display: inline-block; background: #fff7ed; color: #c2410c; font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 4px; border: 1px solid #fed7aa; margin-left: 8px; }
+
 .partidas-table { width: 100%; border-collapse: collapse; margin-top: 14px; }
 .partidas-table th {
     border: 1px solid #000; padding: 6px 5px;
@@ -132,11 +189,9 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .partidas-table tr:nth-child(even) { background: #f9fafb; }
 .cristal-cell { font-weight: 600; text-align: left; }
 
-/* Totales */
 .totales-row { margin-top: 12px; display: flex; justify-content: space-between; align-items: flex-start; }
 .total-box { border: 2px solid #1a1a2e; border-radius: 4px; padding: 8px 20px; font-size: 13px; font-weight: 800; }
 
-/* Resumen material */
 .resumen-mat { margin-top: 12px; border: 1.5px solid #1a1a2e; border-radius: 4px; }
 .resumen-mat-title { background: #1a1a2e; color: white; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 5px 12px; }
 .resumen-mat table { width: 100%; border-collapse: collapse; }
@@ -146,7 +201,6 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .resumen-mat td:not(:first-child) { text-align: center; font-weight: 600; }
 .resumen-mat tr:last-child td { border-bottom: none; }
 
-/* Logística */
 .logistica { margin-top: 18px; border: 1.5px solid #000; border-radius: 4px; }
 .log-title { background: #1a1a2e; color: white; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 5px 12px; }
 .log-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
@@ -155,53 +209,79 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .log-lbl { font-size: 9px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 14px; }
 .log-line { border-bottom: 1px solid #000; margin-top: 4px; }
 
-/* Firmas */
 .firmas { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
 .firma-box { text-align: center; }
 .firma-linea { border-top: 1.5px solid #000; margin-bottom: 5px; margin-top: 36px; }
 .firma-lbl { font-size: 10px; color: #374151; }
 
-/* Condiciones */
 .condiciones { margin-top: 14px; font-size: 9px; color: #555; border-top: 1px solid #e2e8f0; padding-top: 8px; line-height: 1.5; }
-
-/* Pie */
 .pie { margin-top: 8px; font-size: 9px; color: #6b7280; border-top: 1px solid #e2e8f0; padding-top: 6px; }
 
 @media print {
     .no-print { display: none !important; }
+    #selector-view { display: none !important; }
+    .doc { display: block !important; padding: 0; }
     body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     @page { margin: 12mm 10mm; size: letter portrait; }
-    .doc { padding: 0; }
 }
 </style>
 </head>
 <body>
 
-<div class="print-bar no-print">
+<!-- ── Barra superior ── -->
+<div class="print-bar no-print" id="topbar">
   <span>Remisión / Orden de Salida — <?= htmlspecialchars($folio_cot) ?></span>
-  <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+  <div style="display:flex;gap:10px">
+    <button class="btn-cancel" id="btnVolver" style="display:none" onclick="volverAlSelector()">&#8592; Volver</button>
+    <button class="btn-print"  id="btnImprimir" style="display:none" onclick="window.print()">&#128438; Imprimir / Guardar PDF</button>
+  </div>
 </div>
 
-<div class="doc">
+<!-- ── Selector de piezas (pantalla pre-impresión) ── -->
+<div id="selector-view" class="no-print">
+  <div class="sel-titulo">Registrar salida — <?= htmlspecialchars($folio_orden) ?></div>
+  <div class="sel-sub">Selecciona las piezas que salen en esta entrega. Solo se muestran las que están <strong>terminadas</strong>.</div>
+  <div id="partidas-container">
+    <div style="padding:40px;text-align:center;color:#94a3b8">Cargando piezas...</div>
+  </div>
 
-  <!-- Header -->
+  <div class="sel-footer">
+    <div class="sel-counter">Seleccionadas: <strong id="cnt-sel">0</strong> piezas</div>
+
+    <?php if ($tipo_ent === 'domicilio'): ?>
+    <div class="campo-fecha">
+      <label>Fecha de entrega por chofer</label>
+      <input type="date" id="fecha-chofer" value="<?= date('Y-m-d') ?>">
+    </div>
+    <?php endif; ?>
+
+    <button class="btn-confirmar" id="btnConfirmar" disabled onclick="confirmarSalida()">
+      Confirmar e imprimir
+    </button>
+  </div>
+</div>
+
+<!-- ── Documento imprimible ── -->
+<div class="doc" id="doc-print">
+
   <div class="header-wrap">
     <div class="header-logo">
       <img src="../logoAG.png" alt="APEX GLASS">
     </div>
     <div class="header-center">
       <div class="empresa">TEMPLADORA NORESTE, S. A. DE C. V.</div>
-      <div class="doc-tipo">Remisión / Orden de Salida</div>
+      <div class="doc-tipo">Remisión / Orden de Salida <span id="doc-badge-parcial"></span></div>
       <div class="doc-sub">Parque Industrial MARFER, Carr. Monterrey-Saltillo km 65, Av. De la Industria #214, Santa Catarina, N.L.</div>
     </div>
     <div class="header-right">
-      <div style="font-size:15px;font-weight:900;color:#1a1a2e;letter-spacing:.5px;border-bottom:2px solid #1a1a2e;padding-bottom:4px;margin-bottom:6px">ORDEN: <?= htmlspecialchars($folio_orden) ?></div>
+      <div style="font-size:15px;font-weight:900;color:#1a1a2e;letter-spacing:.5px;border-bottom:2px solid #1a1a2e;padding-bottom:4px;margin-bottom:6px">
+        ORDEN: <?= htmlspecialchars($folio_orden) ?>
+      </div>
       <div class="hdr-field"><span>Fecha:</span> <?= $fecha_hoy ?></div>
-      <div class="hdr-field"><span>Entrega:</span> <?= $fecha_ent ?></div>
+      <div class="hdr-field"><span>Entrega:</span> <span id="doc-fecha-entrega"><?= $fecha_ent ?></span></div>
     </div>
   </div>
 
-  <!-- Info cliente / comercial -->
   <table class="info-table">
     <tr>
       <td class="lbl">Cliente:</td>
@@ -215,7 +295,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
     </tr>
     <tr>
       <td class="lbl">Tipo entrega:</td>
-      <td class="val"><?= $tipo_ent ?></td>
+      <td class="val"><?= $tipo_label ?></td>
       <td class="lbl">Localidad:</td>
       <td class="val"><?= htmlspecialchars($localidad) ?></td>
     </tr>
@@ -229,8 +309,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
     </tr>
   </table>
 
-  <!-- Tabla partidas -->
-  <table class="partidas-table">
+  <table class="partidas-table" id="doc-tabla-partidas">
     <thead>
       <tr>
         <th style="width:40px">Part.</th>
@@ -243,113 +322,292 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
         <th>Obs.</th>
       </tr>
     </thead>
-    <tbody>
-    <?php foreach ($parts as $p):
-      $m2u = round(($p['ancho'] / 1000) * ($p['alto'] / 1000), 4);
-      $m2t = round($m2u * $p['cantidad'], 4);
-      $specs = [];
-      if (!empty($p['cpb']) && strtoupper($p['cpb']) !== 'NO') $specs[] = 'CPB: ' . $p['cpb'];
-      if (!empty($p['detalles'])) $specs[] = $p['detalles'];
-      if (!empty($p['resaques']) && $p['resaques'] > 0) $specs[] = 'Res: ' . $p['resaques'];
-      if (!empty($p['taladros_pasados']) && $p['taladros_pasados'] > 0) $specs[] = 'TP: ' . $p['taladros_pasados'];
-      if (!empty($p['taladros_avellanados']) && $p['taladros_avellanados'] > 0) $specs[] = 'TA: ' . $p['taladros_avellanados'];
-      $specs[] = $p['requiere_templado'] ? 'Templado' : 'No Templado';
-    ?>
-      <tr>
-        <td style="font-weight:700;color:#1d4ed8"><?= $p['num_partida'] ?></td>
-        <td class="cristal-cell">
-          <?= htmlspecialchars($p['cristal_nombre'] ?? '—') ?>
-        </td>
-        <td><?= number_format($p['ancho']) ?></td>
-        <td><?= number_format($p['alto']) ?></td>
-        <td><?= $p['cantidad'] ?></td>
-        <td><?= number_format($m2t, 4) ?></td>
-        <td class="left"><?= htmlspecialchars(implode(' · ', $specs) ?: '—') ?></td>
-        <td class="left"><?= htmlspecialchars($p['comentarios_etiqueta'] ?? '') ?></td>
-      </tr>
-    <?php endforeach; ?>
-    </tbody>
+    <tbody id="doc-tbody"></tbody>
   </table>
 
-  <!-- Totales -->
   <div class="totales-row">
-    <div class="total-box">TOTAL PIEZAS: <?= $total_pzas ?> &nbsp;|&nbsp; TOTAL M²: <?= number_format($m2_total, 4) ?></div>
+    <div class="total-box" id="doc-totales">TOTAL PIEZAS: — &nbsp;|&nbsp; TOTAL M²: —</div>
   </div>
 
-  <!-- Resumen de material -->
-  <?php if (count($resumen_mat) > 1): ?>
-  <div class="resumen-mat">
-    <div class="resumen-mat-title">Resumen de material</div>
-    <table>
-      <thead>
-        <tr>
-          <th>Material</th>
-          <th style="width:90px">Piezas</th>
-          <th style="width:110px">M² total</th>
-        </tr>
-      </thead>
-      <tbody>
-      <?php foreach ($resumen_mat as $mat => $datos): ?>
-        <tr>
-          <td><?= htmlspecialchars($mat) ?></td>
-          <td><?= $datos['pzas'] ?></td>
-          <td><?= number_format($datos['m2'], 4) ?></td>
-        </tr>
-      <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-  <?php endif; ?>
+  <div id="doc-resumen-mat"></div>
 
-  <!-- Logística -->
   <div class="logistica">
     <div class="log-title">Datos de entrega / logística</div>
     <div class="log-grid">
-      <div class="log-field">
-        <div class="log-lbl">Chofer</div>
-        <div class="log-line"></div>
-      </div>
-      <div class="log-field">
-        <div class="log-lbl">Vehículo / Placas</div>
-        <div class="log-line"></div>
-      </div>
-      <div class="log-field">
-        <div class="log-lbl">Fecha y hora de salida</div>
-        <div class="log-line"></div>
-      </div>
-      <div class="log-field">
-        <div class="log-lbl">Dirección de entrega</div>
-        <div class="log-line"></div>
-      </div>
+      <div class="log-field"><div class="log-lbl">Chofer</div><div class="log-line"></div></div>
+      <div class="log-field"><div class="log-lbl">Vehículo / Placas</div><div class="log-line"></div></div>
+      <div class="log-field"><div class="log-lbl">Fecha y hora de salida</div><div class="log-line"></div></div>
+      <div class="log-field"><div class="log-lbl">Dirección de entrega</div><div class="log-line"></div></div>
     </div>
   </div>
 
-  <!-- Firmas -->
   <div class="firmas">
-    <div class="firma-box">
-      <div class="firma-linea"></div>
-      <div class="firma-lbl">Entregó — Nombre y firma</div>
-    </div>
-    <div class="firma-box">
-      <div class="firma-linea"></div>
-      <div class="firma-lbl">Recibió — Nombre y firma</div>
-    </div>
-    <div class="firma-box">
-      <div class="firma-linea"></div>
-      <div class="firma-lbl">Revisó calidad — Nombre y firma</div>
-    </div>
+    <div class="firma-box"><div class="firma-linea"></div><div class="firma-lbl">Entregó — Nombre y firma</div></div>
+    <div class="firma-box"><div class="firma-linea"></div><div class="firma-lbl">Recibió — Nombre y firma</div></div>
+    <div class="firma-box"><div class="firma-linea"></div><div class="firma-lbl">Revisó calidad — Nombre y firma</div></div>
   </div>
 
-  <!-- Condiciones -->
   <div class="condiciones">
     + Una vez que la mercancía es recibida mediante firma de conformidad por parte del cliente y/o ha salido de nuestras instalaciones, Templadora Noreste S.A. de C.V. no se hace responsable por daños ocasionados durante el transporte o instalación.<br>
     + Esta remisión ampara únicamente las partidas descritas en el presente documento. Cualquier reclamación deberá hacerse dentro de las 24 horas siguientes a la recepción.
   </div>
-
   <div class="pie">
     Templadora Noreste, S.A. de C.V. — Tel: 81 1180 5078 — Parque Industrial MARFER, Carr. Monterrey-Saltillo km 65, Santa Catarina, N.L., C.P. 66367
   </div>
-
 </div>
+
+<script>
+var ORDEN_ID      = <?= $orden_id_php ?>;
+var COTIZACION_ID = <?= $cotizacion_id_php ?>;
+var TIPO_ENTREGA  = '<?= $tipo_ent ?>';
+var PARTS         = <?= $parts_json ?>;
+
+var todasPiezas   = [];
+var seleccionadas = {};
+
+// ── Cargar piezas al iniciar ──────────────────────────────────────────────────
+(function init() {
+  if (!ORDEN_ID) {
+    document.getElementById('partidas-container').innerHTML =
+      '<div class="no-piezas">Esta cotización no tiene una orden de producción vinculada.</div>';
+    return;
+  }
+  fetch('../api/salidas.php?accion=piezas_terminadas&orden_id=' + ORDEN_ID)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) throw new Error(data.error || 'Error');
+      todasPiezas = data.piezas;
+      renderSelector();
+    })
+    .catch(function(e) {
+      document.getElementById('partidas-container').innerHTML =
+        '<div class="no-piezas">Error al cargar piezas: ' + e.message + '</div>';
+    });
+})();
+
+// ── Renderizar selector de piezas ─────────────────────────────────────────────
+function renderSelector() {
+  var grupos = {};
+  todasPiezas.forEach(function(p) {
+    var k = p.partida;
+    if (!grupos[k]) grupos[k] = [];
+    grupos[k].push(p);
+  });
+
+  var html = '';
+  var hayTerminadas = false;
+
+  Object.keys(grupos).sort(function(a, b) { return a - b; }).forEach(function(numPart) {
+    var piezas = grupos[numPart];
+    var part   = PARTS.find(function(pt) { return pt.num_partida == numPart; }) || {};
+    var termCnt = piezas.filter(function(p) { return p.estatus === 'terminado'; }).length;
+    var entCnt  = piezas.filter(function(p) { return p.estatus === 'entregado'; }).length;
+
+    html += '<div class="partida-bloque">';
+    html += '<div class="partida-header">';
+    html += '<div class="ph-left">Partida ' + numPart + ' &nbsp;—&nbsp; ' + (part.cristal_nombre || piezas[0].cristal_corto || '—');
+    if (part.ancho) html += ' &nbsp;' + part.ancho + ' × ' + part.alto + ' mm';
+    html += '</div>';
+    html += '<div class="ph-right">' + termCnt + ' terminada(s) &nbsp;·&nbsp; ' + entCnt + ' ya entregada(s) &nbsp;·&nbsp; ' + piezas.length + ' total</div>';
+    html += '</div>';
+    html += '<div class="piezas-grid">';
+
+    piezas.forEach(function(p) {
+      var clase = '';
+      var disabled = true;
+      var checked  = '';
+
+      if (p.estatus === 'terminado') {
+        clase    = 'checked';
+        disabled = false;
+        checked  = 'checked';
+        seleccionadas[p.id] = true;
+        hayTerminadas = true;
+      } else if (p.estatus === 'entregado') {
+        clase = 'entregado';
+      } else {
+        clase = 'en-proceso';
+      }
+
+      var titulo = p.estatus === 'entregado' ? 'Ya entregada' : (p.estatus !== 'terminado' ? 'En producción (' + p.estatus + ')' : '');
+
+      html += '<label class="pieza-chip ' + clase + '" title="' + titulo + '" id="chip-' + p.id + '">';
+      html += '<input type="checkbox" ' + (disabled ? 'disabled' : '') + ' ' + checked + ' ';
+      html += 'onchange="togglePieza(' + p.id + ', this.checked)" value="' + p.id + '">';
+      html += 'P' + p.pieza_num + '/' + p.pieza_total;
+      html += '</label>';
+    });
+
+    if (termCnt === 0) {
+      html += '<span style="font-size:12px;color:#94a3b8;padding:8px">Sin piezas terminadas en esta partida</span>';
+    }
+
+    html += '</div></div>';
+  });
+
+  if (!hayTerminadas) {
+    html = '<div class="no-piezas">No hay piezas en estatus <strong>terminado</strong> disponibles para entregar.</div>';
+  }
+
+  document.getElementById('partidas-container').innerHTML = html;
+  actualizarContador();
+}
+
+function togglePieza(id, activo) {
+  seleccionadas[id] = activo;
+  var chip = document.getElementById('chip-' + id);
+  if (chip) chip.className = 'pieza-chip ' + (activo ? 'checked' : '');
+  actualizarContador();
+}
+
+function actualizarContador() {
+  var cnt = Object.values(seleccionadas).filter(Boolean).length;
+  document.getElementById('cnt-sel').textContent = cnt;
+  document.getElementById('btnConfirmar').disabled = cnt === 0;
+}
+
+// ── Confirmar salida ──────────────────────────────────────────────────────────
+function confirmarSalida() {
+  var ids = Object.keys(seleccionadas).filter(function(k) { return seleccionadas[k]; }).map(Number);
+  if (!ids.length) return;
+
+  var fechaChofer = null;
+  var fcInput = document.getElementById('fecha-chofer');
+  if (fcInput) {
+    if (!fcInput.value) { alert('Indica la fecha de entrega por chofer.'); fcInput.focus(); return; }
+    fechaChofer = fcInput.value;
+  }
+
+  var btn = document.getElementById('btnConfirmar');
+  btn.disabled = true;
+  btn.textContent = 'Registrando...';
+
+  fetch('../api/salidas.php?accion=registrar_salida', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      orden_id:             ORDEN_ID,
+      cotizacion_id:        COTIZACION_ID,
+      pieza_ids:            ids,
+      tipo:                 TIPO_ENTREGA,
+      fecha_entrega_chofer: fechaChofer
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (!data.ok) throw new Error(data.error || 'Error');
+    construirDocumento(ids, fechaChofer, data.es_parcial, data.piezas_count);
+  })
+  .catch(function(e) {
+    alert('Error al registrar: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'Confirmar e imprimir';
+  });
+}
+
+// ── Construir documento imprimible ────────────────────────────────────────────
+function construirDocumento(idsSeleccionados, fechaChofer, esParcial, piezasCount) {
+  // Badge parcial
+  var badge = document.getElementById('doc-badge-parcial');
+  if (esParcial) {
+    badge.innerHTML = '<span class="badge-parcial">ENTREGA PARCIAL</span>';
+  }
+
+  // Fecha en header
+  if (fechaChofer) {
+    var partes = fechaChofer.split('-');
+    var meses  = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    document.getElementById('doc-fecha-entrega').textContent =
+      partes[2] + '/' + (parseInt(partes[1]) < 10 ? '0' : '') + parseInt(partes[1]) + '/' + partes[0];
+  }
+
+  // Agrupar piezas seleccionadas por partida
+  var selSet = {};
+  idsSeleccionados.forEach(function(id) { selSet[id] = true; });
+
+  var grupos = {};
+  todasPiezas.filter(function(p) { return selSet[p.id]; }).forEach(function(p) {
+    if (!grupos[p.partida]) grupos[p.partida] = [];
+    grupos[p.partida].push(p);
+  });
+
+  var tbody   = document.getElementById('doc-tbody');
+  var filas   = '';
+  var totalPz = 0;
+  var totalM2 = 0;
+  var resMat  = {};
+
+  Object.keys(grupos).sort(function(a, b) { return a - b; }).forEach(function(numPart) {
+    var piezasGrupo = grupos[numPart];
+    var part = PARTS.find(function(pt) { return pt.num_partida == numPart; }) || {};
+    var cant = piezasGrupo.length;
+    var m2u  = piezasGrupo[0] ? (piezasGrupo[0].m2 || 0) : 0;
+    var m2t  = parseFloat((m2u * cant).toFixed(4));
+    totalPz += cant;
+    totalM2 += m2t;
+
+    var specs = [];
+    if (part.cpb && part.cpb.toUpperCase() !== 'NO') specs.push('CPB: ' + part.cpb);
+    if (part.detalles) specs.push(part.detalles);
+    if (part.resaques > 0) specs.push('Res: ' + part.resaques);
+    if (part.taladros_pasados > 0) specs.push('TP: ' + part.taladros_pasados);
+    if (part.taladros_avellanados > 0) specs.push('TA: ' + part.taladros_avellanados);
+    specs.push(part.requiere_templado ? 'Templado' : 'No Templado');
+
+    var mat = part.cristal_nombre || piezasGrupo[0].cristal_corto || '—';
+    if (!resMat[mat]) resMat[mat] = { pzas: 0, m2: 0 };
+    resMat[mat].pzas += cant;
+    resMat[mat].m2   += m2t;
+
+    // Ver total de esta partida para indicar parcialidad
+    var totalPartida = todasPiezas.filter(function(p) { return p.partida == numPart; }).length;
+    var labelCant = cant < totalPartida ? cant + ' de ' + totalPartida : String(cant);
+
+    filas += '<tr>';
+    filas += '<td style="font-weight:700;color:#1d4ed8">' + numPart + '</td>';
+    filas += '<td class="cristal-cell">' + mat + '</td>';
+    filas += '<td>' + (piezasGrupo[0] ? piezasGrupo[0].ancho_mm : (part.ancho || '—')) + '</td>';
+    filas += '<td>' + (piezasGrupo[0] ? piezasGrupo[0].alto_mm  : (part.alto  || '—')) + '</td>';
+    filas += '<td>' + labelCant + '</td>';
+    filas += '<td>' + m2t.toFixed(4) + '</td>';
+    filas += '<td class="left">' + (specs.join(' · ') || '—') + '</td>';
+    filas += '<td class="left">' + (part.comentarios_etiqueta || '') + '</td>';
+    filas += '</tr>';
+  });
+
+  tbody.innerHTML = filas;
+  document.getElementById('doc-totales').textContent =
+    'TOTAL PIEZAS: ' + totalPz + '  |  TOTAL M²: ' + totalM2.toFixed(4);
+
+  // Resumen de material
+  var matKeys = Object.keys(resMat);
+  var rhtml   = '';
+  if (matKeys.length > 1) {
+    rhtml  = '<div class="resumen-mat"><div class="resumen-mat-title">Resumen de material</div>';
+    rhtml += '<table><thead><tr><th>Material</th><th style="width:90px">Piezas</th><th style="width:110px">M² total</th></tr></thead><tbody>';
+    matKeys.forEach(function(m) {
+      rhtml += '<tr><td>' + m + '</td><td>' + resMat[m].pzas + '</td><td>' + resMat[m].m2.toFixed(4) + '</td></tr>';
+    });
+    rhtml += '</tbody></table></div>';
+  }
+  document.getElementById('doc-resumen-mat').innerHTML = rhtml;
+
+  // Mostrar documento e imprimir
+  document.getElementById('selector-view').style.display = 'none';
+  document.getElementById('doc-print').style.display     = 'block';
+  document.getElementById('btnImprimir').style.display   = 'inline-block';
+  document.getElementById('btnVolver').style.display     = 'inline-block';
+  document.getElementById('btnConfirmar') && (document.getElementById('btnConfirmar').style.display = 'none');
+
+  setTimeout(function() { window.print(); }, 400);
+}
+
+function volverAlSelector() {
+  document.getElementById('selector-view').style.display = 'block';
+  document.getElementById('doc-print').style.display     = 'none';
+  document.getElementById('btnImprimir').style.display   = 'none';
+  document.getElementById('btnVolver').style.display     = 'none';
+}
+</script>
 </body>
 </html>
