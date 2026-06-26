@@ -66,8 +66,66 @@ $epago_label   = ['pendiente'=>'Pendiente','en_proceso'=>'En proceso','pago_entr
 
 $orden_id_php      = (int)($orden['id'] ?? 0);
 $cotizacion_id_php = $id;
-$ya_entregada      = ($orden && $orden['estado'] === 'entregada') ? 'true' : 'false';
-$fecha_chofer_php  = $orden['fecha_entrega_chofer'] ? date('Y-m-d', strtotime($orden['fecha_entrega_chofer'])) : '';
+$ya_entregada      = ($orden && $orden['estado'] === 'entregada');
+$fecha_chofer_php  = (!empty($orden['fecha_entrega_chofer'])) ? date('Y-m-d', strtotime($orden['fecha_entrega_chofer'])) : '';
+
+// ── Reimpresión: generar tbody en PHP cuando la orden ya está entregada ─────
+$tbody_html  = '';
+$totales_txt = 'TOTAL PIEZAS: — &nbsp;|&nbsp; TOTAL M²: —';
+if ($ya_entregada && $orden_id_php) {
+    $stmtPz = $db->prepare('SELECT id, partida, ancho_mm, alto_mm, m2, cristal_corto, comentarios_etiqueta FROM piezas WHERE orden_id = ? ORDER BY partida ASC, pieza_num ASC');
+    $stmtPz->execute([$orden_id_php]);
+    $piezas_doc = $stmtPz->fetchAll(PDO::FETCH_ASSOC);
+
+    $grupos_php = [];
+    foreach ($piezas_doc as $p) { $grupos_php[(int)$p['partida']][] = $p; }
+    ksort($grupos_php);
+
+    // Indexar partidas por num_partida para lookup rápido
+    $parts_idx = [];
+    foreach ($parts as $pt) { $parts_idx[(int)$pt['num_partida']] = $pt; }
+
+    $tot_pz = 0; $tot_m2 = 0.0;
+    foreach ($grupos_php as $np => $grp) {
+        $pt   = $parts_idx[$np] ?? [];
+        $cant = count($grp);
+        $m2u  = (float)($grp[0]['m2'] ?? 0);
+        $m2t  = round($m2u * $cant, 4);
+        $tot_pz += $cant; $tot_m2 += $m2t;
+
+        $specs = [];
+        if (!empty($pt['cpb']) && strtoupper($pt['cpb']) !== 'NO') $specs[] = 'CPB: ' . $pt['cpb'];
+        if (!empty($pt['detalles'])) $specs[] = $pt['detalles'];
+        if (!empty($pt['resaques'])           && $pt['resaques'] > 0)           $specs[] = 'Res: ' . $pt['resaques'];
+        if (!empty($pt['taladros_pasados'])   && $pt['taladros_pasados'] > 0)   $specs[] = 'TP: ' . $pt['taladros_pasados'];
+        if (!empty($pt['taladros_avellanados'])&& $pt['taladros_avellanados'] > 0) $specs[] = 'TA: ' . $pt['taladros_avellanados'];
+        $specs[] = !empty($pt['requiere_templado']) ? 'Templado' : 'No Templado';
+
+        $mat   = $pt['cristal_nombre'] ?? ($grp[0]['cristal_corto'] ?? '—');
+        $ancho = $grp[0]['ancho_mm'] ?? ($pt['ancho'] ?? '—');
+        $alto  = $grp[0]['alto_mm']  ?? ($pt['alto']  ?? '—');
+
+        $tbody_html .= '<tr>';
+        $tbody_html .= '<td style="font-weight:700;color:#1d4ed8">' . (int)$np . '</td>';
+        $tbody_html .= '<td class="cristal-cell">' . htmlspecialchars($mat) . '</td>';
+        $tbody_html .= '<td>' . htmlspecialchars((string)$ancho) . '</td>';
+        $tbody_html .= '<td>' . htmlspecialchars((string)$alto) . '</td>';
+        $tbody_html .= '<td>' . $cant . '</td>';
+        $tbody_html .= '<td>' . number_format($m2t, 4) . '</td>';
+        $tbody_html .= '<td class="left">' . htmlspecialchars(implode(' · ', $specs) ?: '—') . '</td>';
+        $tbody_html .= '<td class="left">' . htmlspecialchars($pt['comentarios_etiqueta'] ?? '') . '</td>';
+        $tbody_html .= '</tr>';
+    }
+    $totales_txt = 'TOTAL PIEZAS: ' . $tot_pz . '  |  TOTAL M²: ' . number_format($tot_m2, 4);
+}
+// Fecha de entrega a mostrar en el doc (chofer > estimada)
+if ($fecha_chofer_php) {
+    $meses_es = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    $d = (int)date('j', strtotime($fecha_chofer_php));
+    $m = (int)date('n', strtotime($fecha_chofer_php));
+    $a = date('Y', strtotime($fecha_chofer_php));
+    $fecha_ent = $d . '/' . str_pad($m, 2, '0', STR_PAD_LEFT) . '/' . $a;
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -271,13 +329,13 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 <div class="print-bar no-print" id="topbar">
   <span>Remisión / Orden de Salida — <?= htmlspecialchars($folio_cot) ?></span>
   <div style="display:flex;gap:10px">
-    <button class="btn-cancel" id="btnVolver" style="display:none" onclick="volverAlSelector()">&#8592; Volver</button>
-    <button class="btn-print"  id="btnImprimir" style="display:none" onclick="window.print()">&#128438; Imprimir / Guardar PDF</button>
+    <button class="btn-cancel" id="btnVolver" style="display:<?= $ya_entregada ? 'none' : 'none' ?>" onclick="volverAlSelector()">&#8592; Volver</button>
+    <button class="btn-print"  id="btnImprimir" style="display:<?= $ya_entregada ? 'inline-block' : 'none' ?>" onclick="window.print()">&#128438; Imprimir / Guardar PDF</button>
   </div>
 </div>
 
 <!-- ── Selector de piezas (pantalla pre-impresión) ── -->
-<div id="selector-view" class="no-print">
+<div id="selector-view" class="no-print" style="display:<?= $ya_entregada ? 'none' : 'block' ?>">
   <div class="sel-titulo">Registrar salida — <?= htmlspecialchars($folio_orden) ?></div>
   <div class="sel-sub">Selecciona las piezas que salen en esta entrega. Solo las <strong>terminadas</strong> son seleccionables.</div>
 
@@ -324,7 +382,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 </div>
 
 <!-- ── Documento imprimible ── -->
-<div class="doc" id="doc-print">
+<div class="doc" id="doc-print" style="display:<?= $ya_entregada ? 'block' : 'none' ?>">
 
   <div class="header-wrap">
     <div class="header-logo">
@@ -384,11 +442,11 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
         <th>Obs.</th>
       </tr>
     </thead>
-    <tbody id="doc-tbody"></tbody>
+    <tbody id="doc-tbody"><?= $tbody_html ?></tbody>
   </table>
 
   <div class="totales-row">
-    <div class="total-box" id="doc-totales">TOTAL PIEZAS: — &nbsp;|&nbsp; TOTAL M²: —</div>
+    <div class="total-box" id="doc-totales"><?= $totales_txt ?></div>
   </div>
 
   <div id="doc-resumen-mat"></div>
@@ -424,7 +482,7 @@ var COTIZACION_ID  = <?= $cotizacion_id_php ?>;
 var TIPO_ENTREGA   = '<?= $tipo_ent ?>';  // mutable — puede cambiarse con setTipo()
 var PARTS          = <?= $parts_json ?>;
 var FECHA_CHOFER   = '<?= $fecha_chofer_php ?>';
-var YA_ENTREGADA   = <?= $ya_entregada ?>;
+var YA_ENTREGADA   = <?= $ya_entregada ? 'true' : 'false' ?>;
 
 function esc(s) {
   return String(s == null ? '' : s)
@@ -440,6 +498,11 @@ var seleccionadas = {};
 
 // ── Cargar piezas al iniciar ──────────────────────────────────────────────────
 (function init() {
+  // Reimpresión: documento ya generado en PHP, solo disparar print
+  if (YA_ENTREGADA) {
+    setTimeout(function() { window.print(); }, 400);
+    return;
+  }
   if (!ORDEN_ID) {
     document.getElementById('partidas-container').innerHTML =
       '<div class="no-piezas">Esta cotización no tiene una orden de producción vinculada.</div>';
@@ -450,12 +513,6 @@ var seleccionadas = {};
     .then(function(data) {
       if (!data.ok) throw new Error(data.error || 'Error');
       todasPiezas = data.piezas;
-      // Si la orden ya fue entregada → mostrar documento directamente (reimpresión)
-      if (YA_ENTREGADA) {
-        var allIds = todasPiezas.map(function(p) { return p.id; });
-        construirDocumento(allIds, FECHA_CHOFER || null, false, allIds.length);
-        return;
-      }
       renderSelector();
     })
     .catch(function(e) {
