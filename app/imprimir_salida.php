@@ -66,6 +66,8 @@ $epago_label   = ['pendiente'=>'Pendiente','en_proceso'=>'En proceso','pago_entr
 
 $orden_id_php      = (int)($orden['id'] ?? 0);
 $cotizacion_id_php = $id;
+$ya_entregada      = ($orden && $orden['estado'] === 'entregada') ? 'true' : 'false';
+$fecha_chofer_php  = $orden['fecha_entrega_chofer'] ? date('Y-m-d', strtotime($orden['fecha_entrega_chofer'])) : '';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -421,7 +423,8 @@ var ORDEN_ID       = <?= $orden_id_php ?>;
 var COTIZACION_ID  = <?= $cotizacion_id_php ?>;
 var TIPO_ENTREGA   = '<?= $tipo_ent ?>';  // mutable — puede cambiarse con setTipo()
 var PARTS          = <?= $parts_json ?>;
-var FECHA_CHOFER   = '<?= htmlspecialchars($orden['fecha_entrega_chofer'] ?? '') ?>';
+var FECHA_CHOFER   = '<?= $fecha_chofer_php ?>';
+var YA_ENTREGADA   = <?= $ya_entregada ?>;
 
 function esc(s) {
   return String(s == null ? '' : s)
@@ -447,11 +450,10 @@ var seleccionadas = {};
     .then(function(data) {
       if (!data.ok) throw new Error(data.error || 'Error');
       todasPiezas = data.piezas;
-      // Si todas las piezas ya están entregadas → mostrar documento directamente (reimpresión)
-      if (data.total > 0 && data.entregadas === data.total) {
+      // Si la orden ya fue entregada → mostrar documento directamente (reimpresión)
+      if (YA_ENTREGADA) {
         var allIds = todasPiezas.map(function(p) { return p.id; });
-        var fc = FECHA_CHOFER || null;
-        construirDocumento(allIds, fc, false, allIds.length);
+        construirDocumento(allIds, FECHA_CHOFER || null, false, allIds.length);
         return;
       }
       renderSelector();
