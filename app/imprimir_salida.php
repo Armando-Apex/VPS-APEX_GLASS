@@ -421,7 +421,6 @@ var ORDEN_ID       = <?= $orden_id_php ?>;
 var COTIZACION_ID  = <?= $cotizacion_id_php ?>;
 var TIPO_ENTREGA   = '<?= $tipo_ent ?>';  // mutable — puede cambiarse con setTipo()
 var PARTS          = <?= $parts_json ?>;
-var ORDEN_ESTADO   = '<?= htmlspecialchars($orden['estado'] ?? '') ?>';
 var FECHA_CHOFER   = '<?= htmlspecialchars($orden['fecha_entrega_chofer'] ?? '') ?>';
 
 function esc(s) {
@@ -448,8 +447,8 @@ var seleccionadas = {};
     .then(function(data) {
       if (!data.ok) throw new Error(data.error || 'Error');
       todasPiezas = data.piezas;
-      // Si la orden ya está entregada y no quedan piezas terminadas → mostrar doc directamente
-      if (data.terminadas === 0 && data.entregadas > 0 && ORDEN_ESTADO === 'entregada') {
+      // Si todas las piezas ya están entregadas → mostrar documento directamente (reimpresión)
+      if (data.total > 0 && data.entregadas === data.total) {
         var allIds = todasPiezas.map(function(p) { return p.id; });
         var fc = FECHA_CHOFER || null;
         construirDocumento(allIds, fc, false, allIds.length);
