@@ -210,24 +210,38 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
       <div class="fac-row cols2">
         <div class="fac-field">
           <label>Uso CFDI</label>
-          <select id="fac-uso-cfdi">
-            <option value="G01">G01 – Adquisición de bienes</option>
-            <option value="G02">G02 – Devoluciones / descuentos</option>
-            <option value="G03" selected>G03 – Gastos en general</option>
-            <option value="I01">I01 – Construcciones</option>
-            <option value="I03">I03 – Equipo de transporte</option>
-            <option value="D01">D01 – Honorarios médicos</option>
-            <option value="S01">S01 – Sin efectos fiscales</option>
-            <option value="P01">P01 – Por definir</option>
+          <select id="fac-uso-cfdi" required>
+            <option value="" selected disabled>— Selecciona uso CFDI —</option>
+            <optgroup label="Gastos e inversiones">
+              <option value="G01">G01 – Adquisición de mercancias</option>
+              <option value="G02">G02 – Devoluciones, descuentos o bonificaciones</option>
+              <option value="G03">G03 – Gastos en general</option>
+            </optgroup>
+            <optgroup label="Inversiones">
+              <option value="I01">I01 – Construcciones</option>
+              <option value="I02">I02 – Mobiliario y equipo de oficina</option>
+              <option value="I03">I03 – Equipo de transporte</option>
+              <option value="I04">I04 – Equipo de cómputo y accesorios</option>
+              <option value="I08">I08 – Otra maquinaria y equipo</option>
+            </optgroup>
+            <optgroup label="Especiales">
+              <option value="CP01">CP01 – Pagos</option>
+              <option value="S01">S01 – Sin efectos fiscales</option>
+              <option value="P01">P01 – Por definir</option>
+            </optgroup>
           </select>
         </div>
         <div class="fac-field">
           <label>Régimen Fiscal del receptor</label>
-          <select id="fac-regimen">
+          <select id="fac-regimen" required>
+            <option value="" selected disabled>— Selecciona régimen fiscal —</option>
             <option value="601">601 – General de Ley Personas Morales</option>
+            <option value="603">603 – Personas Morales sin Fines de Lucro</option>
+            <option value="606">606 – Arrendamiento</option>
             <option value="612" selected>612 – Pers. Físicas Actividades Empresariales</option>
             <option value="616">616 – Sin obligaciones fiscales</option>
             <option value="621">621 – Incorporación Fiscal</option>
+            <option value="625">625 – Plataformas Tecnológicas</option>
             <option value="626">626 – Resico</option>
           </select>
         </div>
@@ -235,9 +249,10 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
       <div class="fac-row cols2">
         <div class="fac-field">
           <label>Forma de Pago</label>
-          <select id="fac-forma-pago">
+          <select id="fac-forma-pago" required>
+            <option value="" selected disabled>— Selecciona forma de pago —</option>
             <option value="01">01 – Efectivo</option>
-            <option value="03" selected>03 – Transferencia electrónica</option>
+            <option value="03">03 – Transferencia electrónica</option>
             <option value="04">04 – Tarjeta de crédito</option>
             <option value="28">28 – Tarjeta de débito</option>
             <option value="99">99 – Por definir</option>
@@ -245,8 +260,9 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
         </div>
         <div class="fac-field">
           <label>Método de Pago</label>
-          <select id="fac-metodo-pago">
-            <option value="PUE" selected>PUE – Pago en una sola exhibición</option>
+          <select id="fac-metodo-pago" required>
+            <option value="" selected disabled>— Selecciona método de pago —</option>
+            <option value="PUE">PUE – Pago en una sola exhibición</option>
             <option value="PPD">PPD – Pago en parcialidades o diferido</option>
           </select>
         </div>
@@ -489,10 +505,10 @@ var ModFacturacion = (function() {
     document.getElementById('fac-rfc').value     = 'XAXX010101000';
     document.getElementById('fac-cp').value      = '';
     document.getElementById('fac-serie').value   = 'A';
-    document.getElementById('fac-uso-cfdi').value    = 'G03';
-    document.getElementById('fac-regimen').value     = '612';
-    document.getElementById('fac-forma-pago').value  = '03';
-    document.getElementById('fac-metodo-pago').value = 'PUE';
+    document.getElementById('fac-uso-cfdi').value    = '';
+    document.getElementById('fac-regimen').value     = '';
+    document.getElementById('fac-forma-pago').value  = '';
+    document.getElementById('fac-metodo-pago').value = '';
     document.getElementById('fac-conceptos-body').innerHTML = _conceptoRow('Vidrio templado', '44111702', 'M2', 1, '', true);
     recalc();
   }
@@ -555,10 +571,10 @@ var ModFacturacion = (function() {
     document.getElementById('fac-rfc').value     = f.rfc    || '';
     document.getElementById('fac-cp').value      = f.cp     || '';
     document.getElementById('fac-serie').value   = f.serie  || 'A';
-    document.getElementById('fac-uso-cfdi').value    = f.uso_cfdi    || 'G03';
-    document.getElementById('fac-regimen').value     = f.regimen     || '612';
-    document.getElementById('fac-forma-pago').value  = f.forma_pago_cod || '03';
-    document.getElementById('fac-metodo-pago').value = f.metodo_pago || 'PUE';
+    document.getElementById('fac-uso-cfdi').value    = f.uso_cfdi        || '';
+    document.getElementById('fac-regimen').value     = f.regimen         || '';
+    document.getElementById('fac-forma-pago').value  = f.forma_pago_cod  || '';
+    document.getElementById('fac-metodo-pago').value = f.metodo_pago     || '';
     var tbody = document.getElementById('fac-conceptos-body');
     tbody.innerHTML = '';
     var conceptos = f.conceptos || [];
@@ -576,6 +592,16 @@ var ModFacturacion = (function() {
   }
 
   function guardar() {
+    var errores = [];
+    if (!document.getElementById('fac-uso-cfdi').value)    errores.push('Uso CFDI');
+    if (!document.getElementById('fac-regimen').value)     errores.push('Régimen Fiscal del receptor');
+    if (!document.getElementById('fac-forma-pago').value)  errores.push('Forma de Pago');
+    if (!document.getElementById('fac-metodo-pago').value) errores.push('Método de Pago');
+    if (errores.length) {
+      alert('Faltan datos fiscales obligatorios:\n\n• ' + errores.join('\n• ') + '\n\nDebes seleccionarlos manualmente — no se guardan por defecto a propósito.');
+      return;
+    }
+
     var rfc   = document.getElementById('fac-rfc').value.trim().toUpperCase() || 'XAXX010101000';
     var cp    = document.getElementById('fac-cp').value.trim();
     var email = document.getElementById('fac-email').value.trim();

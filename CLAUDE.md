@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 25 junio 2026 | Próximo UPD disponible: UPD-219
+# Última actualización: 26 junio 2026 | Próximo UPD disponible: UPD-230
 
 **REGLA DE ORO:** Este archivo es la memoria compartida del proyecto. Claude lo lee al inicio de cada sesión y lo actualiza al terminar. Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -519,4 +519,7 @@ Al terminar cualquier sesión con cambios:
 | UPD-224 | 25-jun | Armando | Portal dashboard: reorden secciones (Activas→Cotizaciones→Historial) + historial limitado a últimas 3 entregas |
 | UPD-225 | 25-jun | Armando | Clientes: editar teléfono y tel. alterno WA inline desde panel — botón Editar en cada fila, accion=editar_telefono en API con bitácora |
 | UPD-226 | 25-jun | Armando | WA inbox: búsqueda de cliente por telefono Y telefono_alterno — fallback, auto-vinculación y webhook ahora revisan ambos campos |
-**Próximo UPD disponible: UPD-227**
+| UPD-227 | 26-jun | Mando | Facturación WIP campos PAC: Serie CFDI (default A), Moneda (MXN fijo), Correo receptor (PAC envía XML+PDF), IVA por concepto (checkbox por renglón default marcado); recalc() suma IVA solo de renglones con checkbox activo; guardar/abrirEditar persisten nuevos campos; Tipo de comprobante fijo "I – Ingreso" |
+| UPD-228 | 26-jun | Mando | Facturación WIP catálogo CFDI completo: Uso CFDI agrupado (G01/G02/G03/I01/I02/I03/I04/I08/CP01/S01/P01) con optgroup; Régimen Fiscal ampliado (601/603/606/612/616/621/625/626); eliminado D01 Honorarios médicos (no aplica) |
+| UPD-229 | 26-jun | Mando | Facturación WIP validación CFDI obligatoria: los 4 selects fiscales (Uso CFDI, Régimen Fiscal, Forma de Pago, Método de Pago) arrancan en "— Selecciona X —" con value="" disabled; guardar() bloquea y muestra alert listando los campos vacíos — no tienen default intencional para evitar errores fiscales |
+**Próximo UPD disponible: UPD-230**
