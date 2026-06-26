@@ -49,7 +49,7 @@ if ($method === 'GET') {
     $stmt = $pdo->prepare("
         SELECT id, codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email, localidad, ciudad, activo, created_at
         $pass_col, portal_activo
-        FROM clientes c $where ORDER BY codigo ASC LIMIT 200
+        FROM clientes c $where ORDER BY codigo ASC LIMIT 350
     ");
     $stmt->execute($params);
     echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;

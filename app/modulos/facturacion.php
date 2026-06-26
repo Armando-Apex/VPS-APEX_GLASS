@@ -87,6 +87,34 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .fac-totales div { margin-bottom: 4px; color: #475569; }
 .fac-totales .total-line { font-weight: 700; font-size: 15px; color: #1a1a1a; margin-top: 8px; padding-top: 8px; border-top: 2px solid #e2e8f0; }
 
+/* Constancia upload */
+.fac-cst-drop { border: 2px dashed #cbd5e1; border-radius: 10px; padding: 18px 20px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: all .15s; background: #f8fafc; margin-bottom: 16px; }
+.fac-cst-drop:hover, .fac-cst-drop.drag { border-color: #2563eb; background: #eff6ff; }
+.fac-cst-drop input[type=file] { display: none; }
+.fac-cst-icon { width: 38px; height: 38px; background: #e0e7ff; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.fac-cst-txt { flex: 1; }
+.fac-cst-txt strong { display: block; font-size: 13px; color: #1e293b; }
+.fac-cst-txt span { font-size: 11px; color: #64748b; }
+.fac-cst-preview { background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; display: none; }
+.fac-cst-preview.visible { display: block; }
+.fac-cst-preview h4 { margin: 0 0 10px; font-size: 12px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: .04em; }
+.fac-cst-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.fac-cst-field { background: #fff; border: 1px solid #bbf7d0; border-radius: 7px; padding: 8px 10px; }
+.fac-cst-field label { font-size: 10px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 2px; }
+.fac-cst-field span { font-size: 13px; color: #1a1a1a; font-weight: 600; }
+.fac-cst-warn { font-size: 11px; color: #92400e; background: #fef3c7; border-radius: 6px; padding: 6px 10px; margin-bottom: 10px; display: none; }
+.fac-cst-warn.visible { display: block; }
+.fac-cst-actions { display: flex; gap: 8px; align-items: center; }
+.fac-cst-usar { background: #166534; color: #fff; border: none; padding: 7px 16px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.fac-cst-usar:hover { background: #15803d; }
+.fac-cst-desc { font-size: 11px; color: #64748b; }
+.fac-cst-loading { display: none; align-items: center; gap: 8px; font-size: 12px; color: #2563eb; padding: 10px 0; }
+.fac-cst-loading.visible { display: flex; }
+.fac-cst-spin { width: 16px; height: 16px; border: 2px solid #bfdbfe; border-top-color: #2563eb; border-radius: 50%; animation: facSpin .7s linear infinite; }
+@keyframes facSpin { to { transform: rotate(360deg); } }
+.fac-cst-error { font-size: 12px; color: #dc2626; background: #fee2e2; border-radius: 7px; padding: 8px 12px; display: none; margin-top: 8px; }
+.fac-cst-error.visible { display: block; }
+
 /* UUID box */
 .fac-uuid-box { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 10px 14px; margin-top: 12px; font-size: 12px; }
 .fac-uuid-box label { font-size: 10px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 4px; }
@@ -171,6 +199,35 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
         <div class="fac-field">
           <label>Fecha</label>
           <input type="date" id="fac-fecha">
+        </div>
+      </div>
+
+      <!-- Constancia SAT -->
+      <div class="fac-section-title">Constancia de Situación Fiscal</div>
+      <label class="fac-cst-drop" id="fac-cst-drop" ondragover="ModFacturacion.cstDrag(event,true)" ondragleave="ModFacturacion.cstDrag(event,false)" ondrop="ModFacturacion.cstDrop(event)">
+        <input type="file" id="fac-cst-file" accept=".pdf,application/pdf" onchange="ModFacturacion.cstSubir(this.files[0])">
+        <div class="fac-cst-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        </div>
+        <div class="fac-cst-txt">
+          <strong>Subir Constancia de Situación Fiscal (PDF)</strong>
+          <span>Haz clic o arrastra el PDF del SAT — extrae RFC, nombre, CP y régimen automáticamente</span>
+        </div>
+      </label>
+
+      <div class="fac-cst-loading" id="fac-cst-loading">
+        <div class="fac-cst-spin"></div>
+        Extrayendo datos del PDF…
+      </div>
+      <div class="fac-cst-error" id="fac-cst-error"></div>
+
+      <div class="fac-cst-preview" id="fac-cst-preview">
+        <h4>Datos encontrados en la constancia</h4>
+        <div class="fac-cst-fields" id="fac-cst-fields"></div>
+        <div class="fac-cst-warn" id="fac-cst-warn"></div>
+        <div class="fac-cst-actions">
+          <button class="fac-cst-usar" onclick="ModFacturacion.cstAplicar()">Usar estos datos</button>
+          <span class="fac-cst-desc">Los campos del formulario se llenarán automáticamente</span>
         </div>
       </div>
 
@@ -737,7 +794,211 @@ var ModFacturacion = (function() {
     recalc();
   }
 
-  // Cerrar dropdown clave SAT al hacer click fuera
+  // ── Constancia de Situación Fiscal ────────────────────────────────────────
+  var _cstDatos = null;
+
+  function cstDrag(e, over) {
+    e.preventDefault();
+    var drop = document.getElementById('fac-cst-drop');
+    if (drop) drop.classList.toggle('drag', over);
+  }
+
+  function cstDrop(e) {
+    e.preventDefault();
+    var drop = document.getElementById('fac-cst-drop');
+    if (drop) drop.classList.remove('drag');
+    var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) cstSubir(file);
+  }
+
+  // Carga PDF.js una sola vez
+  var _pdfJsListo = false;
+  function _cargarPdfJs(cb) {
+    if (_pdfJsListo) { cb(); return; }
+    if (document.getElementById('pdfjs-script')) {
+      // ya está en el DOM, esperar a que cargue
+      var t = setInterval(function() {
+        if (window.pdfjsLib) { clearInterval(t); _pdfJsListo = true; cb(); }
+      }, 50);
+      return;
+    }
+    var base = '/produccion/lib/';
+    var s = document.createElement('script');
+    s.id  = 'pdfjs-script';
+    s.src = base + 'pdf.min.js';
+    s.onload = function() {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js';
+      _pdfJsListo = true;
+      cb();
+    };
+    s.onerror = function() { _cstError('No se pudo cargar el lector de PDF'); };
+    document.head.appendChild(s);
+  }
+
+  function cstSubir(file) {
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
+      _cstError('Solo se aceptan archivos PDF'); return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      _cstError('Archivo demasiado grande (máx 5 MB)'); return;
+    }
+    _cstReset();
+    document.getElementById('fac-cst-loading').classList.add('visible');
+
+    _cargarPdfJs(function() {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var loadTask = window.pdfjsLib.getDocument({data: e.target.result});
+        loadTask.promise.then(function(pdf) {
+          // Extraer texto de todas las páginas (máx 3)
+          var paginas = Math.min(pdf.numPages, 3);
+          var textos  = [];
+          var pending = paginas;
+          for (var p = 1; p <= paginas; p++) {
+            (function(num) {
+              pdf.getPage(num).then(function(page) {
+                page.getTextContent().then(function(content) {
+                  var linea = content.items.map(function(it) { return it.str; }).join(' ');
+                  textos[num] = linea;
+                  pending--;
+                  if (pending === 0) {
+                    document.getElementById('fac-cst-loading').classList.remove('visible');
+                    var texto = textos.join(' ');
+                    var datos = _cstExtraer(texto);
+                    if (!datos.rfc && !datos.nombre && !datos.cp) {
+                      _cstError('No se encontraron datos fiscales. Verifica que sea una Constancia de Situación Fiscal del SAT.');
+                      return;
+                    }
+                    _cstMostrar(datos);
+                  }
+                });
+              });
+            })(p);
+          }
+        }).catch(function(err) {
+          document.getElementById('fac-cst-loading').classList.remove('visible');
+          _cstError('Error al leer el PDF: ' + err.message);
+        });
+      };
+      reader.onerror = function() {
+        document.getElementById('fac-cst-loading').classList.remove('visible');
+        _cstError('Error al leer el archivo');
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function _cstExtraer(texto) {
+    var datos = {rfc: '', nombre: '', cp: '', regimen: []};
+
+    // RFC: 3-4 letras + 6 dígitos + 3 alfanum
+    var mRfc = texto.match(/\b([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})\b/);
+    if (mRfc) datos.rfc = mRfc[1];
+
+    // CP Fiscal
+    var mCp = texto.match(/C[oó]digo\s*Postal\s*[:\s]*(\d{5})\b/i);
+    if (!mCp) mCp = texto.match(/\bCP\s*[:\s]*(\d{5})\b/i);
+    if (mCp) datos.cp = mCp[1];
+
+    // Nombre persona moral
+    var mMoral = texto.match(/(?:Denominaci[oó]n\s*(?:\/\s*)?Raz[oó]n\s*Social|Raz[oó]n\s*Social)\s*[:\s]+([A-ZÁÉÍÓÚÑÜ&][A-ZÁÉÍÓÚÑÜ&\s,\.\-]{2,80}?)(?:\s{3,}|\d{2}\/\d{2}\/\d{4}|RFC|Curp|CURP|Régimen)/i);
+    if (mMoral) datos.nombre = mMoral[1].trim().replace(/\s+/g, ' ');
+
+    // Nombre persona física: Apellido Paterno + Materno + Nombre(s)
+    if (!datos.nombre) {
+      var ap = '', am = '', nom = '';
+      var mAp  = texto.match(/Apellido\s+Paterno\s*[:\s]+([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,30}?)(?:\s{2,}|Apellido|Nombre|CURP)/i);
+      var mAm  = texto.match(/Apellido\s+Materno\s*[:\s]+([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,30}?)(?:\s{2,}|Nombre|RFC|CURP)/i);
+      var mNom = texto.match(/Nombre\s*\(?s?\)?\s*[:\s]+([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,50}?)(?:\s{2,}|Apellido|RFC|CURP|\d)/i);
+      if (mAp)  ap  = mAp[1].trim();
+      if (mAm)  am  = mAm[1].trim();
+      if (mNom) nom = mNom[1].trim();
+      var pn = [ap, am, nom].filter(function(x){ return x.length > 1; });
+      if (pn.length) datos.nombre = pn.join(' ');
+    }
+
+    // Régimen(es)
+    var regs = [
+      {cod:'601', pat:/601|General de Ley Personas Morales/i,             label:'601 – General de Ley Personas Morales'},
+      {cod:'603', pat:/603|Personas Morales sin Fines de Lucro/i,         label:'603 – Personas Morales sin Fines de Lucro'},
+      {cod:'606', pat:/606|Arrendamiento/i,                               label:'606 – Arrendamiento'},
+      {cod:'612', pat:/612|Actividades Empresariales y Profesionales/i,   label:'612 – Pers. Físicas Actividades Empresariales'},
+      {cod:'616', pat:/616|Sin obligaciones fiscales/i,                   label:'616 – Sin obligaciones fiscales'},
+      {cod:'621', pat:/621|Incorporaci[oó]n Fiscal/i,                    label:'621 – Incorporación Fiscal'},
+      {cod:'625', pat:/625|Plataformas Tecnol[oó]gicas/i,                label:'625 – Plataformas Tecnológicas'},
+      {cod:'626', pat:/626|RESICO|R[eé]gimen Simplificado de Confianza/i, label:'626 – Resico'},
+    ];
+    for (var i = 0; i < regs.length; i++) {
+      if (regs[i].pat.test(texto)) {
+        datos.regimen.push({cod: regs[i].cod, label: regs[i].label});
+      }
+    }
+
+    return datos;
+  }
+
+  function _cstReset() {
+    _cstDatos = null;
+    document.getElementById('fac-cst-error').className   = 'fac-cst-error';
+    document.getElementById('fac-cst-preview').className = 'fac-cst-preview';
+    document.getElementById('fac-cst-loading').className = 'fac-cst-loading';
+  }
+
+  function _cstError(msg) {
+    var el = document.getElementById('fac-cst-error');
+    el.textContent = msg;
+    el.className = 'fac-cst-error visible';
+  }
+
+  function _cstMostrar(datos) {
+    _cstDatos = datos;
+    var html = '';
+    if (datos.rfc)    html += '<div class="fac-cst-field"><label>RFC</label><span>' + datos.rfc + '</span></div>';
+    if (datos.nombre) html += '<div class="fac-cst-field"><label>Nombre / Razón Social</label><span>' + datos.nombre + '</span></div>';
+    if (datos.cp)     html += '<div class="fac-cst-field"><label>CP Fiscal</label><span>' + datos.cp + '</span></div>';
+    if (datos.regimen && datos.regimen.length) {
+      var regs = [];
+      for (var i = 0; i < datos.regimen.length; i++) regs.push(datos.regimen[i].label);
+      html += '<div class="fac-cst-field" style="grid-column:1/-1"><label>Régimen(es) Fiscal(es)</label><span style="font-size:12px">' + regs.join('<br>') + '</span></div>';
+    }
+    document.getElementById('fac-cst-fields').innerHTML = html;
+
+    var warn = '';
+    if (!datos.rfc)    warn += '• RFC no encontrado — ingrésalo manualmente<br>';
+    if (!datos.nombre) warn += '• Nombre no encontrado — ingrésalo manualmente<br>';
+    if (!datos.cp)     warn += '• CP Fiscal no encontrado — ingrésalo manualmente<br>';
+    if (!datos.regimen || !datos.regimen.length) warn += '• Régimen fiscal no detectado — selecciónalo manualmente<br>';
+    var warnEl = document.getElementById('fac-cst-warn');
+    warnEl.innerHTML = warn;
+    warnEl.className = 'fac-cst-warn' + (warn ? ' visible' : '');
+
+    document.getElementById('fac-cst-preview').className = 'fac-cst-preview visible';
+  }
+
+  function cstAplicar() {
+    if (!_cstDatos) return;
+    var d = _cstDatos;
+    if (d.rfc)    document.getElementById('fac-rfc').value    = d.rfc;
+    if (d.nombre) document.getElementById('fac-nombre').value = d.nombre;
+    if (d.cp)     document.getElementById('fac-cp').value     = d.cp;
+    // Régimen: si hay uno solo, seleccionarlo; si hay varios, seleccionar el primero y avisar
+    if (d.regimen && d.regimen.length) {
+      var sel = document.getElementById('fac-regimen');
+      sel.value = d.regimen[0].cod;
+      if (d.regimen.length > 1) {
+        var nombres = [];
+        for (var i = 0; i < d.regimen.length; i++) nombres.push(d.regimen[i].label);
+        alert('Se encontraron ' + d.regimen.length + ' regímenes fiscales:\n\n' + nombres.join('\n') + '\n\nSe seleccionó el primero. Verifica con el cliente cuál aplica para esta factura.');
+      }
+    }
+    // Ocultar preview tras aplicar
+    document.getElementById('fac-cst-preview').className = 'fac-cst-preview';
+    document.getElementById('fac-cst-file').value = '';
+    _cstDatos = null;
+  }
+
+  // ── Cerrar dropdown clave SAT al hacer click fuera
   document.addEventListener('click', function(e) {
     if (!e.target.closest('.fac-csat')) {
       var all = document.querySelectorAll('.fac-csat-list.open');
@@ -760,7 +1021,11 @@ var ModFacturacion = (function() {
     agregarConcepto: agregarConcepto,
     recalc:          recalc,
     _csatToggle:     _csatToggle,
-    _csatPick:       _csatPick
+    _csatPick:       _csatPick,
+    cstDrag:         cstDrag,
+    cstDrop:         cstDrop,
+    cstSubir:        cstSubir,
+    cstAplicar:      cstAplicar
   };
 })();
 
