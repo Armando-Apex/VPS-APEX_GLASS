@@ -42,23 +42,10 @@ $stmt2->execute([$id]);
 $parts = $stmt2->fetchAll(PDO::FETCH_ASSOC);
 
 $orden = null;
-$piezas_json = '[]';
 if ($c['orden_id']) {
     $stmt3 = $db->prepare('SELECT id, folio, fecha_entrega, tipo_entrega FROM ordenes WHERE id = ?');
     $stmt3->execute([$c['orden_id']]);
     $orden = $stmt3->fetch(PDO::FETCH_ASSOC);
-
-    if ($orden) {
-        $stmt4 = $db->prepare('
-            SELECT p.id, p.partida, p.pieza_num, p.pieza_total,
-                   p.cristal_corto, p.ancho_mm, p.alto_mm, p.m2, p.estatus
-            FROM piezas p
-            WHERE p.orden_id = ?
-            ORDER BY p.partida ASC, p.pieza_num ASC
-        ');
-        $stmt4->execute([$orden['id']]);
-        $piezas_json = json_encode($stmt4->fetchAll(PDO::FETCH_ASSOC), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-    }
 }
 
 $parts_json = json_encode($parts, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
@@ -122,32 +109,69 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .pieza-chip {
   display: flex; align-items: center; gap: 6px;
   border: 1.5px solid #cbd5e1; border-radius: 6px;
-  padding: 6px 10px; cursor: pointer; user-select: none;
+  padding: 8px 12px; cursor: pointer; user-select: none;
   font-size: 12px; font-weight: 600; color: #334155;
-  transition: all .15s;
+  transition: background .15s, border-color .15s, color .15s;
+  min-height: 36px;
 }
+.pieza-chip:not(.entregado):not(.en-proceso):hover { background: #f0fdf4; border-color: #86efac; }
+.pieza-chip:focus-within { outline: 2px solid #3b82f6; outline-offset: 1px; }
 .pieza-chip input[type=checkbox] { margin: 0; width: 14px; height: 14px; cursor: pointer; }
 .pieza-chip.checked { background: #ecfdf5; border-color: #16a34a; color: #15803d; }
-.pieza-chip.entregado { background: #f1f5f9; border-color: #cbd5e1; color: #94a3b8; cursor: not-allowed; }
-.pieza-chip.en-proceso { background: #fff7ed; border-color: #fed7aa; color: #9a3412; cursor: not-allowed; }
+.pieza-chip.checked:hover { background: #dcfce7; }
+.pieza-chip.entregado { background: #f1f5f9; border-color: #e2e8f0; color: #94a3b8; cursor: default; opacity: .7; }
+.pieza-chip.en-proceso { background: #fff7ed; border-color: #fed7aa; color: #9a3412; cursor: default; }
 
-.sel-footer { margin-top: 20px; display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+.leyenda { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+.leyenda-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #475569; }
+.leyenda-dot { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid; }
+.leyenda-dot.l-term { background: #ecfdf5; border-color: #16a34a; }
+.leyenda-dot.l-ent  { background: #f1f5f9; border-color: #e2e8f0; }
+.leyenda-dot.l-proc { background: #fff7ed; border-color: #fed7aa; }
+
+.partida-header .ph-actions { display: flex; gap: 8px; align-items: center; }
+.btn-tod { background: none; border: 1px solid #cbd5e1; color: #334155; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: background .12s; }
+.btn-tod:hover { background: #f1f5f9; }
+
+.sel-footer { margin-top: 20px; display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.sel-footer-left { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; flex: 1; }
 .sel-counter { font-size: 13px; color: #334155; }
 .sel-counter strong { color: #16a34a; font-size: 16px; }
 
 .campo-fecha { display: flex; flex-direction: column; gap: 4px; }
 .campo-fecha label { font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: .5px; }
-.campo-fecha input { border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 7px 10px; font-size: 13px; }
-.campo-fecha input:focus { outline: none; border-color: #3b82f6; }
+.campo-fecha input { border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 7px 10px; font-size: 13px; min-height: 44px; }
+.campo-fecha input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
 
 .btn-confirmar {
   background: #16a34a; color: white; border: none;
   padding: 10px 28px; border-radius: 8px; font-size: 14px; font-weight: 700;
-  cursor: pointer; margin-left: auto;
+  cursor: pointer; min-height: 44px; min-width: 200px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: background .15s;
 }
+.btn-confirmar:not(:disabled):hover { background: #15803d; }
 .btn-confirmar:disabled { background: #94a3b8; cursor: not-allowed; }
 
-.no-piezas { padding: 20px 16px; color: #94a3b8; font-size: 13px; text-align: center; }
+.spinner {
+  width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.4);
+  border-top-color: #fff; border-radius: 50%;
+  animation: spin .6s linear infinite; display: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn-confirmar.loading .spinner { display: block; }
+.btn-confirmar.loading .btn-label { opacity: .8; }
+
+@media (max-width: 600px) {
+  .sel-footer { flex-direction: column; align-items: stretch; }
+  .btn-confirmar { width: 100%; }
+}
+
+.no-piezas {
+  padding: 32px 16px; text-align: center;
+}
+.no-piezas svg { margin: 0 auto 10px; display: block; opacity: .4; }
+.no-piezas p { color: #64748b; font-size: 13px; line-height: 1.5; }
 
 /* ── Documento imprimible ── */
 .doc { padding: 20px 28px; max-width: 960px; margin: 0 auto; display: none; }
@@ -240,23 +264,34 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 <!-- ── Selector de piezas (pantalla pre-impresión) ── -->
 <div id="selector-view" class="no-print">
   <div class="sel-titulo">Registrar salida — <?= htmlspecialchars($folio_orden) ?></div>
-  <div class="sel-sub">Selecciona las piezas que salen en esta entrega. Solo se muestran las que están <strong>terminadas</strong>.</div>
+  <div class="sel-sub">Selecciona las piezas que salen en esta entrega. Solo las <strong>terminadas</strong> son seleccionables.</div>
+
+  <div class="leyenda">
+    <div class="leyenda-item"><div class="leyenda-dot l-term"></div> Terminada (seleccionable)</div>
+    <div class="leyenda-item"><div class="leyenda-dot l-ent"></div> Ya entregada</div>
+    <div class="leyenda-item"><div class="leyenda-dot l-proc"></div> En producción</div>
+  </div>
+
   <div id="partidas-container">
-    <div style="padding:40px;text-align:center;color:#94a3b8">Cargando piezas...</div>
+    <div style="padding:40px;text-align:center;color:#94a3b8">
+      <div style="width:32px;height:32px;border:3px solid #e2e8f0;border-top-color:#64748b;border-radius:50%;animation:spin .6s linear infinite;margin:0 auto 12px"></div>
+      Cargando piezas...
+    </div>
   </div>
 
   <div class="sel-footer">
-    <div class="sel-counter">Seleccionadas: <strong id="cnt-sel">0</strong> piezas</div>
-
-    <?php if ($tipo_ent === 'domicilio'): ?>
-    <div class="campo-fecha">
-      <label>Fecha de entrega por chofer</label>
-      <input type="date" id="fecha-chofer" value="<?= date('Y-m-d') ?>">
+    <div class="sel-footer-left">
+      <div class="sel-counter">Seleccionadas: <strong id="cnt-sel" aria-live="polite" aria-atomic="true">0</strong> piezas</div>
+      <?php if ($tipo_ent === 'domicilio'): ?>
+      <div class="campo-fecha">
+        <label for="fecha-chofer">Fecha de entrega por chofer</label>
+        <input type="date" id="fecha-chofer" value="<?= date('Y-m-d') ?>">
+      </div>
+      <?php endif; ?>
     </div>
-    <?php endif; ?>
-
     <button class="btn-confirmar" id="btnConfirmar" disabled onclick="confirmarSalida()">
-      Confirmar e imprimir
+      <div class="spinner" id="spinnerConfirmar"></div>
+      <span class="btn-label">Confirmar e imprimir</span>
     </button>
   </div>
 </div>
@@ -396,11 +431,14 @@ var seleccionadas = {};
 
 // ── Renderizar selector de piezas ─────────────────────────────────────────────
 function renderSelector() {
+  seleccionadas = {};   // reset en cada render para no arrastrar estado previo
   var grupos = {};
+  var totalPorPartida = {};
   todasPiezas.forEach(function(p) {
     var k = p.partida;
     if (!grupos[k]) grupos[k] = [];
     grupos[k].push(p);
+    totalPorPartida[k] = (totalPorPartida[k] || 0) + 1;
   });
 
   var html = '';
@@ -417,7 +455,13 @@ function renderSelector() {
     html += '<div class="ph-left">Partida ' + numPart + ' &nbsp;—&nbsp; ' + esc(part.cristal_nombre || piezas[0].cristal_corto || '—');
     if (part.ancho) html += ' &nbsp;' + esc(part.ancho) + ' × ' + esc(part.alto) + ' mm';
     html += '</div>';
-    html += '<div class="ph-right">' + termCnt + ' terminada(s) &nbsp;·&nbsp; ' + entCnt + ' ya entregada(s) &nbsp;·&nbsp; ' + piezas.length + ' total</div>';
+    html += '<div class="ph-actions">';
+    html += '<span style="font-size:11px;color:#64748b">' + termCnt + ' terminada(s) &nbsp;·&nbsp; ' + entCnt + ' entregada(s)</span>';
+    if (termCnt > 0) {
+      html += '<button class="btn-tod" onclick="togglePartida(\'' + numPart + '\', true)" title="Seleccionar todas las terminadas de esta partida">Todo</button>';
+      html += '<button class="btn-tod" onclick="togglePartida(\'' + numPart + '\', false)" title="Deseleccionar todas de esta partida">Ninguno</button>';
+    }
+    html += '</div>';
     html += '</div>';
     html += '<div class="piezas-grid">';
 
@@ -469,6 +513,20 @@ function togglePieza(id, activo) {
   actualizarContador();
 }
 
+function togglePartida(numPart, activar) {
+  todasPiezas.forEach(function(p) {
+    if (p.partida == numPart && p.estatus === 'terminado') {
+      seleccionadas[p.id] = activar;
+      var chip = document.getElementById('chip-' + p.id);
+      if (chip) {
+        chip.className = 'pieza-chip ' + (activar ? 'checked' : '');
+        chip.querySelector('input').checked = activar;
+      }
+    }
+  });
+  actualizarContador();
+}
+
 function actualizarContador() {
   var cnt = Object.values(seleccionadas).filter(Boolean).length;
   document.getElementById('cnt-sel').textContent = cnt;
@@ -489,7 +547,9 @@ function confirmarSalida() {
 
   var btn = document.getElementById('btnConfirmar');
   btn.disabled = true;
-  btn.textContent = 'Registrando...';
+  btn.classList.add('loading');
+  document.getElementById('spinnerConfirmar').style.display = 'block';
+  btn.querySelector('.btn-label').textContent = 'Registrando...';
 
   fetch('../api/salidas.php?accion=registrar_salida', {
     method: 'POST',
@@ -505,12 +565,15 @@ function confirmarSalida() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (!data.ok) throw new Error(data.error || 'Error');
-    construirDocumento(ids, fechaChofer, data.es_parcial, data.piezas_count);
+    // Usar pieza_ids confirmados por la API (pueden ser subconjunto si hubo TOCTOU)
+    construirDocumento(data.pieza_ids || ids, fechaChofer, data.es_parcial, (data.pieza_ids || ids).length);
   })
   .catch(function(e) {
     alert('Error al registrar: ' + e.message);
     btn.disabled = false;
-    btn.textContent = 'Confirmar e imprimir';
+    btn.classList.remove('loading');
+    document.getElementById('spinnerConfirmar').style.display = 'none';
+    btn.querySelector('.btn-label').textContent = 'Confirmar e imprimir';
   });
 }
 
@@ -568,7 +631,7 @@ function construirDocumento(idsSeleccionados, fechaChofer, esParcial, piezasCoun
     resMat[mat].pzas += cant;
     resMat[mat].m2   += m2t;
 
-    var totalPartida = todasPiezas.filter(function(p) { return p.partida == numPart; }).length;
+    var totalPartida = totalPorPartida[numPart] || cant;
     var labelCant = cant < totalPartida ? cant + ' de ' + totalPartida : String(cant);
 
     filas += '<tr>';
@@ -611,10 +674,23 @@ function construirDocumento(idsSeleccionados, fechaChofer, esParcial, piezasCoun
 }
 
 function volverAlSelector() {
+  document.getElementById('doc-print').style.display   = 'none';
+  document.getElementById('btnImprimir').style.display = 'none';
+  document.getElementById('btnVolver').style.display   = 'none';
+  // Re-cargar piezas desde la API para reflejar los nuevos estatus (entregado)
   document.getElementById('selector-view').style.display = 'block';
-  document.getElementById('doc-print').style.display     = 'none';
-  document.getElementById('btnImprimir').style.display   = 'none';
-  document.getElementById('btnVolver').style.display     = 'none';
+  document.getElementById('partidas-container').innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8">Actualizando...</div>';
+  fetch('../api/salidas.php?accion=piezas_terminadas&orden_id=' + ORDEN_ID)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) throw new Error(data.error || 'Error');
+      todasPiezas = data.piezas;
+      renderSelector();
+    })
+    .catch(function(e) {
+      document.getElementById('partidas-container').innerHTML =
+        '<div class="no-piezas">Error al actualizar: ' + e.message + '</div>';
+    });
 }
 </script>
 </body>

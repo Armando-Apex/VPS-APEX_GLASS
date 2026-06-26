@@ -80,7 +80,8 @@
       "Bash(crontab -l)",
       "Bash(/usr/bin/python3.11 -c \"import sys; sys.path.insert\\(0, '/root/.claude/security/agent-sdk-venv/lib/python3.11/site-packages'\\); import claude_agent_sdk; print\\('SDK OK'\\)\")",
       "Bash(crontab -u apexglass2025 -l)",
-      "Read(//var/spool/cron/**)"
+      "Read(//var/spool/cron/**)",
+      "Skill(code-review)"
     ]
   },
   "hooks": {

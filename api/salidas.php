@@ -7,6 +7,7 @@ require_once __DIR__ . '/permisos.php';
 require_once __DIR__ . '/wa_helper.php';
 
 requireSessionApi();
+requirePermisoApi('registrar_entrega');
 
 $metodo = $_SERVER['REQUEST_METHOD'];
 $accion = $_GET['accion'] ?? '';
@@ -53,6 +54,13 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
         jsonResponse(['error' => 'Datos incompletos'], 400);
     }
 
+    // Confirmar que la cotizacion pertenece a la orden (evita IDOR con cotizacion_id stale)
+    $stmtCv = $db->prepare('SELECT id FROM cotizaciones WHERE id = ? AND orden_id = ?');
+    $stmtCv->execute([$cotizacion_id, $orden_id]);
+    if (!$stmtCv->fetchColumn()) {
+        jsonResponse(['error' => 'Cotización no corresponde a esta orden'], 400);
+    }
+
     // Validar que las piezas sean terminadas y de esta orden
     $ph   = implode(',', array_fill(0, count($pieza_ids), '?'));
     $stmt = $db->prepare("SELECT id FROM piezas WHERE id IN ($ph) AND orden_id = ? AND estatus = 'terminado'");
@@ -61,14 +69,12 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
 
     if (empty($piezas_validas)) jsonResponse(['error' => 'No hay piezas válidas'], 400);
 
-    // Total de piezas de la orden y ya entregadas
-    $stmt = $db->prepare('SELECT COUNT(*) FROM piezas WHERE orden_id = ?');
+    // Total de piezas de la orden y ya entregadas (una sola query)
+    $stmt = $db->prepare("SELECT COUNT(*) AS total, SUM(estatus='entregado') AS ya_entregadas FROM piezas WHERE orden_id = ?");
     $stmt->execute([$orden_id]);
-    $total_piezas = (int)$stmt->fetchColumn();
-
-    $stmt = $db->prepare("SELECT COUNT(*) FROM piezas WHERE orden_id = ? AND estatus = 'entregado'");
-    $stmt->execute([$orden_id]);
-    $ya_entregadas = (int)$stmt->fetchColumn();
+    $row           = $stmt->fetch(PDO::FETCH_ASSOC);
+    $total_piezas  = (int)$row['total'];
+    $ya_entregadas = (int)$row['ya_entregadas'];
 
     $piezas_count            = count($piezas_validas);
     $total_tras_salida       = $ya_entregadas + $piezas_count;
@@ -79,8 +85,8 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
 
     $db->beginTransaction();
     try {
-        // Marcar piezas seleccionadas como entregado
-        $db->prepare("UPDATE piezas SET estatus='entregado', updated_at=NOW() WHERE id IN ($ph2) AND orden_id = ?")
+        // Marcar piezas seleccionadas como entregado (guard estatus previene TOCTOU)
+        $db->prepare("UPDATE piezas SET estatus='entregado', updated_at=NOW() WHERE id IN ($ph2) AND orden_id = ? AND estatus='terminado'")
            ->execute([...$piezas_validas, $orden_id]);
 
         // Cerrar orden si todas están entregadas
@@ -97,7 +103,7 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
             INSERT INTO orden_salidas
               (orden_id, cotizacion_id, tipo, fecha_entrega_chofer, piezas_count, piezas_total, es_parcial, registrado_por, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
-        ')->execute([$orden_id, $cotizacion_id, $tipo, $fecha_chofer, $piezas_count, $total_piezas, $es_parcial, $_SESSION['usuario'] ?? 'sistema']);
+        ')->execute([$orden_id, $cotizacion_id, $tipo, $fecha_chofer, $piezas_count, $total_piezas, $es_parcial, $_SESSION['user_name'] ?? 'sistema']);
 
         $salida_id = (int)$db->lastInsertId();
 
@@ -113,7 +119,9 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
         jsonResponse(['error' => 'Error BD: ' . $e->getMessage()], 500);
     }
 
-    // ── Enviar WA ────────────────────────────────────────────────────────────
+    // ── Enviar WA (fuera de transacción — error aquí no revierte la salida) ──────
+    $wa_enviado = false;
+    try {
     $stmt = $db->prepare('
         SELECT o.folio, o.cliente_id,
                COALESCE(cl.nombre, o.cliente_nombre) AS nombre,
@@ -125,7 +133,6 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
     $stmt->execute([$orden_id]);
     $dw = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    $wa_enviado = false;
     if ($dw) {
         $telRaw = preg_replace('/\D/', '', $dw['telefono_alterno'] ?: $dw['telefono'] ?? '');
         if ($telRaw && strlen($telRaw) >= 10) {
@@ -169,13 +176,19 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
 
                 // Guardar en inbox
                 $tel10   = substr($telRaw, -10);
-                $stmtCv  = $db->prepare("SELECT id FROM whatsapp_conversaciones WHERE RIGHT(REGEXP_REPLACE(telefono,'[^0-9]',''),10)=?");
+                $stmtCv  = $db->prepare("SELECT id, cliente_id FROM whatsapp_conversaciones WHERE RIGHT(REGEXP_REPLACE(telefono,'[^0-9]',''),10)=?");
                 $stmtCv->execute([$tel10]);
-                $convId  = $stmtCv->fetchColumn();
-                if (!$convId) {
+                $convRow = $stmtCv->fetch(PDO::FETCH_ASSOC);
+                if (!$convRow) {
                     $db->prepare("INSERT INTO whatsapp_conversaciones (cliente_id,telefono,ultima_actividad) VALUES (?,?,NOW())")
                        ->execute([$dw['cliente_id'] ?? null, $telRaw]);
-                    $convId = $db->lastInsertId();
+                    $convId = (int)$db->lastInsertId();
+                } else {
+                    $convId = (int)$convRow['id'];
+                    if (!$convRow['cliente_id'] && !empty($dw['cliente_id'])) {
+                        $db->prepare("UPDATE whatsapp_conversaciones SET cliente_id=? WHERE id=?")
+                           ->execute([$dw['cliente_id'], $convId]);
+                    }
                 }
                 $logTxt = '[Plantilla ' . $tpl . '] ' . $folio . ' — ' . $piezas_count . ' piezas entregadas';
                 $db->prepare("INSERT INTO whatsapp_mensajes (conversacion_id,direccion,contenido,tipo,wa_message_id,enviado_por) VALUES (?,'outbound',?,'texto',?,'sistema')")
@@ -190,10 +203,14 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
             }
         }
     }
+    } catch (Exception $eWa) {
+        error_log('APEX WA salida inbox error: orden_id=' . $orden_id . ' ' . $eWa->getMessage());
+    }
 
     jsonResponse([
         'ok'            => true,
         'salida_id'     => $salida_id,
+        'pieza_ids'     => $piezas_validas,
         'es_parcial'    => (bool)$es_parcial,
         'orden_cerrada' => $orden_completa,
         'wa_enviado'    => $wa_enviado,
