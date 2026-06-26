@@ -45,14 +45,16 @@ if ($method === 'GET') {
     // Lista de todos los clientes activos con su saldo acumulado
     if ($accion === 'lista') {
         $stmt = $db->query("
-            SELECT cl.id, cl.codigo, cl.razon_social, cl.contacto, cl.telefono,
+            SELECT cl.id, cl.codigo,
+                   COALESCE(cl.razon_social, cl.nombre) AS razon_social,
+                   cl.contacto, cl.telefono,
                    COALESCE(SUM(sf.monto), 0) as saldo,
                    MAX(sf.fecha) as ultimo_movimiento
             FROM clientes cl
             LEFT JOIN clientes_saldo_favor sf ON sf.cliente_id = cl.id
             WHERE cl.activo = 1
-            GROUP BY cl.id, cl.codigo, cl.razon_social, cl.contacto, cl.telefono
-            ORDER BY saldo DESC, cl.razon_social ASC
+            GROUP BY cl.id, cl.codigo, cl.razon_social, cl.nombre, cl.contacto, cl.telefono
+            ORDER BY saldo DESC, COALESCE(cl.razon_social, cl.nombre) ASC
         ");
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
         exit;
