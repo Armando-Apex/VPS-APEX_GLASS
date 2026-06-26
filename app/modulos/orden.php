@@ -61,6 +61,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .pill-canteado   { background: #e0f2fe; color: #0369a1; }
 .pill-trazo      { background: #fce7f3; color: #be185d; }
 .pill-taladro    { background: #fdf4ff; color: #7e22ce; }
+.pill-en_horno   { background: #fef2f2; color: #dc2626; }
 .pill-templado   { background: #dbeafe; color: #1d4ed8; }
 .pill-terminado  { background: #dcfce7; color: #15803d; }
 .pill-entregado  { background: #bbf7d0; color: #14532d; }
@@ -125,6 +126,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .badge-canteado  { background: #e0f2fe; color: #0369a1; }
 .badge-trazo     { background: #fce7f3; color: #be185d; }
 .badge-taladro   { background: #fdf4ff; color: #7e22ce; }
+.badge-en_horno  { background: #fef2f2; color: #dc2626; }
 .badge-templado  { background: #dbeafe; color: #1d4ed8; }
 .badge-terminado { background: #dcfce7; color: #15803d; }
 .badge-entregado { background: #bbf7d0; color: #14532d; }
@@ -170,6 +172,7 @@ const ESTATUS_LABELS = {
   canteado:   '&#128297; Canteado',
   trazo:      '&#9999;&#65039; Trazo',
   taladro:    '&#128295; Taladro',
+  en_horno:   '&#128293; En horno',
   templado:   '&#128293; Templado',
   terminado:  '&#128230; Terminado',
   entregado:  '&#9989; Entregado',
@@ -272,7 +275,7 @@ function render(data) {
         ${resumen.canteadas   > 0 ? `<div class="stat-pill pill-canteado"><span class="num">${resumen.canteadas}</span> Canteado</div>` : ''}
         ${resumen.en_trazo    > 0 ? `<div class="stat-pill pill-trazo"><span class="num">${resumen.en_trazo}</span> Trazo</div>` : ''}
         ${resumen.en_taladro  > 0 ? `<div class="stat-pill pill-taladro"><span class="num">${resumen.en_taladro}</span> Taladro</div>` : ''}
-        ${resumen.templadas   > 0 ? `<div class="stat-pill pill-templado"><span class="num">${resumen.templadas}</span> Templado</div>` : ''}
+        ${resumen.en_horno    > 0 ? `<div class="stat-pill pill-en_horno"><span class="num">${resumen.en_horno}</span> En horno</div>` : ''}
         ${resumen.terminadas  > 0 ? `<div class="stat-pill pill-terminado"><span class="num">${resumen.terminadas}</span> Terminado</div>` : ''}
         ${resumen.entregadas  > 0 ? `<div class="stat-pill pill-entregado"><span class="num">${resumen.entregadas}</span> Entregado</div>` : ''}
         ${resumen.con_trabajos > 0 ? `<div class="stat-pill pill-trabajos">&#128297; ${resumen.con_trabajos} con trabajos</div>` : ''}
