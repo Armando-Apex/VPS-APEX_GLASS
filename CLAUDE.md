@@ -396,7 +396,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-168**
+Próximo UPD disponible: **UPD-230**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -431,6 +431,26 @@ Archivo completo: `HISTORIAL_UPD_101_150.md` (18-jun-2026 → 22-jun-2026)
 
 ---
 
+### Bloque archivado: UPD-151 a UPD-200
+Archivo completo: `HISTORIAL_UPD_151_200.md` (22-jun-2026 → 24-jun-2026)
+
+**Resumen del bloque:**
+- Campañas WA maduradas: métricas visuales 4 cards (UPD-154), tipos de mensaje WA (UPD-155), fix servidor bloqueado + PHP-FPM max_children 5→12 (UPD-156)
+- Correo OC completo: PHPMailer SMTP, badge morado sidebar, auto-send al abrir (UPD-175)
+- WA automático orden_lista: helper compartido wa_helper.php, flag wa_lista_enviado, notas de voz reproducibles (UPD-185/192/193/194)
+- telefono_alterno: nuevo campo clientes para WA, envío cotización por WA, fix doble chat RIGHT(telefono,10) (UPD-178/180)
+- Croquis PDF completado: bisagra BI (UPD-183), esquinas cortadas (UPD-167), tabla elementos reubicada (UPD-168-174), B&N (UPD-188), selector escala (UPD-189), MB dinámico (UPD-186/187)
+- Seguridad: pentesting Kali sin hallazgos (UPD-160), IDOR orden_comentarios fix (UPD-177), ETags (UPD-162), error_log protegido (UPD-161)
+- Fix precio cotización bloqueado al guardar: hidden p_pm2_i, catálogo solo al cambiar cristal (UPD-191/197)
+- Fix VoBo pago excedente → saldo a favor automático (UPD-190)
+- SPA modal cleanup en cargarModulo() para evitar backdrops zombie (UPD-195/196)
+- Auditoría cotizaciones: límite 200→1000 registros (UPD-199), fix SPA listeners acumulados (UPD-200)
+- Comprobantes OC (UPD-166), Fix correcciones propagación campos (UPD-198), Fix portal móvil (UPD-184)
+
+**Contexto al cerrar bloque (UPD-200):** WA maduro con automatización orden_lista, notas de voz, doble teléfono y métricas. Croquis PDF completo y listo. Cotizaciones auditadas (límite, SPA cleanup). Precio bloqueado funcional. Pendientes al entrar al bloque siguiente: auditoría cotizaciones medios, reporte días hábiles, usuario desarrollo/WIP, facturación CFDI, portal cotizaciones, módulo rutas WIP.
+
+---
+
 ## 14. PROTOCOLO PARA CADA SESIÓN
 
 Al terminar cualquier sesión con cambios:
@@ -438,61 +458,10 @@ Al terminar cualquier sesión con cambios:
 2. Registrar el cambio con próximo UPD en este archivo
 3. Las tareas completadas se marcan HECHO — NUNCA se borran
 
-### Bloque actual: UPD-151 en adelante
+### Bloque actual: UPD-201 en adelante
 
 | Código | Fecha | Resp. | Descripción |
 |---|---|---|---|
-| UPD-151 | 22-jun | Armando | Fix reporte_direccion.php: % Entrega a tiempo ahora usa a_tiempo/(a_tiempo+con_retraso) — solo órdenes terminadas, excluye en_proceso y retraso_abierto. Barra apilada queda en 2 segmentos (verde/rojo). Concentrado mensual usa mismo criterio |
-| UPD-152 | 22-jun | Armando | Fix campanas WA "error de red": accion=enviar ahora usa fastcgi_finish_request() para cerrar conexión HTTP inmediatamente y seguir enviando en background — evita que Apache (ProxyTimeout 300s) corte campañas largas. Frontend ajustado: wizard se cierra cuando el poll detecta estado='enviada' |
-| UPD-153 | 22-jun | Armando | Fix campañas WA entrega 0: URLs scontent.whatsapp.net del ejemplo de plantilla tienen tokens de sesión — Meta no las puede fetchear desde sus servidores de entrega. Fix: accion=enviar sube la imagen a Media API de Meta antes del loop y usa media_id en todos los envíos (fallback a link si falla el upload) |
-
-| UPD-154 | 22-jun | Armando | Campañas WA: métricas visuales en cards — 4 tarjetas (Enviados/Entregados/Leídos/Respuestas) con número grande + porcentaje; mini-barra tipo embudo morado(leídos)+verde(entregados sin leer) |
-| UPD-155 | 22-jun | Armando | Webhook WA: manejo de tipos reaction (muestra emoji), audio, video, sticker, location, interactive — ya no aparece "[Mensaje tipo: X]" para tipos desconocidos |
-| UPD-156 | 22-jun | Armando | Fix servidor bloqueado durante envío campaña: (1) eliminado sleep(60) cada 25 mensajes — Meta Cloud API permite 80/seg; (2) PHP-FPM pm.max_children 5→12 — evita que un worker de envío bloquee el resto del sistema |
-| UPD-157 | 22-jun | Armando | Badge ámbar autorizaciones pendientes en sidebar "Cotizaciones": polling 60s a api/autorizaciones.php?pendientes=1; solo visible para dir_admin; color #d97706 |
-| UPD-158 | 22-jun | Armando | Cobranza: orden cambiado a pendiente → parcial → pagado (los que necesitan atención primero), dentro de cada grupo por o.id DESC (más reciente arriba) |
-| UPD-159 | 22-jun | Armando | cotizacion.php: seleccionar espejo → templado automático NO; cambiar a otro cristal → templado vuelve a SÍ; implementado como window.cotAutoTemplado (patrón correcto SPA para funciones llamadas desde onchange HTML) |
-| UPD-160 | 22-jun | Mando | SEGURIDAD pentesting Kali: nmap, testssl (SSL A+), curl (headers), gobuster, nikto — sin hallazgos críticos post-fixes ||
-| UPD-161 | 22-jun | Mando | SEGURIDAD error_log expuesto: bloque <Files "error_log"> en .htaccess raíz |
-| UPD-162 | 22-jun | Mando | SEGURIDAD ETags: FileETag MTime Size en .htaccess — evita filtrar inodos (CVE-2003-1418) |
-| UPD-163 | 22-jun | Mando | Fix operador.php estación terminado: botón ámbar de omisión para piezas en estatus intermedios|
-| UPD-164 | 22-jun | Mando | Fix buscar_orden.php: filtro por estación ampliado para incluir estatus anteriores por omisión|
-| UPD-165 | 22-jun | Mando | Permisos Compras: administracion y dueno pueden crear/editar OCs igual que dir_admin |
-| UPD-166 | 22-jun | Mando | NUEVO Comprobantes en OC: tabla oc_archivos, carpeta archivos_oc/, tab Comprobantes en modalDetalle |
-| UPD-167 | 22-jun | Mando | Croquis Esq. cortada: selector de 4 esquinas (Sup Izq/Der, Inf Izq/Der) — botones tipo canteo; Corte X/Y aplica a todas las seleccionadas; corte-esq en params_forma; actualizado en editor y PDF |
-| UPD-168 | 22-jun | Mando | Croquis tabla elementos: reubicada a la derecha de las cotas Y (canvas se amplía 120px cuando hay elementos); nunca tapa la pieza; cada elemento muestra tipo+detalle+X+Y en tarjeta de 2 líneas; mismo cambio en PDF (página 280mm) |
-| UPD-169 | 23-jun | Mando | Croquis tabla elementos: cuadro de color cambiado de fondo completo a barra delgada lateral (5-6px); fondo de tarjeta neutro #f8fafc; número integrado al texto "N. TIPO"; aplica en editor y PDF |
-| UPD-170 | 23-jun | Mando | Croquis tabla elementos: texto X/Y movido a tblX+8 para no quedar tapado por la barra de color; aplica en editor y PDF |
-| UPD-171 | 23-jun | Mando | Croquis modal editar elemento: inputs de Pos X/Y se salían del modal — fix con min-width:0 + box-sizing:border-box en .cq-fi; max-width:calc(100vw-32px) en .cq-modal; labels reducidos a 80px |
-| UPD-172 | 23-jun | Mando | Croquis PDF imprimir_croquis.php: SVG_H 560→960, MB 90→140, fuentes 9/8→14/12, flechas/ticks escalados; tabla elementos cardH 40→28, textos 15/14/12px; @page A4 portrait; SVG width:100% height:auto; botón "Guardar como PDF" → "Imprimir" |
-| UPD-173 | 23-jun | Mando | Croquis tabla elementos: ancho limitado a 90px (editor) y ~140px proporcional (PDF) para evitar exceso de espacio en blanco |
-| UPD-174 | 23-jun | Mando | Croquis resaque fuera de pieza: posición de dibujo clampeada con exD=min(ex, ox+gw-rw) y rySVG=max(ey-rh, oy) — resaque nunca sale del diagrama; todas las cotas y etiquetas actualizadas a exD; aplica en editor y PDF |
-| UPD-175 | 23-jun | Armando | Correo OC: BD += correo_enviado/correo_enviado_at; api/mailer.php (PHPMailer SMTP .env); ordenes_compra.php += pendientes_envio, enviar_correo, auto-send al abrir OC si dir_admin; compras.php += upload archivo en modal creación + botón "Enviar OC por correo" (morado, solo dir_admin no enviado) + badge morado sidebar polling 60s |
-| UPD-176 | 23-jun | Mando | Fix chat WA nombre contacto: webhook SELECT += cliente_id para detectar NULL; si conversación ya existe y cliente_id IS NULL → busca en clientes por teléfono y actualiza; GET conversaciones: COALESCE(c.nombre, cp.nombre) con LEFT JOIN fallback por teléfono + UPDATE auto-vinculación al cargar lista |
-| UPD-177 | 23-jun | Armando | SEGURIDAD api/orden_comentarios.php: fix IDOR — cancelar ahora requiere ser autor o admin (dir_admin/dueno/administracion); listar/agregar verifican existencia de cotización y que comercial solo acceda a las suyas vía asesor_id |
-| UPD-178 | 23-jun | Armando | Envío cotización por WhatsApp: BD clientes += telefono_alterno VARCHAR(20); api/clientes.php incluye telefono_alterno en GET/POST/PUT+bitácora; modulos/clientes.php muestra campo alterno en panel y formulario nuevo; api/campanas.php acción enviar_cotizacion_wa (plantilla cotizacion, calcula total, crea conversación en inbox); imprimir_cotizacion.php botón verde "Enviar por WhatsApp" + modal con tel pre-llenado + opción guardar como alterno |
-| UPD-179 | 23-jun | Armando | Fix etiquetas QR: lib/qrcode.min.js descargado localmente; imprimir_etiquetas.php cambia CDN jsdelivr por ruta local — CSP bloqueaba scripts externos |
-| UPD-180 | 23-jun | Armando | Fix doble chat WA: campanas.php y whatsapp_webhook.php buscan conversación por RIGHT(telefono,10) en lugar de match exacto — Meta envía 521XXXXXXXXXX (13 dígitos) pero normalizarTelefono() genera 52XXXXXXXXXX (12 dígitos); limpieza BD: 2 conversaciones duplicadas eliminadas, mensajes migrados al chat original |
-| UPD-181 | 23-jun | Mando | Fix imprimir_etiquetas.php: requireSession() → requirePermiso('ver_ordenes') — más robusto ante OPcache stale; consistente con demás archivos de impresión |
-| UPD-182 | 23-jun | Mando | Fix botones impresión cotizacion.php: window.open() → a[target=_blank rel=noopener] para evitar bloqueo silencioso de popup blocker en scripts inyectados por SPA; CSS .btn += display:inline-block + text-decoration:none |
-| UPD-183 | 23-jun | Mando | Croquis nuevo elemento BI (Bisagra): chip teal en panel, tipo propio con forma U+círculos a 45°/135° (herraje cancel baño CT29), auto-rota al borde más cercano, dimensiones editables (default 58×37.5mm); RS queda como resaque genérico sin preset; aplica en editor y PDF |
-| UPD-184 | 23-jun | Mando | Fix portal clientes móvil "No se encontró la orden": api/orden.php acepta sesión portal (portal_cliente_id) además de sesión interna — UPD-123 había roto el portal al agregar requireSessionApi(); verifica que la orden pertenezca al cliente antes de mostrarla |
-| UPD-185 | 23-jun | Armando | BD ordenes += wa_lista_enviado TINYINT(1) DEFAULT 0; api/wa_helper.php (enviarMensajeWA extraída a helper compartido); actualizar_estatus.php envía plantilla WA 'orden_lista' automáticamente al marcar última pieza terminada — verifica que ninguna pieza quede fuera de terminado/entregado, marca flag para no reintentar |
-| UPD-186 | 23-jun | Mando | Fix editor croquis (modulos/croquis.php): MB dinámico max(90, EL_BASE+N×14+20) — todas las cotas X de elementos caben sin importar cuántos haya; SVG_H crece con MB; números de elemento clampeados dentro del outline (TP/TA: min(ex+r, ox+gw-6), RS/BI: dentro de la forma); ML=86, gap ejYX 14→20; bug _layout()→_getOrigin() corregido |
-| UPD-187 | 23-jun | Mando | Fix PDF croquis (imprimir_croquis.php): MB dinámico (cOff+14+12 + N_elem×rowStep + 24); ML=110; gap ejYX 14→24 — elimina overlap entre rect "alto mm" y rect "Eje Y"; label bisagra "BI posición"→"BI"; rect fondo BI width 52→18px |
-| UPD-188 | 23-jun | Mando | PDF croquis en blanco y negro para impresión: vidrio fill #f0f0f0 borde #1a1a1a; canteado línea guiones negra (stroke-dasharray:6,3); cotas #222222; ejes X/Y en #222222/#555555; TP/TA bordes #111111/#333333; RS/BI fill #e8e8e8 borde #333333; tabla elementos fondos #eeeeee barras #333333; colores HTML wrapper (botón, cabecera) sin cambio |
-| UPD-189 | 23-jun | Mando | PDF croquis selector de escala: barra fija top-right con select 40%-200% (default 100%) + botón Imprimir; JS escalarDiagrama() modifica width/height del SVG directamente (viewBox mantiene proporciones); svg-wrap overflow:auto para scroll en pantalla; ctrl-bar oculta en @media print |
-| UPD-190 | 23-jun | Mando | Fix finanzas VoBo pago excedente: api/finanzas.php calcula total_real y saldo_pendiente ANTES de insertar; si excedente >$5 registra solo monto necesario para saldar y deposita diferencia en clientes_saldo_favor tipo 'deposito' con referencia al folio; si excedente ≤$5 se absorbe sin depósito; frontend muestra alerta con monto abonado a saldo a favor |
-| UPD-191 | 23-jun | Mando | Fix precio cotización: recalcular() usaba cris.precio_m2 (catálogo actual) en lugar del precio bloqueado al guardar. Fix: hidden input p_pm2_i por partida inicializado con precio_m2_usado guardado; cotCristalChange() actualiza el hidden al precio del catálogo solo si el usuario cambia el cristal; recalcular() y armarPayload() leen del hidden; api/cotizaciones.php PUT respeta precio_m2_usado del frontend si es >0 (solo usa catálogo para partidas nuevas sin precio previo) |
-| UPD-192 | 23-jun | Armando | Fix WA orden_lista: (1) wa_lista_enviado=1 solo si Meta responde HTTP 200 con message_id — antes se marcaba incluso en fallo; (2) mensaje guardado en whatsapp_mensajes (inbox) al enviar exitosamente — enviado_por='sistema', contenido '[Plantilla orden_lista] Orden X lista — N piezas'; (3) error_log cuando falla el envío; (4) cliente_id agregado al SELECT de la consulta de orden |
-| UPD-193 | 23-jun | Armando | Notas de voz WA reproducibles: BD whatsapp_mensajes.tipo ENUM += 'audio'; webhook descarga archivo de Meta y guarda en archivos_campanas/wa_media/ (ogg/mp3/m4a/aac/amr, límite 16MB, anti-SSRF); inbox campanas.php renderiza <audio controls> cuando tipo=audio y hay ruta local, fallback a texto si falta el archivo |
-| UPD-194 | 23-jun | Armando | Fix WA orden_lista sin teléfono: (1) INSERT INTO ordenes al convertir cotización ahora incluye cliente_id; (2) query en actualizar_estatus.php usa COALESCE(o.cliente_id, c.cliente_id) + LEFT JOIN doble a clientes para fallback vía cotización; (3) UPDATE masivo: 123 órdenes existentes sin cliente_id rellenas desde cotizaciones |
-| UPD-195 | 23-jun | Armando | Fix botones admin cotizacion.php: corrModal/archModal/catModal/.motivo-overlay se agregaban a document.body y sobrevivían navegaciones SPA — si el usuario navegaba sin cerrar, el backdrop position:fixed;inset:0 bloqueaba todos los clicks silenciosamente (Rechazar funciona porque z-index:2000 > 1400). Fix: init() remueve esos elementos al inicio de cada carga |
-| UPD-196 | 23-jun | Armando | Fix complementario botones admin: limpieza de modales movida a cargarModulo() en dashboard.php — aplica en TODA navegación SPA, no solo al recargar cotizacion. Elimina corrModal/archModal/catModal/modalRechazoCalidad y .motivo-overlay antes de cargar cualquier módulo nuevo |
-| UPD-197 | 24-jun | Armando | Fix precio cotizador en tiempo real: recalcular() ahora usa catálogo como fallback cuando p_pm2_i=0 (partidas nuevas o con precio_m2_usado=0 en BD); renderPartidas inicializa el hidden con precio del catálogo si cristal_id existe y precio_m2_usado=0 — preserva el precio bloqueado de UPD-191 cuando precio_m2_usado>0 |
-| UPD-198 | 24-jun | Mando | Fix correcciones.php: propagar cambios de cpb, resaques, tp, ta, requiere_templado y detalles a tabla piezas al aplicar corrección — antes solo se propagaban cambios de dimensiones (ancho/alto/m2) |
-| UPD-199 | 24-jun | Armando | Auditoría cotizaciones CRÍTICO: límite registros 200→1000 en fetch JS (cotizaciones.php) y en API (cotizaciones.php) — con 222 cotizaciones en BD, 22 registros eran invisibles y los contadores de tabs eran incorrectos |
-| UPD-200 | 24-jun | Armando | Auditoría cotizaciones ALTOS: (1) location.reload()→irA() en confirmarRechazo — evita romper SPA al rechazar por calidad; (2) listener click autocomplete cliente ya no se acumula entre navegaciones — usa window._cotAutocompleteHandler con removeEventListener previo; (3) abrirRechazo/cerrarRechazo/confirmarRechazo movidas dentro del IIFE y expuestas via window.* — eliminado segundo script suelto duplicado |
 | UPD-201 | 24-jun | Armando | Auditoría cotizaciones MEDIOS: (1) toggleFactura() eliminada — buscaba fFacturaRfc inexistente, nunca se llamaba; (2) 5 funciones imprimir* (imprimirOrden/Cotizacion/Remision/Etiquetas/Salida) eliminadas — dead code desde UPD-182 cuando los botones cambiaron a <a> tags; (3) query lista cotizaciones optimizada — reemplazadas 2 subqueries correlacionadas por LEFT JOIN con GROUP BY (cp_sums), reduciendo de N×2 queries a 1 JOIN |
 | UPD-202 | 24-jun | Armando | Reporte Dirección: prom_dias ahora excluye sábados, domingos y festivos (tabla festivos) — query adicional trae fechas crudas por orden; diasHabiles() itera día a día contando solo Lun-Vie no festivos; mismo cálculo para resumen global, filas mensuales y fila TOTAL |
 | UPD-203 | 24-jun | Mando | Fix PDF croquis cotas: bordHx/bordVy con margen de 4px desde el contorno del vidrio (antes 1px) — tick y número ya no se empalman con la línea del borde de la pieza; tabla ELEMENTOS en editor muestra "Izq/Der Nmm  Inf/Sup Nmm" en lugar de coordenadas X/Y |
