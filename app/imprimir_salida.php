@@ -43,7 +43,7 @@ $parts = $stmt2->fetchAll(PDO::FETCH_ASSOC);
 
 $orden = null;
 if ($c['orden_id']) {
-    $stmt3 = $db->prepare('SELECT id, folio, fecha_entrega, tipo_entrega FROM ordenes WHERE id = ?');
+    $stmt3 = $db->prepare('SELECT id, folio, fecha_entrega, tipo_entrega, estado, fecha_entrega_chofer FROM ordenes WHERE id = ?');
     $stmt3->execute([$c['orden_id']]);
     $orden = $stmt3->fetch(PDO::FETCH_ASSOC);
 }
@@ -417,10 +417,12 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 </div>
 
 <script>
-var ORDEN_ID      = <?= $orden_id_php ?>;
-var COTIZACION_ID = <?= $cotizacion_id_php ?>;
-var TIPO_ENTREGA  = '<?= $tipo_ent ?>';  // mutable — puede cambiarse con setTipo()
-var PARTS         = <?= $parts_json ?>;
+var ORDEN_ID       = <?= $orden_id_php ?>;
+var COTIZACION_ID  = <?= $cotizacion_id_php ?>;
+var TIPO_ENTREGA   = '<?= $tipo_ent ?>';  // mutable — puede cambiarse con setTipo()
+var PARTS          = <?= $parts_json ?>;
+var ORDEN_ESTADO   = '<?= htmlspecialchars($orden['estado'] ?? '') ?>';
+var FECHA_CHOFER   = '<?= htmlspecialchars($orden['fecha_entrega_chofer'] ?? '') ?>';
 
 function esc(s) {
   return String(s == null ? '' : s)
@@ -446,6 +448,13 @@ var seleccionadas = {};
     .then(function(data) {
       if (!data.ok) throw new Error(data.error || 'Error');
       todasPiezas = data.piezas;
+      // Si la orden ya está entregada y no quedan piezas terminadas → mostrar doc directamente
+      if (data.terminadas === 0 && data.entregadas > 0 && ORDEN_ESTADO === 'entregada') {
+        var allIds = todasPiezas.map(function(p) { return p.id; });
+        var fc = FECHA_CHOFER || null;
+        construirDocumento(allIds, fc, false, allIds.length);
+        return;
+      }
       renderSelector();
     })
     .catch(function(e) {
