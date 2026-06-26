@@ -57,11 +57,11 @@ if ($c['orden_id']) {
             ORDER BY p.partida ASC, p.pieza_num ASC
         ');
         $stmt4->execute([$orden['id']]);
-        $piezas_json = json_encode($stmt4->fetchAll(PDO::FETCH_ASSOC));
+        $piezas_json = json_encode($stmt4->fetchAll(PDO::FETCH_ASSOC), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     }
 }
 
-$parts_json = json_encode($parts);
+$parts_json = json_encode($parts, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 
 $cliente     = $c['cliente_nombre'] ?: '—';
 $folio_cot   = $c['folio'] ?: '—';
@@ -362,6 +362,15 @@ var COTIZACION_ID = <?= $cotizacion_id_php ?>;
 var TIPO_ENTREGA  = '<?= $tipo_ent ?>';
 var PARTS         = <?= $parts_json ?>;
 
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 var todasPiezas   = [];
 var seleccionadas = {};
 
@@ -405,8 +414,8 @@ function renderSelector() {
 
     html += '<div class="partida-bloque">';
     html += '<div class="partida-header">';
-    html += '<div class="ph-left">Partida ' + numPart + ' &nbsp;—&nbsp; ' + (part.cristal_nombre || piezas[0].cristal_corto || '—');
-    if (part.ancho) html += ' &nbsp;' + part.ancho + ' × ' + part.alto + ' mm';
+    html += '<div class="ph-left">Partida ' + numPart + ' &nbsp;—&nbsp; ' + esc(part.cristal_nombre || piezas[0].cristal_corto || '—');
+    if (part.ancho) html += ' &nbsp;' + esc(part.ancho) + ' × ' + esc(part.alto) + ' mm';
     html += '</div>';
     html += '<div class="ph-right">' + termCnt + ' terminada(s) &nbsp;·&nbsp; ' + entCnt + ' ya entregada(s) &nbsp;·&nbsp; ' + piezas.length + ' total</div>';
     html += '</div>';
@@ -559,19 +568,18 @@ function construirDocumento(idsSeleccionados, fechaChofer, esParcial, piezasCoun
     resMat[mat].pzas += cant;
     resMat[mat].m2   += m2t;
 
-    // Ver total de esta partida para indicar parcialidad
     var totalPartida = todasPiezas.filter(function(p) { return p.partida == numPart; }).length;
     var labelCant = cant < totalPartida ? cant + ' de ' + totalPartida : String(cant);
 
     filas += '<tr>';
     filas += '<td style="font-weight:700;color:#1d4ed8">' + numPart + '</td>';
-    filas += '<td class="cristal-cell">' + mat + '</td>';
-    filas += '<td>' + (piezasGrupo[0] ? piezasGrupo[0].ancho_mm : (part.ancho || '—')) + '</td>';
-    filas += '<td>' + (piezasGrupo[0] ? piezasGrupo[0].alto_mm  : (part.alto  || '—')) + '</td>';
+    filas += '<td class="cristal-cell">' + esc(mat) + '</td>';
+    filas += '<td>' + esc(piezasGrupo[0] ? piezasGrupo[0].ancho_mm : (part.ancho || '—')) + '</td>';
+    filas += '<td>' + esc(piezasGrupo[0] ? piezasGrupo[0].alto_mm  : (part.alto  || '—')) + '</td>';
     filas += '<td>' + labelCant + '</td>';
     filas += '<td>' + m2t.toFixed(4) + '</td>';
-    filas += '<td class="left">' + (specs.join(' · ') || '—') + '</td>';
-    filas += '<td class="left">' + (part.comentarios_etiqueta || '') + '</td>';
+    filas += '<td class="left">' + esc(specs.join(' · ') || '—') + '</td>';
+    filas += '<td class="left">' + esc(part.comentarios_etiqueta || '') + '</td>';
     filas += '</tr>';
   });
 
@@ -586,7 +594,7 @@ function construirDocumento(idsSeleccionados, fechaChofer, esParcial, piezasCoun
     rhtml  = '<div class="resumen-mat"><div class="resumen-mat-title">Resumen de material</div>';
     rhtml += '<table><thead><tr><th>Material</th><th style="width:90px">Piezas</th><th style="width:110px">M² total</th></tr></thead><tbody>';
     matKeys.forEach(function(m) {
-      rhtml += '<tr><td>' + m + '</td><td>' + resMat[m].pzas + '</td><td>' + resMat[m].m2.toFixed(4) + '</td></tr>';
+      rhtml += '<tr><td>' + esc(m) + '</td><td>' + resMat[m].pzas + '</td><td>' + resMat[m].m2.toFixed(4) + '</td></tr>';
     });
     rhtml += '</tbody></table></div>';
   }
