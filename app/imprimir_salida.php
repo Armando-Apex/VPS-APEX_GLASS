@@ -173,6 +173,19 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .no-piezas svg { margin: 0 auto 10px; display: block; opacity: .4; }
 .no-piezas p { color: #64748b; font-size: 13px; line-height: 1.5; }
 
+/* ── Toggle tipo entrega ── */
+.tipo-toggle-wrap { margin-bottom: 16px; }
+.tipo-toggle-lbl { font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+.tipo-toggle { display: inline-flex; background: #f1f5f9; border: 1.5px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+.tipo-btn {
+  padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: none; background: transparent; color: #64748b;
+  transition: background .15s, color .15s; min-height: 40px;
+  display: flex; align-items: center; gap: 6px;
+}
+.tipo-btn.active { background: #1a1a2e; color: #fff; }
+.tipo-btn:not(.active):hover { background: #e2e8f0; color: #334155; }
+
 /* ── Documento imprimible ── */
 .doc { padding: 20px 28px; max-width: 960px; margin: 0 auto; display: none; }
 
@@ -266,6 +279,20 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
   <div class="sel-titulo">Registrar salida — <?= htmlspecialchars($folio_orden) ?></div>
   <div class="sel-sub">Selecciona las piezas que salen en esta entrega. Solo las <strong>terminadas</strong> son seleccionables.</div>
 
+  <div class="tipo-toggle-wrap">
+    <div class="tipo-toggle-lbl">Tipo de entrega</div>
+    <div class="tipo-toggle" role="group" aria-label="Tipo de entrega">
+      <button class="tipo-btn <?= $tipo_ent === 'recoleccion' ? 'active' : '' ?>" id="btnTipoRecoleccion" onclick="setTipo('recoleccion')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Recolección en planta
+      </button>
+      <button class="tipo-btn <?= $tipo_ent === 'chofer' ? 'active' : '' ?>" id="btnTipoChofer" onclick="setTipo('chofer')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        Chofer / Domicilio
+      </button>
+    </div>
+  </div>
+
   <div class="leyenda">
     <div class="leyenda-item"><div class="leyenda-dot l-term"></div> Terminada (seleccionable)</div>
     <div class="leyenda-item"><div class="leyenda-dot l-ent"></div> Ya entregada</div>
@@ -282,12 +309,10 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
   <div class="sel-footer">
     <div class="sel-footer-left">
       <div class="sel-counter">Seleccionadas: <strong id="cnt-sel" aria-live="polite" aria-atomic="true">0</strong> piezas</div>
-      <?php if ($tipo_ent === 'chofer'): ?>
-      <div class="campo-fecha">
+      <div class="campo-fecha" id="campo-fecha-chofer" style="<?= $tipo_ent === 'chofer' ? '' : 'display:none' ?>">
         <label for="fecha-chofer">Fecha de entrega por chofer</label>
         <input type="date" id="fecha-chofer" value="<?= date('Y-m-d') ?>">
       </div>
-      <?php endif; ?>
     </div>
     <button class="btn-confirmar" id="btnConfirmar" disabled onclick="confirmarSalida()">
       <div class="spinner" id="spinnerConfirmar"></div>
@@ -330,7 +355,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
     </tr>
     <tr>
       <td class="lbl">Tipo entrega:</td>
-      <td class="val"><?= $tipo_label ?></td>
+      <td class="val" id="doc-tipo-entrega-val"><?= $tipo_label ?></td>
       <td class="lbl">Localidad:</td>
       <td class="val"><?= htmlspecialchars($localidad) ?></td>
     </tr>
@@ -394,7 +419,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 <script>
 var ORDEN_ID      = <?= $orden_id_php ?>;
 var COTIZACION_ID = <?= $cotizacion_id_php ?>;
-var TIPO_ENTREGA  = '<?= $tipo_ent ?>';
+var TIPO_ENTREGA  = '<?= $tipo_ent ?>';  // mutable — puede cambiarse con setTipo()
 var PARTS         = <?= $parts_json ?>;
 
 function esc(s) {
@@ -511,6 +536,19 @@ function togglePieza(id, activo) {
   var chip = document.getElementById('chip-' + id);
   if (chip) chip.className = 'pieza-chip ' + (activo ? 'checked' : '');
   actualizarContador();
+}
+
+function setTipo(tipo) {
+  TIPO_ENTREGA = tipo;
+  document.getElementById('btnTipoRecoleccion').className = 'tipo-btn' + (tipo === 'recoleccion' ? ' active' : '');
+  document.getElementById('btnTipoChofer').className      = 'tipo-btn' + (tipo === 'chofer'      ? ' active' : '');
+  var campoFecha = document.getElementById('campo-fecha-chofer');
+  campoFecha.style.display = (tipo === 'chofer') ? '' : 'none';
+  // Al cambiar a recoleccion, limpiar fecha para que la validación no bloquee
+  if (tipo !== 'chofer') document.getElementById('fecha-chofer').value = '';
+  // Actualizar label de tipo en el documento imprimible
+  var docTipo = document.getElementById('doc-tipo-entrega-val');
+  if (docTipo) docTipo.textContent = (tipo === 'chofer') ? 'Domicilio / Ruta' : 'Recolección en planta';
 }
 
 function togglePartida(numPart, activar) {
