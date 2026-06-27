@@ -245,5 +245,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && in_array($accion, ['pdf','xml'])) {
     exit;
 }
 
+// ── POST eliminar (solo borradores) ──────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'eliminar') {
+    $d  = json_decode(file_get_contents('php://input'), true);
+    $id = (int)($d['id'] ?? 0);
+    if (!$id) { echo json_encode(['ok'=>false,'error'=>'ID requerido']); exit; }
+
+    $stmt = $pdo->prepare("DELETE FROM facturas WHERE id=? AND estatus='borrador'");
+    $stmt->execute([$id]);
+
+    if ($stmt->rowCount() === 0) {
+        echo json_encode(['ok'=>false,'error'=>'No se encontró la factura o ya está timbrada']);
+        exit;
+    }
+    echo json_encode(['ok'=>true]);
+    exit;
+}
+
 http_response_code(400);
 echo json_encode(['ok'=>false,'error'=>'Acción no válida']);

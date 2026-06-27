@@ -434,7 +434,7 @@ var ModFacturacion = (function() {
   ];
 
   var UNIDADES_SAT = [
-    {v:'MTQ', l:'MTQ – Metro cuadrado'},
+    {v:'MTK', l:'MTK – Metro cuadrado'},
     {v:'H87', l:'H87 – Pieza'},
     {v:'MTR', l:'MTR – Metro lineal'},
     {v:'E48', l:'E48 – Unidad de servicio'},
@@ -717,9 +717,11 @@ var ModFacturacion = (function() {
   }
 
   function eliminar(id) {
-    if (!confirm('¿Eliminar esta factura borrador?')) return;
-    // Por ahora solo recargamos (en BD se podría agregar accion=eliminar)
-    _cargarLista();
+    if (!confirm('¿Eliminar esta factura borrador? Esta acción no se puede deshacer.')) return;
+    _apiFetch('../api/facturapi.php?accion=eliminar', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
+      if (err || !res.ok) { alert(err || res.error || 'Error al eliminar'); return; }
+      _cargarLista();
+    });
   }
 
   function timbrar(id) {
