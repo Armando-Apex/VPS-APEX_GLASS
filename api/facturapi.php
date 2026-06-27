@@ -61,21 +61,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
     $id = isset($d['id']) ? (int)$d['id'] : 0;
 
     if ($id) {
-        // Actualizar borrador existente
+        // Actualizar borrador existente — verificar propiedad
         $stmt = $pdo->prepare("
             UPDATE facturas SET
                 tipo_cfdi=?, fecha=?, receptor_nombre=?, receptor_rfc=?,
                 receptor_cp=?, receptor_regimen=?, receptor_uso_cfdi=?,
                 receptor_email=?, forma_pago=?, metodo_pago=?,
                 conceptos=?, subtotal=?, iva=?, total=?, updated_at=NOW()
-            WHERE id=? AND estatus='borrador'
+            WHERE id=? AND estatus='borrador' AND creado_por=?
         ");
         $stmt->execute([
             $d['tipo_cfdi'] ?? 'I', $d['fecha'] ?? date('Y-m-d'),
             $d['receptor_nombre'], $d['receptor_rfc'], $d['receptor_cp'],
             $d['receptor_regimen'], $d['receptor_uso_cfdi'],
             $d['receptor_email'] ?? null, $d['forma_pago'], $d['metodo_pago'],
-            json_encode($d['conceptos']), $sub, $iva, $total, $id
+            json_encode($d['conceptos']), $sub, $iva, $total, $id, $user['nombre']
         ]);
         echo json_encode(['ok'=>true,'id'=>$id,'folio'=>$folioInterno,'total'=>$total]);
     } else {
@@ -109,9 +109,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     $id = (int)($d['id'] ?? 0);
     if (!$id) { echo json_encode(['ok'=>false,'error'=>'ID requerido']); exit; }
 
-    // Cargar factura
-    $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=? AND estatus='borrador'");
-    $stmt->execute([$id]);
+    // Cargar factura — verificar propiedad
+    $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=? AND estatus='borrador' AND creado_por=?");
+    $stmt->execute([$id, $user['nombre']]);
     $fac = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$fac) { echo json_encode(['ok'=>false,'error'=>'Factura no encontrada o ya timbrada']); exit; }
 
@@ -251,8 +251,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'eliminar') {
     $id = (int)($d['id'] ?? 0);
     if (!$id) { echo json_encode(['ok'=>false,'error'=>'ID requerido']); exit; }
 
-    $stmt = $pdo->prepare("DELETE FROM facturas WHERE id=? AND estatus='borrador'");
-    $stmt->execute([$id]);
+    // Verificar propiedad antes de eliminar
+    $stmt = $pdo->prepare("DELETE FROM facturas WHERE id=? AND estatus='borrador' AND creado_por=?");
+    $stmt->execute([$id, $user['nombre']]);
 
     if ($stmt->rowCount() === 0) {
         echo json_encode(['ok'=>false,'error'=>'No se encontró la factura o ya está timbrada']);
