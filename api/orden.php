@@ -32,8 +32,8 @@ $stmt->execute([$folio]);
 $orden = $stmt->fetch();
 if (!$orden) jsonResponse(['error' => 'Orden no encontrada'], 404);
 
-// Si es portal, verificar que la orden pertenece al cliente de la sesión
-if ($esPortal) {
+// Si es portal (y NO es usuario interno), verificar que la orden pertenece al cliente de la sesión
+if ($esPortal && !$esInterno) {
     $stmtCli = $db->prepare('SELECT razon_social, nombre FROM clientes WHERE id = ?');
     $stmtCli->execute([$portalClienteId]);
     $rowCli = $stmtCli->fetch();

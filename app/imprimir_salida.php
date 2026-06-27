@@ -644,9 +644,9 @@ function confirmarSalida() {
   if (!ids.length) return;
 
   var fechaChofer = null;
-  var fcInput = document.getElementById('fecha-chofer');
-  if (fcInput) {
-    if (!fcInput.value) { alert('Indica la fecha de entrega por chofer.'); fcInput.focus(); return; }
+  if (TIPO_ENTREGA === 'chofer') {
+    var fcInput = document.getElementById('fecha-chofer');
+    if (!fcInput || !fcInput.value) { alert('Indica la fecha de entrega por chofer.'); if (fcInput) fcInput.focus(); return; }
     fechaChofer = fcInput.value;
   }
 
