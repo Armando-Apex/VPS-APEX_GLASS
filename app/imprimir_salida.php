@@ -66,7 +66,7 @@ $epago_label   = ['pendiente'=>'Pendiente','en_proceso'=>'En proceso','pago_entr
 
 $orden_id_php      = (int)($orden['id'] ?? 0);
 $cotizacion_id_php = $id;
-$ya_entregada      = ($orden && $orden['estado'] === 'entregada');
+$ya_entregada      = true; // registro de salidas suspendido — siempre imprimir directo
 $fecha_chofer_php  = (!empty($orden['fecha_entrega_chofer'])) ? date('Y-m-d', strtotime($orden['fecha_entrega_chofer'])) : '';
 
 // ── Salidas ya registradas (para sección reimprimir) ─────────────────────────
@@ -91,10 +91,10 @@ if ($orden_id_php && !$ya_entregada) {
 }
 $salidas_previas_json = json_encode($salidas_previas, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 
-// ── Reimpresión: generar tbody en PHP cuando la orden ya está entregada ─────
+// ── Generar tbody en PHP con todas las piezas de la orden ────────────────────
 $tbody_html  = '';
 $totales_txt = 'TOTAL PIEZAS: — &nbsp;|&nbsp; TOTAL M²: —';
-if ($ya_entregada && $orden_id_php) {
+if ($orden_id_php) {
     $stmtPz = $db->prepare('SELECT id, partida, ancho_mm, alto_mm, m2, cristal_corto FROM piezas WHERE orden_id = ? ORDER BY partida ASC, pieza_num ASC');
     $stmtPz->execute([$orden_id_php]);
     $piezas_doc = $stmtPz->fetchAll(PDO::FETCH_ASSOC);
