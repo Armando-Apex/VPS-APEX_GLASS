@@ -69,6 +69,28 @@ $cotizacion_id_php = $id;
 $ya_entregada      = ($orden && $orden['estado'] === 'entregada');
 $fecha_chofer_php  = (!empty($orden['fecha_entrega_chofer'])) ? date('Y-m-d', strtotime($orden['fecha_entrega_chofer'])) : '';
 
+// ── Salidas ya registradas (para sección reimprimir) ─────────────────────────
+$salidas_previas = [];
+if ($orden_id_php && !$ya_entregada) {
+    $stmtSp = $db->prepare('
+        SELECT os.id, os.tipo, os.piezas_count, os.total_piezas, os.es_parcial,
+               os.fecha_entrega_chofer, os.created_at,
+               GROUP_CONCAT(osp.pieza_id ORDER BY osp.pieza_id) AS pieza_ids_str
+        FROM orden_salidas os
+        LEFT JOIN orden_salida_piezas osp ON osp.salida_id = os.id
+        WHERE os.orden_id = ? AND os.cotizacion_id = ?
+        GROUP BY os.id
+        ORDER BY os.created_at ASC
+    ');
+    $stmtSp->execute([$orden_id_php, $cotizacion_id_php]);
+    foreach ($stmtSp->fetchAll(PDO::FETCH_ASSOC) as $sp) {
+        $sp['pieza_ids'] = $sp['pieza_ids_str'] ? array_map('intval', explode(',', $sp['pieza_ids_str'])) : [];
+        unset($sp['pieza_ids_str']);
+        $salidas_previas[] = $sp;
+    }
+}
+$salidas_previas_json = json_encode($salidas_previas, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+
 // ── Reimpresión: generar tbody en PHP cuando la orden ya está entregada ─────
 $tbody_html  = '';
 $totales_txt = 'TOTAL PIEZAS: — &nbsp;|&nbsp; TOTAL M²: —';
@@ -233,6 +255,16 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .no-piezas svg { margin: 0 auto 10px; display: block; opacity: .4; }
 .no-piezas p { color: #64748b; font-size: 13px; line-height: 1.5; }
 
+/* ── Salidas anteriores ── */
+.prev-salidas-wrap { margin-top: 20px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+.prev-salidas-titulo { background: #f8fafc; padding: 10px 16px; font-size: 12px; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: .5px; }
+.prev-salida-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #f1f5f9; gap: 12px; }
+.prev-salida-row:last-child { border-bottom: none; }
+.prev-sal-num { font-weight: 700; font-size: 13px; color: #1e293b; margin-right: 10px; }
+.prev-sal-info { font-size: 12px; color: #64748b; }
+.btn-reimp { background: none; border: 1.5px solid #1a1a2e; color: #1a1a2e; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 6px; cursor: pointer; white-space: nowrap; transition: background .12s, color .12s; }
+.btn-reimp:hover { background: #1a1a2e; color: #fff; }
+
 /* ── Toggle tipo entrega ── */
 .tipo-toggle-wrap { margin-bottom: 16px; }
 .tipo-toggle-lbl { font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
@@ -366,6 +398,8 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
     </div>
   </div>
 
+  <div id="salidas-previas-wrap" style="display:none"></div>
+
   <div class="sel-footer">
     <div class="sel-footer-left">
       <div class="sel-counter">Seleccionadas: <strong id="cnt-sel" aria-live="polite" aria-atomic="true">0</strong> piezas</div>
@@ -477,12 +511,13 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 </div>
 
 <script>
-var ORDEN_ID       = <?= $orden_id_php ?>;
-var COTIZACION_ID  = <?= $cotizacion_id_php ?>;
-var TIPO_ENTREGA   = '<?= $tipo_ent ?>';  // mutable — puede cambiarse con setTipo()
-var PARTS          = <?= $parts_json ?>;
-var FECHA_CHOFER   = '<?= $fecha_chofer_php ?>';
-var YA_ENTREGADA   = <?= $ya_entregada ? 'true' : 'false' ?>;
+var ORDEN_ID        = <?= $orden_id_php ?>;
+var COTIZACION_ID   = <?= $cotizacion_id_php ?>;
+var TIPO_ENTREGA    = '<?= $tipo_ent ?>';  // mutable — puede cambiarse con setTipo()
+var PARTS           = <?= $parts_json ?>;
+var FECHA_CHOFER    = '<?= $fecha_chofer_php ?>';
+var YA_ENTREGADA    = <?= $ya_entregada ? 'true' : 'false' ?>;
+var SALIDAS_PREVIAS = <?= $salidas_previas_json ?>;
 
 function esc(s) {
   return String(s == null ? '' : s)
@@ -495,6 +530,7 @@ function esc(s) {
 
 var todasPiezas   = [];
 var seleccionadas = {};
+var totalPorPartida = {};
 
 // ── Cargar piezas al iniciar ──────────────────────────────────────────────────
 (function init() {
@@ -514,6 +550,7 @@ var seleccionadas = {};
       if (!data.ok) throw new Error(data.error || 'Error');
       todasPiezas = data.piezas;
       renderSelector();
+      renderSalidasPrevias();
     })
     .catch(function(e) {
       document.getElementById('partidas-container').innerHTML =
@@ -525,7 +562,7 @@ var seleccionadas = {};
 function renderSelector() {
   seleccionadas = {};   // reset en cada render para no arrastrar estado previo
   var grupos = {};
-  var totalPorPartida = {};
+  totalPorPartida = {};   // actualiza global — lo usa construirDocumento y reimprimir
   todasPiezas.forEach(function(p) {
     var k = p.partida;
     if (!grupos[k]) grupos[k] = [];
@@ -670,8 +707,22 @@ function confirmarSalida() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (!data.ok) throw new Error(data.error || 'Error');
-    // Usar pieza_ids confirmados por la API (pueden ser subconjunto si hubo TOCTOU)
-    construirDocumento(data.pieza_ids || ids, fechaChofer, data.es_parcial, (data.pieza_ids || ids).length);
+    var pids = data.pieza_ids || ids;
+    // Agregar a SALIDAS_PREVIAS para que "Reimprimir" esté disponible al volver
+    var ahora = new Date();
+    var pad = function(n) { return String(n).padStart(2,'0'); };
+    SALIDAS_PREVIAS.push({
+      id: data.salida_id,
+      tipo: TIPO_ENTREGA,
+      piezas_count: pids.length,
+      total_piezas: todasPiezas.length,
+      es_parcial: data.es_parcial ? 1 : 0,
+      fecha_entrega_chofer: fechaChofer,
+      created_at: ahora.getFullYear() + '-' + pad(ahora.getMonth()+1) + '-' + pad(ahora.getDate())
+                + ' ' + pad(ahora.getHours()) + ':' + pad(ahora.getMinutes()) + ':00',
+      pieza_ids: pids
+    });
+    construirDocumento(pids, fechaChofer, data.es_parcial, pids.length);
   })
   .catch(function(e) {
     alert('Error al registrar: ' + e.message);
@@ -778,10 +829,44 @@ function construirDocumento(idsSeleccionados, fechaChofer, esParcial, piezasCoun
   setTimeout(function() { window.print(); }, 400);
 }
 
+// ── Salidas anteriores: renderizar sección y reimprimir ──────────────────────
+function renderSalidasPrevias() {
+  var wrap = document.getElementById('salidas-previas-wrap');
+  if (!wrap || !SALIDAS_PREVIAS.length) return;
+
+  var meses = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  var html  = '<div class="prev-salidas-wrap"><div class="prev-salidas-titulo">Salidas registradas</div>';
+
+  SALIDAS_PREVIAS.forEach(function(s, i) {
+    var tipoLabel = s.tipo === 'chofer' ? 'Domicilio' : 'Recolección';
+    var parcLabel = s.es_parcial == 1 ? ' &middot; Parcial' : ' &middot; Completa';
+    var dt   = new Date(s.created_at.replace(' ', 'T') + '-06:00');
+    var fechaStr = dt.getDate() + '/' + meses[dt.getMonth() + 1] + '/' + dt.getFullYear()
+                 + ' ' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+    html += '<div class="prev-salida-row">';
+    html += '<div><span class="prev-sal-num">Salida ' + (i + 1) + '</span>';
+    html += '<span class="prev-sal-info">' + s.piezas_count + ' pieza(s) &middot; ' + esc(tipoLabel) + parcLabel + ' &middot; ' + fechaStr + '</span></div>';
+    html += '<button class="btn-reimp" onclick="reimprimir(' + i + ')">&#128438; Reimprimir</button>';
+    html += '</div>';
+  });
+  html += '</div>';
+  wrap.innerHTML  = html;
+  wrap.style.display = 'block';
+}
+
+function reimprimir(idx) {
+  var s = SALIDAS_PREVIAS[idx];
+  if (!s) return;
+  TIPO_ENTREGA = s.tipo;
+  construirDocumento(s.pieza_ids, s.fecha_entrega_chofer || null, s.es_parcial == 1, s.piezas_count);
+}
+
 function volverAlSelector() {
   document.getElementById('doc-print').style.display   = 'none';
   document.getElementById('btnImprimir').style.display = 'none';
   document.getElementById('btnVolver').style.display   = 'none';
+  var btnConf = document.getElementById('btnConfirmar');
+  if (btnConf) btnConf.style.display = '';   // restaurar botón oculto tras construirDocumento
   // Re-cargar piezas desde la API para reflejar los nuevos estatus (entregado)
   document.getElementById('selector-view').style.display = 'block';
   document.getElementById('partidas-container').innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8">Actualizando...</div>';
@@ -791,6 +876,7 @@ function volverAlSelector() {
       if (!data.ok) throw new Error(data.error || 'Error');
       todasPiezas = data.piezas;
       renderSelector();
+      renderSalidasPrevias();
     })
     .catch(function(e) {
       document.getElementById('partidas-container').innerHTML =
