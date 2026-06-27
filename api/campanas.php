@@ -301,7 +301,7 @@ if ($metodo === 'POST' && $accion === 'enviar') {
         echo json_encode(['error' => 'Sin permiso']);
         exit;
     }
-    set_time_limit(600);
+    set_time_limit(0); // background — sin límite; campaña grande puede tardar 30+ min
     $body = json_decode(file_get_contents('php://input'), true);
     $campanaId = (int)($body['campana_id'] ?? 0);
 
@@ -429,6 +429,7 @@ if ($metodo === 'POST' && $accion === 'enviar') {
             $stmtCnt->execute([$campanaId]);
         }
         $enviados++;
+        usleep(1000000); // 1 segundo entre mensajes — evita rate limit y spam detection de Meta
     }
 
     $db->prepare("UPDATE campanas SET estado='enviada' WHERE id=?")->execute([$campanaId]);
