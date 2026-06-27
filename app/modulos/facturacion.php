@@ -418,9 +418,9 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 
 <script>
 var ModFacturacion = (function() {
-  var STORAGE_KEY = 'apex_facturas_wip';
   var _editingEstId = null;
   var _estatusSel   = null;
+  var _facturas     = [];
 
   var CLAVES_SAT = [
     {v:'44111702', l:'44111702 – Vidrio templado'},
