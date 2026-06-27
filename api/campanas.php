@@ -325,6 +325,11 @@ if ($metodo === 'POST' && $accion === 'enviar') {
     $stmtE->execute([$campanaId]);
     $envios = $stmtE->fetchAll(PDO::FETCH_ASSOC);
 
+    // Liberar sesión PHP antes de soltar la conexión HTTP.
+    // Sin esto el archivo de sesión queda bloqueado durante todo el envío
+    // y cualquier otra pestaña del sistema se congela esperando el lock.
+    session_write_close();
+
     // Cerrar la conexión HTTP de inmediato — PHP-FPM sigue corriendo en background.
     // Evita que Apache (ProxyTimeout 300s) corte el envío de campañas largas.
     ignore_user_abort(true);
