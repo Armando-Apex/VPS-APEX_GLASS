@@ -76,7 +76,7 @@ $tiene_salidas   = false;
 
 if ($orden_id_php) {
     $stmtSp = $db->prepare('
-        SELECT os.id, os.tipo, os.piezas_count, os.total_piezas, os.es_parcial,
+        SELECT os.id, os.tipo, os.piezas_count, os.piezas_total, os.es_parcial,
                os.fecha_entrega_chofer, os.created_at,
                GROUP_CONCAT(osp.pieza_id ORDER BY osp.pieza_id) AS pieza_ids_str
         FROM orden_salidas os
