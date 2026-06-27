@@ -66,12 +66,15 @@ $epago_label   = ['pendiente'=>'Pendiente','en_proceso'=>'En proceso','pago_entr
 
 $orden_id_php      = (int)($orden['id'] ?? 0);
 $cotizacion_id_php = $id;
-$ya_entregada      = true; // registro de salidas suspendido — siempre imprimir directo
+$ya_entregada      = ($orden && $orden['estado'] === 'entregada');
 $fecha_chofer_php  = (!empty($orden['fecha_entrega_chofer'])) ? date('Y-m-d', strtotime($orden['fecha_entrega_chofer'])) : '';
 
-// ── Salidas ya registradas (para sección reimprimir) ─────────────────────────
+// ── Salidas registradas + mapa de fechas de entrega por pieza ────────────────
 $salidas_previas = [];
-if ($orden_id_php && !$ya_entregada) {
+$fechas_entrega  = []; // pieza_id (int) => 'Y-m-d'
+$tiene_salidas   = false;
+
+if ($orden_id_php) {
     $stmtSp = $db->prepare('
         SELECT os.id, os.tipo, os.piezas_count, os.total_piezas, os.es_parcial,
                os.fecha_entrega_chofer, os.created_at,
@@ -79,23 +82,35 @@ if ($orden_id_php && !$ya_entregada) {
         FROM orden_salidas os
         LEFT JOIN orden_salida_piezas osp ON osp.salida_id = os.id
         WHERE os.orden_id = ? AND os.cotizacion_id = ?
-        GROUP BY os.id
-        ORDER BY os.created_at ASC
+        GROUP BY os.id ORDER BY os.created_at ASC
     ');
     $stmtSp->execute([$orden_id_php, $cotizacion_id_php]);
     foreach ($stmtSp->fetchAll(PDO::FETCH_ASSOC) as $sp) {
         $sp['pieza_ids'] = $sp['pieza_ids_str'] ? array_map('intval', explode(',', $sp['pieza_ids_str'])) : [];
         unset($sp['pieza_ids_str']);
+        $fecha_real = !empty($sp['fecha_entrega_chofer'])
+            ? date('Y-m-d', strtotime($sp['fecha_entrega_chofer']))
+            : date('Y-m-d', strtotime($sp['created_at']));
+        foreach ($sp['pieza_ids'] as $pid) {
+            $fechas_entrega[$pid] = $fecha_real;
+        }
         $salidas_previas[] = $sp;
     }
+    $tiene_salidas = !empty($salidas_previas);
 }
 $salidas_previas_json = json_encode($salidas_previas, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 
-// ── Generar tbody en PHP con todas las piezas de la orden ────────────────────
+// ── Generar tbody: SIEMPRE todas las piezas de la orden + columna Entrega ────
 $tbody_html  = '';
 $totales_txt = 'TOTAL PIEZAS: — &nbsp;|&nbsp; TOTAL M²: —';
+$meses_doc   = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
 if ($orden_id_php) {
-    $stmtPz = $db->prepare('SELECT id, partida, ancho_mm, alto_mm, m2, cristal_corto FROM piezas WHERE orden_id = ? ORDER BY partida ASC, pieza_num ASC');
+    $stmtPz = $db->prepare('
+        SELECT id, partida, pieza_num, pieza_total, ancho_mm, alto_mm, m2, cristal_corto
+        FROM piezas WHERE orden_id = ?
+        ORDER BY partida ASC, pieza_num ASC
+    ');
     $stmtPz->execute([$orden_id_php]);
     $piezas_doc = $stmtPz->fetchAll(PDO::FETCH_ASSOC);
 
@@ -103,7 +118,6 @@ if ($orden_id_php) {
     foreach ($piezas_doc as $p) { $grupos_php[(int)$p['partida']][] = $p; }
     ksort($grupos_php);
 
-    // Indexar partidas por num_partida para lookup rápido
     $parts_idx = [];
     foreach ($parts as $pt) { $parts_idx[(int)$pt['num_partida']] = $pt; }
 
@@ -118,14 +132,33 @@ if ($orden_id_php) {
         $specs = [];
         if (!empty($pt['cpb']) && strtoupper($pt['cpb']) !== 'NO') $specs[] = 'CPB: ' . $pt['cpb'];
         if (!empty($pt['detalles'])) $specs[] = $pt['detalles'];
-        if (!empty($pt['resaques'])           && $pt['resaques'] > 0)           $specs[] = 'Res: ' . $pt['resaques'];
-        if (!empty($pt['taladros_pasados'])   && $pt['taladros_pasados'] > 0)   $specs[] = 'TP: ' . $pt['taladros_pasados'];
+        if (!empty($pt['resaques'])            && $pt['resaques'] > 0)            $specs[] = 'Res: ' . $pt['resaques'];
+        if (!empty($pt['taladros_pasados'])    && $pt['taladros_pasados'] > 0)    $specs[] = 'TP: ' . $pt['taladros_pasados'];
         if (!empty($pt['taladros_avellanados'])&& $pt['taladros_avellanados'] > 0) $specs[] = 'TA: ' . $pt['taladros_avellanados'];
         $specs[] = !empty($pt['requiere_templado']) ? 'Templado' : 'No Templado';
 
         $mat   = $pt['cristal_nombre'] ?? ($grp[0]['cristal_corto'] ?? '—');
         $ancho = $grp[0]['ancho_mm'] ?? ($pt['ancho'] ?? '—');
         $alto  = $grp[0]['alto_mm']  ?? ($pt['alto']  ?? '—');
+
+        // Columna Entrega: cuántas piezas del grupo tienen fecha de entrega
+        $pids_grupo  = array_map(fn($p) => (int)$p['id'], $grp);
+        $ent_dates   = array_filter(array_map(fn($pid) => $fechas_entrega[$pid] ?? null, $pids_grupo));
+        $cnt_ent     = count($ent_dates);
+
+        if ($cnt_ent === 0) {
+            $entrega_html = '<span class="ent-pendiente">PENDIENTE</span>';
+        } elseif ($cnt_ent === $cant) {
+            $ultimo = max($ent_dates);
+            $ts     = strtotime($ultimo);
+            $fmtd   = date('d', $ts) . '/' . $meses_doc[(int)date('n', $ts)] . '/' . date('Y', $ts);
+            $entrega_html = '<span class="ent-fecha">' . $fmtd . '</span>';
+        } else {
+            $ultimo = max($ent_dates);
+            $ts     = strtotime($ultimo);
+            $fmtd   = date('d', $ts) . '/' . $meses_doc[(int)date('n', $ts)] . '/' . date('Y', $ts);
+            $entrega_html = '<span class="ent-parcial">' . $cnt_ent . '/' . $cant . ' al ' . $fmtd . '</span>';
+        }
 
         $tbody_html .= '<tr>';
         $tbody_html .= '<td style="font-weight:700;color:#1d4ed8">' . (int)$np . '</td>';
@@ -136,13 +169,14 @@ if ($orden_id_php) {
         $tbody_html .= '<td>' . number_format($m2t, 4) . '</td>';
         $tbody_html .= '<td class="left">' . htmlspecialchars(implode(' · ', $specs) ?: '—') . '</td>';
         $tbody_html .= '<td class="left">' . htmlspecialchars($pt['comentarios_etiqueta'] ?? '') . '</td>';
+        $tbody_html .= '<td class="entrega-col" id="cel-ent-' . (int)$np . '">' . $entrega_html . '</td>';
         $tbody_html .= '</tr>';
     }
     $totales_txt = 'TOTAL PIEZAS: ' . $tot_pz . '  |  TOTAL M²: ' . number_format($tot_m2, 4);
 }
-// Fecha de entrega a mostrar en el doc (chofer > estimada)
+
+// Fecha de entrega a mostrar en el doc (fecha_chofer_php > estimada de orden)
 if ($fecha_chofer_php) {
-    $meses_es = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
     $d = (int)date('j', strtotime($fecha_chofer_php));
     $m = (int)date('n', strtotime($fecha_chofer_php));
     $a = date('Y', strtotime($fecha_chofer_php));
@@ -160,15 +194,39 @@ if ($fecha_chofer_php) {
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; background: white; }
 
-/* ── Barra no-print ── */
+/* ── Barra superior ── */
 .print-bar {
   background: #1a1a2e; padding: 10px 24px;
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 .print-bar span { color: #94a3b8; font-size: 12px; }
 .btn-print  { background: #f5a623; color: #000; border: none; padding: 8px 20px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .btn-cancel { background: #334155; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+
+/* ── Menú: Reimprimir o Nueva Entrega ── */
+#menu-salidas {
+  max-width: 520px; margin: 60px auto; padding: 0 24px;
+}
+.menu-titulo { font-size: 20px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; }
+.menu-sub    { font-size: 13px; color: #64748b; margin-bottom: 32px; }
+.menu-opciones { display: flex; flex-direction: column; gap: 14px; }
+.btn-menu {
+  display: flex; align-items: center; gap: 16px;
+  border: 2px solid #e2e8f0; border-radius: 10px;
+  padding: 18px 22px; cursor: pointer; background: #fff;
+  text-align: left; width: 100%; transition: border-color .15s, background .15s;
+}
+.btn-menu:hover { border-color: #1a1a2e; background: #f8fafc; }
+.btn-menu-icon {
+  width: 44px; height: 44px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.btn-menu-icon.verde { background: #dcfce7; color: #16a34a; }
+.btn-menu-icon.azul  { background: #dbeafe; color: #1d4ed8; }
+.btn-menu-texto strong { display: block; font-size: 14px; font-weight: 700; color: #1e293b; }
+.btn-menu-texto span  { font-size: 12px; color: #64748b; }
+.menu-salidas-hist { margin-top: 28px; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 14px; }
+.menu-salidas-hist ul { margin-top: 6px; padding-left: 18px; line-height: 1.9; }
 
 /* ── Selector de piezas ── */
 #selector-view { padding: 20px 28px; max-width: 780px; margin: 0 auto; }
@@ -178,28 +236,26 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .partida-bloque { border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
 .partida-header {
   background: #f8fafc; padding: 10px 16px;
-  display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 1px solid #e2e8f0;
+  display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0;
 }
-.partida-header .ph-left { font-weight: 700; font-size: 13px; color: #1e293b; }
+.partida-header .ph-left  { font-weight: 700; font-size: 13px; color: #1e293b; }
 .partida-header .ph-right { font-size: 11px; color: #64748b; }
+.partida-header .ph-actions { display: flex; gap: 8px; align-items: center; }
+.btn-tod { background: none; border: 1px solid #cbd5e1; color: #334155; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: background .12s; }
+.btn-tod:hover { background: #f1f5f9; }
 
-.piezas-grid {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  padding: 12px 16px;
-}
+.piezas-grid { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; }
 .pieza-chip {
   display: flex; align-items: center; gap: 6px;
   border: 1.5px solid #cbd5e1; border-radius: 6px;
   padding: 8px 12px; cursor: pointer; user-select: none;
   font-size: 12px; font-weight: 600; color: #334155;
-  transition: background .15s, border-color .15s, color .15s;
-  min-height: 36px;
+  transition: background .15s, border-color .15s, color .15s; min-height: 36px;
 }
 .pieza-chip:not(.entregado):not(.en-proceso):hover { background: #f0fdf4; border-color: #86efac; }
 .pieza-chip:focus-within { outline: 2px solid #3b82f6; outline-offset: 1px; }
 .pieza-chip input[type=checkbox] { margin: 0; width: 14px; height: 14px; cursor: pointer; }
-.pieza-chip.checked { background: #ecfdf5; border-color: #16a34a; color: #15803d; }
+.pieza-chip.checked   { background: #ecfdf5; border-color: #16a34a; color: #15803d; }
 .pieza-chip.checked:hover { background: #dcfce7; }
 .pieza-chip.entregado { background: #f1f5f9; border-color: #e2e8f0; color: #94a3b8; cursor: default; opacity: .7; }
 .pieza-chip.en-proceso { background: #fff7ed; border-color: #fed7aa; color: #9a3412; cursor: default; }
@@ -210,10 +266,6 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .leyenda-dot.l-term { background: #ecfdf5; border-color: #16a34a; }
 .leyenda-dot.l-ent  { background: #f1f5f9; border-color: #e2e8f0; }
 .leyenda-dot.l-proc { background: #fff7ed; border-color: #fed7aa; }
-
-.partida-header .ph-actions { display: flex; gap: 8px; align-items: center; }
-.btn-tod { background: none; border: 1px solid #cbd5e1; color: #334155; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: background .12s; }
-.btn-tod:hover { background: #f1f5f9; }
 
 .sel-footer { margin-top: 20px; display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .sel-footer-left { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; flex: 1; }
@@ -229,8 +281,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
   background: #16a34a; color: white; border: none;
   padding: 10px 28px; border-radius: 8px; font-size: 14px; font-weight: 700;
   cursor: pointer; min-height: 44px; min-width: 200px;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  transition: background .15s;
+  display: flex; align-items: center; justify-content: center; gap: 8px; transition: background .15s;
 }
 .btn-confirmar:not(:disabled):hover { background: #15803d; }
 .btn-confirmar:disabled { background: #94a3b8; cursor: not-allowed; }
@@ -244,30 +295,8 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .btn-confirmar.loading .spinner { display: block; }
 .btn-confirmar.loading .btn-label { opacity: .8; }
 
-@media (max-width: 600px) {
-  .sel-footer { flex-direction: column; align-items: stretch; }
-  .btn-confirmar { width: 100%; }
-}
-
-.no-piezas {
-  padding: 32px 16px; text-align: center;
-}
-.no-piezas svg { margin: 0 auto 10px; display: block; opacity: .4; }
-.no-piezas p { color: #64748b; font-size: 13px; line-height: 1.5; }
-
-/* ── Salidas anteriores ── */
-.prev-salidas-wrap { margin-top: 20px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-.prev-salidas-titulo { background: #f8fafc; padding: 10px 16px; font-size: 12px; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: .5px; }
-.prev-salida-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #f1f5f9; gap: 12px; }
-.prev-salida-row:last-child { border-bottom: none; }
-.prev-sal-num { font-weight: 700; font-size: 13px; color: #1e293b; margin-right: 10px; }
-.prev-sal-info { font-size: 12px; color: #64748b; }
-.btn-reimp { background: none; border: 1.5px solid #1a1a2e; color: #1a1a2e; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 6px; cursor: pointer; white-space: nowrap; transition: background .12s, color .12s; }
-.btn-reimp:hover { background: #1a1a2e; color: #fff; }
-
-/* ── Toggle tipo entrega ── */
 .tipo-toggle-wrap { margin-bottom: 16px; }
-.tipo-toggle-lbl { font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+.tipo-toggle-lbl  { font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
 .tipo-toggle { display: inline-flex; background: #f1f5f9; border: 1.5px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
 .tipo-btn {
   padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
@@ -278,8 +307,16 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .tipo-btn.active { background: #1a1a2e; color: #fff; }
 .tipo-btn:not(.active):hover { background: #e2e8f0; color: #334155; }
 
+.no-piezas { padding: 32px 16px; text-align: center; }
+.no-piezas p { color: #64748b; font-size: 13px; line-height: 1.5; }
+
+@media (max-width: 600px) {
+  .sel-footer { flex-direction: column; align-items: stretch; }
+  .btn-confirmar { width: 100%; }
+}
+
 /* ── Documento imprimible ── */
-.doc { padding: 20px 28px; max-width: 960px; margin: 0 auto; display: none; }
+.doc { padding: 20px 28px; max-width: 960px; margin: 0 auto; }
 
 .header-wrap { display: flex; border: 2px solid #000; margin-bottom: 0; }
 .header-logo  { width: 90px; min-width: 90px; border-right: 2px solid #000; display: flex; align-items: center; justify-content: center; padding: 8px; }
@@ -307,8 +344,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .partidas-table th {
     border: 1px solid #000; padding: 6px 5px;
     background: #1a1a2e; color: white;
-    font-size: 10px; font-weight: 700;
-    text-align: center; text-transform: uppercase; letter-spacing: .3px;
+    font-size: 10px; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: .3px;
 }
 .partidas-table td {
     border: 1px solid #999; padding: 6px 5px;
@@ -318,8 +354,14 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .partidas-table tr:nth-child(even) { background: #f9fafb; }
 .cristal-cell { font-weight: 600; text-align: left; }
 
+/* Columna Entrega */
+.entrega-col { text-align: center; min-width: 82px; font-size: 10px; }
+.ent-pendiente { color: #94a3b8; font-style: italic; font-weight: 600; }
+.ent-fecha     { color: #15803d; font-weight: 700; }
+.ent-parcial   { color: #c2410c; font-weight: 600; }
+
 .totales-row { margin-top: 12px; display: flex; justify-content: space-between; align-items: flex-start; }
-.total-box { border: 2px solid #1a1a2e; border-radius: 4px; padding: 8px 20px; font-size: 13px; font-weight: 800; }
+.total-box   { border: 2px solid #1a1a2e; border-radius: 4px; padding: 8px 20px; font-size: 13px; font-weight: 800; }
 
 .resumen-mat { margin-top: 12px; border: 1.5px solid #1a1a2e; border-radius: 4px; }
 .resumen-mat-title { background: #1a1a2e; color: white; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 5px 12px; }
@@ -332,10 +374,10 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 
 .logistica { margin-top: 18px; border: 1.5px solid #000; border-radius: 4px; }
 .log-title { background: #1a1a2e; color: white; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 5px 12px; }
-.log-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+.log-grid  { display: grid; grid-template-columns: repeat(4, 1fr); }
 .log-field { padding: 8px 12px; border-right: 1px solid #ddd; }
 .log-field:last-child { border-right: none; }
-.log-lbl { font-size: 9px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 14px; }
+.log-lbl  { font-size: 9px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 14px; }
 .log-line { border-bottom: 1px solid #000; margin-top: 4px; }
 
 .firmas { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
@@ -344,10 +386,11 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .firma-lbl { font-size: 10px; color: #374151; }
 
 .condiciones { margin-top: 14px; font-size: 9px; color: #555; border-top: 1px solid #e2e8f0; padding-top: 8px; line-height: 1.5; }
-.pie { margin-top: 8px; font-size: 9px; color: #6b7280; border-top: 1px solid #e2e8f0; padding-top: 6px; }
+.pie         { margin-top: 8px; font-size: 9px; color: #6b7280; border-top: 1px solid #e2e8f0; padding-top: 6px; }
 
 @media print {
     .no-print { display: none !important; }
+    #menu-salidas { display: none !important; }
     #selector-view { display: none !important; }
     .doc { display: block !important; padding: 0; }
     body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
@@ -361,13 +404,40 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 <div class="print-bar no-print" id="topbar">
   <span>Remisión / Orden de Salida — <?= htmlspecialchars($folio_cot) ?></span>
   <div style="display:flex;gap:10px">
-    <button class="btn-cancel" id="btnVolver" style="display:<?= $ya_entregada ? 'none' : 'none' ?>" onclick="volverAlSelector()">&#8592; Volver</button>
-    <button class="btn-print"  id="btnImprimir" style="display:<?= $ya_entregada ? 'inline-block' : 'none' ?>" onclick="window.print()">&#128438; Imprimir / Guardar PDF</button>
+    <button class="btn-cancel" id="btnVolver"   style="display:none" onclick="volverAlMenu()">&#8592; Volver</button>
+    <button class="btn-print"  id="btnImprimir" style="display:none" onclick="window.print()">&#128438; Imprimir / Guardar PDF</button>
   </div>
 </div>
 
-<!-- ── Selector de piezas (pantalla pre-impresión) ── -->
-<div id="selector-view" class="no-print" style="display:<?= $ya_entregada ? 'none' : 'block' ?>">
+<!-- ── Menú: Reimprimir o Registrar nueva entrega (Caso A) ── -->
+<div id="menu-salidas" class="no-print" style="display:none">
+  <div class="menu-titulo">Orden <?= htmlspecialchars($folio_orden) ?></div>
+  <div class="menu-sub">Esta orden tiene entregas registradas. ¿Qué deseas hacer?</div>
+  <div class="menu-opciones">
+    <button class="btn-menu" onclick="reimprimir()">
+      <div class="btn-menu-icon verde">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      </div>
+      <div class="btn-menu-texto">
+        <strong>Reimprimir</strong>
+        <span>Imprime el estado actual de la orden sin registrar nada nuevo</span>
+      </div>
+    </button>
+    <button class="btn-menu" id="btnMenuNuevaEntrega" onclick="irASelector()">
+      <div class="btn-menu-icon azul">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      </div>
+      <div class="btn-menu-texto">
+        <strong>Registrar nueva entrega</strong>
+        <span>Selecciona piezas adicionales para entregar</span>
+      </div>
+    </button>
+  </div>
+  <div class="menu-salidas-hist" id="menu-hist-lista"></div>
+</div>
+
+<!-- ── Selector de piezas ── -->
+<div id="selector-view" class="no-print" style="display:none">
   <div class="sel-titulo">Registrar salida — <?= htmlspecialchars($folio_orden) ?></div>
   <div class="sel-sub">Selecciona las piezas que salen en esta entrega. Solo las <strong>terminadas</strong> son seleccionables.</div>
 
@@ -398,8 +468,6 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
     </div>
   </div>
 
-  <div id="salidas-previas-wrap" style="display:none"></div>
-
   <div class="sel-footer">
     <div class="sel-footer-left">
       <div class="sel-counter">Seleccionadas: <strong id="cnt-sel" aria-live="polite" aria-atomic="true">0</strong> piezas</div>
@@ -415,8 +483,8 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
   </div>
 </div>
 
-<!-- ── Documento imprimible ── -->
-<div class="doc" id="doc-print" style="display:<?= $ya_entregada ? 'block' : 'none' ?>">
+<!-- ── Documento imprimible (PHP-generado, siempre con todas las piezas) ── -->
+<div class="doc" id="doc-print" style="display:none">
 
   <div class="header-wrap">
     <div class="header-logo">
@@ -474,6 +542,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
         <th style="width:70px">M² total</th>
         <th>Detalles / Especificaciones</th>
         <th>Obs.</th>
+        <th style="width:90px">Entrega</th>
       </tr>
     </thead>
     <tbody id="doc-tbody"><?= $tbody_html ?></tbody>
@@ -513,35 +582,82 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 <script>
 var ORDEN_ID        = <?= $orden_id_php ?>;
 var COTIZACION_ID   = <?= $cotizacion_id_php ?>;
-var TIPO_ENTREGA    = '<?= $tipo_ent ?>';  // mutable — puede cambiarse con setTipo()
+var TIPO_ENTREGA    = '<?= $tipo_ent ?>';
 var PARTS           = <?= $parts_json ?>;
 var FECHA_CHOFER    = '<?= $fecha_chofer_php ?>';
 var YA_ENTREGADA    = <?= $ya_entregada ? 'true' : 'false' ?>;
+var TIENE_SALIDAS   = <?= $tiene_salidas ? 'true' : 'false' ?>;
 var SALIDAS_PREVIAS = <?= $salidas_previas_json ?>;
-
-function esc(s) {
-  return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 var todasPiezas   = [];
 var seleccionadas = {};
-var totalPorPartida = {};
 
-// ── Cargar piezas al iniciar ──────────────────────────────────────────────────
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ── INIT: detectar caso ───────────────────────────────────────────────────────
 (function init() {
-  // Reimpresión: documento ya generado en PHP, solo disparar print
   if (YA_ENTREGADA) {
+    // Caso E: orden ya cerrada — directo a impresión
+    mostrarDoc(false);
     setTimeout(function() { window.print(); }, 400);
     return;
   }
+  if (TIENE_SALIDAS) {
+    // Caso A: hay salidas registradas — mostrar menú
+    mostrarMenuSalidas();
+    return;
+  }
   if (!ORDEN_ID) {
-    document.getElementById('partidas-container').innerHTML =
-      '<div class="no-piezas">Esta cotización no tiene una orden de producción vinculada.</div>';
+    document.getElementById('menu-salidas').querySelector('.menu-sub').textContent =
+      'Esta cotización no tiene una orden de producción vinculada.';
+    document.getElementById('menu-salidas').style.display = 'block';
+    return;
+  }
+  // Caso C/D: primera entrega — ir directo al selector
+  irASelector();
+})();
+
+// ── Mostrar menú (Caso A) ─────────────────────────────────────────────────────
+function mostrarMenuSalidas() {
+  // Si no quedan piezas terminadas, deshabilitar "nueva entrega"
+  // (lo sabemos al abrir el selector, no aquí, así que dejamos habilitado)
+  renderHistorialMenu();
+  document.getElementById('menu-salidas').style.display = 'block';
+}
+
+function renderHistorialMenu() {
+  if (!SALIDAS_PREVIAS.length) return;
+  var meses = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  var html = '<strong>Entregas registradas:</strong><ul>';
+  SALIDAS_PREVIAS.forEach(function(s, i) {
+    var dt   = new Date(s.created_at.replace(' ', 'T') + '-06:00');
+    var fstr = dt.getDate() + '/' + meses[dt.getMonth()+1] + '/' + dt.getFullYear();
+    var tipo = s.tipo === 'chofer' ? 'Domicilio' : 'Recolección';
+    var parc = s.es_parcial == 1 ? ' · Parcial' : ' · Completa';
+    html += '<li>Entrega ' + (i+1) + ' — ' + s.piezas_count + ' pieza(s) · ' + tipo + parc + ' · ' + fstr + '</li>';
+  });
+  html += '</ul>';
+  document.getElementById('menu-hist-lista').innerHTML = html;
+}
+
+// ── Reimprimir (Caso B): mostrar documento actual sin preguntas ───────────────
+function reimprimir() {
+  mostrarDoc(true);
+  setTimeout(function() { window.print(); }, 400);
+}
+
+// ── Ir al selector de piezas (Casos C / D) ───────────────────────────────────
+function irASelector() {
+  document.getElementById('menu-salidas').style.display  = 'none';
+  document.getElementById('selector-view').style.display = 'block';
+
+  if (todasPiezas.length > 0) {
+    // Ya tenemos piezas cargadas (ej: volvimos del documento tras una entrega)
+    renderSelector();
     return;
   }
   fetch('../api/salidas.php?accion=piezas_terminadas&orden_id=' + ORDEN_ID)
@@ -550,32 +666,28 @@ var totalPorPartida = {};
       if (!data.ok) throw new Error(data.error || 'Error');
       todasPiezas = data.piezas;
       renderSelector();
-      renderSalidasPrevias();
     })
     .catch(function(e) {
       document.getElementById('partidas-container').innerHTML =
-        '<div class="no-piezas">Error al cargar piezas: ' + e.message + '</div>';
+        '<div class="no-piezas"><p>Error al cargar piezas: ' + esc(e.message) + '</p></div>';
     });
-})();
+}
 
-// ── Renderizar selector de piezas ─────────────────────────────────────────────
+// ── Renderizar chips selector ─────────────────────────────────────────────────
 function renderSelector() {
-  seleccionadas = {};   // reset en cada render para no arrastrar estado previo
+  seleccionadas = {};
   var grupos = {};
-  totalPorPartida = {};   // actualiza global — lo usa construirDocumento y reimprimir
   todasPiezas.forEach(function(p) {
-    var k = p.partida;
-    if (!grupos[k]) grupos[k] = [];
-    grupos[k].push(p);
-    totalPorPartida[k] = (totalPorPartida[k] || 0) + 1;
+    if (!grupos[p.partida]) grupos[p.partida] = [];
+    grupos[p.partida].push(p);
   });
 
   var html = '';
   var hayTerminadas = false;
 
   Object.keys(grupos).sort(function(a, b) { return a - b; }).forEach(function(numPart) {
-    var piezas = grupos[numPart];
-    var part   = PARTS.find(function(pt) { return pt.num_partida == numPart; }) || {};
+    var piezas  = grupos[numPart];
+    var part    = PARTS.find(function(pt) { return pt.num_partida == numPart; }) || {};
     var termCnt = piezas.filter(function(p) { return p.estatus === 'terminado'; }).length;
     var entCnt  = piezas.filter(function(p) { return p.estatus === 'entregado'; }).length;
 
@@ -585,34 +697,28 @@ function renderSelector() {
     if (part.ancho) html += ' &nbsp;' + esc(part.ancho) + ' × ' + esc(part.alto) + ' mm';
     html += '</div>';
     html += '<div class="ph-actions">';
-    html += '<span style="font-size:11px;color:#64748b">' + termCnt + ' terminada(s) &nbsp;·&nbsp; ' + entCnt + ' entregada(s)</span>';
+    html += '<span style="font-size:11px;color:#64748b">' + termCnt + ' terminada(s) · ' + entCnt + ' entregada(s)</span>';
     if (termCnt > 0) {
-      html += '<button class="btn-tod" onclick="togglePartida(\'' + numPart + '\', true)" title="Seleccionar todas las terminadas de esta partida">Todo</button>';
-      html += '<button class="btn-tod" onclick="togglePartida(\'' + numPart + '\', false)" title="Deseleccionar todas de esta partida">Ninguno</button>';
+      html += '<button class="btn-tod" onclick="togglePartida(\'' + numPart + '\', true)">Todo</button>';
+      html += '<button class="btn-tod" onclick="togglePartida(\'' + numPart + '\', false)">Ninguno</button>';
     }
-    html += '</div>';
-    html += '</div>';
+    html += '</div></div>';
     html += '<div class="piezas-grid">';
 
     piezas.forEach(function(p) {
-      var clase = '';
+      var clase    = '';
       var disabled = true;
       var checked  = '';
-
       if (p.estatus === 'terminado') {
-        clase    = 'checked';
-        disabled = false;
-        checked  = 'checked';
-        seleccionadas[p.id] = true;
-        hayTerminadas = true;
+        clase = 'checked'; disabled = false; checked = 'checked';
+        seleccionadas[p.id] = true; hayTerminadas = true;
       } else if (p.estatus === 'entregado') {
         clase = 'entregado';
       } else {
         clase = 'en-proceso';
       }
-
-      var titulo = p.estatus === 'entregado' ? 'Ya entregada' : (p.estatus !== 'terminado' ? 'En producción (' + p.estatus + ')' : '');
-
+      var titulo = p.estatus === 'entregado' ? 'Ya entregada' :
+                   (p.estatus !== 'terminado' ? 'En producción (' + p.estatus + ')' : '');
       html += '<label class="pieza-chip ' + clase + '" title="' + titulo + '" id="chip-' + p.id + '">';
       html += '<input type="checkbox" ' + (disabled ? 'disabled' : '') + ' ' + checked + ' ';
       html += 'onchange="togglePieza(' + p.id + ', this.checked)" value="' + p.id + '">';
@@ -621,14 +727,16 @@ function renderSelector() {
     });
 
     if (termCnt === 0) {
-      html += '<span style="font-size:12px;color:#94a3b8;padding:8px">Sin piezas terminadas en esta partida</span>';
+      html += '<span style="font-size:12px;color:#94a3b8;padding:8px">Sin piezas terminadas</span>';
     }
-
     html += '</div></div>';
   });
 
   if (!hayTerminadas) {
-    html = '<div class="no-piezas">No hay piezas en estatus <strong>terminado</strong> disponibles para entregar.</div>';
+    html = '<div class="no-piezas"><p>No hay piezas en estatus <strong>terminado</strong>.<br>Todas las piezas ya fueron entregadas o están en producción.</p></div>';
+    // Ocultar el botón nueva entrega en el menú si vuelven al menú
+    var btnNueva = document.getElementById('btnMenuNuevaEntrega');
+    if (btnNueva) btnNueva.disabled = true;
   }
 
   document.getElementById('partidas-container').innerHTML = html;
@@ -642,28 +750,12 @@ function togglePieza(id, activo) {
   actualizarContador();
 }
 
-function setTipo(tipo) {
-  TIPO_ENTREGA = tipo;
-  document.getElementById('btnTipoRecoleccion').className = 'tipo-btn' + (tipo === 'recoleccion' ? ' active' : '');
-  document.getElementById('btnTipoChofer').className      = 'tipo-btn' + (tipo === 'chofer'      ? ' active' : '');
-  var campoFecha = document.getElementById('campo-fecha-chofer');
-  campoFecha.style.display = (tipo === 'chofer') ? '' : 'none';
-  // Al cambiar a recoleccion, limpiar fecha para que la validación no bloquee
-  if (tipo !== 'chofer') document.getElementById('fecha-chofer').value = '';
-  // Actualizar label de tipo en el documento imprimible
-  var docTipo = document.getElementById('doc-tipo-entrega-val');
-  if (docTipo) docTipo.textContent = (tipo === 'chofer') ? 'Domicilio / Ruta' : 'Recolección en planta';
-}
-
 function togglePartida(numPart, activar) {
   todasPiezas.forEach(function(p) {
     if (p.partida == numPart && p.estatus === 'terminado') {
       seleccionadas[p.id] = activar;
       var chip = document.getElementById('chip-' + p.id);
-      if (chip) {
-        chip.className = 'pieza-chip ' + (activar ? 'checked' : '');
-        chip.querySelector('input').checked = activar;
-      }
+      if (chip) { chip.className = 'pieza-chip ' + (activar ? 'checked' : ''); chip.querySelector('input').checked = activar; }
     }
   });
   actualizarContador();
@@ -673,6 +765,17 @@ function actualizarContador() {
   var cnt = Object.values(seleccionadas).filter(Boolean).length;
   document.getElementById('cnt-sel').textContent = cnt;
   document.getElementById('btnConfirmar').disabled = cnt === 0;
+}
+
+function setTipo(tipo) {
+  TIPO_ENTREGA = tipo;
+  document.getElementById('btnTipoRecoleccion').className = 'tipo-btn' + (tipo === 'recoleccion' ? ' active' : '');
+  document.getElementById('btnTipoChofer').className      = 'tipo-btn' + (tipo === 'chofer'      ? ' active' : '');
+  var campoFecha = document.getElementById('campo-fecha-chofer');
+  campoFecha.style.display = (tipo === 'chofer') ? '' : 'none';
+  if (tipo !== 'chofer') document.getElementById('fecha-chofer').value = '';
+  var docTipo = document.getElementById('doc-tipo-entrega-val');
+  if (docTipo) docTipo.textContent = (tipo === 'chofer') ? 'Domicilio / Ruta' : 'Recolección en planta';
 }
 
 // ── Confirmar salida ──────────────────────────────────────────────────────────
@@ -708,21 +811,38 @@ function confirmarSalida() {
   .then(function(data) {
     if (!data.ok) throw new Error(data.error || 'Error');
     var pids = data.pieza_ids || ids;
-    // Agregar a SALIDAS_PREVIAS para que "Reimprimir" esté disponible al volver
+
+    // Registrar en historial de sesión
     var ahora = new Date();
-    var pad = function(n) { return String(n).padStart(2,'0'); };
+    var pad   = function(n) { return String(n).padStart(2,'0'); };
     SALIDAS_PREVIAS.push({
-      id: data.salida_id,
-      tipo: TIPO_ENTREGA,
-      piezas_count: pids.length,
-      total_piezas: todasPiezas.length,
+      id: data.salida_id, tipo: TIPO_ENTREGA,
+      piezas_count: pids.length, total_piezas: todasPiezas.length,
       es_parcial: data.es_parcial ? 1 : 0,
       fecha_entrega_chofer: fechaChofer,
       created_at: ahora.getFullYear() + '-' + pad(ahora.getMonth()+1) + '-' + pad(ahora.getDate())
                 + ' ' + pad(ahora.getHours()) + ':' + pad(ahora.getMinutes()) + ':00',
       pieza_ids: pids
     });
-    construirDocumento(pids, fechaChofer, data.es_parcial, pids.length);
+    TIENE_SALIDAS = true;
+
+    // Actualizar fecha en header del doc
+    if (fechaChofer) {
+      document.getElementById('doc-fecha-entrega').textContent = formatFechaDoc(fechaChofer);
+    }
+
+    // Actualizar celdas Entrega en el documento PHP
+    actualizarCeldasEntrega(pids, fechaChofer || new Date().toISOString().substring(0,10));
+
+    // Actualizar piezas en memoria para que el selector esté correcto al volver
+    var pidsSet = {};
+    pids.forEach(function(pid) { pidsSet[pid] = true; });
+    todasPiezas.forEach(function(p) { if (pidsSet[p.id]) p.estatus = 'entregado'; });
+
+    // Mostrar documento e imprimir
+    document.getElementById('selector-view').style.display = 'none';
+    mostrarDoc(true);
+    setTimeout(function() { window.print(); }, 400);
   })
   .catch(function(e) {
     alert('Error al registrar: ' + e.message);
@@ -733,155 +853,81 @@ function confirmarSalida() {
   });
 }
 
-// ── Construir documento imprimible ────────────────────────────────────────────
-function construirDocumento(idsSeleccionados, fechaChofer, esParcial, piezasCount) {
-  // Badge parcial
-  var badge = document.getElementById('doc-badge-parcial');
-  if (esParcial) {
-    badge.innerHTML = '<span class="badge-parcial">ENTREGA PARCIAL</span>';
-  }
+// ── Actualizar celdas de entrega en el documento PHP ─────────────────────────
+function actualizarCeldasEntrega(pids, fechaStr) {
+  var fechaDisplay = formatFechaDoc(fechaStr);
+  var pidsSet = {};
+  pids.forEach(function(id) { pidsSet[id] = true; });
 
-  // Fecha en header
-  if (fechaChofer) {
-    var partes = fechaChofer.split('-');
-    var meses  = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-    document.getElementById('doc-fecha-entrega').textContent =
-      partes[2] + '/' + (parseInt(partes[1]) < 10 ? '0' : '') + parseInt(partes[1]) + '/' + partes[0];
-  }
-
-  // Agrupar piezas seleccionadas por partida
-  var selSet = {};
-  idsSeleccionados.forEach(function(id) { selSet[id] = true; });
-
-  var grupos = {};
-  todasPiezas.filter(function(p) { return selSet[p.id]; }).forEach(function(p) {
-    if (!grupos[p.partida]) grupos[p.partida] = [];
-    grupos[p.partida].push(p);
+  // IDs ya entregados previamente en esta sesión (de SALIDAS_PREVIAS anteriores)
+  var prevSet = {};
+  SALIDAS_PREVIAS.slice(0, SALIDAS_PREVIAS.length - 1).forEach(function(s) {
+    (s.pieza_ids || []).forEach(function(pid) { prevSet[pid] = true; });
   });
 
-  var tbody   = document.getElementById('doc-tbody');
-  var filas   = '';
-  var totalPz = 0;
-  var totalM2 = 0;
-  var resMat  = {};
-
-  Object.keys(grupos).sort(function(a, b) { return a - b; }).forEach(function(numPart) {
-    var piezasGrupo = grupos[numPart];
-    var part = PARTS.find(function(pt) { return pt.num_partida == numPart; }) || {};
-    var cant = piezasGrupo.length;
-    var m2u  = piezasGrupo[0] ? (piezasGrupo[0].m2 || 0) : 0;
-    var m2t  = parseFloat((m2u * cant).toFixed(4));
-    totalPz += cant;
-    totalM2 += m2t;
-
-    var specs = [];
-    if (part.cpb && part.cpb.toUpperCase() !== 'NO') specs.push('CPB: ' + part.cpb);
-    if (part.detalles) specs.push(part.detalles);
-    if (part.resaques > 0) specs.push('Res: ' + part.resaques);
-    if (part.taladros_pasados > 0) specs.push('TP: ' + part.taladros_pasados);
-    if (part.taladros_avellanados > 0) specs.push('TA: ' + part.taladros_avellanados);
-    specs.push(part.requiere_templado ? 'Templado' : 'No Templado');
-
-    var mat = part.cristal_nombre || piezasGrupo[0].cristal_corto || '—';
-    if (!resMat[mat]) resMat[mat] = { pzas: 0, m2: 0 };
-    resMat[mat].pzas += cant;
-    resMat[mat].m2   += m2t;
-
-    var totalPartida = totalPorPartida[numPart] || cant;
-    var labelCant = cant < totalPartida ? cant + ' de ' + totalPartida : String(cant);
-
-    filas += '<tr>';
-    filas += '<td style="font-weight:700;color:#1d4ed8">' + numPart + '</td>';
-    filas += '<td class="cristal-cell">' + esc(mat) + '</td>';
-    filas += '<td>' + esc(piezasGrupo[0] ? piezasGrupo[0].ancho_mm : (part.ancho || '—')) + '</td>';
-    filas += '<td>' + esc(piezasGrupo[0] ? piezasGrupo[0].alto_mm  : (part.alto  || '—')) + '</td>';
-    filas += '<td>' + labelCant + '</td>';
-    filas += '<td>' + m2t.toFixed(4) + '</td>';
-    filas += '<td class="left">' + esc(specs.join(' · ') || '—') + '</td>';
-    filas += '<td class="left">' + esc(part.comentarios_etiqueta || '') + '</td>';
-    filas += '</tr>';
+  // Partidas afectadas por esta salida
+  var partidasAfectadas = {};
+  todasPiezas.forEach(function(p) {
+    if (pidsSet[p.id]) partidasAfectadas[p.partida] = true;
   });
 
-  tbody.innerHTML = filas;
-  document.getElementById('doc-totales').textContent =
-    'TOTAL PIEZAS: ' + totalPz + '  |  TOTAL M²: ' + totalM2.toFixed(4);
+  Object.keys(partidasAfectadas).forEach(function(np) {
+    var cel = document.getElementById('cel-ent-' + np);
+    if (!cel) return;
 
-  // Resumen de material
-  var matKeys = Object.keys(resMat);
-  var rhtml   = '';
-  if (matKeys.length > 1) {
-    rhtml  = '<div class="resumen-mat"><div class="resumen-mat-title">Resumen de material</div>';
-    rhtml += '<table><thead><tr><th>Material</th><th style="width:90px">Piezas</th><th style="width:110px">M² total</th></tr></thead><tbody>';
-    matKeys.forEach(function(m) {
-      rhtml += '<tr><td>' + esc(m) + '</td><td>' + resMat[m].pzas + '</td><td>' + resMat[m].m2.toFixed(4) + '</td></tr>';
+    var totalPartida = 0;
+    var entregadasTotal = 0;
+    todasPiezas.forEach(function(p) {
+      if (p.partida == np) {
+        totalPartida++;
+        if (pidsSet[p.id] || prevSet[p.id]) entregadasTotal++;
+      }
     });
-    rhtml += '</tbody></table></div>';
-  }
-  document.getElementById('doc-resumen-mat').innerHTML = rhtml;
 
-  // Mostrar documento e imprimir
-  document.getElementById('selector-view').style.display = 'none';
-  document.getElementById('doc-print').style.display     = 'block';
-  document.getElementById('btnImprimir').style.display   = 'inline-block';
-  document.getElementById('btnVolver').style.display     = 'inline-block';
-  document.getElementById('btnConfirmar') && (document.getElementById('btnConfirmar').style.display = 'none');
-
-  setTimeout(function() { window.print(); }, 400);
-}
-
-// ── Salidas anteriores: renderizar sección y reimprimir ──────────────────────
-function renderSalidasPrevias() {
-  var wrap = document.getElementById('salidas-previas-wrap');
-  if (!wrap || !SALIDAS_PREVIAS.length) return;
-
-  var meses = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-  var html  = '<div class="prev-salidas-wrap"><div class="prev-salidas-titulo">Salidas registradas</div>';
-
-  SALIDAS_PREVIAS.forEach(function(s, i) {
-    var tipoLabel = s.tipo === 'chofer' ? 'Domicilio' : 'Recolección';
-    var parcLabel = s.es_parcial == 1 ? ' &middot; Parcial' : ' &middot; Completa';
-    var dt   = new Date(s.created_at.replace(' ', 'T') + '-06:00');
-    var fechaStr = dt.getDate() + '/' + meses[dt.getMonth() + 1] + '/' + dt.getFullYear()
-                 + ' ' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
-    html += '<div class="prev-salida-row">';
-    html += '<div><span class="prev-sal-num">Salida ' + (i + 1) + '</span>';
-    html += '<span class="prev-sal-info">' + s.piezas_count + ' pieza(s) &middot; ' + esc(tipoLabel) + parcLabel + ' &middot; ' + fechaStr + '</span></div>';
-    html += '<button class="btn-reimp" onclick="reimprimir(' + i + ')">&#128438; Reimprimir</button>';
-    html += '</div>';
+    if (entregadasTotal >= totalPartida) {
+      cel.innerHTML = '<span class="ent-fecha">' + fechaDisplay + '</span>';
+    } else {
+      cel.innerHTML = '<span class="ent-parcial">' + entregadasTotal + '/' + totalPartida + ' al ' + fechaDisplay + '</span>';
+    }
   });
-  html += '</div>';
-  wrap.innerHTML  = html;
-  wrap.style.display = 'block';
 }
 
-function reimprimir(idx) {
-  var s = SALIDAS_PREVIAS[idx];
-  if (!s) return;
-  TIPO_ENTREGA = s.tipo;
-  construirDocumento(s.pieza_ids, s.fecha_entrega_chofer || null, s.es_parcial == 1, s.piezas_count);
+// ── Mostrar documento imprimible ──────────────────────────────────────────────
+function mostrarDoc(conVolver) {
+  // Badge parcial: hay PENDIENTE en el documento?
+  var pendientes = document.querySelectorAll('.ent-pendiente').length;
+  var badge = document.getElementById('doc-badge-parcial');
+  badge.innerHTML = pendientes > 0 ? '<span class="badge-parcial">ENTREGA PARCIAL</span>' : '';
+
+  // Tipo de entrega en el doc
+  var docTipo = document.getElementById('doc-tipo-entrega-val');
+  if (docTipo) docTipo.textContent = TIPO_ENTREGA === 'chofer' ? 'Domicilio / Ruta' : 'Recolección en planta';
+
+  document.getElementById('doc-print').style.display    = 'block';
+  document.getElementById('btnImprimir').style.display  = 'inline-block';
+  document.getElementById('btnVolver').style.display    = conVolver ? 'inline-block' : 'none';
 }
 
-function volverAlSelector() {
+// ── Volver al menú desde el documento ────────────────────────────────────────
+function volverAlMenu() {
   document.getElementById('doc-print').style.display   = 'none';
   document.getElementById('btnImprimir').style.display = 'none';
   document.getElementById('btnVolver').style.display   = 'none';
-  var btnConf = document.getElementById('btnConfirmar');
-  if (btnConf) btnConf.style.display = '';   // restaurar botón oculto tras construirDocumento
-  // Re-cargar piezas desde la API para reflejar los nuevos estatus (entregado)
-  document.getElementById('selector-view').style.display = 'block';
-  document.getElementById('partidas-container').innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8">Actualizando...</div>';
-  fetch('../api/salidas.php?accion=piezas_terminadas&orden_id=' + ORDEN_ID)
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (!data.ok) throw new Error(data.error || 'Error');
-      todasPiezas = data.piezas;
-      renderSelector();
-      renderSalidasPrevias();
-    })
-    .catch(function(e) {
-      document.getElementById('partidas-container').innerHTML =
-        '<div class="no-piezas">Error al actualizar: ' + e.message + '</div>';
-    });
+  if (TIENE_SALIDAS) {
+    renderHistorialMenu();
+    document.getElementById('menu-salidas').style.display = 'block';
+  } else {
+    irASelector();
+  }
+}
+
+// ── Utilidades ────────────────────────────────────────────────────────────────
+function formatFechaDoc(fechaStr) {
+  if (!fechaStr) return '—';
+  var meses  = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  var partes = fechaStr.split('-');
+  if (partes.length !== 3) return fechaStr;
+  return partes[2] + '/' + meses[parseInt(partes[1]) - 1] + '/' + partes[0];
 }
 </script>
 </body>
