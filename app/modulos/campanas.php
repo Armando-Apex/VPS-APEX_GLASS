@@ -853,6 +853,14 @@ var ModCampanas = (function() {
     }
 
     // ── Conversaciones ────────────────────────────────────────
+    var _convTipoMap = {};
+
+    var _tipoBadge = {
+        cliente:     '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;background:#dbeafe;color:#1d4ed8;margin-left:6px;vertical-align:middle;">CRM</span>',
+        prospecto:   '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;background:#ffedd5;color:#c2410c;margin-left:6px;vertical-align:middle;">Prospecto</span>',
+        desconocido: '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;background:#f1f5f9;color:#64748b;margin-left:6px;vertical-align:middle;">Nuevo</span>'
+    };
+
     function cargarConversaciones() {
         document.getElementById('cmpConvLista').innerHTML = '<p style="padding:14px;font-size:12px;color:#64748b;">Cargando...</p>';
         fetch('/produccion/api/campanas.php?accion=conversaciones')
@@ -860,13 +868,17 @@ var ModCampanas = (function() {
           .then(function(data) {
             var html = '';
             var sinLeerTotal = 0;
+            _convTipoMap = {};
             (data.conversaciones || []).forEach(function(c) {
-                var sl = parseInt(c.mensajes_sin_leer) || 0;
+                var sl   = parseInt(c.mensajes_sin_leer) || 0;
+                var tipo = c.tipo_contacto || 'desconocido';
+                _convTipoMap[c.id] = tipo;
                 sinLeerTotal += sl;
-                var badge = sl > 0 ? '<span class="conv-badge">' + sl + '</span>' : '';
+                var badgeSL   = sl > 0 ? '<span class="conv-badge">' + sl + '</span>' : '';
+                var badgeTipo = _tipoBadge[tipo] || '';
                 html += '<div class="conv-item" onclick="window.cmpAbrirConv(' + c.id + ',\'' + esc(c.nombre_cliente || c.telefono).replace(/'/g,"&#39;") + '\')" id="convItem' + c.id + '">' +
-                    badge +
-                    '<div class="conv-item-nombre">' + esc(c.nombre_cliente || c.telefono) + '</div>' +
+                    badgeSL +
+                    '<div class="conv-item-nombre">' + esc(c.nombre_cliente || c.telefono) + badgeTipo + '</div>' +
                     '<div class="conv-item-preview">' + esc((c.ultimo_mensaje || 'Sin mensajes').substring(0, 60)) + '</div>' +
                     '</div>';
             });
@@ -887,9 +899,12 @@ var ModCampanas = (function() {
         var item = document.getElementById('convItem' + convId);
         if (item) { item.classList.add('active'); }
 
+        var tipo      = _convTipoMap[convId] || 'desconocido';
+        var badgeTipo = _tipoBadge[tipo] || '';
+
         var chat = document.getElementById('cmpConvChat');
         chat.innerHTML =
-            '<div class="conv-header">' + esc(_convActivaNombre) + '</div>' +
+            '<div class="conv-header">' + esc(_convActivaNombre) + badgeTipo + '</div>' +
             '<div class="conv-mensajes" id="cmpMsgs"><p style="color:#94a3b8;font-size:12px;text-align:center;">Cargando mensajes...</p></div>' +
             '<div class="conv-input">' +
             '<div id="cmpMediaPreview" style="display:none;" class="conv-media-preview">' +

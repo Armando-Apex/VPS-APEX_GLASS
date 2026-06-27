@@ -193,7 +193,12 @@ if ($metodo === 'GET' && $accion === 'progreso') {
 if ($metodo === 'GET' && $accion === 'conversaciones') {
     $stmt = $db->query("
         SELECT wc.id, wc.cliente_id,
-               COALESCE(c.nombre, cp.nombre) as nombre_cliente,
+               COALESCE(c.nombre, cp.nombre, pr.nombre) as nombre_cliente,
+               CASE
+                   WHEN wc.cliente_id IS NOT NULL OR cp.id IS NOT NULL THEN 'cliente'
+                   WHEN pr.id IS NOT NULL THEN 'prospecto'
+                   ELSE 'desconocido'
+               END as tipo_contacto,
                wc.telefono, wc.ultima_actividad, wc.mensajes_sin_leer, wc.estado,
                (SELECT contenido FROM whatsapp_mensajes wm
                 WHERE wm.conversacion_id = wc.id
@@ -203,6 +208,9 @@ if ($metodo === 'GET' && $accion === 'conversaciones') {
         LEFT JOIN clientes cp ON wc.cliente_id IS NULL
             AND (RIGHT(REGEXP_REPLACE(cp.telefono,'[^0-9]',''), 10) = RIGHT(REGEXP_REPLACE(wc.telefono,'[^0-9]',''), 10)
               OR RIGHT(REGEXP_REPLACE(cp.telefono_alterno,'[^0-9]',''), 10) = RIGHT(REGEXP_REPLACE(wc.telefono,'[^0-9]',''), 10))
+        LEFT JOIN prospectos pr ON wc.cliente_id IS NULL
+            AND RIGHT(REGEXP_REPLACE(wc.telefono,'[^0-9]',''), 10) = pr.telefono
+            AND pr.activo = 1
         ORDER BY wc.ultima_actividad DESC");
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     // Auto-vincular conversaciones sin cliente cuando el fallback por teléfono encontró uno
