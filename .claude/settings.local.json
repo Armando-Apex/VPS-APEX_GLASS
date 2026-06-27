@@ -100,7 +100,9 @@
       "Bash(/usr/local/bolt/nginx/sbin/nginx -T)",
       "Bash(sed -i 's/^#LoginGraceTime 2m/LoginGraceTime 30/' /etc/ssh/sshd_config)",
       "Bash(sed -i 's/^#MaxAuthTries 6/MaxAuthTries 3/' /etc/ssh/sshd_config)",
-      "Bash(sshd -t)"
+      "Bash(sshd -t)",
+      "Read(//etc/ssl/bolt/**)",
+      "Bash(openssl x509 *)"
     ]
   },
   "hooks": {
