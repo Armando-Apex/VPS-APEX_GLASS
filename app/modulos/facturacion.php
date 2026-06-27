@@ -509,9 +509,9 @@ var ModFacturacion = (function() {
   }
 
   function _unidadWidget(sel) {
-    var label = sel || 'MTQ';
+    var label = sel || '— Unidad —';
     var html = '<div class="fac-csat">';
-    html += '<input type="hidden" class="fac-c-unidad" value="' + (sel||'MTQ') + '">';
+    html += '<input type="hidden" class="fac-c-unidad" value="' + (sel||'') + '">';
     html += '<div class="fac-csat-display" onclick="ModFacturacion._csatToggle(this)">' + label + '</div>';
     html += '<div class="fac-csat-list">';
     for (var i = 0; i < UNIDADES_SAT.length; i++) {

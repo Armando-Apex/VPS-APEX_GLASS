@@ -109,13 +109,35 @@ if ($metodo === 'GET' && $accion === 'detalle') {
         echo json_encode(['error' => 'No encontrada']);
         exit;
     }
-    $stmt2 = $db->prepare("SELECT ce.*, c.nombre as nombre_cliente
+    $stmt2 = $db->prepare("SELECT ce.*,
+        COALESCE(c.nombre, ce.nombre_override) as nombre_cliente
         FROM campana_envios ce
         LEFT JOIN clientes c ON c.id = ce.cliente_id
         WHERE ce.campana_id = ?
-        ORDER BY c.nombre ASC");
+        ORDER BY nombre_cliente ASC");
     $stmt2->execute([$id]);
     echo json_encode(['campana' => $campana, 'envios' => $stmt2->fetchAll(PDO::FETCH_ASSOC)]);
+    exit;
+}
+
+// ── GET prospectos por estado ────────────────────────────────
+if ($metodo === 'GET' && $accion === 'prospectos_segmento') {
+    $estado          = trim($_GET['estado'] ?? '');
+    $excluirClientes = (int)($_GET['excluir_clientes'] ?? 1);
+
+    $where  = ['activo = 1', "telefono != ''"];
+    $params = [];
+    if ($estado !== '') {
+        $where[] = 'estado = ?';
+        $params[] = $estado;
+    }
+    if ($excluirClientes) {
+        $where[] = 'es_cliente = 0';
+    }
+    $sql  = "SELECT id, nombre, telefono, estado FROM prospectos WHERE " . implode(' AND ', $where) . " ORDER BY nombre ASC";
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    echo json_encode(['prospectos' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     exit;
 }
 
@@ -218,20 +240,23 @@ if ($metodo === 'POST' && $accion === 'crear') {
     $template       = trim($body['template_nombre'] ?? '');
     $varsJson       = json_encode($body['template_vars'] ?? []);
     $segmentoJson   = json_encode($body['segmento'] ?? []);
-    $clienteIds     = $body['cliente_ids'] ?? [];
+    $clienteIds     = $body['cliente_ids']   ?? [];
+    $prospectoIds   = $body['prospecto_ids'] ?? [];
     $headerImageUrl = trim($body['header_image_url'] ?? '');
 
-    if (!$nombre || !$template || !$clienteIds) {
+    if (!$nombre || !$template || (empty($clienteIds) && empty($prospectoIds))) {
         http_response_code(400);
         echo json_encode(['error' => 'Faltan campos']);
         exit;
     }
 
+    $total = count($clienteIds) + count($prospectoIds);
+
     $db->beginTransaction();
     $stmt = $db->prepare("INSERT INTO campanas
         (nombre, template_nombre, template_vars_json, header_image_url, segmento_json, creado_por, total_destinatarios)
         VALUES (?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$nombre, $template, $varsJson, $headerImageUrl ?: null, $segmentoJson, $user['nombre'], count($clienteIds)]);
+    $stmt->execute([$nombre, $template, $varsJson, $headerImageUrl ?: null, $segmentoJson, $user['nombre'], $total]);
     $campanaId = $db->lastInsertId();
 
     $stmtCli = $db->prepare("SELECT id, nombre, telefono FROM clientes WHERE id = ?");
@@ -244,6 +269,18 @@ if ($metodo === 'POST' && $accion === 'crear') {
             $stmtIns->execute([$campanaId, $cli['id'], $tel]);
         }
     }
+
+    $stmtPr  = $db->prepare("SELECT id, nombre, telefono FROM prospectos WHERE id = ?");
+    $stmtInsPr = $db->prepare("INSERT INTO campana_envios (campana_id, prospecto_id, nombre_override, telefono) VALUES (?, ?, ?, ?)");
+    foreach ($prospectoIds as $pid) {
+        $stmtPr->execute([(int)$pid]);
+        $pr = $stmtPr->fetch(PDO::FETCH_ASSOC);
+        if ($pr && $pr['telefono']) {
+            $tel = '52' . $pr['telefono'];
+            $stmtInsPr->execute([$campanaId, $pr['id'], $pr['nombre'] ?: 'Prospecto', $tel]);
+        }
+    }
+
     $db->commit();
     echo json_encode(['ok' => true, 'id' => $campanaId]);
     exit;
@@ -271,7 +308,9 @@ if ($metodo === 'POST' && $accion === 'enviar') {
 
     $db->prepare("UPDATE campanas SET estado='enviando' WHERE id=?")->execute([$campanaId]);
 
-    $stmtE = $db->prepare("SELECT ce.id, ce.telefono, c.nombre as nombre_cliente, c.codigo as codigo_cliente
+    $stmtE = $db->prepare("SELECT ce.id, ce.telefono,
+        COALESCE(c.nombre, ce.nombre_override) as nombre_cliente,
+        c.codigo as codigo_cliente
         FROM campana_envios ce
         LEFT JOIN clientes c ON c.id = ce.cliente_id
         WHERE ce.campana_id = ? AND ce.estado = 'pendiente'");

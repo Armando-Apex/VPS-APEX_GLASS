@@ -13,8 +13,9 @@ $accion = $_GET['accion'] ?? '';
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'lista') {
     $rows = $pdo->query("
         SELECT id, folio_interno, serie, folio_numero, tipo_cfdi, fecha,
-               receptor_nombre, receptor_rfc, receptor_uso_cfdi,
-               forma_pago, metodo_pago, subtotal, iva, total,
+               receptor_nombre, receptor_rfc, receptor_cp, receptor_regimen,
+               receptor_uso_cfdi, receptor_email, forma_pago, metodo_pago,
+               conceptos, subtotal, iva, total,
                estatus, uuid, modo, pdf_url, created_at
         FROM facturas
         ORDER BY id DESC

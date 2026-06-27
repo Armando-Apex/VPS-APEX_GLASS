@@ -129,6 +129,7 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno']);
 <script>
 var ModCampanas = (function() {
     var _step = 1;
+    var _fuente = 'clientes';
     var _clientesSeleccionados = [];
     var _templateNombre = '';
     var _templateBody = '';
@@ -282,6 +283,7 @@ var ModCampanas = (function() {
     // ── Wizard Nueva Campaña ──────────────────────────────────
     function nuevaCampana() {
         _step = 1;
+        _fuente = 'clientes';
         _clientesSeleccionados = [];
         _templateNombre = '';
         _templateBody = '';
@@ -316,22 +318,21 @@ var ModCampanas = (function() {
                 '<input id="cmpNombre" type="text" placeholder="Ej: Promo Julio 2026" maxlength="200" ' +
                 'style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">' +
                 '</div>' +
-                '<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;">' +
-                '<div style="flex:1;min-width:140px;"><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Localidad</label>' +
-                '<select id="cmpLocalidad" onchange="window.cmpFiltrarClientes()" ' +
-                'style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">' +
-                '<option value="">Todos</option><option value="LOCAL">Local (MTY)</option><option value="FORANEO">For&aacute;neo</option>' +
-                '</select></div>' +
-                '<div style="flex:1;min-width:140px;"><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Ciudad</label>' +
-                '<input id="cmpCiudad" type="text" placeholder="Filtrar ciudad..." maxlength="100" oninput="window.cmpFiltrarClientes()" ' +
-                'style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;"></div>' +
-                '</div>' +
+                '<div style="margin-bottom:14px;">' +
+                '<label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">Audiencia</label>' +
+                '<div style="display:flex;gap:0;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;width:fit-content;">' +
+                '<button id="cmpBtnFuenteClientes" onclick="window.cmpCambiarFuente(\'clientes\')" ' +
+                'style="padding:7px 16px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:' + (_fuente==='clientes'?'#2563eb':'#fff') + ';color:' + (_fuente==='clientes'?'#fff':'#64748b') + ';">Clientes CRM</button>' +
+                '<button id="cmpBtnFuenteProspectos" onclick="window.cmpCambiarFuente(\'prospectos\')" ' +
+                'style="padding:7px 16px;font-size:12px;font-weight:600;border:none;cursor:pointer;border-left:1px solid #e2e8f0;background:' + (_fuente==='prospectos'?'#2563eb':'#fff') + ';color:' + (_fuente==='prospectos'?'#fff':'#64748b') + ';">Prospectos (2,365)</button>' +
+                '</div></div>' +
+                '<div id="cmpFiltrosArea"></div>' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-                '<span id="cmpContador" style="font-size:13px;font-weight:600;color:#2563eb;">Cargando clientes...</span>' +
+                '<span id="cmpContador" style="font-size:13px;font-weight:600;color:#2563eb;">Cargando...</span>' +
                 '<label style="font-size:12px;cursor:pointer;"><input type="checkbox" id="cmpChkAll" onchange="window.cmpToggleTodos()"> Seleccionar todos</label>' +
                 '</div>' +
-                '<div class="cmp-clientes-tabla">' +
-                '<table><thead><tr>' +
+                '<div class="cmp-clientes-tabla" id="cmpTablaWrap">' +
+                '<table><thead><tr id="cmpTablaHead">' +
                 '<th style="width:36px;"><input type="checkbox" id="cmpChkAllTh" onchange="window.cmpToggleTodos()"></th>' +
                 '<th>Cliente</th><th>Tel&eacute;fono</th><th>Ciudad</th>' +
                 '</tr></thead><tbody id="cmpTablaBody"><tr><td colspan="4" style="padding:12px;color:#64748b;">Cargando...</td></tr></tbody></table>' +
@@ -339,7 +340,8 @@ var ModCampanas = (function() {
                 '<div style="text-align:right;margin-top:16px;">' +
                 '<button onclick="window.cmpSiguiente()" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:9px 22px;font-size:13px;font-weight:600;cursor:pointer;">Siguiente &#8594;</button>' +
                 '</div>';
-            cmpFiltrarClientes();
+            renderFiltros();
+            cargarAudiencia();
 
         } else if (_step === 2) {
             cont.innerHTML =
@@ -561,6 +563,112 @@ var ModCampanas = (function() {
             '<div class="cmp-preview" style="white-space:pre-wrap;">' + esc(construirPreview(nombre)) + '</div>';
     }
 
+    // ── Cambiar fuente audiencia ──────────────────────────────
+    function cambiarFuente(nueva) {
+        _fuente = nueva;
+        _clientesSeleccionados = [];
+        var btnC = document.getElementById('cmpBtnFuenteClientes');
+        var btnP = document.getElementById('cmpBtnFuenteProspectos');
+        if (btnC) { btnC.style.background = (nueva === 'clientes') ? '#2563eb' : '#fff'; btnC.style.color = (nueva === 'clientes') ? '#fff' : '#64748b'; }
+        if (btnP) { btnP.style.background = (nueva === 'prospectos') ? '#2563eb' : '#fff'; btnP.style.color = (nueva === 'prospectos') ? '#fff' : '#64748b'; }
+        renderFiltros();
+        cargarAudiencia();
+    }
+
+    function renderFiltros() {
+        var area = document.getElementById('cmpFiltrosArea');
+        if (!area) return;
+        var headEl = document.getElementById('cmpTablaHead');
+        if (_fuente === 'clientes') {
+            area.innerHTML =
+                '<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;">' +
+                '<div style="flex:1;min-width:140px;"><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Localidad</label>' +
+                '<select id="cmpLocalidad" ' +
+                'style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">' +
+                '<option value="">Todos</option><option value="LOCAL">Local (MTY)</option><option value="FORANEO">For&aacute;neo</option>' +
+                '</select></div>' +
+                '<div style="flex:1;min-width:140px;"><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Ciudad</label>' +
+                '<input id="cmpCiudad" type="text" placeholder="Filtrar ciudad..." maxlength="100" ' +
+                'style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;"></div>' +
+                '</div>';
+            var locEl = document.getElementById('cmpLocalidad');
+            var cidEl = document.getElementById('cmpCiudad');
+            if (locEl) { locEl.addEventListener('change', cargarAudiencia); }
+            if (cidEl) { cidEl.addEventListener('input',  cargarAudiencia); }
+            if (headEl) { headEl.innerHTML = '<th style="width:36px;"><input type="checkbox" id="cmpChkAllTh" onchange="window.cmpToggleTodos()"></th><th>Cliente</th><th>Tel&eacute;fono</th><th>Ciudad</th>'; }
+        } else {
+            area.innerHTML =
+                '<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end;">' +
+                '<div style="flex:1;min-width:160px;"><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Estado / Zona</label>' +
+                '<select id="cmpEstadoPr" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">' +
+                '<option value="">Todos los estados</option>' +
+                '<option value="Nuevo León">Nuevo León (1,899)</option>' +
+                '<option value="Coahuila">Coahuila (282)</option>' +
+                '<option value="CENTRO">CENTRO (91)</option>' +
+                '<option value="Tamaulipas">Tamaulipas (45)</option>' +
+                '<option value="NORTE">NORTE (28)</option>' +
+                '<option value="SUR">SUR (10)</option>' +
+                '<option value="LADA NO UBICADA">LADA NO UBICADA (10)</option>' +
+                '</select></div>' +
+                '<div style="flex:1;min-width:200px;padding-bottom:2px;">' +
+                '<label style="font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px;">' +
+                '<input type="checkbox" id="cmpExcluirClientes" checked> ' +
+                '<span>Excluir quienes ya son clientes</span></label></div>' +
+                '</div>';
+            var estEl = document.getElementById('cmpEstadoPr');
+            var excEl = document.getElementById('cmpExcluirClientes');
+            if (estEl) { estEl.addEventListener('change', cargarAudiencia); }
+            if (excEl) { excEl.addEventListener('change', cargarAudiencia); }
+            if (headEl) { headEl.innerHTML = '<th style="width:36px;"><input type="checkbox" id="cmpChkAllTh" onchange="window.cmpToggleTodos()"></th><th>Nombre</th><th>Tel&eacute;fono</th><th>Estado</th>'; }
+        }
+    }
+
+    function cargarAudiencia() {
+        if (_fuente === 'clientes') { cmpFiltrarClientes(); }
+        else                        { cmpFiltrarProspectos(); }
+    }
+
+    // ── Filtrar/cargar prospectos ─────────────────────────────
+    var _prospectosMap = {};
+
+    function cmpFiltrarProspectos() {
+        var estado  = (document.getElementById('cmpEstadoPr') || {}).value || '';
+        var excl    = (document.getElementById('cmpExcluirClientes') || {}).checked ? 1 : 0;
+        var url     = '/produccion/api/campanas.php?accion=prospectos_segmento&excluir_clientes=' + excl;
+        if (estado) { url += '&estado=' + encodeURIComponent(estado); }
+
+        fetch(url)
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var lista = data.prospectos || [];
+            _prospectosMap = {};
+            var filas = '';
+            lista.forEach(function(p) {
+                _prospectosMap[p.id] = {id: p.id, nombre: p.nombre || 'Sin nombre', telefono: '52' + p.telefono};
+                var sel = _clientesSeleccionados.some(function(x) { return x.id === p.id; });
+                filas += '<tr>' +
+                    '<td style="padding:6px 10px;"><input type="checkbox" data-id="' + parseInt(p.id) + '" ' + (sel ? 'checked' : '') + '></td>' +
+                    '<td style="padding:6px 10px;">' + esc(p.nombre || 'Sin nombre') + '</td>' +
+                    '<td style="padding:6px 10px;">' + esc(p.telefono) + '</td>' +
+                    '<td style="padding:6px 10px;">' + esc(p.estado || '') + '</td>' +
+                    '</tr>';
+            });
+            var body = document.getElementById('cmpTablaBody');
+            if (body) {
+                body.innerHTML = filas || '<tr><td colspan="4" style="padding:12px;color:#64748b;font-size:12px;">Sin resultados</td></tr>';
+                body.addEventListener('change', function(e) {
+                    if (e.target.type === 'checkbox' && e.target.dataset.id) {
+                        var id  = parseInt(e.target.dataset.id);
+                        var obj = _prospectosMap[id];
+                        if (obj) { toggleCliente(id, obj.nombre, obj.telefono, e.target.checked); }
+                    }
+                });
+            }
+            var cnt = document.getElementById('cmpContador');
+            if (cnt) { cnt.textContent = _clientesSeleccionados.length + ' seleccionados de ' + lista.length + ' prospectos'; }
+          });
+    }
+
     // ── Filtrar/cargar clientes ───────────────────────────────
     // Mapa id→objeto cliente para event delegation (evita JS en atributos HTML)
     var _clientesMap = {};
@@ -637,7 +745,10 @@ var ModCampanas = (function() {
         if (_step === 1) {
             _nombreCampana = ((document.getElementById('cmpNombre') || {}).value || '').trim();
             if (!_nombreCampana) { alert('Ingresa el nombre de la campaña'); return; }
-            if (_clientesSeleccionados.length === 0) { alert('Selecciona al menos un cliente'); return; }
+            if (_clientesSeleccionados.length === 0) {
+                alert(_fuente === 'prospectos' ? 'Selecciona al menos un prospecto' : 'Selecciona al menos un cliente');
+                return;
+            }
         } else if (_step === 2) {
             if (!_templateNombre) { alert('Selecciona una plantilla de la lista'); return; }
             _headerImageUrl = ((document.getElementById('cmpHeaderImgUrl') || {}).value || '').trim();
@@ -658,18 +769,23 @@ var ModCampanas = (function() {
         if (btnEnviar) { btnEnviar.disabled = true; btnEnviar.textContent = 'Guardando...'; }
         if (btnAtras)  { btnAtras.disabled  = true; }
 
-        var clienteIds = _clientesSeleccionados.map(function(c) { return c.id; });
+        var ids = _clientesSeleccionados.map(function(c) { return c.id; });
+        var payload = {
+            nombre:           _nombreCampana,
+            template_nombre:  _templateNombre,
+            template_vars:    _templateVars,
+            header_image_url: _headerImageUrl,
+            segmento:         {}
+        };
+        if (_fuente === 'prospectos') {
+            payload.prospecto_ids = ids;
+        } else {
+            payload.cliente_ids = ids;
+        }
         fetch('/produccion/api/campanas.php?accion=crear', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                nombre:           _nombreCampana,
-                template_nombre:  _templateNombre,
-                template_vars:    _templateVars,
-                header_image_url: _headerImageUrl,
-                segmento:         {},
-                cliente_ids:      clienteIds
-            })
+            body: JSON.stringify(payload)
         })
         .then(function(r) {
             if (!r.ok) { return r.text().then(function(t) { throw new Error('HTTP ' + r.status + ': ' + t.substring(0, 200)); }); }
@@ -979,6 +1095,7 @@ var ModCampanas = (function() {
     window.cmpFiltrarClientes    = cmpFiltrarClientes;
     window.cmpToggleCliente      = toggleCliente;
     window.cmpToggleTodos        = toggleTodos;
+    window.cmpCambiarFuente      = cambiarFuente;
     window.cmpAgregarVar         = agregarVar;
     window.cmpActualizarVar      = actualizarVar;
     window.cmpEliminarVar        = eliminarVar;
