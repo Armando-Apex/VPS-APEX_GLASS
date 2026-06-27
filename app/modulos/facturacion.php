@@ -442,17 +442,26 @@ var ModFacturacion = (function() {
     {v:'ACT', l:'ACT – Actividad'},
   ];
 
-  function _load() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
-    catch(e) { return []; }
+  function _apiFetch(url, opts, cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open(opts.method || 'GET', url);
+    xhr.setRequestHeader('X-SPA-Request', '1');
+    if (opts.body) xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onload = function() {
+      var res;
+      try { res = JSON.parse(xhr.responseText); } catch(e) { res = {ok:false,error:'Error del servidor'}; }
+      cb(null, res);
+    };
+    xhr.onerror = function() { cb('Error de conexión'); };
+    xhr.send(opts.body || null);
   }
 
-  function _save(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
-
-  function _nextFolio() {
-    var data = _load();
-    var n = data.length + 1;
-    return 'F-' + (n < 10 ? '00' : n < 100 ? '0' : '') + n;
+  function _cargarLista() {
+    _apiFetch('api/facturapi.php?accion=lista', {}, function(err, res) {
+      if (err || !res.ok) return;
+      _facturas = res.facturas || [];
+      _renderTabla();
+    });
   }
 
   function _fmt(n) {
