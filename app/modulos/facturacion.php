@@ -434,12 +434,12 @@ var ModFacturacion = (function() {
   ];
 
   var UNIDADES_SAT = [
-    {v:'M2',  l:'M2 – Metro cuadrado'},
-    {v:'PZA', l:'PZA – Pieza'},
+    {v:'MTQ', l:'MTQ – Metro cuadrado'},
+    {v:'H87', l:'H87 – Pieza'},
     {v:'MTR', l:'MTR – Metro lineal'},
-    {v:'H87', l:'H87 – Pieza (SAT)'},
-    {v:'E48', l:'E48 – Unidad servicio'},
+    {v:'E48', l:'E48 – Unidad de servicio'},
     {v:'ACT', l:'ACT – Actividad'},
+    {v:'KGM', l:'KGM – Kilogramo'},
   ];
 
   function _apiFetch(url, opts, cb) {
@@ -457,7 +457,7 @@ var ModFacturacion = (function() {
   }
 
   function _cargarLista() {
-    _apiFetch('api/facturapi.php?accion=lista', {}, function(err, res) {
+    _apiFetch('../api/facturapi.php?accion=lista', {}, function(err, res) {
       if (err || !res.ok) return;
       _facturas = res.facturas || [];
       _renderTabla();
@@ -499,19 +499,19 @@ var ModFacturacion = (function() {
   }
 
   function _csatPick(opt, val) {
-    var wrap   = opt.closest('.fac-csat');
-    var hidden  = wrap.querySelector('.fac-c-clave');
+    var wrap    = opt.closest('.fac-csat');
+    var hidden  = wrap.querySelector('.fac-c-clave') || wrap.querySelector('.fac-c-unidad');
     var display = wrap.querySelector('.fac-csat-display');
     var list    = wrap.querySelector('.fac-csat-list');
-    hidden.value   = val;
+    if (hidden) hidden.value = val;
     display.textContent = val;
     list.classList.remove('open');
   }
 
   function _unidadWidget(sel) {
-    var label = sel || 'M2';
+    var label = sel || 'MTQ';
     var html = '<div class="fac-csat">';
-    html += '<input type="hidden" class="fac-c-unidad" value="' + (sel||'M2') + '">';
+    html += '<input type="hidden" class="fac-c-unidad" value="' + (sel||'MTQ') + '">';
     html += '<div class="fac-csat-display" onclick="ModFacturacion._csatToggle(this)">' + label + '</div>';
     html += '<div class="fac-csat-list">';
     for (var i = 0; i < UNIDADES_SAT.length; i++) {
@@ -530,7 +530,7 @@ var ModFacturacion = (function() {
     return '<tr>' +
       '<td><input type="text" class="fac-c-desc" value="' + (desc||'') + '" placeholder="Descripción" oninput="ModFacturacion.recalc()"></td>' +
       '<td>' + _csatWidget(clave||'44111702') + '</td>' +
-      '<td>' + _unidadWidget(unidad||'M2') + '</td>' +
+      '<td>' + _unidadWidget(unidad||'MTQ') + '</td>' +
       '<td><input type="number" class="fac-c-cant" value="' + (cant||1) + '" min="1" oninput="ModFacturacion.recalc()"></td>' +
       '<td><input type="number" class="fac-c-precio" value="' + (precio||'') + '" min="0" step="0.01" placeholder="0.00" oninput="ModFacturacion.recalc()"></td>' +
       '<td style="text-align:center"><input type="checkbox" class="fac-c-iva" ' + (applyIva ? 'checked' : '') + ' title="Aplica IVA 16%" onchange="ModFacturacion.recalc()"></td>' +
@@ -569,8 +569,8 @@ var ModFacturacion = (function() {
         html += '<button class="fac-act-btn" style="background:#1a1a2e;color:#fff;border-color:#1a1a2e" onclick="ModFacturacion.timbrar(' + f.id + ')">Timbrar</button>';
         html += '<button class="fac-act-btn danger" onclick="ModFacturacion.eliminar(' + f.id + ')">Eliminar</button>';
       } else if (esTimbrada) {
-        html += '<a class="fac-act-btn" href="api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">PDF</a>';
-        html += '<a class="fac-act-btn" href="api/facturapi.php?accion=xml&id=' + f.id + '" target="_blank">XML</a>';
+        html += '<a class="fac-act-btn" href="../api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">PDF</a>';
+        html += '<a class="fac-act-btn" href="../api/facturapi.php?accion=xml&id=' + f.id + '" target="_blank">XML</a>';
       }
       html += '</td></tr>';
     }
@@ -708,7 +708,7 @@ var ModFacturacion = (function() {
     var btn = document.querySelector('#fac-overlay .fac-btn-save');
     if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
 
-    _apiFetch('api/facturapi.php?accion=guardar', {method:'POST', body:JSON.stringify(payload)}, function(err, res) {
+    _apiFetch('../api/facturapi.php?accion=guardar', {method:'POST', body:JSON.stringify(payload)}, function(err, res) {
       if (btn) { btn.disabled = false; btn.textContent = 'Guardar Factura'; }
       if (err || !res.ok) { alert(err || res.error || 'Error al guardar'); return; }
       cerrarModal();
@@ -727,7 +727,7 @@ var ModFacturacion = (function() {
     var btn = document.querySelector('button[onclick*="timbrar(' + id + ')"]');
     if (btn) { btn.disabled = true; btn.textContent = 'Timbrando…'; }
 
-    _apiFetch('api/facturapi.php?accion=timbrar', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
+    _apiFetch('../api/facturapi.php?accion=timbrar', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
       if (btn) { btn.disabled = false; btn.textContent = 'Timbrar'; }
       if (err || !res.ok) { alert('Error al timbrar: ' + (err || res.error)); return; }
       alert('✅ Timbrada en SANDBOX\nUUID: ' + res.uuid + '\n\nPuedes descargar el PDF desde la lista.');
