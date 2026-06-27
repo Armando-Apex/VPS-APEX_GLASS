@@ -540,28 +540,38 @@ var ModFacturacion = (function() {
   }
 
   function _renderTabla() {
-    var data  = _load();
     var tbody = document.getElementById('fac-tbody');
     if (!tbody) return;
-    if (!data.length) {
+    if (!_facturas.length) {
       tbody.innerHTML = '<tr><td colspan="7" class="fac-empty">No hay facturas. Crea la primera.</td></tr>';
       return;
     }
+    var TIPOS = {I:'Factura',E:'Nota Cred.',P:'Comp. Pago',IG:'Global'};
     var html = '';
-    for (var i = 0; i < data.length; i++) {
-      var f = data[i];
+    for (var i = 0; i < _facturas.length; i++) {
+      var f = _facturas[i];
+      var esBorrador  = f.estatus === 'borrador';
+      var esTimbrada  = f.estatus === 'timbrada';
+      var modoBadge   = (f.modo === 'test') ? '<span style="font-size:9px;background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">PRUEBA</span>' : '';
       html += '<tr>';
-      html += '<td style="font-weight:600;color:#2563eb">' + f.folio + '</td>';
-      html += '<td><div style="font-weight:600">' + (f.nombre||'—') + '</div>';
-      html += '<div style="font-size:11px;color:#94a3b8">' + (f.rfc||'') + (f.cp ? ' · CP ' + f.cp : '') + '</div></td>';
-      html += '<td style="font-size:12px">' + (f.uso_cfdi||'') + '</td>';
-      html += '<td style="font-size:12px">' + (f.forma_pago||'') + ' <span style="color:#94a3b8">/ ' + (f.metodo_pago||'') + '</span></td>';
+      html += '<td style="font-weight:600;color:#2563eb">' + f.folio_interno + modoBadge + '</td>';
+      html += '<td><div style="font-weight:600">' + (f.receptor_nombre||'—') + '</div>';
+      html += '<div style="font-size:11px;color:#94a3b8">' + (f.receptor_rfc||'') + '</div></td>';
+      html += '<td style="font-size:12px">' + (TIPOS[f.tipo_cfdi]||f.tipo_cfdi) + '</td>';
+      html += '<td style="font-size:12px">' + (f.receptor_uso_cfdi||'') + ' <span style="color:#94a3b8">/ ' + (f.metodo_pago||'') + '</span></td>';
       html += '<td style="font-weight:600">' + _fmt(f.total) + '</td>';
-      html += '<td>' + _badgeHtml(f.estatus) + (f.uuid ? '<div style="font-size:10px;color:#22c55e;font-family:monospace;margin-top:2px">' + f.uuid.slice(0,8) + '…</div>' : '') + '</td>';
-      html += '<td>';
-      html += '<button class="fac-act-btn" onclick="ModFacturacion.abrirEditar(' + f.id + ')">Editar</button>';
-      html += '<button class="fac-act-btn" onclick="ModFacturacion.abrirEstatus(' + f.id + ')">Estatus</button>';
-      html += '<button class="fac-act-btn danger" onclick="ModFacturacion.eliminar(' + f.id + ')">Eliminar</button>';
+      html += '<td>' + _badgeHtml(f.estatus);
+      if (esTimbrada && f.uuid) html += '<div style="font-size:10px;color:#22c55e;font-family:monospace;margin-top:2px">' + f.uuid.slice(0,8) + '…</div>';
+      html += '</td>';
+      html += '<td style="white-space:nowrap">';
+      if (esBorrador) {
+        html += '<button class="fac-act-btn" onclick="ModFacturacion.abrirEditar(' + f.id + ')">Editar</button>';
+        html += '<button class="fac-act-btn" style="background:#1a1a2e;color:#fff;border-color:#1a1a2e" onclick="ModFacturacion.timbrar(' + f.id + ')">Timbrar</button>';
+        html += '<button class="fac-act-btn danger" onclick="ModFacturacion.eliminar(' + f.id + ')">Eliminar</button>';
+      } else if (esTimbrada) {
+        html += '<a class="fac-act-btn" href="api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">PDF</a>';
+        html += '<a class="fac-act-btn" href="api/facturapi.php?accion=xml&id=' + f.id + '" target="_blank">XML</a>';
+      }
       html += '</td></tr>';
     }
     tbody.innerHTML = html;
