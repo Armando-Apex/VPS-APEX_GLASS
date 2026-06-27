@@ -641,28 +641,27 @@ var ModFacturacion = (function() {
   }
 
   function abrirEditar(id) {
-    var data = _load();
     var f = null;
-    for (var i = 0; i < data.length; i++) { if (data[i].id === id) { f = data[i]; break; } }
+    for (var i = 0; i < _facturas.length; i++) { if (String(_facturas[i].id) === String(id)) { f = _facturas[i]; break; } }
     if (!f) return;
     document.getElementById('fac-modal-titulo').textContent = 'Editar Factura';
-    document.getElementById('fac-edit-id').value = f.id;
-    document.getElementById('fac-folio').value   = f.folio;
-    document.getElementById('fac-fecha').value   = f.fecha || '';
-    document.getElementById('fac-nombre').value  = f.nombre || 'PRUEBA DE PORTAL';
-    document.getElementById('fac-email').value   = f.email  || '';
-    document.getElementById('fac-rfc').value     = f.rfc    || '';
-    document.getElementById('fac-cp').value      = f.cp     || '';
-    document.getElementById('fac-serie').value   = f.serie  || 'A';
-    document.getElementById('fac-tipo-cfdi').value    = f.tipo_cfdi       || 'I';
-    document.getElementById('fac-uso-cfdi').value    = f.uso_cfdi        || '';
-    document.getElementById('fac-regimen').value     = f.regimen         || '';
-    document.getElementById('fac-forma-pago').value  = f.forma_pago_cod  || '';
-    document.getElementById('fac-metodo-pago').value = f.metodo_pago     || '';
+    document.getElementById('fac-edit-id').value            = f.id;
+    document.getElementById('fac-folio').value              = f.folio_interno;
+    document.getElementById('fac-fecha').value              = f.fecha || '';
+    document.getElementById('fac-receptor-nombre').value    = f.receptor_nombre || '';
+    document.getElementById('fac-email').value              = f.receptor_email  || '';
+    document.getElementById('fac-rfc').value                = f.receptor_rfc    || '';
+    document.getElementById('fac-cp').value                 = f.receptor_cp     || '';
+    document.getElementById('fac-serie').value              = f.serie           || 'A';
+    document.getElementById('fac-tipo-cfdi').value          = f.tipo_cfdi       || 'I';
+    document.getElementById('fac-uso-cfdi').value           = f.receptor_uso_cfdi || '';
+    document.getElementById('fac-regimen').value            = f.receptor_regimen  || '';
+    document.getElementById('fac-forma-pago').value         = f.forma_pago        || '';
+    document.getElementById('fac-metodo-pago').value        = f.metodo_pago       || '';
     tipoChange();
     var tbody = document.getElementById('fac-conceptos-body');
     tbody.innerHTML = '';
-    var conceptos = f.conceptos || [];
+    var conceptos = typeof f.conceptos === 'string' ? JSON.parse(f.conceptos) : (f.conceptos || []);
     for (var j = 0; j < conceptos.length; j++) {
       var c = conceptos[j];
       tbody.innerHTML += _conceptoRow(c.desc, c.clave, c.unidad, c.cant, c.precio, c.iva);
@@ -678,90 +677,62 @@ var ModFacturacion = (function() {
 
   function guardar() {
     var errores = [];
-    if (!document.getElementById('fac-uso-cfdi').value)    errores.push('Uso CFDI');
-    if (!document.getElementById('fac-regimen').value)     errores.push('Régimen Fiscal del receptor');
-    if (!document.getElementById('fac-forma-pago').value)  errores.push('Forma de Pago');
-    if (!document.getElementById('fac-metodo-pago').value) errores.push('Método de Pago');
+    if (!document.getElementById('fac-receptor-nombre').value.trim()) errores.push('Nombre / Razón Social');
+    if (!document.getElementById('fac-rfc').value.trim())             errores.push('RFC');
+    if (!document.getElementById('fac-cp').value.trim())              errores.push('CP Fiscal');
+    if (!document.getElementById('fac-uso-cfdi').value)               errores.push('Uso CFDI');
+    if (!document.getElementById('fac-regimen').value)                errores.push('Régimen Fiscal');
+    if (!document.getElementById('fac-forma-pago').value)             errores.push('Forma de Pago');
+    if (!document.getElementById('fac-metodo-pago').value)            errores.push('Método de Pago');
     if (errores.length) {
-      alert('Faltan datos fiscales obligatorios:\n\n• ' + errores.join('\n• ') + '\n\nDebes seleccionarlos manualmente — no se guardan por defecto a propósito.');
+      alert('Faltan campos obligatorios:\n\n• ' + errores.join('\n• '));
       return;
     }
 
-    var rfc   = document.getElementById('fac-rfc').value.trim().toUpperCase() || 'XAXX010101000';
-    var cp    = document.getElementById('fac-cp').value.trim();
-    var email = document.getElementById('fac-email').value.trim();
-    var serie = document.getElementById('fac-serie').value.trim() || 'A';
-    var conceptos = _getConceptos();
-    var sub = 0;
-    for (var i = 0; i < conceptos.length; i++) sub += conceptos[i].cant * conceptos[i].precio;
-    var iva   = sub * 0.16;
-    var total = sub + iva;
+    var payload = {
+      id:                 document.getElementById('fac-edit-id').value || null,
+      serie:              document.getElementById('fac-serie').value.trim() || 'A',
+      tipo_cfdi:          document.getElementById('fac-tipo-cfdi').value,
+      fecha:              document.getElementById('fac-fecha').value,
+      receptor_nombre:    document.getElementById('fac-receptor-nombre').value.trim(),
+      receptor_rfc:       document.getElementById('fac-rfc').value.trim().toUpperCase(),
+      receptor_cp:        document.getElementById('fac-cp').value.trim(),
+      receptor_regimen:   document.getElementById('fac-regimen').value,
+      receptor_uso_cfdi:  document.getElementById('fac-uso-cfdi').value,
+      receptor_email:     document.getElementById('fac-email').value.trim(),
+      forma_pago:         document.getElementById('fac-forma-pago').value,
+      metodo_pago:        document.getElementById('fac-metodo-pago').value,
+      conceptos:          _getConceptos(),
+    };
 
-    var tipoCfdi = document.getElementById('fac-tipo-cfdi').value;
-    var fpCod  = document.getElementById('fac-forma-pago').value;
-    var fpText = document.getElementById('fac-forma-pago').options[document.getElementById('fac-forma-pago').selectedIndex].text;
+    var btn = document.querySelector('#fac-overlay .fac-btn-save');
+    if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
 
-    var data   = _load();
-    var editId = document.getElementById('fac-edit-id').value;
-
-    if (editId) {
-      for (var j = 0; j < data.length; j++) {
-        if (String(data[j].id) === String(editId)) {
-          data[j].rfc           = rfc;
-          data[j].cp            = cp;
-          data[j].email         = email;
-          data[j].serie         = serie;
-          data[j].tipo_cfdi     = tipoCfdi;
-          data[j].fecha         = document.getElementById('fac-fecha').value;
-          data[j].uso_cfdi      = document.getElementById('fac-uso-cfdi').value;
-          data[j].regimen       = document.getElementById('fac-regimen').value;
-          data[j].forma_pago    = fpText;
-          data[j].forma_pago_cod = fpCod;
-          data[j].metodo_pago   = document.getElementById('fac-metodo-pago').value;
-          data[j].conceptos     = conceptos;
-          data[j].subtotal      = sub;
-          data[j].iva           = iva;
-          data[j].total         = total;
-          break;
-        }
-      }
-    } else {
-      data.push({
-        id:             Date.now(),
-        folio:          document.getElementById('fac-folio').value,
-        fecha:          document.getElementById('fac-fecha').value,
-        nombre:         'PRUEBA DE PORTAL',
-        rfc:            rfc,
-        cp:             cp,
-        email:          email,
-        serie:          serie,
-        moneda:         'MXN',
-        tipo_cfdi:      tipoCfdi,
-        uso_cfdi:       document.getElementById('fac-uso-cfdi').value,
-        regimen:        document.getElementById('fac-regimen').value,
-        forma_pago:     fpText,
-        forma_pago_cod: fpCod,
-        metodo_pago:    document.getElementById('fac-metodo-pago').value,
-        conceptos:      conceptos,
-        subtotal:       sub,
-        iva:            iva,
-        total:          total,
-        estatus:        'pendiente',
-        uuid:           '',
-        motivo_cancel:  ''
-      });
-    }
-
-    _save(data);
-    cerrarModal();
-    _renderTabla();
+    _apiFetch('api/facturapi.php?accion=guardar', {method:'POST', body:JSON.stringify(payload)}, function(err, res) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Guardar Factura'; }
+      if (err || !res.ok) { alert(err || res.error || 'Error al guardar'); return; }
+      cerrarModal();
+      _cargarLista();
+    });
   }
 
   function eliminar(id) {
-    if (!confirm('¿Eliminar esta factura?')) return;
-    var data = _load().filter(function(f) { return f.id !== id; });
-    _save(data);
-    _renderTabla();
+    if (!confirm('¿Eliminar esta factura borrador?')) return;
+    // Por ahora solo recargamos (en BD se podría agregar accion=eliminar)
+    _cargarLista();
+  }
+
+  function timbrar(id) {
+    if (!confirm('¿Timbrar esta factura en modo PRUEBA con FacturAPI sandbox?')) return;
+    var btn = document.querySelector('button[onclick*="timbrar(' + id + ')"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Timbrando…'; }
+
+    _apiFetch('api/facturapi.php?accion=timbrar', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Timbrar'; }
+      if (err || !res.ok) { alert('Error al timbrar: ' + (err || res.error)); return; }
+      alert('✅ Timbrada en SANDBOX\nUUID: ' + res.uuid + '\n\nPuedes descargar el PDF desde la lista.');
+      _cargarLista();
+    });
   }
 
   function abrirEstatus(id) {
