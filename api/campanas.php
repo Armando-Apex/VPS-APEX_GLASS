@@ -385,6 +385,8 @@ if ($metodo === 'POST' && $accion === 'enviar') {
                 $valor = $envio['nombre_cliente'] ?? 'Cliente';
             } elseif ($var === '{{codigo_portal}}') {
                 $valor = $envio['codigo_cliente'] ?? '';
+            } elseif ($var === '{{punto}}') {
+                $valor = '.';
             }
             // Sanitizar: solo texto plano, máx 1024 chars (límite Meta)
             $valor = strip_tags((string)$valor);

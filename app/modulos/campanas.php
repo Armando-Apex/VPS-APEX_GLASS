@@ -361,7 +361,7 @@ var ModCampanas = (function() {
                 '</div>' +
                 '<div id="cmpVarsSection" style="display:none;margin-bottom:14px;">' +
                 '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Variables del mensaje</label>' +
-                '<p style="font-size:11px;color:#64748b;margin:0 0 8px;">Variables disponibles: <code>{{nombre_cliente}}</code> (nombre del cliente) · <code>{{codigo_portal}}</code> (código de acceso al portal).</p>' +
+                '<p style="font-size:11px;color:#64748b;margin:0 0 8px;">Variables disponibles: <code>{{nombre_cliente}}</code> · <code>{{codigo_portal}}</code> · <code>{{punto}}</code> (un punto)</p>' +
                 '<div id="cmpVarsLista"></div>' +
                 '</div>' +
                 '<div id="cmpPreviewArea"></div>' +
