@@ -50,7 +50,10 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
     $tipo          = in_array($body['tipo'] ?? '', ['recoleccion', 'chofer']) ? $body['tipo'] : 'recoleccion';
     $fecha_chofer  = !empty($body['fecha_entrega_chofer']) ? $body['fecha_entrega_chofer'] : null;
 
+    error_log('APEX SALIDAS DEBUG — POST recibido | orden_id=' . $orden_id . ' cotizacion_id=' . $cotizacion_id . ' pieza_ids=' . json_encode($pieza_ids) . ' tipo=' . $tipo);
+
     if (!$orden_id || !$cotizacion_id || empty($pieza_ids)) {
+        error_log('APEX SALIDAS DEBUG — Datos incompletos | orden_id=' . $orden_id . ' cotizacion_id=' . $cotizacion_id . ' pieza_ids_count=' . count($pieza_ids));
         jsonResponse(['error' => 'Datos incompletos'], 400);
     }
 
@@ -58,16 +61,25 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
     $stmtCv = $db->prepare('SELECT id FROM cotizaciones WHERE id = ? AND orden_id = ?');
     $stmtCv->execute([$cotizacion_id, $orden_id]);
     if (!$stmtCv->fetchColumn()) {
+        error_log('APEX SALIDAS DEBUG — Cotizacion no corresponde | cot_id=' . $cotizacion_id . ' orden_id=' . $orden_id);
         jsonResponse(['error' => 'Cotización no corresponde a esta orden'], 400);
     }
 
     // Validar que las piezas sean terminadas y de esta orden
     $ph   = implode(',', array_fill(0, count($pieza_ids), '?'));
     $stmt = $db->prepare("SELECT id FROM piezas WHERE id IN ($ph) AND orden_id = ? AND estatus = 'terminado'");
-    $stmt->execute([...$pieza_ids, $orden_id]);
+    $params = array_merge($pieza_ids, [$orden_id]);
+    $stmt->execute($params);
     $piezas_validas = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-    if (empty($piezas_validas)) jsonResponse(['error' => 'No hay piezas válidas'], 400);
+    if (empty($piezas_validas)) {
+        // También revisar qué estatus tienen esas piezas actualmente
+        $stmtDbg = $db->prepare("SELECT id, estatus, orden_id FROM piezas WHERE id IN ($ph)");
+        $stmtDbg->execute($pieza_ids);
+        $dbgPiezas = $stmtDbg->fetchAll(PDO::FETCH_ASSOC);
+        error_log('APEX SALIDAS DEBUG — No hay piezas válidas | orden_id=' . $orden_id . ' pieza_ids=' . json_encode($pieza_ids) . ' estado_real=' . json_encode($dbgPiezas));
+        jsonResponse(['error' => 'No hay piezas válidas'], 400);
+    }
 
     // Total de piezas de la orden y ya entregadas (una sola query)
     $stmt = $db->prepare("SELECT COUNT(*) AS total, SUM(estatus='entregado') AS ya_entregadas FROM piezas WHERE orden_id = ?");
