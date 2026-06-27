@@ -227,7 +227,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
         <div class="fac-cst-warn" id="fac-cst-warn"></div>
         <div class="fac-cst-actions">
           <button class="fac-cst-usar" onclick="ModFacturacion.cstAplicar()">Usar estos datos</button>
-          <span class="fac-cst-desc">Los campos del formulario se llenarán automáticamente</span>
+          <button class="fac-cst-usar" onclick="ModFacturacion.cstDescartar()" style="background:#64748b">Descartar</button>
         </div>
       </div>
 
@@ -256,9 +256,14 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
           <div class="fac-hint">Código postal del domicilio fiscal</div>
         </div>
         <div class="fac-field">
-          <label>Tipo de comprobante</label>
-          <input type="text" value="I – Ingreso" readonly style="background:#f8fafc;color:#64748b">
-          <div class="fac-hint">Fijo para facturas de venta</div>
+          <label>Tipo de factura</label>
+          <select id="fac-tipo-cfdi" onchange="ModFacturacion.tipoChange()">
+            <option value="I">Factura (Ingreso)</option>
+            <option value="E">Nota de Crédito (Egreso)</option>
+            <option value="P">Complemento de Pago</option>
+            <option value="IG">Factura Global (Ingreso)</option>
+          </select>
+          <div class="fac-hint" id="fac-tipo-hint">Venta normal de productos o servicios</div>
         </div>
       </div>
 
@@ -562,10 +567,12 @@ var ModFacturacion = (function() {
     document.getElementById('fac-rfc').value     = 'XAXX010101000';
     document.getElementById('fac-cp').value      = '';
     document.getElementById('fac-serie').value   = 'A';
+    document.getElementById('fac-tipo-cfdi').value    = 'I';
     document.getElementById('fac-uso-cfdi').value    = '';
     document.getElementById('fac-regimen').value     = '';
     document.getElementById('fac-forma-pago').value  = '';
     document.getElementById('fac-metodo-pago').value = '';
+    tipoChange();
     document.getElementById('fac-conceptos-body').innerHTML = _conceptoRow('Vidrio templado', '44111702', 'M2', 1, '', true);
     recalc();
   }
@@ -628,10 +635,12 @@ var ModFacturacion = (function() {
     document.getElementById('fac-rfc').value     = f.rfc    || '';
     document.getElementById('fac-cp').value      = f.cp     || '';
     document.getElementById('fac-serie').value   = f.serie  || 'A';
+    document.getElementById('fac-tipo-cfdi').value    = f.tipo_cfdi       || 'I';
     document.getElementById('fac-uso-cfdi').value    = f.uso_cfdi        || '';
     document.getElementById('fac-regimen').value     = f.regimen         || '';
     document.getElementById('fac-forma-pago').value  = f.forma_pago_cod  || '';
     document.getElementById('fac-metodo-pago').value = f.metodo_pago     || '';
+    tipoChange();
     var tbody = document.getElementById('fac-conceptos-body');
     tbody.innerHTML = '';
     var conceptos = f.conceptos || [];
@@ -669,6 +678,7 @@ var ModFacturacion = (function() {
     var iva   = sub * 0.16;
     var total = sub + iva;
 
+    var tipoCfdi = document.getElementById('fac-tipo-cfdi').value;
     var fpCod  = document.getElementById('fac-forma-pago').value;
     var fpText = document.getElementById('fac-forma-pago').options[document.getElementById('fac-forma-pago').selectedIndex].text;
 
@@ -682,6 +692,7 @@ var ModFacturacion = (function() {
           data[j].cp            = cp;
           data[j].email         = email;
           data[j].serie         = serie;
+          data[j].tipo_cfdi     = tipoCfdi;
           data[j].fecha         = document.getElementById('fac-fecha').value;
           data[j].uso_cfdi      = document.getElementById('fac-uso-cfdi').value;
           data[j].regimen       = document.getElementById('fac-regimen').value;
@@ -706,7 +717,7 @@ var ModFacturacion = (function() {
         email:          email,
         serie:          serie,
         moneda:         'MXN',
-        tipo_cfdi:      'I',
+        tipo_cfdi:      tipoCfdi,
         uso_cfdi:       document.getElementById('fac-uso-cfdi').value,
         regimen:        document.getElementById('fac-regimen').value,
         forma_pago:     fpText,
@@ -998,6 +1009,26 @@ var ModFacturacion = (function() {
     _cstDatos = null;
   }
 
+  var TIPO_HINTS = {
+    'I':  'Venta normal de productos o servicios',
+    'E':  'Devolución, descuento o bonificación a una factura emitida',
+    'P':  'Registra el pago de una factura emitida en parcialidades (PPD)',
+    'IG': 'Agrupa ventas a público general con RFC XAXX010101000'
+  };
+
+  function tipoChange() {
+    var val  = document.getElementById('fac-tipo-cfdi').value;
+    var hint = document.getElementById('fac-tipo-hint');
+    if (hint) hint.textContent = TIPO_HINTS[val] || '';
+  }
+
+  function cstDescartar() {
+    _cstDatos = null;
+    document.getElementById('fac-cst-preview').className = 'fac-cst-preview';
+    document.getElementById('fac-cst-error').className   = 'fac-cst-error';
+    document.getElementById('fac-cst-file').value = '';
+  }
+
   // ── Cerrar dropdown clave SAT al hacer click fuera
   document.addEventListener('click', function(e) {
     if (!e.target.closest('.fac-csat')) {
@@ -1025,7 +1056,9 @@ var ModFacturacion = (function() {
     cstDrag:         cstDrag,
     cstDrop:         cstDrop,
     cstSubir:        cstSubir,
-    cstAplicar:      cstAplicar
+    cstAplicar:      cstAplicar,
+    cstDescartar:    cstDescartar,
+    tipoChange:      tipoChange
   };
 })();
 
