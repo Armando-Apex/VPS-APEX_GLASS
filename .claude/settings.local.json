@@ -81,7 +81,26 @@
       "Bash(/usr/bin/python3.11 -c \"import sys; sys.path.insert\\(0, '/root/.claude/security/agent-sdk-venv/lib/python3.11/site-packages'\\); import claude_agent_sdk; print\\('SDK OK'\\)\")",
       "Bash(crontab -u apexglass2025 -l)",
       "Read(//var/spool/cron/**)",
-      "Skill(code-review)"
+      "Skill(code-review)",
+      "Bash(firewall-cmd --list-ports)",
+      "Bash(firewall-cmd --list-services)",
+      "Bash(sshd -T)",
+      "Bash(fail2ban-client status *)",
+      "Bash(firewall-cmd --query-service=ftp)",
+      "Bash(firewall-cmd --query-port=21/tcp)",
+      "Read(//root/.ssh/**)",
+      "Bash(dnf install *)",
+      "Bash(systemctl status *)",
+      "Read(//etc/fail2ban/jail.d/**)",
+      "Read(//etc/fail2ban/**)",
+      "Read(//var/log/**)",
+      "Bash(journalctl -u nginx --no-pager -n 3)",
+      "Bash(nginx -T)",
+      "Bash(nginx -t)",
+      "Bash(/usr/local/bolt/nginx/sbin/nginx -T)",
+      "Bash(sed -i 's/^#LoginGraceTime 2m/LoginGraceTime 30/' /etc/ssh/sshd_config)",
+      "Bash(sed -i 's/^#MaxAuthTries 6/MaxAuthTries 3/' /etc/ssh/sshd_config)",
+      "Bash(sshd -t)"
     ]
   },
   "hooks": {

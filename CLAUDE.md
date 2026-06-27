@@ -382,11 +382,11 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | BAJA | Ambos | m2_requeridos en laminas.php | Pendiente |
 | MANUAL | Armando | Actualizar CTN-259: "PRUEBA PORTAL" → "JESUS MANUEL SALDANA DE LA ROSA" | Pendiente |
 | MANUAL | Armando | Capturar precios: Claro 12mm, Claro Zafiro 9mm, Filtrasol 9mm, Tintex 6mm, Tintex 9mm | Pendiente |
-| ALTA | Ambos | SEGURIDAD: Fail2ban en puerto 8443 (AdminBolt) — protección brute force, panel expuesto al internet | Pendiente |
-| ALTA | Ambos | SEGURIDAD: FTP puerto 21 abierto — evaluar migrar a SFTP (puerto 22) y cerrar FTP | Pendiente |
-| ALTA | Ambos | SEGURIDAD: Rate limiting en login.php — verificar/implementar bloqueo por intentos fallidos | Pendiente |
-| MEDIA | Armando | SEGURIDAD: SSH hardening — verificar que solo acepta llaves, no password | Pendiente |
-| MEDIA | Armando | SEGURIDAD: Revisar permisos de archivos en servidor (buscar 777) | Pendiente |
+| ALTA | Ambos | SEGURIDAD: Fail2ban en puerto 8443 (AdminBolt) — protección brute force, panel expuesto al internet | HECHO UPD-243 |
+| ALTA | Ambos | SEGURIDAD: FTP puerto 21 abierto — vsftpd corre pero firewall ya bloquea puerto 21 externamente; AdminBolt depende de vsftpd para monitoreo, no se detiene | HECHO UPD-243 |
+| ALTA | Ambos | SEGURIDAD: Rate limiting en login.php — verificar/implementar bloqueo por intentos fallidos | HECHO (ya existía: 10 intentos, 15 min bloqueo) |
+| MEDIA | Armando | SEGURIDAD: SSH hardening — authorized_keys de root está VACÍO; se redujo MaxAuthTries 6→3 y LoginGraceTime 120s→30s; deshabilitar PasswordAuth requiere configurar llaves primero | PARCIAL UPD-243 |
+| MEDIA | Armando | SEGURIDAD: Revisar permisos de archivos en servidor (buscar 777) | HECHO UPD-243 — ninguno encontrado |
 | MEDIA | Armando | UX: Dark mode en dashboard (topbar ya es oscuro, extender al sidebar y contenido) | Pendiente |
 | BAJA | Armando | UX: Badge órdenes vencidas global — actualmente solo se actualiza desde módulo Resumen | Pendiente |
 | BAJA | Armando | UX: Paginación resumen con total de registros "Mostrando X–Y de Z órdenes" | Pendiente |
@@ -504,4 +504,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-240 | 27-jun | Armando | Reimprimir salidas parciales: sección "Salidas registradas" en `imprimir_salida.php` — PHP consulta `orden_salidas + orden_salida_piezas` al cargar (solo cuando orden no está entregada); JS `renderSalidasPrevias()` muestra lista con fecha/tipo/piezas y botón Reimprimir; `reimprimir(idx)` reutiliza `construirDocumento()` con los pieza_ids de esa salida; al confirmar una salida nueva se pushea a SALIDAS_PREVIAS para disponibilidad inmediata; `volverAlSelector()` restaura btn-confirmar oculto y re-renderiza salidas previas; `totalPorPartida` promovida a global para que `construirDocumento` muestre "X de Y" correctamente |
 | UPD-241 | 27-jun | Armando | BYPASS TEMPORAL: `$ya_entregada = true` en imprimir_salida.php para que Lina pueda imprimir sin restricciones mientras se diseñaba el flujo definitivo |
 | UPD-242 | 27-jun | Armando | Rediseño completo flujo imprimir_salida.php — 5 casos: (E) orden entregada→print directo; (A) orden activa+salidas→menú "Reimprimir / Nueva entrega"; (B) Reimprimir→documento actual sin preguntas; (C/D) primera entrega→selector piezas→método→fecha si chofer→confirmar→BD+print+WA; documento PHP siempre genera TODAS las piezas con columna "Entrega" (ent-fecha/ent-pendiente/ent-parcial) con id="cel-ent-{np}"; JS init() detecta caso; actualizarCeldasEntrega() actualiza celdas post-confirmación; TIENE_SALIDAS y YA_ENTREGADA inyectados desde PHP; bypass eliminado |
-**Próximo UPD disponible: UPD-243**
+| UPD-243 | 27-jun | Armando | Hardening seguridad servidor: (1) Fail2ban activado con 5 jails — sshd (maxretry 3, ban 24h), adminsystems-login (nuevo, maxretry 5, ban 24h, logpath nginx bolt), apache-bad-traffic, apache-connect-abuse, postfix; (2) SSH: MaxAuthTries 6→3, LoginGraceTime 120s→30s; (3) FTP: puerto 21 bloqueado por firewall, vsftpd se mantiene por dependencia AdminBolt; (4) login.php rate limiting: ya existía (10 intentos, 15 min); (5) permisos 777: ninguno encontrado. Pendiente: deshabilitar SSH password auth requiere configurar llaves primero (authorized_keys root vacío) |
+**Próximo UPD disponible: UPD-244**
