@@ -423,14 +423,14 @@ var ModFacturacion = (function() {
   var _facturas     = [];
 
   var CLAVES_SAT = [
-    {v:'44111702', l:'44111702 – Vidrio templado'},
-    {v:'44111701', l:'44111701 – Vidrio laminado'},
-    {v:'44111700', l:'44111700 – Vidrio de seguridad'},
-    {v:'44111500', l:'44111500 – Vidrio plano'},
-    {v:'30171500', l:'30171500 – Mat. construcción'},
-    {v:'72154100', l:'72154100 – Instalación vidrio'},
-    {v:'78181500', l:'78181500 – Transporte'},
-    {v:'84111506', l:'84111506 – Serv. profesional'},
+    {v:'01010101', l:'01010101 – No existe en catálogo (pruebas)'},
+    {v:'44111501', l:'44111501 – Vidrio de ventana'},
+    {v:'44111502', l:'44111502 – Vidrio templado'},
+    {v:'44111503', l:'44111503 – Vidrio laminado de seguridad'},
+    {v:'44111504', l:'44111504 – Vidrio aislante'},
+    {v:'44111505', l:'44111505 – Vidrio reflectante'},
+    {v:'72154300', l:'72154300 – Servicio de instalación'},
+    {v:'78101803', l:'78101803 – Servicio de transporte'},
   ];
 
   var UNIDADES_SAT = [
@@ -474,7 +474,7 @@ var ModFacturacion = (function() {
   }
 
   function _csatWidget(sel) {
-    var label = sel || '-- Clave --';
+    var label = sel || '— Clave —';
     var html = '<div class="fac-csat">';
     html += '<input type="hidden" class="fac-c-clave" value="' + (sel||'') + '">';
     html += '<div class="fac-csat-display" onclick="ModFacturacion._csatToggle(this)">' + label + '</div>';
@@ -529,7 +529,7 @@ var ModFacturacion = (function() {
     var imp = (parseFloat(cant)||0) * (parseFloat(precio)||0);
     return '<tr>' +
       '<td><input type="text" class="fac-c-desc" value="' + (desc||'') + '" placeholder="Descripción" oninput="ModFacturacion.recalc()"></td>' +
-      '<td>' + _csatWidget(clave||'44111702') + '</td>' +
+      '<td>' + _csatWidget(clave||'') + '</td>' +
       '<td>' + _unidadWidget(unidad||'') + '</td>' +
       '<td><input type="number" class="fac-c-cant" value="' + (cant||1) + '" min="1" oninput="ModFacturacion.recalc()"></td>' +
       '<td><input type="number" class="fac-c-precio" value="' + (precio||'') + '" min="0" step="0.01" placeholder="0.00" oninput="ModFacturacion.recalc()"></td>' +
