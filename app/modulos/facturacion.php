@@ -578,17 +578,17 @@ var ModFacturacion = (function() {
   }
 
   function _clearForm() {
-    document.getElementById('fac-edit-id').value = '';
-    document.getElementById('fac-folio').value   = _nextFolio();
-    document.getElementById('fac-fecha').value   = new Date().toISOString().slice(0,10);
-    document.getElementById('fac-nombre').value  = 'PRUEBA DE PORTAL';
-    document.getElementById('fac-email').value   = '';
-    document.getElementById('fac-rfc').value     = 'XAXX010101000';
-    document.getElementById('fac-cp').value      = '';
-    document.getElementById('fac-serie').value   = 'A';
-    document.getElementById('fac-tipo-cfdi').value    = 'I';
-    document.getElementById('fac-uso-cfdi').value    = '';
-    document.getElementById('fac-regimen').value     = '';
+    document.getElementById('fac-edit-id').value    = '';
+    document.getElementById('fac-folio').value      = '(se asigna al guardar)';
+    document.getElementById('fac-fecha').value      = new Date().toISOString().slice(0,10);
+    document.getElementById('fac-nombre').value     = '';
+    document.getElementById('fac-email').value      = '';
+    document.getElementById('fac-rfc').value        = '';
+    document.getElementById('fac-cp').value         = '';
+    document.getElementById('fac-serie').value      = 'A';
+    document.getElementById('fac-tipo-cfdi').value  = 'I';
+    document.getElementById('fac-uso-cfdi').value   = '';
+    document.getElementById('fac-regimen').value    = '';
     document.getElementById('fac-forma-pago').value  = '';
     document.getElementById('fac-metodo-pago').value = '';
     tipoChange();

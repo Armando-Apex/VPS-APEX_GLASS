@@ -92,7 +92,7 @@ El SPA loader del dashboard agrega scripts al head sin limpiarlos entre navegaci
 ### VPS Hostinger (ACTIVO — servidor principal)
 - Plan: KVM 2 (2 vCPU, 8GB RAM, 100GB NVMe)
 - OS: AlmaLinux 9 | Panel: AdminBolt
-- IP: 82.29.197.33 | Hostname: srv1754712.hstgr.cloud
+- IP: 82.29.197.33 | Hostname: srv1754712.hstgr.cloud | AdminBolt: https://panel.apex.glass/
 - Dominio: apex.glass → 82.29.197.33 (DNS name.com actualizado 14-jun)
 - SSL: ZeroSSL activo (expira Sep 12, 2026)
 
@@ -505,4 +505,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-241 | 27-jun | Armando | BYPASS TEMPORAL: `$ya_entregada = true` en imprimir_salida.php para que Lina pueda imprimir sin restricciones mientras se diseñaba el flujo definitivo |
 | UPD-242 | 27-jun | Armando | Rediseño completo flujo imprimir_salida.php — 5 casos: (E) orden entregada→print directo; (A) orden activa+salidas→menú "Reimprimir / Nueva entrega"; (B) Reimprimir→documento actual sin preguntas; (C/D) primera entrega→selector piezas→método→fecha si chofer→confirmar→BD+print+WA; documento PHP siempre genera TODAS las piezas con columna "Entrega" (ent-fecha/ent-pendiente/ent-parcial) con id="cel-ent-{np}"; JS init() detecta caso; actualizarCeldasEntrega() actualiza celdas post-confirmación; TIENE_SALIDAS y YA_ENTREGADA inyectados desde PHP; bypass eliminado |
 | UPD-243 | 27-jun | Armando | Hardening seguridad servidor: (1) Fail2ban activado con 5 jails — sshd (maxretry 3, ban 24h), adminsystems-login (nuevo, maxretry 5, ban 24h, logpath nginx bolt), apache-bad-traffic, apache-connect-abuse, postfix; (2) SSH: MaxAuthTries 6→3, LoginGraceTime 120s→30s; (3) FTP: puerto 21 bloqueado por firewall, vsftpd se mantiene por dependencia AdminBolt; (4) login.php rate limiting: ya existía (10 intentos, 15 min); (5) permisos 777: ninguno encontrado. Pendiente: deshabilitar SSH password auth requiere configurar llaves primero (authorized_keys root vacío) |
-**Próximo UPD disponible: UPD-244**
+| UPD-244 | 27-jun | Armando | AdminBolt reverse proxy: cert *.myboltip.com expiró el 17-jun; solución: DNS A panel.apex.glass→82.29.197.33 + cert Let's Encrypt via acme.sh + vhost Apache HTTPS con SSLProxy* + ProxyPass a https://127.0.0.1:8443; panel accesible en https://panel.apex.glass/ sin errores; cert renueva automático cada 60 días |
+**Próximo UPD disponible: UPD-245**
