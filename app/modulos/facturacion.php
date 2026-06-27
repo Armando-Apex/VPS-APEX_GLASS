@@ -35,6 +35,18 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .fac-act-btn.danger { color: #dc2626; border-color: #fca5a5; }
 .fac-act-btn.danger:hover { background: #fee2e2; }
 
+/* Menú 3 puntos */
+.fac-menu-wrap { position: relative; display: inline-block; }
+.fac-menu-btn { background: none; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 10px; font-size: 16px; cursor: pointer; line-height: 1; color: #64748b; }
+.fac-menu-btn:hover { background: #f1f5f9; }
+.fac-menu-drop { display: none; position: absolute; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.1); min-width: 150px; z-index: 999; padding: 4px 0; }
+.fac-menu-drop.open { display: block; }
+.fac-menu-item { display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 14px; font-size: 13px; cursor: pointer; color: #1e293b; white-space: nowrap; text-decoration: none; box-sizing: border-box; }
+.fac-menu-item:hover { background: #f1f5f9; }
+.fac-menu-item.danger { color: #dc2626; }
+.fac-menu-item.danger:hover { background: #fee2e2; }
+.fac-menu-sep { border: none; border-top: 1px solid #f1f5f9; margin: 4px 0; }
+
 /* Modal */
 .fac-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1500; align-items: center; justify-content: center; }
 .fac-overlay.open { display: flex; }
@@ -563,15 +575,20 @@ var ModFacturacion = (function() {
       html += '<td>' + _badgeHtml(f.estatus);
       if (esTimbrada && f.uuid) html += '<div style="font-size:10px;color:#22c55e;font-family:monospace;margin-top:2px">' + f.uuid.slice(0,8) + '…</div>';
       html += '</td>';
-      html += '<td style="white-space:nowrap">';
+      html += '<td>';
+      html += '<div class="fac-menu-wrap">';
+      html += '<button class="fac-menu-btn" onclick="ModFacturacion.menuToggle(this)">···</button>';
+      html += '<div class="fac-menu-drop">';
       if (esBorrador) {
-        html += '<button class="fac-act-btn" onclick="ModFacturacion.abrirEditar(' + f.id + ')">Editar</button>';
-        html += '<button class="fac-act-btn" style="background:#1a1a2e;color:#fff;border-color:#1a1a2e" onclick="ModFacturacion.timbrar(' + f.id + ')">Timbrar</button>';
-        html += '<button class="fac-act-btn danger" onclick="ModFacturacion.eliminar(' + f.id + ')">Eliminar</button>';
+        html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.abrirEditar(' + f.id + ')">Editar</button>';
+        html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.timbrar(' + f.id + ')">Timbrar</button>';
+        html += '<hr class="fac-menu-sep">';
+        html += '<button class="fac-menu-item danger" onclick="ModFacturacion.menuCerrar();ModFacturacion.eliminar(' + f.id + ')">Eliminar</button>';
       } else if (esTimbrada) {
-        html += '<a class="fac-act-btn" href="../api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">PDF</a>';
-        html += '<a class="fac-act-btn" href="../api/facturapi.php?accion=xml&id=' + f.id + '" target="_blank">XML</a>';
+        html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">Descargar PDF</a>';
+        html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=xml&id=' + f.id + '" target="_blank">Descargar XML</a>';
       }
+      html += '</div></div>';
       html += '</td></tr>';
     }
     tbody.innerHTML = html;
