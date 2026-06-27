@@ -544,7 +544,9 @@ var ModCampanas = (function() {
         if (!_templateBody) return _templateNombre ? 'Template: ' + _templateNombre : '(selecciona una plantilla)';
         var texto = _templateBody;
         for (var i = 0; i < _templateVars.length; i++) {
-            var val = _templateVars[i] === '{{nombre_cliente}}' ? (nombreCliente || 'Cliente') : (_templateVars[i] || '...');
+            var val = _templateVars[i] === '{{nombre_cliente}}' ? (nombreCliente || 'Cliente') :
+                      _templateVars[i] === '{{punto}}' ? '.' :
+                      (_templateVars[i] || '...');
             // Reemplazar todas las ocurrencias de {{i+1}}
             var token = '{{' + (i + 1) + '}}';
             while (texto.indexOf(token) !== -1) {
