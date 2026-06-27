@@ -236,7 +236,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
       <div class="fac-row cols2">
         <div class="fac-field">
           <label>Nombre / Razón Social</label>
-          <input type="text" id="fac-nombre" value="PRUEBA DE PORTAL" readonly style="background:#f8fafc;color:#64748b;cursor:not-allowed">
+          <input type="text" id="fac-receptor-nombre" placeholder="Tal como aparece en el SAT">
         </div>
         <div class="fac-field">
           <label>Correo electrónico</label>
@@ -980,8 +980,8 @@ var ModFacturacion = (function() {
   function cstAplicar() {
     if (!_cstDatos) return;
     var d = _cstDatos;
-    if (d.rfc)    document.getElementById('fac-rfc').value    = d.rfc;
-    if (d.nombre) document.getElementById('fac-nombre').value = d.nombre;
+    if (d.rfc)    document.getElementById('fac-rfc').value             = d.rfc;
+    if (d.nombre) document.getElementById('fac-receptor-nombre').value = d.nombre;
     if (d.cp)     document.getElementById('fac-cp').value     = d.cp;
     // Régimen: si hay uno solo, seleccionarlo; si hay varios, seleccionar el primero y avisar
     if (d.regimen && d.regimen.length) {
@@ -1027,7 +1027,7 @@ var ModFacturacion = (function() {
     }
   });
 
-  _renderTabla();
+  _cargarLista();
 
   return {
     abrirNueva:      abrirNueva,
@@ -1048,7 +1048,8 @@ var ModFacturacion = (function() {
     cstSubir:        cstSubir,
     cstAplicar:      cstAplicar,
     cstDescartar:    cstDescartar,
-    tipoChange:      tipoChange
+    tipoChange:      tipoChange,
+    timbrar:         timbrar
   };
 })();
 
