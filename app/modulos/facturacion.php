@@ -530,7 +530,7 @@ var ModFacturacion = (function() {
     return '<tr>' +
       '<td><input type="text" class="fac-c-desc" value="' + (desc||'') + '" placeholder="Descripción" oninput="ModFacturacion.recalc()"></td>' +
       '<td>' + _csatWidget(clave||'44111702') + '</td>' +
-      '<td>' + _unidadWidget(unidad||'MTQ') + '</td>' +
+      '<td>' + _unidadWidget(unidad||'') + '</td>' +
       '<td><input type="number" class="fac-c-cant" value="' + (cant||1) + '" min="1" oninput="ModFacturacion.recalc()"></td>' +
       '<td><input type="number" class="fac-c-precio" value="' + (precio||'') + '" min="0" step="0.01" placeholder="0.00" oninput="ModFacturacion.recalc()"></td>' +
       '<td style="text-align:center"><input type="checkbox" class="fac-c-iva" ' + (applyIva ? 'checked' : '') + ' title="Aplica IVA 16%" onchange="ModFacturacion.recalc()"></td>' +
