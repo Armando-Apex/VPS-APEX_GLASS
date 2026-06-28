@@ -587,6 +587,10 @@ var ModFacturacion = (function() {
       } else if (esTimbrada) {
         html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">Descargar PDF</a>';
         html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=xml&id=' + f.id + '" target="_blank">Descargar XML</a>';
+        if (f.modo === 'test') {
+          html += '<hr class="fac-menu-sep">';
+          html += '<button class="fac-menu-item danger" onclick="ModFacturacion.menuCerrar();ModFacturacion.eliminar(' + f.id + ')">Eliminar (prueba)</button>';
+        }
       }
       html += '</div></div>';
       html += '</td></tr>';
@@ -813,6 +817,24 @@ var ModFacturacion = (function() {
     document.getElementById('fac-conceptos-body').innerHTML += _conceptoRow('', '44111702', 'M2', 1, '');
     recalc();
   }
+
+  // ── Menú 3 puntos ─────────────────────────────────────────────────────────
+  function menuToggle(btn) {
+    var drop = btn.nextSibling;
+    var isOpen = drop.classList.contains('open');
+    menuCerrar();
+    if (!isOpen) drop.classList.add('open');
+  }
+
+  function menuCerrar() {
+    var all = document.querySelectorAll('.fac-menu-drop.open');
+    for (var i = 0; i < all.length; i++) all[i].classList.remove('open');
+  }
+
+  // Cerrar menú al hacer click fuera
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.fac-menu-wrap')) menuCerrar();
+  });
 
   // ── Constancia de Situación Fiscal ────────────────────────────────────────
   var _cstDatos = null;
@@ -1068,7 +1090,9 @@ var ModFacturacion = (function() {
     cstAplicar:      cstAplicar,
     cstDescartar:    cstDescartar,
     tipoChange:      tipoChange,
-    timbrar:         timbrar
+    timbrar:         timbrar,
+    menuToggle:      menuToggle,
+    menuCerrar:      menuCerrar
   };
 })();
 

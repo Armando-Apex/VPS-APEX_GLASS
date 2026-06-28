@@ -252,11 +252,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'eliminar') {
     if (!$id) { echo json_encode(['ok'=>false,'error'=>'ID requerido']); exit; }
 
     // Verificar propiedad antes de eliminar
-    $stmt = $pdo->prepare("DELETE FROM facturas WHERE id=? AND estatus='borrador' AND creado_por=?");
-    $stmt->execute([$id, $user['nombre']]);
+    $stmt = $pdo->prepare("DELETE FROM facturas WHERE id=? AND (estatus='borrador' OR (estatus='timbrada' AND modo='test'))");
+    $stmt->execute([$id]);
 
     if ($stmt->rowCount() === 0) {
-        echo json_encode(['ok'=>false,'error'=>'No se encontró la factura o ya está timbrada']);
+        echo json_encode(['ok'=>false,'error'=>'No se puede eliminar: no existe o es una factura timbrada en producción']);
         exit;
     }
     echo json_encode(['ok'=>true]);

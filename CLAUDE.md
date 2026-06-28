@@ -377,6 +377,11 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | MEDIA | Armando | Google Sheets / Apps Script — verificar columna M | Pendiente |
 | MEDIA | Mando | Completar módulo Retrabajo: modal + razones por estación | Pendiente |
 | MEDIA | Mando | Rutas: optimización de zonas | Pendiente |
+| MEDIA | Mando | Facturación WIP: bug opción "Eliminar" no aparece en timbradas modo test — f.modo no llega al render (revisar query lista o lógica JS) | Pendiente |
+| MEDIA | Mando | Facturación WIP: claves SAT de vidrio sin verificar con contador — confirmar antes de producción | Pendiente |
+| MEDIA | Mando | Facturación WIP: curl_close() deprecado PHP 8.4 en api/facturapi.php líneas ~178 y ~238 — reemplazar por unset($ch) | Pendiente |
+| BAJA | Mando | Facturación WIP: conectar con cliente real del CRM (actualmente receptor libre) | Pendiente |
+| BAJA | Mando | Facturación WIP: cuando llegue CSD cambiar FACTURAPI_MODE=live en .env y agregar FACTURAPI_KEY_LIVE | Pendiente |
 | MEDIA | Ambos | Alerta reorden automática láminas (esperar 2-3 semanas historial) | Pendiente |
 | BAJA | Armando | Error consola JS guardarCristal | Pendiente |
 | BAJA | Ambos | m2_requeridos en laminas.php | Pendiente |
@@ -511,4 +516,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-247 | 27-jun | Armando | Inbox conversaciones: badge tipo_contacto — LEFT JOIN prospectos en query conversaciones; campo tipo_contacto (cliente/prospecto/desconocido) en response; frontend muestra badge azul CRM / naranja Prospecto / gris Nuevo en lista y header del chat; _convTipoMap para lookup sin re-fetch |
 | UPD-248 | 27-jun | Armando | Fix congelamiento sistema al enviar campañas: session_write_close() antes de fastcgi_finish_request() en api/campanas.php — liberaba el lock del archivo de sesión PHP durante todo el envío en background, bloqueando todas las pestañas del dashboard |
 | UPD-249 | 27-jun | Armando | Seguridad IDOR en api/facturapi.php: DELETE/UPDATE/SELECT de facturas no verificaban propiedad — cualquier usuario con rol 'desarrollo' podía operar facturas de otro; corregido agregando AND creado_por=? en las 3 queries (eliminar, guardar/UPDATE, timbrar/SELECT); nota: curl_close() deprecado en PHP 8.4 en líneas 178 y 238 — no rompe funcionalidad, pendiente reemplazar por unset($ch) |
-**Próximo UPD disponible: UPD-250**
+| UPD-250 | 28-jun | Mando | Facturación WIP fixes sesión: lector CSF client-side con PDF.js (lib/pdf.min.js + pdf.worker.min.js descargados al servidor, ruta absoluta /produccion/lib/); botón Descartar preview CSF; tipo de factura (I/E/P/IG) con hints; unidad MTQ→MTK (metro cuadrado); claves SAT corregidas (01010101 comodín + 44111501-505 vidrio); _csatPick fix para widget unidad (.fac-c-unidad vs .fac-c-clave); menú ··· con Editar/Timbrar/Eliminar en borradores y PDF/XML en timbradas; eliminar timbradas modo test en API (AND modo='test'); bug pendiente: opción Eliminar no aparece en timbradas test — f.modo no llega al frontend (falta en query lista o se pierde en render) |
+**Próximo UPD disponible: UPD-251**
