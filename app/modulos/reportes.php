@@ -63,6 +63,12 @@ var ModReportes = (function() {
     'jefe_piso':'Jefe de Piso', 'director':'Director', 'desarrollo':'Desarrollo'
   };
 
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = (s == null) ? '' : String(s);
+    return d.innerHTML;
+  }
+
   function _fmt(dt) {
     if (!dt) return '—';
     var d = new Date(dt.replace(' ','T'));
@@ -98,14 +104,14 @@ var ModReportes = (function() {
         try { el = JSON.parse(r.elemento); } catch(e) { el = null; }
         if (el) {
           elemHtml = '<div class="rep-elem-chip">'
-            + (el.modulo ? '<span class="rep-elem-tag">Módulo: <span>' + el.modulo + '</span></span>' : '')
-            + (el.ruta   ? '<span class="rep-elem-tag">Ruta: <span>' + el.ruta + '</span></span>' : '')
-            + (el.texto  ? '<span class="rep-elem-tag">Texto: <span>' + el.texto.slice(0,80).replace(/</g,'&lt;') + '</span></span>' : '')
+            + (el.modulo ? '<span class="rep-elem-tag">Módulo: <span>' + esc(el.modulo) + '</span></span>' : '')
+            + (el.ruta   ? '<span class="rep-elem-tag">Ruta: <span>' + esc(el.ruta) + '</span></span>' : '')
+            + (el.texto  ? '<span class="rep-elem-tag">Texto: <span>' + esc(el.texto.slice(0,80)) + '</span></span>' : '')
             + '</div>';
         }
       }
       var compInfo = r.estado === 'completado'
-        ? '<div class="rep-completado-por">Completado por ' + r.completado_por + ' · ' + _fmt(r.completado_at) + '</div>'
+        ? '<div class="rep-completado-por">Completado por ' + esc(r.completado_por) + ' · ' + _fmt(r.completado_at) + '</div>'
         : '';
       var acciones = r.estado === 'pendiente'
         ? '<button class="rep-btn-comp" onclick="ModReportes.completar(' + r.id + ')">&#10003; Completado</button>'
@@ -119,7 +125,7 @@ var ModReportes = (function() {
         +   '<div class="rep-desc">' + r.descripcion.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>') + '</div>'
         +   elemHtml
         +   '<div class="rep-meta">'
-        +     '<span><strong>' + r.creado_por + '</strong> · ' + rolLabel + '</span>'
+        +     '<span><strong>' + esc(r.creado_por) + '</strong> · ' + esc(rolLabel) + '</span>'
         +     '<span>' + _fmt(r.created_at) + '</span>'
         +   '</div>'
         +   compInfo
