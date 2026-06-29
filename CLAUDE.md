@@ -379,7 +379,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | MEDIA | Mando | Rutas: optimización de zonas | Pendiente |
 | MEDIA | Mando | Facturación WIP: bug opción "Eliminar" timbradas modo test | HECHO UPD-251 |
 | MEDIA | Mando | Facturación WIP: claves SAT de vidrio sin verificar con contador — confirmar antes de producción | Pendiente |
-| MEDIA | Mando | Facturación WIP: curl_close() deprecado PHP 8.4 en api/facturapi.php líneas ~178 y ~238 — reemplazar por unset($ch) | Pendiente |
+| MEDIA | Mando | Facturación WIP: curl_close() deprecado PHP 8.4 en api/facturapi.php líneas ~238 — reemplazar por unset($ch) | Pendiente |
 | BAJA | Mando | Facturación WIP: conectar con cliente real del CRM (actualmente receptor libre) | Pendiente |
 | BAJA | Mando | Facturación WIP: cuando llegue CSD cambiar FACTURAPI_MODE=live en .env y agregar FACTURAPI_KEY_LIVE | Pendiente |
 | MEDIA | Ambos | Alerta reorden automática láminas (esperar 2-3 semanas historial) | Pendiente |
@@ -471,4 +471,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-251 | 29-jun | Mando | Fix Eliminar en timbradas modo test: causa raíz era `.fac-table-wrap { overflow:hidden }` cortando el dropdown — el HTML y lógica `f.modo==='test'` eran correctos; dropdown cambiado a `position:fixed` con coordenadas via `getBoundingClientRect()` en `menuToggle()`; fix IDOR faltante UPD-249: `AND creado_por=?` en DELETE de `api/facturapi.php`; confirm() diferenciado para timbradas vs borradores |
 | UPD-252 | 29-jun | Mando | Lector CSF con OCR: instalar tesseract + tesseract-langpack-spa en VPS; api/extraer_constancia.php detecta automáticamente si el PDF tiene capa de texto (pdftotext) o es imagen (Print to PDF/escaneado) y usa pdftoppm+tesseract como fallback; OCR pages 1-2; regex nombre físico acepta "Primer/Segundo Apellido" (formato OCR) además de "Apellido Paterno/Materno" (PDF nativo SAT) |
-**Próximo UPD disponible: UPD-253**
+| UPD-253 | 29-jun | Mando | Facturación WIP fixes: (1) OCR flujo corregido — PDF.js solo lee PDFs con capa de texto; si texto<100 chars hace fallback a upload servidor con FormData → api/extraer_constancia.php → tesseract; DPI 200→150, solo página 1, formato JPEG, --psm 6 para reducir tiempo OCR; exec() habilitado quitándolo de disable_functions en /etc/opt/remi/php84/php.d/zz-php.ini (pool override no es suficiente para reducir disable_functions); (2) unidad predeterminada en conceptos cambiada de 'M2' a vacío en los 4 puntos donde se hardcodeaba |
+| UPD-254 | 29-jun-2026 | Armando | Bloqueo ventana 24h inbox WA: conversaciones >24h sin actividad muestran banner amarillo bloqueando el input; botón "Reactivar conversación" envía template `atencion_apex` automáticamente ({{1}}=nombre cliente CRM, {{2}}=asesor logueado). Nuevo endpoint `api/campanas.php?accion=template_inbox` con check `$puedeEnviar`. |
+**Próximo UPD disponible: UPD-255**
