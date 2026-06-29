@@ -68,6 +68,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'generar_pass') {
     exit;
 }
 
+// ── Enviar acceso al portal por WhatsApp ─────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'enviar_acceso_wa') {
+    $user = requirePermiso('ver_dashboard');
+    if (!in_array($user['rol'], ['dir_admin', 'dueno', 'comercial', 'desarrollo'])) {
+        http_response_code(403); echo json_encode(['error' => 'Sin permiso']); exit;
+    }
+
+    $id  = intval($_POST['id'] ?? 0);
+    $pdo = getDB();
+
+    $stmt = $pdo->prepare("SELECT id, nombre, razon_social, codigo, telefono, telefono_alterno, portal_password FROM clientes WHERE id = ?");
+    $stmt->execute([$id]);
+    $c = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$c) { http_response_code(404); echo json_encode(['error' => 'Cliente no encontrado']); exit; }
+
+    // Determinar teléfono WA (preferir alterno)
+    $telRaw = trim($c['telefono_alterno'] ?: $c['telefono'] ?: '');
+    if (!$telRaw) { http_response_code(400); echo json_encode(['error' => 'El cliente no tiene teléfono registrado']); exit; }
+    $telDig = preg_replace('/[^0-9]/', '', $telRaw);
+    $telefono = (strlen($telDig) === 10) ? '52' . $telDig : (strlen($telDig) === 12 ? $telDig : '52' . substr($telDig, -10));
+
+    // Generar contraseña si no tiene
+    $pass = $c['portal_password'];
+    if (!$pass) {
+        $mayus = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        $minus = 'abcdefghjkmnpqrstuvwxyz';
+        $nums  = '23456789';
+        $simbs = '!@#$%&*+-?';
+        $todos = $mayus . $minus . $nums . $simbs;
+        do {
+            $pass  = $mayus[random_int(0, strlen($mayus)-1)];
+            $pass .= $minus[random_int(0, strlen($minus)-1)];
+            $pass .= $nums[random_int(0,  strlen($nums)-1)];
+            $pass .= $simbs[random_int(0, strlen($simbs)-1)];
+            for ($i = 0; $i < 4; $i++) $pass .= $todos[random_int(0, strlen($todos)-1)];
+            $pass = str_shuffle($pass);
+        } while (
+            !preg_match('/[A-Z]/', $pass) || !preg_match('/[a-z]/', $pass) ||
+            !preg_match('/[0-9]/', $pass) || !preg_match('/[!@#$%&*+\-?]/', $pass)
+        );
+        $hash = password_hash($pass, PASSWORD_BCRYPT, ['cost' => 12]);
+        $pdo->prepare("UPDATE clientes SET portal_password = ?, portal_password_hash = ?, portal_activo = 1 WHERE id = ?")
+            ->execute([$pass, $hash, $id]);
+    }
+
+    $nombre = substr(strip_tags($c['razon_social'] ?: $c['nombre']), 0, 60);
+    $codigo = substr(strip_tags($c['codigo']), 0, 20);
+
+    require_once __DIR__ . '/wa_helper.php';
+    $payload = [
+        'messaging_product' => 'whatsapp',
+        'to'                => $telefono,
+        'type'              => 'template',
+        'template'          => [
+            'name'       => 'acceso_portal',
+            'language'   => ['code' => 'es_MX'],
+            'components' => [[
+                'type'       => 'body',
+                'parameters' => [
+                    ['type' => 'text', 'text' => $nombre],
+                    ['type' => 'text', 'text' => $codigo],
+                    ['type' => 'text', 'text' => $pass],
+                ]
+            ]]
+        ]
+    ];
+    $res  = enviarMensajeWA($payload);
+    $waId = $res['data']['messages'][0]['id'] ?? null;
+    if (!$waId) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Error al enviar WA', 'detalle' => $res['data']]);
+        exit;
+    }
+    echo json_encode(['ok' => true, 'password' => $pass, 'wa_message_id' => $waId]);
+    exit;
+}
+
 // ── Login del portal ──────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'login') {
     $usuario  = strtoupper(trim($_POST['usuario']  ?? ''));

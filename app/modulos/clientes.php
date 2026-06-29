@@ -296,10 +296,15 @@ window.cliAbrirPanel = function(id) {
 
   // Columna contraseña
   let passHTML = '';
+  var _tieneTel = !!(c.telefono_alterno || c.telefono);
+  var _btnWA = PUEDE_GENERAR && _tieneTel
+    ? ` <button class="cli-btn-sm cli-btn-wa" id="btn-enviar-wa-${c.id}" onclick="cliEnviarAccesoWA(${c.id})">&#128241; Enviar por WA</button>`
+    : (PUEDE_GENERAR && !_tieneTel ? ` <span style="font-size:11px;color:#94a3b8">Sin tel. para WA</span>` : '');
   if (!c.portal_password) {
     passHTML = `<span class="cli-sin-acceso">Sin acceso al portal</span>`;
     if (PUEDE_GENERAR) {
       passHTML += ` <button class="cli-btn-sm cli-btn-gen" onclick="cliGenerarPass(${c.id})">&#128273; Generar acceso</button>`;
+      passHTML += _btnWA;
     }
   } else if (PUEDE_VER_PASS) {
     passHTML = `
@@ -307,6 +312,7 @@ window.cliAbrirPanel = function(id) {
         <span class="cli-pass-val" id="panel-pass-val">••••••••</span>
         <button class="cli-btn-sm" id="panel-pass-eye" onclick="cliTogglePass('${c.portal_password}')">&#128065; Ver</button>
         <button class="cli-btn-sm" onclick="cliCopiarPass('${c.portal_password}')">&#128203; Copiar</button>
+        ${_btnWA}
         <span class="cli-copy-ok" id="panel-copy-ok">&#10003; Copiado</span>
       </div>
       ${ES_ADMIN ? `<div style="margin-top:8px"><button class="cli-btn-sm" onclick="cliGenerarPass(${c.id})">&#128260; Regenerar contraseña</button></div>` : ''}
@@ -479,6 +485,30 @@ window.cliGenerarPass = async function(id) {
     if (valEl) valEl.textContent = d.password;
     if (eyeEl) eyeEl.innerHTML   = '&#128064; Ocultar';
   } catch(e) { alert('Error: ' + e.message); }
+};
+
+window.cliEnviarAccesoWA = async function(id) {
+  const c = _cliData.find(x => x.id == id);
+  const nombre = c ? (c.razon_social || c.nombre) : 'este cliente';
+  const accion = c && !c.portal_password ? 'Generar contraseña y enviar acceso' : 'Reenviar acceso al portal';
+  if (!confirm(accion + ' por WhatsApp a ' + nombre + '?')) return;
+  const btn = document.getElementById('btn-enviar-wa-' + id);
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+  try {
+    const fd = new FormData();
+    fd.append('id', id);
+    const r = await fetch('../api/portal_clientes.php?accion=enviar_acceso_wa', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error desconocido');
+    // Actualizar password en memoria si se generó una nueva
+    const idx = _cliData.findIndex(x => x.id == id);
+    if (idx >= 0 && d.password) _cliData[idx].portal_password = d.password;
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Enviado'; }
+    setTimeout(function() { if (btn) { btn.textContent = '📱 Enviar por WA'; } }, 3000);
+  } catch(e) {
+    alert('Error: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '📱 Enviar por WA'; }
+  }
 };
 
 window.cliEditarNombre = function(id) {
