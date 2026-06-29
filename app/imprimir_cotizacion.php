@@ -55,7 +55,7 @@ if (isset($nombres_completos[$asesor_nombre])) {
 $asesor_movil  = isset($asesores_excel[$asesor_nombre]) ? $asesores_excel[$asesor_nombre]['movil'] : '';
 $asesor_email  = isset($asesores_excel[$asesor_nombre]) ? $asesores_excel[$asesor_nombre]['email'] : '';
 $tel_empresa = '+52 81 1180 5078';
-$tel_fijo    = '81 2315 3005';
+$tel_fijo    = '81 1180 5078';
 
 $descuento = (float)($c['descuento'] ?? 0);
 
