@@ -52,6 +52,7 @@ function icono($nombre, $size = 16) {
         'map-pin'        => '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
         'bell'           => '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
         'menu'           => '<line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>',
+        'flag'           => '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
     ];
     $inner = $p[$nombre] ?? '';
     return '<svg xmlns="http://www.w3.org/2000/svg" width="'.$size.'" height="'.$size.'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'.$inner.'</svg>';
@@ -156,6 +157,48 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
   .spa-loading{position:fixed;}
 }
 
+/* Botón reportar bug/mejora */
+.rep-btn{background:none;border:none;cursor:pointer;color:#64748b;padding:4px 6px;line-height:1;transition:color .15s;}
+.rep-btn:hover{color:#cbd5e1;}
+.rep-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1600;align-items:center;justify-content:center;padding:16px;}
+.rep-overlay.open{display:flex;}
+.rep-modal{background:#fff;border-radius:14px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden;}
+.rep-head{background:#0f172a;color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;}
+.rep-head h3{font-size:14px;font-weight:700;}
+.rep-close{background:none;border:none;color:#94a3b8;font-size:20px;cursor:pointer;line-height:1;}
+.rep-close:hover{color:#fff;}
+.rep-body{padding:20px;}
+.rep-tipos{display:flex;gap:10px;margin-bottom:16px;}
+.rep-tipo-btn{flex:1;border:2px solid #e2e8f0;border-radius:8px;padding:10px 8px;text-align:center;cursor:pointer;font-size:13px;font-weight:600;background:#fff;color:#475569;transition:all .15s;}
+.rep-tipo-btn.sel-bug{border-color:#dc2626;background:#fef2f2;color:#dc2626;}
+.rep-tipo-btn.sel-mejora{border-color:#2563eb;background:#eff6ff;color:#2563eb;}
+.rep-tipo-btn:not(.sel-bug):not(.sel-mejora):hover{border-color:#94a3b8;}
+.rep-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;display:block;margin-bottom:6px;}
+.rep-textarea{width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;min-height:90px;outline:none;}
+.rep-textarea:focus{border-color:#2563eb;}
+.rep-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid #f1f5f9;}
+.rep-btn-cancel{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer;}
+.rep-btn-send{background:#2563eb;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
+.rep-btn-send:disabled{opacity:.6;cursor:not-allowed;}
+.rep-msg{font-size:12px;font-weight:600;padding:6px 10px;border-radius:6px;display:none;margin-top:10px;}
+.rep-msg.ok{background:#dcfce7;color:#16a34a;display:block;}
+.rep-msg.err{background:#fee2e2;color:#dc2626;display:block;}
+.rep-btn-pick{width:100%;background:#f8fafc;border:1.5px dashed #cbd5e1;border-radius:8px;padding:9px 14px;font-size:12px;color:#64748b;cursor:pointer;text-align:left;}
+.rep-btn-pick:hover{border-color:#94a3b8;color:#334155;}
+.rep-elem-preview{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 12px;font-size:12px;}
+.rep-elem-row{display:flex;gap:8px;margin-bottom:4px;align-items:baseline;}
+.rep-elem-lbl{color:#0284c7;font-weight:700;min-width:64px;font-size:11px;text-transform:uppercase;}
+.rep-elem-val{color:#0c4a6e;word-break:break-all;}
+.rep-elem-ruta{font-family:monospace;font-size:11px;}
+.rep-elem-clear{background:none;border:none;color:#94a3b8;font-size:11px;cursor:pointer;padding:0;margin-top:4px;}
+.rep-elem-clear:hover{color:#dc2626;}
+/* Pick mode */
+body.rep-pick-mode *{cursor:crosshair !important;}
+.rep-pick-highlight{outline:2.5px solid #f97316 !important;outline-offset:2px;background:rgba(249,115,22,.08) !important;}
+#rep-pick-banner{display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:12px 24px;border-radius:99px;font-size:13px;font-weight:600;z-index:9000;align-items:center;gap:16px;box-shadow:0 8px 30px rgba(0,0,0,.4);}
+body.rep-pick-mode #rep-pick-banner{display:flex;}
+#rep-pick-banner button{background:#f97316;border:none;color:#fff;padding:4px 14px;border-radius:99px;font-size:12px;font-weight:700;cursor:pointer;}
+
 /* Campana notificaciones */
 .notif-wrap{position:relative;}
 .notif-btn{background:none;border:none;cursor:pointer;color:#64748b;font-size:18px;padding:4px 6px;position:relative;line-height:1;transition:color .15s;}
@@ -191,6 +234,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
   <div class="topbar-sub">Producci&oacute;n</div>
   <div class="topbar-right">
     <span id="reloj"></span>
+    <button class="rep-btn" onclick="repAbrirModal()" title="Reportar bug o mejora"><?= icono('flag', 18) ?></button>
     <?php if ($esAdmin || $esComercial): ?>
     <div class="notif-wrap" id="notifWrap">
       <button class="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones" aria-label="Notificaciones">
@@ -277,6 +321,11 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
       <button class="sidebar-link" data-modulo="admin_comunicados" onclick="cargarModulo('admin_comunicados')">
         <span class="sidebar-icon"><?= icono('megaphone') ?></span>Admin Comunicados
       </button>
+      <?php if ($esDesarrollo || $esAdmin): ?>
+      <button class="sidebar-link" data-modulo="reportes" onclick="cargarModulo('reportes')">
+        <span class="sidebar-icon"><?= icono('flag') ?></span>Reportes
+      </button>
+      <?php endif; ?>
     </div>
     <?php endif; ?>
     <?php if ($esInventario): ?>
@@ -357,7 +406,7 @@ const MODULOS = {
   cotizaciones:'modulos/cotizaciones.php', clientes:'modulos/clientes.php',
   cristales:'modulos/cristales.php', optimizador:'modulos/optimizador.php',
   reporte_direccion:'modulos/reporte_direccion.php', productividad:'modulos/productividad.php',
-  admin_ordenes:'modulos/admin_ordenes.php', admin_comunicados:'modulos/admin_comunicados.php',
+  admin_ordenes:'modulos/admin_ordenes.php', admin_comunicados:'modulos/admin_comunicados.php', reportes:'modulos/reportes.php',
   inventario:'modulos/inventario.php', compras:'modulos/compras.php',
   finanzas_vobo:'modulos/finanzas_vobo.php',
   finanzas_cobranza:'modulos/finanzas_cobranza.php',
@@ -662,5 +711,194 @@ window.actualizarBadgeCompras = function() {};
   actualizarBadgeWA();
   setInterval(actualizarBadgeWA, 10000);
   window.actualizarBadgeWA = actualizarBadgeWA;
+})();
+
+// ── Reportar bug / mejora ─────────────────────────────────────────────────────
+(function() {
+  var _tipoSel    = null;
+  var _elemento   = null;
+  var _pickMode   = false;
+  var _lastHover  = null;
+
+  var overlay = document.createElement('div');
+  overlay.className = 'rep-overlay';
+  overlay.id = 'repOverlay';
+  overlay.innerHTML =
+    '<div class="rep-modal">'
+    + '<div class="rep-head"><h3>&#128681; Reportar</h3><button class="rep-close" onclick="repCerrarModal()">&#10005;</button></div>'
+    + '<div class="rep-body">'
+    +   '<div class="rep-tipos">'
+    +     '<button class="rep-tipo-btn" id="rep-tbug"    onclick="repTipo(\'bug\')"   ><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>Bug / Error</button>'
+    +     '<button class="rep-tipo-btn" id="rep-tmejora" onclick="repTipo(\'mejora\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>Mejora / Idea</button>'
+    +   '</div>'
+    +   '<div style="margin-bottom:14px">'
+    +     '<label class="rep-label" style="margin-bottom:6px;display:block">Elemento en pantalla (opcional)</label>'
+    +     '<button class="rep-btn-pick" id="rep-pick-btn" onclick="repIniciarPick()">&#8987; Haz clic para seleccionar un elemento</button>'
+    +     '<div class="rep-elem-preview" id="rep-elem-preview" style="display:none"></div>'
+    +   '</div>'
+    +   '<label class="rep-label">¿Qué está pasando?</label>'
+    +   '<textarea class="rep-textarea" id="rep-desc" placeholder="Describe el bug o la mejora..."></textarea>'
+    +   '<div class="rep-msg" id="rep-msg"></div>'
+    + '</div>'
+    + '<div class="rep-foot">'
+    +   '<button class="rep-btn-cancel" onclick="repCerrarModal()">Cancelar</button>'
+    +   '<button class="rep-btn-send" id="rep-send-btn" onclick="repEnviar()">Enviar</button>'
+    + '</div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+
+  // Banner de pick mode (fuera del overlay para cubrir toda la pantalla)
+  var pickBanner = document.createElement('div');
+  pickBanner.id = 'rep-pick-banner';
+  pickBanner.innerHTML = '<span>&#128247; Haz clic en el elemento que está fallando</span><button onclick="repCancelarPick()">Cancelar (ESC)</button>';
+  document.body.appendChild(pickBanner);
+
+  // ── Pick mode ──────────────────────────────────────────────────────────────
+  window.repIniciarPick = function() {
+    overlay.classList.remove('open');
+    _pickMode = true;
+    document.body.classList.add('rep-pick-mode');
+    document.addEventListener('mouseover', _onPickHover);
+    document.addEventListener('click',     _onPickClick, true);
+    document.addEventListener('keydown',   _onPickKey);
+  };
+
+  window.repCancelarPick = function() {
+    _exitPick();
+    overlay.classList.add('open');
+  };
+
+  function _exitPick() {
+    _pickMode = false;
+    document.body.classList.remove('rep-pick-mode');
+    if (_lastHover) { _lastHover.classList.remove('rep-pick-highlight'); _lastHover = null; }
+    document.removeEventListener('mouseover', _onPickHover);
+    document.removeEventListener('click',     _onPickClick, true);
+    document.removeEventListener('keydown',   _onPickKey);
+  }
+
+  function _onPickHover(e) {
+    if (!_pickMode) return;
+    var el = e.target;
+    if (el === pickBanner || pickBanner.contains(el)) return;
+    if (_lastHover && _lastHover !== el) _lastHover.classList.remove('rep-pick-highlight');
+    el.classList.add('rep-pick-highlight');
+    _lastHover = el;
+  }
+
+  function _onPickClick(e) {
+    if (!_pickMode) return;
+    var el = e.target;
+    if (el === pickBanner || pickBanner.contains(el)) return;
+    e.preventDefault(); e.stopPropagation();
+    _capturarElemento(el);
+    _exitPick();
+    overlay.classList.add('open');
+  }
+
+  function _onPickKey(e) {
+    if (e.key === 'Escape') repCancelarPick();
+  }
+
+  function _capturarElemento(el) {
+    // Módulo activo
+    var moduloEl = document.querySelector('.sidebar-link.active');
+    var modulo   = moduloEl ? (moduloEl.dataset.modulo || moduloEl.textContent.trim()) : '(inicio)';
+
+    // Texto visible del elemento
+    var texto = (el.textContent || '').replace(/\s+/g,' ').trim().slice(0, 120);
+
+    // Ruta: tag + id/clase del elemento y 2 padres
+    function _desc(node) {
+      if (!node || node === document.body) return '';
+      var d = node.tagName.toLowerCase();
+      if (node.id)        d += '#' + node.id;
+      else if (node.className && typeof node.className === 'string') {
+        var cls = node.className.trim().split(/\s+/).filter(function(c){ return c && c !== 'rep-pick-highlight'; }).slice(0,2).join('.');
+        if (cls) d += '.' + cls;
+      }
+      return d;
+    }
+    var ruta = [_desc(el.parentElement && el.parentElement.parentElement), _desc(el.parentElement), _desc(el)].filter(Boolean).join(' > ');
+
+    _elemento = { modulo: modulo, texto: texto, ruta: ruta, tag: el.tagName.toLowerCase() };
+
+    // Mostrar preview en modal
+    var preview = document.getElementById('rep-elem-preview');
+    var pickBtn = document.getElementById('rep-pick-btn');
+    if (preview) {
+      preview.style.display = 'block';
+      preview.innerHTML =
+        '<div class="rep-elem-row"><span class="rep-elem-lbl">Módulo</span><span class="rep-elem-val">' + modulo + '</span></div>'
+        + '<div class="rep-elem-row"><span class="rep-elem-lbl">Elemento</span><span class="rep-elem-val rep-elem-ruta">' + ruta + '</span></div>'
+        + (texto ? '<div class="rep-elem-row"><span class="rep-elem-lbl">Texto</span><span class="rep-elem-val">' + texto + '</span></div>' : '')
+        + '<button class="rep-elem-clear" onclick="repLimpiarElemento()">&#10005; Quitar</button>';
+    }
+    if (pickBtn) pickBtn.style.display = 'none';
+  }
+
+  window.repLimpiarElemento = function() {
+    _elemento = null;
+    var preview = document.getElementById('rep-elem-preview');
+    var pickBtn = document.getElementById('rep-pick-btn');
+    if (preview) preview.style.display = 'none';
+    if (pickBtn) pickBtn.style.display = '';
+  };
+
+  // ── Modal ──────────────────────────────────────────────────────────────────
+  window.repAbrirModal = function() {
+    _tipoSel  = null;
+    _elemento = null;
+    var d = document.getElementById('rep-desc');
+    var m = document.getElementById('rep-msg');
+    if (d) d.value = '';
+    if (m) { m.className = 'rep-msg'; m.textContent = ''; }
+    document.getElementById('rep-tbug').className    = 'rep-tipo-btn';
+    document.getElementById('rep-tmejora').className = 'rep-tipo-btn';
+    repLimpiarElemento();
+    overlay.classList.add('open');
+  };
+
+  window.repCerrarModal = function() {
+    if (_pickMode) _exitPick();
+    overlay.classList.remove('open');
+  };
+
+  window.repTipo = function(t) {
+    _tipoSel = t;
+    document.getElementById('rep-tbug').className    = 'rep-tipo-btn' + (t === 'bug'    ? ' sel-bug'    : '');
+    document.getElementById('rep-tmejora').className = 'rep-tipo-btn' + (t === 'mejora' ? ' sel-mejora' : '');
+  };
+
+  window.repEnviar = function() {
+    var desc = (document.getElementById('rep-desc').value || '').trim();
+    var msg  = document.getElementById('rep-msg');
+    var btn  = document.getElementById('rep-send-btn');
+    if (!_tipoSel) { msg.textContent = 'Selecciona Bug o Mejora'; msg.className = 'rep-msg err'; return; }
+    if (!desc)     { msg.textContent = 'Escribe una descripción';  msg.className = 'rep-msg err'; return; }
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    msg.className = 'rep-msg';
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/produccion/api/reportes.php?accion=crear');
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onload = function() {
+      btn.disabled = false; btn.textContent = 'Enviar';
+      var res;
+      try { res = JSON.parse(xhr.responseText); } catch(e) { res = {ok:false}; }
+      if (res.ok) {
+        msg.textContent = '¡Gracias! Tu reporte fue enviado.';
+        msg.className = 'rep-msg ok';
+        setTimeout(repCerrarModal, 1800);
+      } else {
+        msg.textContent = res.error || 'Error al enviar';
+        msg.className = 'rep-msg err';
+      }
+    };
+    xhr.onerror = function() { btn.disabled = false; btn.textContent = 'Enviar'; msg.textContent = 'Error de conexión'; msg.className = 'rep-msg err'; };
+    xhr.send(JSON.stringify({ tipo: _tipoSel, descripcion: desc, elemento: _elemento || null }));
+  };
+
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) repCerrarModal(); });
 })();
 </script>
