@@ -182,11 +182,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 /* Archivos adjuntos */
 .arch-card { background: white; border-radius: 14px; padding: 20px 24px; box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 20px; }
 .arch-card-title { font-size: 15px; font-weight: 800; color: #1e293b; margin-bottom: 16px; }
-.arch-upload-row { display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; }
-.arch-upload-row select { padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; background: white; outline: none; flex-shrink: 0; }
-.arch-upload-row input[type=file] { padding: 8px 6px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; background: white; outline: none; flex: 1; min-width: 0; }
+.arch-upload-row { display: flex; gap: 10px; flex-wrap: nowrap; align-items: center; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid #f1f5f9; }
+.arch-upload-row select { padding: 10px 13px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 16px; background: white; outline: none; flex-shrink: 0; }
+.arch-upload-row input[type=file] { padding: 10px 8px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 15px; background: white; outline: none; flex: 1; min-width: 0; }
 .arch-upload-row select:focus { border-color: #2563eb; }
-.btn-arch-subir { padding: 8px 18px; background: #16a34a; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.btn-arch-subir { padding: 10px 22px; background: #16a34a; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; }
 .btn-arch-subir:disabled { opacity: .5; cursor: not-allowed; }
 .arch-msg-inline { font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 6px; display: none; }
 .arch-msg-inline.ok  { background: #dcfce7; color: #16a34a; }
@@ -205,12 +205,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 /* Modal archivos */
 .arch-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1500; align-items:center; justify-content:center; padding:20px; }
 .arch-overlay.open { display:flex; }
-.arch-modal { background:white; border-radius:16px; width:100%; max-width:560px; box-shadow:0 24px 64px rgba(0,0,0,.22); overflow:hidden; }
-.arch-modal-head { background:#1a1a2e; color:white; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; }
+.arch-modal { background:white; border-radius:16px; width:100%; max-width:780px; box-shadow:0 24px 64px rgba(0,0,0,.22); overflow:hidden; }
+.arch-modal-head { background:#1a1a2e; color:white; padding:20px 28px; display:flex; justify-content:space-between; align-items:center; }
 .arch-modal-head h3 { font-size:14px; font-weight:800; }
 .arch-modal-close { background:none; border:none; color:#94a3b8; font-size:20px; cursor:pointer; line-height:1; padding:2px 6px; }
 .arch-modal-close:hover { color:white; }
-.arch-modal-body { padding:20px; max-height:70vh; overflow-y:auto; }
+.arch-modal-body { padding:28px; max-height:75vh; overflow-y:auto; }
 /* Autocomplete cliente */
 .autocomplete-wrap { position: relative; }
 .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 100; max-height: 240px; overflow-y: auto; }
@@ -1736,6 +1736,7 @@ function renderArchivos(folioOrden, lista) {
           + '<span class="arch-file-name">' + icono + ' ' + escHtml(a.nombre_original || '') + '</span>'
           + '<span class="arch-file-meta">' + escHtml(a.subido_por || '') + '</span>'
           + '<button class="btn-arch-ver" onclick="window.open(\'' + API_ARCH + '?accion=descargar&id=' + a.id + '\',\'_blank\')">&#128065; Ver</button>'
+          + (ES_DIR_ADMIN ? '<button class="btn-arch-ver" style="color:#dc2626;border-color:#fca5a5" onclick="ModCotizacion._borrarArchivo(' + a.id + ',\'' + escJs(folioOrden) + '\')">&#128465; Borrar</button>' : '')
           + '</div>';
       }).join('') + '</div>'
     : '<div class="arch-empty">Sin archivos adjuntos</div>';
@@ -1772,6 +1773,21 @@ function subirArchivo(folioOrden) {
     .finally(function() { btn.disabled = false; btn.textContent = '&#8679; Subir'; });
 }
 
+function borrarArchivo(id, folioOrden) {
+  if (!confirm('¿Borrar este archivo? Esta acción no se puede deshacer.')) return;
+  fetch(API_ARCH + '?accion=borrar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: id })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) { cargarArchivos(folioOrden); }
+      else { alert(d.error || 'Error al borrar'); }
+    })
+    .catch(function() { alert('Error de conexión'); });
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function etiquetaEstatus(s) {
   var map = { cotizacion:'Cotización', orden:'Orden de Producción', entregada:'Entregada', cancelada:'Cancelada', rechazada:'Rechazada por Calidad' };
@@ -1800,6 +1816,7 @@ return {
   _subirArchivo:       subirArchivo,
   _abrirArchivos:      abrirArchivos,
   _cerrarArchivos:     cerrarArchivos,
+  _borrarArchivo:      borrarArchivo,
   _abrirCorreccion:    abrirCorreccion,
   _cerrarCorreccion:   cerrarCorreccion,
   _corrTab:            corrTab,

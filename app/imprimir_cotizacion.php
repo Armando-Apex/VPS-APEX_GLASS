@@ -476,7 +476,8 @@ function waEnviar() {
     </div>
     <div class="condiciones" style="margin-bottom:0; min-width:200px;">
       <div class="title">Datos Bancarios</div>
-      <div style="margin-top:6px;">
+      <div style="font-weight:700; color:#1e293b; font-size:11px; margin-top:6px; margin-bottom:2px;">Templadora Noreste S.A. de C.V.</div>
+      <div style="margin-top:4px;">
         <div style="padding:4px 0; border-bottom:1px solid #f1f5f9;">
           <span style="color:#64748b; font-size:9.5px;">Banco</span><br>
           <span style="font-weight:700; color:#1e293b; font-size:11px;">BBVA</span>
