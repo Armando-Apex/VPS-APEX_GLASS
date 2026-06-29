@@ -505,12 +505,13 @@ if ($metodo === 'POST' && $accion === 'template_inbox') {
         exit;
     }
     $nombreCliente = substr(strip_tags(trim($body['nombre_cliente'] ?? '')), 0, 60);
+    $nombreAsesor  = substr(strip_tags($user['nombre']), 0, 60);
+    $params = [];
+    if ($nombreCliente !== '') $params[] = ['type' => 'text', 'text' => $nombreCliente];
+    if ($nombreAsesor  !== '') $params[] = ['type' => 'text', 'text' => $nombreAsesor];
     $components = [];
-    if ($nombreCliente !== '') {
-        $components[] = [
-            'type'       => 'body',
-            'parameters' => [['type' => 'text', 'text' => $nombreCliente]]
-        ];
+    if (!empty($params)) {
+        $components[] = ['type' => 'body', 'parameters' => $params];
     }
     $payload = [
         'messaging_product' => 'whatsapp',
@@ -529,9 +530,7 @@ if ($metodo === 'POST' && $accion === 'template_inbox') {
         echo json_encode(['error' => 'Error Meta API', 'detalle' => $res['data']]);
         exit;
     }
-    $contenido = $nombreCliente
-        ? '[Template: ' . $template . ' → ' . $nombreCliente . ']'
-        : '[Template: ' . $template . ']';
+    $contenido = '[Template: ' . $template . ($nombreCliente ? ' → ' . $nombreCliente : '') . ']';
     $db->prepare("INSERT INTO whatsapp_mensajes
         (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por)
         VALUES (?, 'outbound', ?, 'texto', ?, ?)")
