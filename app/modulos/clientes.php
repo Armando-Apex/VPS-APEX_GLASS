@@ -79,6 +79,36 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 .cli-btn-save:hover { background:#1d4ed8; }
 .cli-btn-save:disabled { opacity:.6; cursor:not-allowed; }
 
+/* datos fiscales panel */
+.cli-fiscal-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; padding:2px 7px; border-radius:99px; margin-left:6px; vertical-align:middle; }
+.cli-fiscal-badge.ok  { background:#dcfce7; color:#166534; }
+.cli-fiscal-badge.no  { background:#f1f5f9; color:#94a3b8; }
+.cli-fiscal-drop {
+  border:2px dashed #cbd5e1; border-radius:8px; padding:14px 16px;
+  display:flex; align-items:center; gap:12px; cursor:pointer;
+  background:#f8fafc; transition:all .15s; margin-top:10px;
+}
+.cli-fiscal-drop:hover, .cli-fiscal-drop.drag { border-color:#2563eb; background:#eff6ff; }
+.cli-fiscal-drop input[type=file] { display:none; }
+.cli-fiscal-drop-icon { width:32px; height:32px; background:#e0e7ff; border-radius:7px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.cli-fiscal-loading { display:none; align-items:center; gap:8px; font-size:12px; color:#2563eb; padding:8px 0; }
+.cli-fiscal-loading.vis { display:flex; }
+.cli-fiscal-spin { width:14px; height:14px; border:2px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:cliFisSpin .7s linear infinite; flex-shrink:0; }
+@keyframes cliFisSpin { to { transform:rotate(360deg); } }
+.cli-fiscal-error { font-size:12px; color:#dc2626; background:#fee2e2; border-radius:6px; padding:7px 10px; display:none; margin-top:8px; }
+.cli-fiscal-error.vis { display:block; }
+.cli-fiscal-preview { background:#f0fdf4; border:1px solid #86efac; border-radius:8px; padding:12px 14px; display:none; margin-top:10px; }
+.cli-fiscal-preview.vis { display:block; }
+.cli-fiscal-preview h5 { margin:0 0 10px; font-size:11px; font-weight:700; color:#166534; text-transform:uppercase; letter-spacing:.04em; }
+.cli-fiscal-field { margin-bottom:10px; }
+.cli-fiscal-field label { display:block; font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
+.cli-fiscal-field input, .cli-fiscal-field select { width:100%; box-sizing:border-box; padding:7px 9px; border:1px solid #e2e8f0; border-radius:6px; font-size:12px; outline:none; font-family:inherit; }
+.cli-fiscal-field input:focus, .cli-fiscal-field select:focus { border-color:#2563eb; }
+.cli-fiscal-actions { display:flex; gap:8px; margin-top:12px; }
+.cli-fiscal-save { background:#166534; color:#fff; border:none; padding:7px 14px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; }
+.cli-fiscal-save:hover { background:#15803d; }
+.cli-fiscal-cancel { background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; padding:7px 14px; border-radius:6px; font-size:12px; cursor:pointer; }
+
 /* contraseña */
 .cli-pass-row { display:flex; align-items:center; gap:8px; }
 .cli-pass-val { font-family:monospace; font-size:14px; color:#1e293b; font-weight:600; letter-spacing:.8px; }
@@ -240,8 +270,11 @@ function renderTabla() {
     const tipo = (c.localidad||c.tipo) === 'foraneo'
       ? '<span class="badge-foraneo">For&#225;neo</span>'
       : '<span class="badge-local">Local</span>';
+    const rfcBadge = c.rfc
+      ? '<span class="cli-fiscal-badge ok" title="RFC registrado">&#10003; RFC</span>'
+      : '<span class="cli-fiscal-badge no" title="Sin datos fiscales">RFC</span>';
     return `<tr onclick="cliAbrirPanel(${c.id})">
-      <td class="cli-nombre">${nombre}</td>
+      <td class="cli-nombre">${nombre}${rfcBadge}</td>
       <td style="color:#64748b">${c.contacto||'&#8212;'}</td>
       <td style="color:#64748b">${c.telefono||'&#8212;'}</td>
       <td style="color:#64748b;font-size:12px">${c.email||'&#8212;'}</td>
@@ -316,6 +349,9 @@ window.cliAbrirPanel = function(id) {
     <div class="cli-info-row">
       <div class="cli-info-label">&#128176; Saldo a Favor</div>
       <div class="cli-info-valor" id="panel-saldo-favor"><span style="color:#94a3b8">Cargando...</span></div>
+    </div>
+    <div class="cli-info-row" id="panel-fiscal-section">
+      ${cliFiscalSeccionHtml(c)}
     </div>
     <div class="cli-info-row">
       <div class="cli-info-label">Contraseña Portal</div>
@@ -573,6 +609,203 @@ window.cliGuardarTelefono = async function(id, campo) {
     if (idx >= 0) _cliData[idx][campo] = nuevoValor;
     cliAbrirPanel(id);
   } catch(e) { alert('Error: ' + e.message); }
+};
+
+// ── Datos Fiscales ────────────────────────────────────────────────────────────
+
+const REGIMENES = {
+  '601':'601 – General de Ley Personas Morales',
+  '603':'603 – Personas Morales sin Fines de Lucro',
+  '606':'606 – Arrendamiento',
+  '612':'612 – Pers. Físicas Actividades Empresariales',
+  '616':'616 – Sin obligaciones fiscales',
+  '621':'621 – Incorporación Fiscal',
+  '625':'625 – Plataformas Tecnológicas',
+  '626':'626 – Régimen Simplificado de Confianza (Resico)',
+};
+
+function cliFiscalSeccionHtml(c) {
+  const tieneRfc = !!(c.rfc);
+  const badge = tieneRfc
+    ? '<span class="cli-fiscal-badge ok">&#10003; RFC registrado</span>'
+    : '<span class="cli-fiscal-badge no">Sin datos fiscales</span>';
+
+  let datosHtml = '';
+  if (tieneRfc) {
+    datosHtml = `
+      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em">RFC</div>
+          <div style="font-family:monospace;font-weight:700;font-size:13px;color:#1e293b">${c.rfc}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em">CP Fiscal</div>
+          <div style="font-size:13px;color:#1e293b">${c.cp_fiscal || '—'}</div>
+        </div>
+        <div style="grid-column:1/-1">
+          <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em">Régimen Fiscal</div>
+          <div style="font-size:12px;color:#1e293b">${c.regimen_fiscal ? (REGIMENES[c.regimen_fiscal] || c.regimen_fiscal) : '—'}</div>
+        </div>
+      </div>`;
+  } else {
+    datosHtml = '<div style="font-size:12px;color:#94a3b8;margin-top:6px">Sin datos fiscales. Sube la Constancia de Situación Fiscal para registrarlos.</div>';
+  }
+
+  const btnLabel = tieneRfc ? '&#128196; Actualizar desde CSF' : '&#128196; Subir Constancia SAT';
+
+  return `
+    <div class="cli-info-label" style="display:flex;justify-content:space-between;align-items:center">
+      <span>Datos Fiscales ${badge}</span>
+      <button class="cli-btn-sm" onclick="cliFiscalAbrirWidget(${c.id})">${btnLabel}</button>
+    </div>
+    ${datosHtml}
+    <div id="panel-fiscal-widget"></div>`;
+}
+
+window.cliFiscalAbrirWidget = function(id) {
+  const widget = document.getElementById('panel-fiscal-widget');
+  if (!widget) return;
+
+  const regimenOptions = Object.entries(REGIMENES).map(([k,v]) =>
+    `<option value="${k}">${v}</option>`
+  ).join('');
+
+  widget.innerHTML = `
+    <label class="cli-fiscal-drop" id="cli-fis-drop-${id}"
+      ondragover="cliFiscalDrag(event,true,'${id}')"
+      ondragleave="cliFiscalDrag(event,false,'${id}')"
+      ondrop="cliFiscalDrop(event,'${id}')">
+      <input type="file" id="cli-fis-file-${id}" accept=".pdf,application/pdf"
+        onchange="cliFiscalSubir(this.files[0],'${id}')">
+      <div class="cli-fiscal-drop-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      </div>
+      <div>
+        <strong style="display:block;font-size:12px;color:#1e293b">Subir Constancia de Situación Fiscal</strong>
+        <span style="font-size:11px;color:#64748b">PDF del SAT — extrae RFC, CP y régimen automáticamente</span>
+      </div>
+    </label>
+    <div class="cli-fiscal-loading" id="cli-fis-loading-${id}">
+      <div class="cli-fiscal-spin"></div> Extrayendo datos del PDF&#8230;
+    </div>
+    <div class="cli-fiscal-error" id="cli-fis-error-${id}"></div>
+    <div class="cli-fiscal-preview" id="cli-fis-preview-${id}">
+      <h5>&#10003; Datos encontrados — revisa y guarda</h5>
+      <div class="cli-fiscal-field">
+        <label>RFC</label>
+        <input type="text" id="cli-fis-rfc-${id}" maxlength="13" style="text-transform:uppercase"
+          oninput="this.value=this.value.toUpperCase()">
+      </div>
+      <div class="cli-fiscal-field">
+        <label>CP Fiscal</label>
+        <input type="text" id="cli-fis-cp-${id}" maxlength="5">
+      </div>
+      <div class="cli-fiscal-field">
+        <label>Régimen Fiscal</label>
+        <select id="cli-fis-reg-${id}">
+          <option value="">— Selecciona —</option>
+          ${regimenOptions}
+        </select>
+      </div>
+      <div class="cli-fiscal-actions">
+        <button class="cli-fiscal-save" onclick="cliFiscalGuardar(${id})">Guardar en cliente</button>
+        <button class="cli-fiscal-cancel" onclick="cliFiscalCerrarWidget()">Cancelar</button>
+      </div>
+    </div>`;
+};
+
+window.cliFiscalCerrarWidget = function() {
+  const widget = document.getElementById('panel-fiscal-widget');
+  if (widget) widget.innerHTML = '';
+};
+
+window.cliFiscalDrag = function(e, over, id) {
+  e.preventDefault();
+  const drop = document.getElementById('cli-fis-drop-' + id);
+  if (drop) drop.classList.toggle('drag', over);
+};
+
+window.cliFiscalDrop = function(e, id) {
+  e.preventDefault();
+  const drop = document.getElementById('cli-fis-drop-' + id);
+  if (drop) drop.classList.remove('drag');
+  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) cliFiscalSubir(file, id);
+};
+
+window.cliFiscalSubir = async function(file, id) {
+  if (!file) return;
+  if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
+    cliFiscalError(id, 'Solo se aceptan archivos PDF'); return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    cliFiscalError(id, 'Archivo demasiado grande (máx 5 MB)'); return;
+  }
+
+  cliFiscalError(id, '');
+  const loading = document.getElementById('cli-fis-loading-' + id);
+  const preview = document.getElementById('cli-fis-preview-' + id);
+  if (loading) loading.classList.add('vis');
+  if (preview) preview.classList.remove('vis');
+
+  try {
+    const fd = new FormData();
+    fd.append('constancia', file);
+    const r   = await fetch('../api/extraer_constancia.php', { method:'POST', headers:{'X-SPA-Request':'1'}, body:fd });
+    const res = await r.json();
+    if (loading) loading.classList.remove('vis');
+
+    if (!res.ok) { cliFiscalError(id, res.error || 'No se pudo leer la constancia'); return; }
+
+    const d = res.datos;
+    const rfcEl = document.getElementById('cli-fis-rfc-' + id);
+    const cpEl  = document.getElementById('cli-fis-cp-'  + id);
+    const regEl = document.getElementById('cli-fis-reg-' + id);
+    if (rfcEl) rfcEl.value = (d.rfc || '').toUpperCase();
+    if (cpEl)  cpEl.value  = d.cp  || '';
+    // Régimen: tomar el primero si viene array
+    if (regEl && d.regimen && d.regimen.length) regEl.value = d.regimen[0].cod || '';
+
+    if (preview) preview.classList.add('vis');
+  } catch(e) {
+    if (loading) loading.classList.remove('vis');
+    cliFiscalError(id, 'Error de conexión al procesar la constancia');
+  }
+};
+
+function cliFiscalError(id, msg) {
+  const el = document.getElementById('cli-fis-error-' + id);
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'cli-fiscal-error' + (msg ? ' vis' : '');
+}
+
+window.cliFiscalGuardar = async function(id) {
+  const rfc = (document.getElementById('cli-fis-rfc-' + id)?.value || '').trim().toUpperCase();
+  const cp  = (document.getElementById('cli-fis-cp-'  + id)?.value || '').trim();
+  const reg = (document.getElementById('cli-fis-reg-' + id)?.value || '').trim();
+
+  if (!rfc) { cliFiscalError(id, 'El RFC es obligatorio'); return; }
+
+  try {
+    const r = await fetch('../api/clientes.php?accion=guardar_fiscal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-SPA-Request': '1' },
+      body: JSON.stringify({ id, rfc, cp_fiscal: cp, regimen_fiscal: reg })
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error desconocido');
+
+    // Actualizar en memoria y refrescar panel
+    const idx = _cliData.findIndex(x => x.id == id);
+    if (idx >= 0) {
+      _cliData[idx].rfc            = rfc;
+      _cliData[idx].cp_fiscal      = cp;
+      _cliData[idx].regimen_fiscal = reg;
+    }
+    renderTabla();
+    cliAbrirPanel(id);
+  } catch(e) { cliFiscalError(id, 'Error al guardar: ' + e.message); }
 };
 
 cliCargar();

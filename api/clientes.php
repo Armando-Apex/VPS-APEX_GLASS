@@ -47,7 +47,9 @@ if ($method === 'GET') {
     }
     $pass_col = $ver_pass ? ', portal_password' : '';
     $stmt = $pdo->prepare("
-        SELECT id, codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email, localidad, ciudad, activo, created_at
+        SELECT id, codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email,
+               rfc, cp_fiscal, regimen_fiscal,
+               localidad, ciudad, activo, created_at
         $pass_col, portal_activo
         FROM clientes c $where ORDER BY codigo ASC LIMIT 350
     ");
@@ -167,6 +169,40 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_telefono') {
     echo json_encode(['ok' => true, 'campo' => $campo, 'valor' => $nuevoValor ?? '']); exit;
 }
 
+// ─── POST accion=guardar_fiscal ───────────────────────────────────────────────
+// Guarda RFC, CP fiscal y régimen desde la Constancia de Situación Fiscal (CSF)
+if ($method === 'POST' && ($_GET['accion'] ?? '') === 'guardar_fiscal') {
+    $id             = (int)($body['id'] ?? 0);
+    $rfc            = strtoupper(trim($body['rfc']            ?? '')) ?: null;
+    $cp_fiscal      = trim($body['cp_fiscal']      ?? '') ?: null;
+    $regimen_fiscal = trim($body['regimen_fiscal']  ?? '') ?: null;
+
+    if (!$id) { echo json_encode(['ok'=>false,'error'=>'ID requerido']); exit; }
+
+    $stmt = $pdo->prepare("SELECT rfc, cp_fiscal, regimen_fiscal FROM clientes WHERE id = ?");
+    $stmt->execute([$id]);
+    $actual = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$actual) { echo json_encode(['ok'=>false,'error'=>'Cliente no encontrado']); exit; }
+
+    $pdo->prepare("UPDATE clientes SET rfc=?, cp_fiscal=?, regimen_fiscal=?, updated_at=NOW() WHERE id=?")
+        ->execute([$rfc, $cp_fiscal, $regimen_fiscal, $id]);
+
+    $stmt_log = $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?,?,?,?,?,?)");
+    $cambios = [
+        'RFC'            => ['rfc',            $actual['rfc'],            $rfc],
+        'CP Fiscal'      => ['cp_fiscal',      $actual['cp_fiscal'],      $cp_fiscal],
+        'Régimen Fiscal' => ['regimen_fiscal',  $actual['regimen_fiscal'], $regimen_fiscal],
+    ];
+    foreach ($cambios as $etiqueta => $vals) {
+        if ((string)($vals[1] ?? '') !== (string)($vals[2] ?? '')) {
+            $stmt_log->execute([$id, $etiqueta, $vals[1] ?? '', $vals[2] ?? '', $usuario_id, $usuario_nombre]);
+        }
+    }
+
+    echo json_encode(['ok'=>true, 'rfc'=>$rfc, 'cp_fiscal'=>$cp_fiscal, 'regimen_fiscal'=>$regimen_fiscal]);
+    exit;
+}
+
 // ─── POST ──────────────────────────────────────────────────────────────────────
 if ($method === 'POST') {
     $razon_social     = strtoupper(trim($body['razon_social']     ?? ''));
@@ -185,8 +221,12 @@ if ($method === 'POST') {
     $next  = ($row['max_num'] ?? 146) + 1;
     $codigo = 'CTN-' . $next;
 
-    $pdo->prepare("INSERT INTO clientes (codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email, localidad, ciudad) VALUES (?,?,?,?,?,?,?,?,?)")
-        ->execute([$codigo, $razon_social, $razon_social, $contacto, $telefono, $telefono_alterno ?: null, $email, $localidad, $ciudad]);
+    $rfc            = strtoupper(trim($body['rfc']            ?? '')) ?: null;
+    $cp_fiscal      = trim($body['cp_fiscal']      ?? '') ?: null;
+    $regimen_fiscal = trim($body['regimen_fiscal']  ?? '') ?: null;
+
+    $pdo->prepare("INSERT INTO clientes (codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email, localidad, ciudad, rfc, cp_fiscal, regimen_fiscal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
+        ->execute([$codigo, $razon_social, $razon_social, $contacto, $telefono, $telefono_alterno ?: null, $email, $localidad, $ciudad, $rfc, $cp_fiscal, $regimen_fiscal]);
     $new_id = $pdo->lastInsertId();
 
     $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'CREACION', '', ?, ?, ?)")
@@ -213,10 +253,13 @@ if ($method === 'PUT') {
         'email'            => trim($body['email']           ?? $actual['email']),
         'localidad'        => in_array($body['localidad'] ?? '', ['local','foraneo']) ? $body['localidad'] : $actual['localidad'],
         'ciudad'           => trim($body['ciudad']          ?? $actual['ciudad']),
+        'rfc'              => strtoupper(trim($body['rfc']            ?? $actual['rfc'] ?? '')) ?: null,
+        'cp_fiscal'        => trim($body['cp_fiscal']      ?? $actual['cp_fiscal'] ?? '') ?: null,
+        'regimen_fiscal'   => trim($body['regimen_fiscal']  ?? $actual['regimen_fiscal'] ?? '') ?: null,
     ];
     if (isset($body['activo']) && $es_admin) $campos['activo'] = (int)$body['activo'];
 
-    $etiquetas = ['razon_social'=>'Razón Social','contacto'=>'Contacto','telefono'=>'Teléfono','telefono_alterno'=>'Teléfono Alterno WA','email'=>'Email','localidad'=>'Localidad','ciudad'=>'Ciudad','activo'=>'Estatus'];
+    $etiquetas = ['razon_social'=>'Razón Social','contacto'=>'Contacto','telefono'=>'Teléfono','telefono_alterno'=>'Teléfono Alterno WA','email'=>'Email','localidad'=>'Localidad','ciudad'=>'Ciudad','activo'=>'Estatus','rfc'=>'RFC','cp_fiscal'=>'CP Fiscal','regimen_fiscal'=>'Régimen Fiscal'];
     $stmt_log  = $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?,?,?,?,?,?)");
 
     foreach ($campos as $campo => $nuevo) {

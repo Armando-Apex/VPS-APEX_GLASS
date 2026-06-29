@@ -9,6 +9,26 @@ $pdo  = getDB();
 
 $accion = $_GET['accion'] ?? '';
 
+// ── GET buscar_clientes ───────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_clientes') {
+    $q = trim($_GET['q'] ?? '');
+    if (strlen($q) < 2) { echo json_encode(['ok'=>true,'clientes'=>[]]); exit; }
+    $like = '%' . $q . '%';
+    $stmt = $pdo->prepare("
+        SELECT id, codigo, razon_social, nombre, email,
+               rfc, cp_fiscal, regimen_fiscal
+        FROM clientes
+        WHERE activo = 1
+          AND (razon_social LIKE ? OR nombre LIKE ? OR codigo LIKE ?)
+        ORDER BY razon_social ASC
+        LIMIT 10
+    ");
+    $stmt->execute([$like, $like, $like]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode(['ok'=>true,'clientes'=>$rows]);
+    exit;
+}
+
 // ── GET lista ─────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'lista') {
     $rows = $pdo->query("

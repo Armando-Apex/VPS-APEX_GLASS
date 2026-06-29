@@ -154,7 +154,7 @@ $regimenes_conocidos = [
     '616' => '616 – Sin obligaciones fiscales',
     '621' => '621 – Incorporación Fiscal',
     '625' => '625 – Plataformas Tecnológicas',
-    '626' => '626 – Resico',
+    '626' => '626 – Régimen Simplificado de Confianza (Resico)',
 ];
 
 foreach ($regimenes_conocidos as $cod => $label) {
@@ -173,7 +173,7 @@ if (empty($datos['regimen'])) {
         '616' => 'Sin obligaciones fiscales',
         '621' => 'Incorporaci[oó]n Fiscal',
         '625' => 'Plataformas',
-        '626' => 'Resico',
+        '626' => 'R[eé]gimen Simplificado de Confianza|RESICO',
     ];
     foreach ($patrones_regimen as $cod => $pat) {
         if (preg_match('/' . $pat . '/ui', $texto)) {

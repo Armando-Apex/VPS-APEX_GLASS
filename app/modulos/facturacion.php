@@ -127,6 +127,26 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .fac-cst-error { font-size: 12px; color: #dc2626; background: #fee2e2; border-radius: 7px; padding: 8px 12px; display: none; margin-top: 8px; }
 .fac-cst-error.visible { display: block; }
 
+/* Buscador cliente CRM */
+.fac-cli-wrap { position:relative; }
+.fac-cli-drop {
+  display:none; position:absolute; top:100%; left:0; right:0;
+  background:#fff; border:1px solid #e2e8f0; border-radius:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,.1); z-index:2100;
+  max-height:240px; overflow-y:auto; margin-top:2px;
+}
+.fac-cli-drop.open { display:block; }
+.fac-cli-opt { padding:10px 14px; cursor:pointer; border-bottom:1px solid #f1f5f9; }
+.fac-cli-opt:last-child { border-bottom:none; }
+.fac-cli-opt:hover { background:#f8fafc; }
+.fac-cli-opt-nombre { font-size:13px; font-weight:600; color:#1e293b; }
+.fac-cli-opt-sub { font-size:11px; color:#94a3b8; margin-top:1px; display:flex; gap:8px; }
+.fac-cli-opt-rfc { font-family:monospace; font-size:11px; color:#2563eb; font-weight:700; }
+.fac-cli-ok  { font-size:11px; background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:6px 10px; margin-top:6px; color:#166534; display:none; }
+.fac-cli-ok.vis  { display:block; }
+.fac-cli-warn { font-size:11px; background:#fef3c7; border:1px solid #fbbf24; border-radius:6px; padding:6px 10px; margin-top:6px; color:#92400e; display:none; }
+.fac-cli-warn.vis { display:block; }
+
 /* UUID box */
 .fac-uuid-box { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 10px 14px; margin-top: 12px; font-size: 12px; }
 .fac-uuid-box label { font-size: 10px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 4px; }
@@ -243,8 +263,18 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
         </div>
       </div>
 
-      <!-- Receptor -->
+      <!-- Buscar cliente CRM -->
       <div class="fac-section-title">Receptor (Cliente)</div>
+      <div class="fac-field" style="margin-bottom:14px">
+        <label>Buscar cliente en CRM</label>
+        <div class="fac-cli-wrap">
+          <input type="text" id="fac-cli-q" placeholder="Nombre, razón social o CTN-XXX&#8230;" autocomplete="off"
+            oninput="ModFacturacion.buscarCliente()" onkeydown="ModFacturacion.buscarTecla(event)">
+          <div id="fac-cli-drop" class="fac-cli-drop"></div>
+        </div>
+        <div id="fac-cli-ok"   class="fac-cli-ok">&#10003; <strong id="fac-cli-ok-nombre"></strong> seleccionado — datos pre-llenados desde el CRM. <button onclick="ModFacturacion.limpiarCliente()" style="background:none;border:none;color:#166534;text-decoration:underline;cursor:pointer;font-size:11px;padding:0">Limpiar</button></div>
+        <div id="fac-cli-warn" class="fac-cli-warn">&#9888; Este cliente no tiene datos fiscales en el CRM. Sube la Constancia SAT abajo o agrégalos en el m&#243;dulo <strong>Clientes</strong>.</div>
+      </div>
       <div class="fac-row cols2">
         <div class="fac-field">
           <label>Nombre / Razón Social</label>
@@ -316,7 +346,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
             <option value="616">616 – Sin obligaciones fiscales</option>
             <option value="621">621 – Incorporación Fiscal</option>
             <option value="625">625 – Plataformas Tecnológicas</option>
-            <option value="626">626 – Resico</option>
+            <option value="626">626 – Régimen Simplificado de Confianza (Resico)</option>
           </select>
         </div>
       </div>
@@ -598,7 +628,21 @@ var ModFacturacion = (function() {
     tbody.innerHTML = html;
   }
 
+  function _resetBuscador() {
+    var qEl = document.getElementById('fac-cli-q');
+    if (qEl) qEl.value = '';
+    _cerrarSugerencias();
+    _cliOpciones = [];
+    var okEl   = document.getElementById('fac-cli-ok');
+    var warnEl = document.getElementById('fac-cli-warn');
+    if (okEl)   okEl.className = 'fac-cli-ok';
+    if (warnEl) warnEl.className = 'fac-cli-warn';
+    var cstDrop = document.getElementById('fac-cst-drop');
+    if (cstDrop) cstDrop.style.opacity = '1';
+  }
+
   function _clearForm() {
+    _resetBuscador();
     document.getElementById('fac-edit-id').value    = '';
     document.getElementById('fac-folio').value      = '(se asigna al guardar)';
     document.getElementById('fac-fecha').value      = new Date().toISOString().slice(0,10);
@@ -822,6 +866,130 @@ var ModFacturacion = (function() {
     document.getElementById('fac-conceptos-body').innerHTML += _conceptoRow('', '44111702', '', 1, '');
     recalc();
   }
+
+  // ── Buscador cliente CRM ──────────────────────────────────────────────────────
+  var _cliTimer    = null;
+  var _cliActivo   = -1;
+  var _cliOpciones = [];
+
+  function buscarCliente() {
+    clearTimeout(_cliTimer);
+    _cliActivo = -1;
+    var q = (document.getElementById('fac-cli-q') || {}).value || '';
+    if (q.trim().length < 2) { _cerrarSugerencias(); return; }
+    _cliTimer = setTimeout(function() {
+      _apiFetch('../api/facturapi.php?accion=buscar_clientes&q=' + encodeURIComponent(q.trim()), {}, function(err, res) {
+        if (err || !res.ok) return;
+        _cliOpciones = res.clientes || [];
+        _renderSugerencias(_cliOpciones);
+      });
+    }, 280);
+  }
+
+  function buscarTecla(e) {
+    var drop = document.getElementById('fac-cli-drop');
+    if (!drop || !drop.classList.contains('open')) return;
+    var items = drop.querySelectorAll('.fac-cli-opt');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _cliActivo = Math.min(_cliActivo + 1, items.length - 1);
+      _marcarActivo(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _cliActivo = Math.max(_cliActivo - 1, 0);
+      _marcarActivo(items);
+    } else if (e.key === 'Enter' && _cliActivo >= 0) {
+      e.preventDefault();
+      if (_cliOpciones[_cliActivo]) _seleccionarCliente(_cliOpciones[_cliActivo]);
+    } else if (e.key === 'Escape') {
+      _cerrarSugerencias();
+    }
+  }
+
+  function _marcarActivo(items) {
+    for (var i = 0; i < items.length; i++) {
+      items[i].style.background = (i === _cliActivo) ? '#eff6ff' : '';
+    }
+  }
+
+  function _renderSugerencias(lista) {
+    var drop = document.getElementById('fac-cli-drop');
+    if (!drop) return;
+    if (!lista.length) {
+      drop.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:#94a3b8">Sin resultados</div>';
+      drop.classList.add('open');
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < lista.length; i++) {
+      var c = lista[i];
+      var nombre = c.razon_social || c.nombre || '—';
+      var rfcTag = c.rfc
+        ? '<span class="fac-cli-opt-rfc">' + c.rfc + '</span>'
+        : '<span style="color:#fbbf24;font-size:11px">Sin RFC</span>';
+      html += '<div class="fac-cli-opt" onclick="ModFacturacion._seleccionarClienteIdx(' + i + ')">';
+      html += '<div class="fac-cli-opt-nombre">' + nombre + '</div>';
+      html += '<div class="fac-cli-opt-sub">' + rfcTag + '<span>' + (c.codigo || '') + '</span></div>';
+      html += '</div>';
+    }
+    drop.innerHTML = html;
+    drop.classList.add('open');
+  }
+
+  function _cerrarSugerencias() {
+    var drop = document.getElementById('fac-cli-drop');
+    if (drop) { drop.innerHTML = ''; drop.classList.remove('open'); }
+  }
+
+  function _seleccionarClienteIdx(idx) {
+    if (_cliOpciones[idx]) _seleccionarCliente(_cliOpciones[idx]);
+  }
+
+  function _seleccionarCliente(c) {
+    _cerrarSugerencias();
+    var nombre = c.razon_social || c.nombre || '';
+    var qEl = document.getElementById('fac-cli-q');
+    if (qEl) qEl.value = nombre;
+
+    // Pre-llenar campos del receptor
+    var setVal = function(id, val) { var el = document.getElementById(id); if (el) el.value = val || ''; };
+    setVal('fac-receptor-nombre', nombre);
+    setVal('fac-email',   c.email          || '');
+    setVal('fac-rfc',     c.rfc            || '');
+    setVal('fac-cp',      c.cp_fiscal      || '');
+    setVal('fac-regimen', c.regimen_fiscal || '');
+
+    // Aviso según si tiene o no datos fiscales completos
+    var tieneFiscal = !!(c.rfc && c.cp_fiscal && c.regimen_fiscal);
+    var okEl   = document.getElementById('fac-cli-ok');
+    var warnEl = document.getElementById('fac-cli-warn');
+    var okNom  = document.getElementById('fac-cli-ok-nombre');
+    if (okEl)   okEl.className   = 'fac-cli-ok'   + (tieneFiscal  ? ' vis' : '');
+    if (warnEl) warnEl.className = 'fac-cli-warn'  + (!tieneFiscal ? ' vis' : '');
+    if (okNom)  okNom.textContent = nombre;
+
+    // Si ya tiene RFC completo, bajar opacidad de la zona CSF (ya no es necesaria)
+    var cstDrop = document.getElementById('fac-cst-drop');
+    if (cstDrop) cstDrop.style.opacity = tieneFiscal ? '0.4' : '1';
+  }
+
+  function limpiarCliente() {
+    var qEl = document.getElementById('fac-cli-q');
+    if (qEl) qEl.value = '';
+    _cerrarSugerencias();
+    _cliOpciones = [];
+    var okEl   = document.getElementById('fac-cli-ok');
+    var warnEl = document.getElementById('fac-cli-warn');
+    if (okEl)   okEl.className   = 'fac-cli-ok';
+    if (warnEl) warnEl.className = 'fac-cli-warn';
+    var cstDrop = document.getElementById('fac-cst-drop');
+    if (cstDrop) cstDrop.style.opacity = '1';
+  }
+
+  // Cerrar sugerencias al click fuera del buscador
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.fac-cli-wrap')) _cerrarSugerencias();
+  });
 
   // ── Menú 3 puntos ─────────────────────────────────────────────────────────
   function menuToggle(btn) {
@@ -1138,9 +1306,13 @@ var ModFacturacion = (function() {
     cstAplicar:      cstAplicar,
     cstDescartar:    cstDescartar,
     tipoChange:      tipoChange,
-    timbrar:         timbrar,
-    menuToggle:      menuToggle,
-    menuCerrar:      menuCerrar
+    timbrar:              timbrar,
+    menuToggle:           menuToggle,
+    menuCerrar:           menuCerrar,
+    buscarCliente:        buscarCliente,
+    buscarTecla:          buscarTecla,
+    _seleccionarClienteIdx: _seleccionarClienteIdx,
+    limpiarCliente:       limpiarCliente
   };
 })();
 
