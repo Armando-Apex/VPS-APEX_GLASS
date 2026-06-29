@@ -39,7 +39,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .fac-menu-wrap { position: relative; display: inline-block; }
 .fac-menu-btn { background: none; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 10px; font-size: 16px; cursor: pointer; line-height: 1; color: #64748b; }
 .fac-menu-btn:hover { background: #f1f5f9; }
-.fac-menu-drop { display: none; position: absolute; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.1); min-width: 150px; z-index: 999; padding: 4px 0; }
+.fac-menu-drop { display: none; position: fixed; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.1); min-width: 150px; z-index: 9999; padding: 4px 0; }
 .fac-menu-drop.open { display: block; }
 .fac-menu-item { display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 14px; font-size: 13px; cursor: pointer; color: #1e293b; white-space: nowrap; text-decoration: none; box-sizing: border-box; }
 .fac-menu-item:hover { background: #f1f5f9; }
@@ -738,7 +738,12 @@ var ModFacturacion = (function() {
   }
 
   function eliminar(id) {
-    if (!confirm('¿Eliminar esta factura borrador? Esta acción no se puede deshacer.')) return;
+    var f = null;
+    for (var i = 0; i < _facturas.length; i++) { if (String(_facturas[i].id) === String(id)) { f = _facturas[i]; break; } }
+    var msg = (f && f.estatus === 'timbrada')
+      ? 'Esta factura fue timbrada en modo PRUEBA.\n¿Eliminarla? Esta acción no se puede deshacer.'
+      : '¿Eliminar esta factura borrador? Esta acción no se puede deshacer.';
+    if (!confirm(msg)) return;
     _apiFetch('../api/facturapi.php?accion=eliminar', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
       if (err || !res.ok) { alert(err || res.error || 'Error al eliminar'); return; }
       _cargarLista();
@@ -823,7 +828,13 @@ var ModFacturacion = (function() {
     var drop = btn.nextSibling;
     var isOpen = drop.classList.contains('open');
     menuCerrar();
-    if (!isOpen) drop.classList.add('open');
+    if (!isOpen) {
+      var rect = btn.getBoundingClientRect();
+      drop.style.top  = (rect.bottom + 4) + 'px';
+      drop.style.left = (rect.right - 150) + 'px';
+      if (parseFloat(drop.style.left) < 8) drop.style.left = '8px';
+      drop.classList.add('open');
+    }
   }
 
   function menuCerrar() {
