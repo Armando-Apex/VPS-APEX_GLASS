@@ -33,30 +33,66 @@ if ($file['size'] > 5 * 1024 * 1024) {
     exit;
 }
 
-// Guardar en directorio temporal seguro fuera del webroot
-$tmpDir  = '/home/apexglass2025/tmp/constancias';
+// Guardar en directorio temporal — /tmp siempre es escribible por PHP-FPM
+$tmpDir  = sys_get_temp_dir() . '/apex_csf';
 if (!is_dir($tmpDir)) mkdir($tmpDir, 0700, true);
-$tmpFile = $tmpDir . '/' . bin2hex(random_bytes(8)) . '.pdf';
+$token   = bin2hex(random_bytes(8));
+$tmpFile = $tmpDir . '/' . $token . '.pdf';
 
 if (!move_uploaded_file($file['tmp_name'], $tmpFile)) {
     echo json_encode(['ok' => false, 'error' => 'Error al procesar el archivo']);
     exit;
 }
 
-// Extraer texto con pdftotext (solo primera página)
+// ── Diagnóstico: verificar que exec() esté disponible ────────────────────────
+if (!function_exists('exec') || in_array('exec', array_map('trim', explode(',', ini_get('disable_functions'))))) {
+    error_log('APEX CSF: exec() no disponible — disable_functions=' . ini_get('disable_functions'));
+    echo json_encode(['ok' => false, 'error' => 'CONFIG: exec() deshabilitado en este servidor. Contacta al administrador.']);
+    exit;
+}
+
+// ── Intento 1: pdftotext (PDFs nativos con capa de texto) ────────────────────
 $outFile = $tmpFile . '.txt';
-$cmd = 'pdftotext -f 1 -l 2 ' . escapeshellarg($tmpFile) . ' ' . escapeshellarg($outFile) . ' 2>&1';
-exec($cmd, $output, $ret);
+exec('pdftotext -f 1 -l 2 ' . escapeshellarg($tmpFile) . ' ' . escapeshellarg($outFile) . ' 2>/dev/null', $_, $ret);
+error_log('APEX CSF: pdftotext ret=' . $ret . ' texto_len=' . (file_exists($outFile) ? filesize($outFile) : 0));
 
 $texto = '';
 if ($ret === 0 && file_exists($outFile)) {
-    $texto = file_get_contents($outFile);
+    $texto = trim(file_get_contents($outFile));
     unlink($outFile);
 }
+
+// ── Intento 2: OCR con Tesseract (PDFs escaneados / "Print to PDF") ──────────
+$usedOcr = false;
+if (strlen($texto) < 100) {
+    $ppmBase = $tmpDir . '/' . $token . '_pg';
+    // Convertir páginas 1 y 2 para capturar identificación + régimen fiscal
+    exec('pdftoppm -r 200 -f 1 -l 2 ' . escapeshellarg($tmpFile) . ' ' . escapeshellarg($ppmBase) . ' 2>/dev/null', $_, $ret2);
+
+    $textoOcr = '';
+    foreach (['-1.ppm', '-2.ppm', '-01.ppm', '-02.ppm'] as $sufijo) {
+        $ppmFile = $ppmBase . $sufijo;
+        if (!file_exists($ppmFile)) continue;
+        $ocrOut = $tmpDir . '/' . $token . '_ocr' . $sufijo;
+        exec('tesseract ' . escapeshellarg($ppmFile) . ' ' . escapeshellarg($ocrOut) . ' -l spa 2>/dev/null');
+        $ocrTxt = $ocrOut . '.txt';
+        if (file_exists($ocrTxt)) {
+            $textoOcr .= "\n" . file_get_contents($ocrTxt);
+            unlink($ocrTxt);
+        }
+        unlink($ppmFile);
+    }
+
+    if (trim($textoOcr)) {
+        $texto   = trim($textoOcr);
+        $usedOcr = true;
+    }
+}
+
 unlink($tmpFile);
 
 if (!$texto) {
-    echo json_encode(['ok' => false, 'error' => 'No se pudo extraer texto del PDF. Verifica que no sea una imagen escaneada.']);
+    echo json_encode(['ok' => false, 'error' => 'No se pudo extraer texto del PDF. Intenta con el PDF original descargado del portal del SAT.']);
     exit;
 }
 
@@ -73,7 +109,9 @@ $datos = [
 // RFC: 12 o 13 caracteres alfanuméricos con formato SAT
 // Personas morales: 3 letras + 6 dígitos + 3 alfanum
 // Personas físicas: 4 letras + 6 dígitos + 3 alfanum
-if (preg_match('/\b([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})\b/', $texto, $m)) {
+// OCR puede confundir Ñ con N o introducir espacios — limpiar antes
+$textoRfc = preg_replace('/\s+/', ' ', strtoupper($texto));
+if (preg_match('/\b([A-ZN&]{3,4}\d{6}[A-Z0-9]{3})\b/', $textoRfc, $m)) {
     $datos['rfc'] = $m[1];
 }
 
@@ -84,14 +122,26 @@ if (preg_match('/(?:Denominaci[oó]n\s*\/?\s*Raz[oó]n\s*Social\s*[:\n\r]+)\s*([
 }
 
 // Personas físicas: nombre completo desde "Nombre(s)" + apellidos
-// La constancia pone: Nombre (s) [NOMBRE]\nApellido Paterno [AP]\nApellido Materno [AM]
+// PDF nativo SAT: "Apellido Paterno / Apellido Materno"
+// PDF escaneado/OCR: "Primer Apellido / Segundo Apellido"
 if (!$datos['nombre']) {
     $nom = $ap = $am = '';
-    if (preg_match('/Nombre\s*\(s\)\s*[:\n\r]*\s*([^\n\r]+)/ui', $texto, $m)) $nom = trim($m[1]);
-    if (preg_match('/Apellido\s+Paterno\s*[:\n\r]*\s*([^\n\r]+)/ui', $texto, $m)) $ap  = trim($m[1]);
-    if (preg_match('/Apellido\s+Materno\s*[:\n\r]*\s*([^\n\r]+)/ui', $texto, $m)) $am  = trim($m[1]);
+    if (preg_match('/Nombre\s*\(?s\)?\s*[:\n\r]+\s*([^\n\r]+)/ui', $texto, $m)) $nom = trim($m[1]);
+    // Apellido paterno: tanto "Apellido Paterno" como "Primer Apellido"
+    if (preg_match('/(?:Apellido\s+Paterno|Primer\s+Apellido)\s*[:\n\r]+\s*([^\n\r]+)/ui', $texto, $m)) $ap = trim($m[1]);
+    // Apellido materno: tanto "Apellido Materno" como "Segundo Apellido"
+    if (preg_match('/(?:Apellido\s+Materno|Segundo\s+Apellido)\s*[:\n\r]+\s*([^\n\r]+)/ui', $texto, $m)) $am = trim($m[1]);
     $partes = array_filter([$ap, $am, $nom]);
     if ($partes) $datos['nombre'] = implode(' ', $partes);
+}
+
+// Fallback OCR: nombre aparece antes del label "Nombre, denominación o razón social"
+// Formato: RFC\nNOMBRE COMPLETO\nApellido siguiente línea\nNombre, denominación...
+if (!$datos['nombre'] && $usedOcr) {
+    if (preg_match('/\b[A-Z]{3,4}\d{6}[A-Z0-9]{3}\b\s*\n+\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+)\n[A-ZÁÉÍÓÚÑ\s]*\nNombre,/u', $texto, $m)) {
+        $lineas = array_filter(array_map('trim', explode("\n", $m[1])));
+        $datos['nombre'] = implode(' ', $lineas);
+    }
 }
 
 // CP Fiscal: 5 dígitos después de "Código Postal" en la sección de domicilio

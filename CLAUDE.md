@@ -470,4 +470,5 @@ Al terminar cualquier sesión con cambios:
 |
 
 | UPD-251 | 29-jun | Mando | Fix Eliminar en timbradas modo test: causa raíz era `.fac-table-wrap { overflow:hidden }` cortando el dropdown — el HTML y lógica `f.modo==='test'` eran correctos; dropdown cambiado a `position:fixed` con coordenadas via `getBoundingClientRect()` en `menuToggle()`; fix IDOR faltante UPD-249: `AND creado_por=?` en DELETE de `api/facturapi.php`; confirm() diferenciado para timbradas vs borradores |
-**Próximo UPD disponible: UPD-252**
+| UPD-252 | 29-jun | Mando | Lector CSF con OCR: instalar tesseract + tesseract-langpack-spa en VPS; api/extraer_constancia.php detecta automáticamente si el PDF tiene capa de texto (pdftotext) o es imagen (Print to PDF/escaneado) y usa pdftoppm+tesseract como fallback; OCR pages 1-2; regex nombre físico acepta "Primer/Segundo Apellido" (formato OCR) además de "Apellido Paterno/Materno" (PDF nativo SAT) |
+**Próximo UPD disponible: UPD-253**

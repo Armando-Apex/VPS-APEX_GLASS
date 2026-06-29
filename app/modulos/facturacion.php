@@ -916,14 +916,20 @@ var ModFacturacion = (function() {
                   textos[num] = linea;
                   pending--;
                   if (pending === 0) {
-                    document.getElementById('fac-cst-loading').classList.remove('visible');
-                    var texto = textos.join(' ');
-                    var datos = _cstExtraer(texto);
-                    if (!datos.rfc && !datos.nombre && !datos.cp) {
-                      _cstError('No se encontraron datos fiscales. Verifica que sea una Constancia de Situación Fiscal del SAT.');
-                      return;
+                    var texto = textos.join(' ').trim();
+                    // PDF nativo con texto suficiente → parsear directo
+                    if (texto.length > 100) {
+                      document.getElementById('fac-cst-loading').classList.remove('visible');
+                      var datos = _cstExtraer(texto);
+                      if (!datos.rfc && !datos.nombre && !datos.cp) {
+                        _cstError('No se encontraron datos fiscales. Verifica que sea una Constancia de Situación Fiscal del SAT.');
+                        return;
+                      }
+                      _cstMostrar(datos);
+                    } else {
+                      // PDF de imagen (Print to PDF / escaneado) → OCR en servidor
+                      _cstOcrServidor(file);
                     }
-                    _cstMostrar(datos);
                   }
                 });
               });
@@ -940,6 +946,37 @@ var ModFacturacion = (function() {
       };
       reader.readAsArrayBuffer(file);
     });
+  }
+
+  function _cstOcrServidor(file) {
+    var fd = new FormData();
+    fd.append('constancia', file);
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '../api/extraer_constancia.php');
+    xhr.setRequestHeader('X-SPA-Request', '1');
+    xhr.onload = function() {
+      document.getElementById('fac-cst-loading').classList.remove('visible');
+      var res;
+      try { res = JSON.parse(xhr.responseText); } catch(e) { res = {ok:false,error:'Error del servidor'}; }
+      if (!res.ok) { _cstError(res.error || 'No se pudo leer la constancia'); return; }
+      var d = res.datos;
+      var datos = {
+        rfc:     d.rfc     || '',
+        nombre:  d.nombre  || '',
+        cp:      d.cp      || '',
+        regimen: d.regimen || []
+      };
+      if (!datos.rfc && !datos.nombre && !datos.cp) {
+        _cstError('No se encontraron datos fiscales. Verifica que sea una Constancia de Situación Fiscal del SAT.');
+        return;
+      }
+      _cstMostrar(datos);
+    };
+    xhr.onerror = function() {
+      document.getElementById('fac-cst-loading').classList.remove('visible');
+      _cstError('Error de conexión al procesar la constancia');
+    };
+    xhr.send(fd);
   }
 
   function _cstExtraer(texto) {
