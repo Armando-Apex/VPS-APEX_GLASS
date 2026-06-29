@@ -3,7 +3,7 @@ require_once __DIR__ . '/../api/config.php';
 require_once __DIR__ . '/../api/permisos.php';
 
 // Roles que tienen acceso a operador.php
-$rolesOperador = ['operador','chofer','jefe_piso','director','dir_admin'];
+$rolesOperador = ['operador','chofer','jefe_piso','director','dir_admin','desarrollo'];
 
 if (session_status() === PHP_SESSION_NONE) session_start();
 

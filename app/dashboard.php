@@ -326,6 +326,11 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
         <span class="sidebar-icon"><?= icono('flag') ?></span>Reportes
       </button>
       <?php endif; ?>
+      <?php if ($esDesarrollo): ?>
+      <a class="sidebar-link" href="operador.php" target="_blank" style="text-decoration:none">
+        <span class="sidebar-icon"><?= icono('settings') ?></span>Vista Operador
+      </a>
+      <?php endif; ?>
     </div>
     <?php endif; ?>
     <?php if ($esInventario): ?>
