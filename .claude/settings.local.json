@@ -102,7 +102,13 @@
       "Bash(sed -i 's/^#MaxAuthTries 6/MaxAuthTries 3/' /etc/ssh/sshd_config)",
       "Bash(sshd -t)",
       "Read(//etc/ssl/bolt/**)",
-      "Bash(openssl x509 *)"
+      "Bash(openssl x509 *)",
+      "Bash(firewall-cmd --list-all)",
+      "Bash(cp /etc/ssl/bolt/cert.pem /etc/ssl/bolt/cert.pem.bak)",
+      "Bash(cp /etc/ssl/bolt/fullchain.pem /etc/ssl/bolt/fullchain.pem.bak)",
+      "Bash(cp /etc/ssl/bolt/privkey.pem /etc/ssl/bolt/privkey.pem.bak)",
+      "Bash(cp /home/apexglass2025/panel.apex.glass/certs/fullchain.pem /etc/ssl/bolt/cert.pem)",
+      "Bash(cp /home/apexglass2025/panel.apex.glass/certs/fullchain.pem /etc/ssl/bolt/fullchain.pem)"
     ]
   },
   "hooks": {
