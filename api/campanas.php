@@ -483,6 +483,11 @@ if ($metodo === 'POST' && $accion === 'responder') {
 
 // ── POST enviar template directo desde inbox (reabrir ventana 24h) ──
 if ($metodo === 'POST' && $accion === 'template_inbox') {
+    if (!$puedeEnviar) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Sin permiso para enviar mensajes']);
+        exit;
+    }
     $body     = json_decode(file_get_contents('php://input'), true);
     $convId   = (int)($body['conversacion_id'] ?? 0);
     $template = trim($body['template_nombre'] ?? '');
