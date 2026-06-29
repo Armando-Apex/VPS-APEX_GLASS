@@ -1071,7 +1071,7 @@ var ModCampanas = (function() {
         fetch('/produccion/api/campanas.php?accion=template_inbox', {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'X-CSRF-Token': (window._csrfToken || '')},
-            body: JSON.stringify({conversacion_id: _convActiva, template_nombre: tmpl})
+            body: JSON.stringify({conversacion_id: _convActiva, template_nombre: tmpl, nombre_cliente: _convActivaNombre})
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {

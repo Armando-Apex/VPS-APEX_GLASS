@@ -504,6 +504,14 @@ if ($metodo === 'POST' && $accion === 'template_inbox') {
         echo json_encode(['error' => 'Conversación no encontrada']);
         exit;
     }
+    $nombreCliente = substr(strip_tags(trim($body['nombre_cliente'] ?? '')), 0, 60);
+    $components = [];
+    if ($nombreCliente !== '') {
+        $components[] = [
+            'type'       => 'body',
+            'parameters' => [['type' => 'text', 'text' => $nombreCliente]]
+        ];
+    }
     $payload = [
         'messaging_product' => 'whatsapp',
         'to'                => $conv['telefono'],
@@ -511,7 +519,7 @@ if ($metodo === 'POST' && $accion === 'template_inbox') {
         'template'          => [
             'name'       => $template,
             'language'   => ['code' => 'es_MX'],
-            'components' => []
+            'components' => $components
         ]
     ];
     $res  = enviarMensajeWA($payload);
@@ -521,10 +529,13 @@ if ($metodo === 'POST' && $accion === 'template_inbox') {
         echo json_encode(['error' => 'Error Meta API', 'detalle' => $res['data']]);
         exit;
     }
+    $contenido = $nombreCliente
+        ? '[Template: ' . $template . ' → ' . $nombreCliente . ']'
+        : '[Template: ' . $template . ']';
     $db->prepare("INSERT INTO whatsapp_mensajes
         (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por)
         VALUES (?, 'outbound', ?, 'texto', ?, ?)")
-       ->execute([$convId, '[Template: ' . $template . ']', $waId, $user['nombre']]);
+       ->execute([$convId, $contenido, $waId, $user['nombre']]);
     $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
        ->execute([$convId]);
     echo json_encode(['ok' => true]);

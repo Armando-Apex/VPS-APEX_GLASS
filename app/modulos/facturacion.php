@@ -613,7 +613,7 @@ var ModFacturacion = (function() {
     document.getElementById('fac-forma-pago').value  = '';
     document.getElementById('fac-metodo-pago').value = '';
     tipoChange();
-    document.getElementById('fac-conceptos-body').innerHTML = _conceptoRow('Vidrio templado', '44111702', 'M2', 1, '', true);
+    document.getElementById('fac-conceptos-body').innerHTML = _conceptoRow('Vidrio templado', '44111702', '', 1, '', true);
     recalc();
   }
 
@@ -687,7 +687,7 @@ var ModFacturacion = (function() {
       var c = conceptos[j];
       tbody.innerHTML += _conceptoRow(c.desc, c.clave, c.unidad, c.cant, c.precio, c.iva);
     }
-    if (!conceptos.length) tbody.innerHTML = _conceptoRow('', '44111702', 'M2', 1, '', true);
+    if (!conceptos.length) tbody.innerHTML = _conceptoRow('', '44111702', '', 1, '', true);
     recalc();
     document.getElementById('fac-overlay').classList.add('open');
   }
