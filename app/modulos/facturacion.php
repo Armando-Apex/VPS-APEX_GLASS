@@ -624,7 +624,7 @@ var ModFacturacion = (function() {
       var desc   = rows[i].querySelector('.fac-c-desc').value;
       var clave  = rows[i].querySelector('.fac-c-clave').value;
       var unidadEl = rows[i].querySelector('.fac-c-unidad');
-      var unidad   = unidadEl ? unidadEl.value : 'M2';
+      var unidad   = unidadEl ? unidadEl.value : '';
       var cant     = parseFloat(rows[i].querySelector('.fac-c-cant').value)   || 0;
       var precio   = parseFloat(rows[i].querySelector('.fac-c-precio').value) || 0;
       var ivaChk   = rows[i].querySelector('.fac-c-iva');
@@ -819,7 +819,7 @@ var ModFacturacion = (function() {
   }
 
   function agregarConcepto() {
-    document.getElementById('fac-conceptos-body').innerHTML += _conceptoRow('', '44111702', 'M2', 1, '');
+    document.getElementById('fac-conceptos-body').innerHTML += _conceptoRow('', '44111702', '', 1, '');
     recalc();
   }
 
