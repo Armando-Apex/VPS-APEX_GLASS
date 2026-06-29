@@ -64,11 +64,6 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno']);
 .conv-ventana-cerrada{background:#fef3c7;border-top:1px solid #fde68a;padding:10px 14px;font-size:12px;color:#92400e;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
 .conv-ventana-cerrada button{background:#d97706;color:#fff;border:none;border-radius:5px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;white-space:nowrap;}
 .conv-ventana-cerrada button:hover{background:#b45309;}
-.conv-reabrir-panel{padding:10px 14px;background:#fff;border-top:1px solid #e2e8f0;display:flex;gap:8px;align-items:center;}
-.conv-reabrir-panel select{flex:1;border:1px solid #d1d5db;border-radius:5px;padding:6px 8px;font-size:12px;color:#1e293b;}
-.conv-reabrir-panel .btn-tmpl{background:#16a34a;color:#fff;border:none;border-radius:5px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
-.conv-reabrir-panel .btn-tmpl:hover{background:#15803d;}
-.conv-reabrir-panel .btn-tmpl:disabled{background:#94a3b8;cursor:not-allowed;}
 @media(max-width:640px){
   .conv-panel{flex-direction:column;height:auto;}
   .conv-lista{width:100%;height:200px;border-right:none;border-bottom:1px solid #e2e8f0;}
@@ -933,11 +928,7 @@ var ModCampanas = (function() {
             inputHtml =
                 '<div class="conv-ventana-cerrada">' +
                 '<span>&#128274; Ventana cerrada &middot; &uacute;ltima actividad: ' + fechaLeg + '</span>' +
-                '<button onclick="window.cmpReobrirConv()">Enviar template para reabrir</button>' +
-                '</div>' +
-                '<div id="cmpReobrirPanel" style="display:none;" class="conv-reabrir-panel">' +
-                '<select id="cmpTemplateReabrir"><option value="">Cargando plantillas...</option></select>' +
-                '<button class="btn-tmpl" onclick="window.cmpEnviarTemplateInbox()">Enviar</button>' +
+                '<button id="cmpBtnReabrir" onclick="window.cmpEnviarTemplateInbox()">Reactivar conversaci&oacute;n</button>' +
                 '</div>';
         } else {
             inputHtml =
@@ -1055,43 +1046,31 @@ var ModCampanas = (function() {
           });
     }
 
-    function reabrirConv() {
-        var panel = document.getElementById('cmpReobrirPanel');
-        if (!panel) return;
-        panel.style.display = (panel.style.display === 'none' || panel.style.display === '') ? 'flex' : 'none';
-    }
-
     function enviarTemplateInbox() {
-        var sel  = document.getElementById('cmpTemplateReabrir');
-        var tmpl = sel ? sel.value : '';
-        if (!tmpl) { alert('Selecciona un template'); return; }
         if (!_convActiva) return;
-        var btn = document.querySelector('#cmpReobrirPanel .btn-tmpl');
+        var btn = document.getElementById('cmpBtnReabrir');
         if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
         fetch('/produccion/api/campanas.php?accion=template_inbox', {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'X-CSRF-Token': (window._csrfToken || '')},
-            body: JSON.stringify({conversacion_id: _convActiva, template_nombre: tmpl, nombre_cliente: _convActivaNombre})
+            body: JSON.stringify({conversacion_id: _convActiva, template_nombre: 'atencion_apex', nombre_cliente: _convActivaNombre})
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.ok) {
                 _convActividadMap[_convActiva] = new Date().toISOString().replace('T', ' ').substring(0, 19);
                 cargarMensajes(_convActiva);
-                var panel = document.getElementById('cmpReobrirPanel');
-                if (panel) panel.style.display = 'none';
                 var banner = document.querySelector('.conv-ventana-cerrada span');
-                if (banner) banner.innerHTML = '&#9989; Template enviado &middot; La ventana se abrir&aacute; cuando el cliente responda.';
-                var bannerBtn = document.querySelector('.conv-ventana-cerrada button');
-                if (bannerBtn) bannerBtn.style.display = 'none';
+                if (banner) banner.innerHTML = '&#9989; Mensaje enviado &middot; La ventana se abrir&aacute; cuando el cliente responda.';
+                if (btn) { btn.style.display = 'none'; }
             } else {
                 alert('Error: ' + (data.error || 'desconocido'));
-                if (btn) { btn.disabled = false; btn.textContent = 'Enviar'; }
+                if (btn) { btn.disabled = false; btn.textContent = 'Reactivar conversación'; }
             }
         })
         .catch(function() {
             alert('Error de red al enviar template');
-            if (btn) { btn.disabled = false; btn.textContent = 'Enviar'; }
+            if (btn) { btn.disabled = false; btn.textContent = 'Reactivar conversación'; }
         });
     }
 
@@ -1218,7 +1197,6 @@ var ModCampanas = (function() {
     window.cmpSeleccionarTemplate = seleccionarTemplate;
     window.cmpQuitarMedia         = quitarMedia;
     window.cmpArchivoSeleccionado = archivoSeleccionado;
-    window.cmpReobrirConv         = reabrirConv;
     window.cmpEnviarTemplateInbox = enviarTemplateInbox;
 
     return { init: init };
