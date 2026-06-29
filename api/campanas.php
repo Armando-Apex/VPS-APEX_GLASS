@@ -481,6 +481,51 @@ if ($metodo === 'POST' && $accion === 'responder') {
     exit;
 }
 
+// ── POST enviar template directo desde inbox (reabrir ventana 24h) ──
+if ($metodo === 'POST' && $accion === 'template_inbox') {
+    $body     = json_decode(file_get_contents('php://input'), true);
+    $convId   = (int)($body['conversacion_id'] ?? 0);
+    $template = trim($body['template_nombre'] ?? '');
+    if (!$convId || !$template) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Faltan campos']);
+        exit;
+    }
+    $stmtConv = $db->prepare("SELECT * FROM whatsapp_conversaciones WHERE id = ?");
+    $stmtConv->execute([$convId]);
+    $conv = $stmtConv->fetch(PDO::FETCH_ASSOC);
+    if (!$conv) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Conversación no encontrada']);
+        exit;
+    }
+    $payload = [
+        'messaging_product' => 'whatsapp',
+        'to'                => $conv['telefono'],
+        'type'              => 'template',
+        'template'          => [
+            'name'       => $template,
+            'language'   => ['code' => 'es_MX'],
+            'components' => []
+        ]
+    ];
+    $res  = enviarMensajeWA($payload);
+    $waId = $res['data']['messages'][0]['id'] ?? null;
+    if (!$waId) {
+        http_response_code(502);
+        echo json_encode(['error' => 'Error Meta API', 'detalle' => $res['data']]);
+        exit;
+    }
+    $db->prepare("INSERT INTO whatsapp_mensajes
+        (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por)
+        VALUES (?, 'outbound', ?, 'texto', ?, ?)")
+       ->execute([$convId, '[Template: ' . $template . ']', $waId, $user['nombre']]);
+    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
+       ->execute([$convId]);
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
 // ── POST enviar media (imagen/documento) en conversación ─────
 if ($metodo === 'POST' && $accion === 'enviar_media') {
     $convId = (int)($_POST['conversacion_id'] ?? 0);

@@ -44,17 +44,9 @@ if (!move_uploaded_file($file['tmp_name'], $tmpFile)) {
     exit;
 }
 
-// ── Diagnóstico: verificar que exec() esté disponible ────────────────────────
-if (!function_exists('exec') || in_array('exec', array_map('trim', explode(',', ini_get('disable_functions'))))) {
-    error_log('APEX CSF: exec() no disponible — disable_functions=' . ini_get('disable_functions'));
-    echo json_encode(['ok' => false, 'error' => 'CONFIG: exec() deshabilitado en este servidor. Contacta al administrador.']);
-    exit;
-}
-
 // ── Intento 1: pdftotext (PDFs nativos con capa de texto) ────────────────────
 $outFile = $tmpFile . '.txt';
 exec('pdftotext -f 1 -l 2 ' . escapeshellarg($tmpFile) . ' ' . escapeshellarg($outFile) . ' 2>/dev/null', $_, $ret);
-error_log('APEX CSF: pdftotext ret=' . $ret . ' texto_len=' . (file_exists($outFile) ? filesize($outFile) : 0));
 
 $texto = '';
 if ($ret === 0 && file_exists($outFile)) {
@@ -65,22 +57,23 @@ if ($ret === 0 && file_exists($outFile)) {
 // ── Intento 2: OCR con Tesseract (PDFs escaneados / "Print to PDF") ──────────
 $usedOcr = false;
 if (strlen($texto) < 100) {
-    $ppmBase = $tmpDir . '/' . $token . '_pg';
-    // Convertir páginas 1 y 2 para capturar identificación + régimen fiscal
-    exec('pdftoppm -r 200 -f 1 -l 2 ' . escapeshellarg($tmpFile) . ' ' . escapeshellarg($ppmBase) . ' 2>/dev/null', $_, $ret2);
+    $jpgBase = $tmpDir . '/' . $token . '_pg';
+    // Solo página 1 (RFC, nombre y CP siempre están ahí); régimen se selecciona manualmente si no se detecta
+    exec('pdftoppm -r 150 -f 1 -l 1 -jpeg ' . escapeshellarg($tmpFile) . ' ' . escapeshellarg($jpgBase) . ' 2>/dev/null', $_, $ret2);
 
     $textoOcr = '';
-    foreach (['-1.ppm', '-2.ppm', '-01.ppm', '-02.ppm'] as $sufijo) {
-        $ppmFile = $ppmBase . $sufijo;
-        if (!file_exists($ppmFile)) continue;
-        $ocrOut = $tmpDir . '/' . $token . '_ocr' . $sufijo;
-        exec('tesseract ' . escapeshellarg($ppmFile) . ' ' . escapeshellarg($ocrOut) . ' -l spa 2>/dev/null');
+    foreach (['-1.jpg', '-01.jpg'] as $sufijo) {
+        $imgFile = $jpgBase . $sufijo;
+        if (!file_exists($imgFile)) continue;
+        $ocrOut = $tmpDir . '/' . $token . '_ocr';
+        exec('tesseract ' . escapeshellarg($imgFile) . ' ' . escapeshellarg($ocrOut) . ' -l spa --psm 6 2>/dev/null');
         $ocrTxt = $ocrOut . '.txt';
         if (file_exists($ocrTxt)) {
-            $textoOcr .= "\n" . file_get_contents($ocrTxt);
+            $textoOcr = file_get_contents($ocrTxt);
             unlink($ocrTxt);
         }
-        unlink($ppmFile);
+        unlink($imgFile);
+        break;
     }
 
     if (trim($textoOcr)) {

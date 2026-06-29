@@ -61,6 +61,14 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno']);
 .conv-media-preview .prev-nombre{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .conv-media-preview .prev-quitar{background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px;padding:0 4px;}
 .conv-vacio{flex:1;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px;flex-direction:column;gap:8px;}
+.conv-ventana-cerrada{background:#fef3c7;border-top:1px solid #fde68a;padding:10px 14px;font-size:12px;color:#92400e;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.conv-ventana-cerrada button{background:#d97706;color:#fff;border:none;border-radius:5px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;white-space:nowrap;}
+.conv-ventana-cerrada button:hover{background:#b45309;}
+.conv-reabrir-panel{padding:10px 14px;background:#fff;border-top:1px solid #e2e8f0;display:flex;gap:8px;align-items:center;}
+.conv-reabrir-panel select{flex:1;border:1px solid #d1d5db;border-radius:5px;padding:6px 8px;font-size:12px;color:#1e293b;}
+.conv-reabrir-panel .btn-tmpl{background:#16a34a;color:#fff;border:none;border-radius:5px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.conv-reabrir-panel .btn-tmpl:hover{background:#15803d;}
+.conv-reabrir-panel .btn-tmpl:disabled{background:#94a3b8;cursor:not-allowed;}
 @media(max-width:640px){
   .conv-panel{flex-direction:column;height:auto;}
   .conv-lista{width:100%;height:200px;border-right:none;border-bottom:1px solid #e2e8f0;}
@@ -856,6 +864,7 @@ var ModCampanas = (function() {
 
     // ── Conversaciones ────────────────────────────────────────
     var _convTipoMap = {};
+    var _convActividadMap = {};
 
     var _tipoBadge = {
         cliente:     '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;background:#dbeafe;color:#1d4ed8;margin-left:6px;vertical-align:middle;">CRM</span>',
@@ -871,10 +880,12 @@ var ModCampanas = (function() {
             var html = '';
             var sinLeerTotal = 0;
             _convTipoMap = {};
+            _convActividadMap = {};
             (data.conversaciones || []).forEach(function(c) {
                 var sl   = parseInt(c.mensajes_sin_leer) || 0;
                 var tipo = c.tipo_contacto || 'desconocido';
-                _convTipoMap[c.id] = tipo;
+                _convTipoMap[c.id]      = tipo;
+                _convActividadMap[c.id] = c.ultima_actividad || null;
                 sinLeerTotal += sl;
                 var badgeSL   = sl > 0 ? '<span class="conv-badge">' + sl + '</span>' : '';
                 var badgeTipo = _tipoBadge[tipo] || '';
@@ -904,45 +915,91 @@ var ModCampanas = (function() {
         var tipo      = _convTipoMap[convId] || 'desconocido';
         var badgeTipo = _tipoBadge[tipo] || '';
 
+        // Verificar ventana 24h
+        var ultimaActividad = _convActividadMap[convId] || null;
+        var ventanaAbierta  = true;
+        var fechaLeg        = '';
+        if (ultimaActividad) {
+            var diffMs = Date.now() - new Date(ultimaActividad.replace(' ', 'T')).getTime();
+            ventanaAbierta = diffMs < 24 * 3600 * 1000;
+            if (!ventanaAbierta) {
+                var d = new Date(ultimaActividad.replace(' ', 'T'));
+                fechaLeg = d.toLocaleString('es-MX', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
+            }
+        }
+
+        var inputHtml;
+        if (!ventanaAbierta) {
+            inputHtml =
+                '<div class="conv-ventana-cerrada">' +
+                '<span>&#128274; Ventana cerrada &middot; &uacute;ltima actividad: ' + fechaLeg + '</span>' +
+                '<button onclick="window.cmpReobrirConv()">Enviar template para reabrir</button>' +
+                '</div>' +
+                '<div id="cmpReobrirPanel" style="display:none;" class="conv-reabrir-panel">' +
+                '<select id="cmpTemplateReabrir"><option value="">Cargando plantillas...</option></select>' +
+                '<button class="btn-tmpl" onclick="window.cmpEnviarTemplateInbox()">Enviar</button>' +
+                '</div>';
+        } else {
+            inputHtml =
+                '<div class="conv-input">' +
+                '<div id="cmpMediaPreview" style="display:none;" class="conv-media-preview">' +
+                '<img id="cmpMediaThumb" src="" style="display:none;">' +
+                '<span class="prev-nombre" id="cmpMediaNombre"></span>' +
+                '<button class="prev-quitar" onclick="window.cmpQuitarMedia()">&#x2715;</button>' +
+                '</div>' +
+                '<div class="conv-input-row">' +
+                '<input type="file" id="cmpFileInput" accept="image/*,.pdf" style="display:none;" onchange="window.cmpArchivoSeleccionado(this)">' +
+                '<button class="conv-btn-clip" onclick="document.getElementById(\'cmpFileInput\').click()" title="Adjuntar archivo">&#128206;</button>' +
+                '<textarea id="cmpMsgInput" placeholder="Escribe tu respuesta... (Ctrl+V para pegar imagen)" maxlength="4096"></textarea>' +
+                '<button onclick="window.cmpEnviarMensaje()">Enviar</button>' +
+                '</div>' +
+                '</div>';
+        }
+
         var chat = document.getElementById('cmpConvChat');
         chat.innerHTML =
             '<div class="conv-header">' + esc(_convActivaNombre) + badgeTipo + '</div>' +
             '<div class="conv-mensajes" id="cmpMsgs"><p style="color:#94a3b8;font-size:12px;text-align:center;">Cargando mensajes...</p></div>' +
-            '<div class="conv-input">' +
-            '<div id="cmpMediaPreview" style="display:none;" class="conv-media-preview">' +
-            '<img id="cmpMediaThumb" src="" style="display:none;">' +
-            '<span class="prev-nombre" id="cmpMediaNombre"></span>' +
-            '<button class="prev-quitar" onclick="window.cmpQuitarMedia()">&#x2715;</button>' +
-            '</div>' +
-            '<div class="conv-input-row">' +
-            '<input type="file" id="cmpFileInput" accept="image/*,.pdf" style="display:none;" onchange="window.cmpArchivoSeleccionado(this)">' +
-            '<button class="conv-btn-clip" onclick="document.getElementById(\'cmpFileInput\').click()" title="Adjuntar archivo">&#128206;</button>' +
-            '<textarea id="cmpMsgInput" placeholder="Escribe tu respuesta... (Ctrl+V para pegar imagen)" maxlength="4096"></textarea>' +
-            '<button onclick="window.cmpEnviarMensaje()">Enviar</button>' +
-            '</div>' +
-            '</div>';
+            inputHtml;
 
-        // Enter para enviar (Shift+Enter = nueva línea)
-        var textarea = document.getElementById('cmpMsgInput');
-        if (textarea) {
-            textarea.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    window.cmpEnviarMensaje();
-                }
-            });
-            // Pegar imagen desde clipboard
-            textarea.addEventListener('paste', function(e) {
-                var items = (e.clipboardData || e.originalEvent.clipboardData).items;
-                for (var i = 0; i < items.length; i++) {
-                    if (items[i].type.indexOf('image') !== -1) {
+        if (ventanaAbierta) {
+            // Enter para enviar (Shift+Enter = nueva línea)
+            var textarea = document.getElementById('cmpMsgInput');
+            if (textarea) {
+                textarea.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
-                        var blob = items[i].getAsFile();
-                        cmpSetMedia(blob, 'imagen_pegada.png');
-                        break;
+                        window.cmpEnviarMensaje();
                     }
-                }
-            });
+                });
+                // Pegar imagen desde clipboard
+                textarea.addEventListener('paste', function(e) {
+                    var items = (e.clipboardData || e.originalEvent.clipboardData).items;
+                    for (var i = 0; i < items.length; i++) {
+                        if (items[i].type.indexOf('image') !== -1) {
+                            e.preventDefault();
+                            var blob = items[i].getAsFile();
+                            cmpSetMedia(blob, 'imagen_pegada.png');
+                            break;
+                        }
+                    }
+                });
+            }
+        } else {
+            // Cargar plantillas para el panel de reapertura
+            fetch('/produccion/api/campanas.php?accion=listar_plantillas')
+              .then(function(r) { return r.json(); })
+              .then(function(data) {
+                var sel = document.getElementById('cmpTemplateReabrir');
+                if (!sel) return;
+                var opts = '<option value="">-- Selecciona un template --</option>';
+                (data.plantillas || []).forEach(function(p) {
+                    if (p.status === 'APPROVED') {
+                        opts += '<option value="' + esc(p.name) + '">' + esc(p.name) + '</option>';
+                    }
+                });
+                sel.innerHTML = opts;
+              });
         }
 
         cargarMensajes(convId);
@@ -996,6 +1053,46 @@ var ModCampanas = (function() {
                 msgsEl.scrollTop = msgsEl.scrollHeight;
             }
           });
+    }
+
+    function reabrirConv() {
+        var panel = document.getElementById('cmpReobrirPanel');
+        if (!panel) return;
+        panel.style.display = (panel.style.display === 'none' || panel.style.display === '') ? 'flex' : 'none';
+    }
+
+    function enviarTemplateInbox() {
+        var sel  = document.getElementById('cmpTemplateReabrir');
+        var tmpl = sel ? sel.value : '';
+        if (!tmpl) { alert('Selecciona un template'); return; }
+        if (!_convActiva) return;
+        var btn = document.querySelector('#cmpReobrirPanel .btn-tmpl');
+        if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+        fetch('/produccion/api/campanas.php?accion=template_inbox', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': (window._csrfToken || '')},
+            body: JSON.stringify({conversacion_id: _convActiva, template_nombre: tmpl})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                _convActividadMap[_convActiva] = new Date().toISOString().replace('T', ' ').substring(0, 19);
+                cargarMensajes(_convActiva);
+                var panel = document.getElementById('cmpReobrirPanel');
+                if (panel) panel.style.display = 'none';
+                var banner = document.querySelector('.conv-ventana-cerrada span');
+                if (banner) banner.innerHTML = '&#9989; Template enviado &middot; La ventana se abrir&aacute; cuando el cliente responda.';
+                var bannerBtn = document.querySelector('.conv-ventana-cerrada button');
+                if (bannerBtn) bannerBtn.style.display = 'none';
+            } else {
+                alert('Error: ' + (data.error || 'desconocido'));
+                if (btn) { btn.disabled = false; btn.textContent = 'Enviar'; }
+            }
+        })
+        .catch(function() {
+            alert('Error de red al enviar template');
+            if (btn) { btn.disabled = false; btn.textContent = 'Enviar'; }
+        });
     }
 
     var _mediaArchivo = null;
@@ -1121,6 +1218,8 @@ var ModCampanas = (function() {
     window.cmpSeleccionarTemplate = seleccionarTemplate;
     window.cmpQuitarMedia         = quitarMedia;
     window.cmpArchivoSeleccionado = archivoSeleccionado;
+    window.cmpReobrirConv         = reabrirConv;
+    window.cmpEnviarTemplateInbox = enviarTemplateInbox;
 
     return { init: init };
 })();
