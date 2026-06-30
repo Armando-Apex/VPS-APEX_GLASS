@@ -23,13 +23,12 @@ if ($method === 'GET') {
     $todos = isset($_GET['todos']) && $_GET['todos'] === '1';
     $where = $todos ? '' : 'WHERE activo = 1';
     $stmt  = $db->query("SELECT id, nombre, precio_default, activo FROM servicios_catalogo $where ORDER BY nombre ASC");
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
+    jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
 }
 
 // Escritura solo dir_admin
 if (!$es_admin) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Solo dir_admin puede gestionar el catálogo']); exit;
+    jsonResponse(['error' => 'Solo dir_admin puede gestionar el catálogo'], 403);
 }
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -40,12 +39,12 @@ if ($method === 'POST') {
     $precio  = (float)($body['precio_default'] ?? 0);
 
     if (!$nombre || $precio <= 0) {
-        echo json_encode(['error' => 'Nombre y precio son requeridos']); exit;
+        jsonResponse(['error' => 'Nombre y precio son requeridos']);
     }
 
     $stmt = $db->prepare("INSERT INTO servicios_catalogo (nombre, precio_default) VALUES (?, ?)");
     $stmt->execute([$nombre, $precio]);
-    echo json_encode(['ok' => true, 'id' => (int)$db->lastInsertId(), 'nombre' => $nombre, 'precio_default' => $precio]); exit;
+    jsonResponse(['ok' => true, 'id' => (int)$db->lastInsertId(), 'nombre' => $nombre, 'precio_default' => $precio]);
 }
 
 // ── PUT editar ────────────────────────────────────────────────────────────────
@@ -55,22 +54,22 @@ if ($method === 'PUT') {
     $precio = (float)($body['precio_default'] ?? 0);
 
     if (!$id || !$nombre || $precio <= 0) {
-        echo json_encode(['error' => 'Datos incompletos']); exit;
+        jsonResponse(['error' => 'Datos incompletos']);
     }
 
     $db->prepare("UPDATE servicios_catalogo SET nombre = ?, precio_default = ? WHERE id = ?")
        ->execute([$nombre, $precio, $id]);
-    echo json_encode(['ok' => true]); exit;
+    jsonResponse(['ok' => true]);
 }
 
 // ── DELETE desactivar ─────────────────────────────────────────────────────────
 if ($method === 'DELETE') {
     $id = (int)($_GET['id'] ?? 0);
-    if (!$id) { echo json_encode(['error' => 'id requerido']); exit; }
+    if (!$id) { jsonResponse(['error' => 'id requerido']); }
 
     $db->prepare("UPDATE servicios_catalogo SET activo = 0 WHERE id = ?")
        ->execute([$id]);
-    echo json_encode(['ok' => true]); exit;
+    jsonResponse(['ok' => true]);
 }
 
-echo json_encode(['error' => 'Método no permitido']); exit;
+jsonResponse(['error' => 'Método no permitido']);

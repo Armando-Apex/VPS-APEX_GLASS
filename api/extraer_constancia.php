@@ -6,13 +6,11 @@ requirePermisoApi('ver_wip');
 header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['ok' => false, 'error' => 'Método no permitido']);
-    exit;
+    jsonResponse(['ok' => false, 'error' => 'Método no permitido'], 405);
 }
 
 if (empty($_FILES['constancia']) || $_FILES['constancia']['error'] !== UPLOAD_ERR_OK) {
-    echo json_encode(['ok' => false, 'error' => 'No se recibió el archivo']);
+    jsonResponse(['ok' => false, 'error' => 'No se recibió el archivo']);
     exit;
 }
 
@@ -24,12 +22,12 @@ $finfo = new finfo(FILEINFO_MIME_TYPE);
 $mime  = $finfo->file($file['tmp_name']);
 
 if ($ext !== 'pdf' || $mime !== 'application/pdf') {
-    echo json_encode(['ok' => false, 'error' => 'Solo se aceptan archivos PDF']);
+    jsonResponse(['ok' => false, 'error' => 'Solo se aceptan archivos PDF']);
     exit;
 }
 
 if ($file['size'] > 5 * 1024 * 1024) {
-    echo json_encode(['ok' => false, 'error' => 'Archivo demasiado grande (máx 5 MB)']);
+    jsonResponse(['ok' => false, 'error' => 'Archivo demasiado grande (máx 5 MB)']);
     exit;
 }
 
@@ -40,7 +38,7 @@ $token   = bin2hex(random_bytes(8));
 $tmpFile = $tmpDir . '/' . $token . '.pdf';
 
 if (!move_uploaded_file($file['tmp_name'], $tmpFile)) {
-    echo json_encode(['ok' => false, 'error' => 'Error al procesar el archivo']);
+    jsonResponse(['ok' => false, 'error' => 'Error al procesar el archivo']);
     exit;
 }
 
@@ -85,7 +83,7 @@ if (strlen($texto) < 100) {
 unlink($tmpFile);
 
 if (!$texto) {
-    echo json_encode(['ok' => false, 'error' => 'No se pudo extraer texto del PDF. Intenta con el PDF original descargado del portal del SAT.']);
+    jsonResponse(['ok' => false, 'error' => 'No se pudo extraer texto del PDF. Intenta con el PDF original descargado del portal del SAT.']);
     exit;
 }
 
@@ -184,11 +182,11 @@ if (empty($datos['regimen'])) {
 
 // Verificación mínima
 if (!$datos['rfc'] && !$datos['nombre']) {
-    echo json_encode([
+    jsonResponse([
         'ok'    => false,
         'error' => 'No se encontraron datos fiscales en el PDF. Verifica que sea una Constancia de Situación Fiscal del SAT.'
     ]);
     exit;
 }
 
-echo json_encode(['ok' => true, 'datos' => $datos]);
+jsonResponse(['ok' => true, 'datos' => $datos]);

@@ -16,8 +16,7 @@ $db             = getDB();
 
 $es_finanzas = in_array($rol, ['administracion', 'dir_admin', 'dueno', 'desarrollo']);
 if (!$es_finanzas) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Sin permiso']); exit;
+    jsonResponse(['error' => 'Sin permiso'], 403);
 }
 
 // ─── Función: calcular fecha entrega desde fecha VoBo ────────────────────────
@@ -92,7 +91,7 @@ if ($method === 'GET') {
             WHERE o.estado = 'pendiente_vobo'
             ORDER BY o.fecha_pedido ASC, o.id ASC
         ");
-        echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
+        jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
     }
 
     // Detalle de una orden con sus pagos
@@ -111,7 +110,7 @@ if ($method === 'GET') {
         ");
         $stmt->execute([$orden_id]);
         $orden = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$orden) { echo json_encode(['error' => 'No encontrada']); exit; }
+        if (!$orden) { jsonResponse(['error' => 'No encontrada']); exit; }
 
         // Pagos registrados
         $stmt2 = $db->prepare("
@@ -125,7 +124,7 @@ if ($method === 'GET') {
         // Fecha entrega sugerida al dar VoBo ahora
         $orden['fecha_vobo_sugerida'] = calcularFechaVobo($db, $orden['localidad'] ?? 'LOCAL', $orden['ciudad_destino'] ?? '');
 
-        echo json_encode($orden); exit;
+        jsonResponse($orden); exit;
     }
 
     // ── Cobranza general — todas las órdenes con cotización ──
@@ -161,10 +160,10 @@ if ($method === 'GET') {
             $stmt2->execute([$ord['cot_id']]);
             $ord['pagos'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
         }
-        echo json_encode($ordenes); exit;
+        jsonResponse($ordenes); exit;
     }
 
-    echo json_encode(['error' => 'Acción no reconocida']); exit;
+    jsonResponse(['error' => 'Acción no reconocida']); exit;
 }
 
 // ─── POST: registrar pago ─────────────────────────────────────────────────────
@@ -176,11 +175,11 @@ if ($method === 'POST') {
         $estatus_pago = $body['estatus_pago'] ?? '';
         $validos      = ['pendiente', 'en_proceso', 'pago_entrega', 'pagado'];
         if (!$cot_id || !in_array($estatus_pago, $validos)) {
-            echo json_encode(['error' => 'Datos inválidos']); exit;
+            jsonResponse(['error' => 'Datos inválidos']); exit;
         }
         $db->prepare("UPDATE cotizaciones SET estatus_pago = ?, updated_at = NOW() WHERE id = ?")
            ->execute([$estatus_pago, $cot_id]);
-        echo json_encode(['ok' => true, 'estatus_pago' => $estatus_pago]); exit;
+        jsonResponse(['ok' => true, 'estatus_pago' => $estatus_pago]); exit;
     }
 
     if ($accion === 'registrar_pago') {
@@ -192,10 +191,10 @@ if ($method === 'POST') {
         $notas     = trim($body['notas']       ?? '');
 
         if (!$cot_id || $monto <= 0) {
-            echo json_encode(['error' => 'Datos incompletos']); exit;
+            jsonResponse(['error' => 'Datos incompletos']); exit;
         }
         if (!in_array($forma, ['efectivo','tarjeta','transferencia','saldo_favor'])) {
-            echo json_encode(['error' => 'Forma de pago inválida']); exit;
+            jsonResponse(['error' => 'Forma de pago inválida']); exit;
         }
 
         $db->beginTransaction();
@@ -286,7 +285,7 @@ if ($method === 'POST') {
                    ->execute([$cot_id]);
             }
 
-            echo json_encode([
+            jsonResponse([
                 'ok'              => true,
                 'saldo_pagado'    => $cot['saldo_pagado'],
                 'total'           => $total_real,
@@ -294,12 +293,12 @@ if ($method === 'POST') {
             ]);
         } catch (Exception $e) {
             $db->rollBack();
-            echo json_encode(['error' => $e->getMessage()]);
+            jsonResponse(['error' => $e->getMessage()]);
         }
         exit;
     }
 
-    echo json_encode(['error' => 'Acción no reconocida']); exit;
+    jsonResponse(['error' => 'Acción no reconocida']); exit;
 }
 
 // ─── PUT: dar VoBo ───────────────────────────────────────────────────────────
@@ -316,7 +315,7 @@ if ($method === 'PUT') {
         $stmt->execute([$orden_id]);
         $orden = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$orden) {
-            echo json_encode(['error' => 'Orden no encontrada o no está pendiente de VoBo']); exit;
+            jsonResponse(['error' => 'Orden no encontrada o no está pendiente de VoBo']); exit;
         }
 
         // Si no viene fecha, calcular ahora
@@ -362,19 +361,19 @@ if ($method === 'PUT') {
                 ]);
             } catch (Exception $ignored) {}
 
-            echo json_encode([
+            jsonResponse([
                 'ok'            => true,
                 'fecha_entrega' => $fecha_entrega,
                 'vobo_por'      => $usuario_nombre,
             ]);
         } catch (Exception $e) {
             $db->rollBack();
-            echo json_encode(['error' => $e->getMessage()]);
+            jsonResponse(['error' => $e->getMessage()]);
         }
         exit;
     }
 
-    echo json_encode(['error' => 'Acción no reconocida']); exit;
+    jsonResponse(['error' => 'Acción no reconocida']); exit;
 }
 
-echo json_encode(['error' => 'Método no soportado']);
+jsonResponse(['error' => 'Método no soportado']);

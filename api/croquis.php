@@ -35,9 +35,9 @@ if ($metodo === 'GET') {
         $stmt = $pdo->prepare("SELECT * FROM croquis_partidas WHERE id = ?");
         $stmt->execute([$id]);
         $row  = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$row) { http_response_code(404); echo json_encode(['error' => 'No encontrado']); exit; }
+        if (!$row) { jsonResponse(['error' => 'No encontrado'], 404); }
         $row = decodificarJson($row);
-        echo json_encode(['ok' => true, 'data' => $row]);
+        jsonResponse(['ok' => true, 'data' => $row]);
         exit;
     }
 
@@ -52,20 +52,18 @@ if ($metodo === 'GET') {
         $stmt->execute([$cot_id]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $rows = array_map('decodificarJson', $rows);
-        echo json_encode(['ok' => true, 'data' => $rows]);
+        jsonResponse(['ok' => true, 'data' => $rows]);
         exit;
     }
 
-    http_response_code(400);
-    echo json_encode(['error' => 'Parámetro requerido: id o cotizacion_id']);
-    exit;
+    jsonResponse(['error' => 'Parámetro requerido: id o cotizacion_id'], 400);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
 //  POST — crear
 // ════════════════════════════════════════════════════════════════════════════
 if ($metodo === 'POST') {
-    if (!$puedeEditar) { http_response_code(403); echo json_encode(['error' => 'Sin permiso']); exit; }
+    if (!$puedeEditar) { jsonResponse(['error' => 'Sin permiso'], 403); }
 
     $cot_id      = (int)($body['cotizacion_id'] ?? 0);
     $num_partida = (int)($body['num_partida']   ?? 0);
@@ -74,24 +72,18 @@ if ($metodo === 'POST') {
     $alto_mm     = (float)($body['alto_mm']     ?? 0);
 
     if (!$cot_id || !$num_partida || !$ancho_mm || !$alto_mm) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Faltan campos obligatorios: cotizacion_id, num_partida, ancho_mm, alto_mm']);
-        exit;
+        jsonResponse(['error' => 'Faltan campos obligatorios: cotizacion_id, num_partida, ancho_mm, alto_mm'], 400);
     }
 
     if (!in_array($forma, ['rect','corte','L','trap','poligono','esq'])) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Forma inválida']);
-        exit;
+        jsonResponse(['error' => 'Forma inválida'], 400);
     }
 
     // Verificar que la cotización existe
     $check = $pdo->prepare("SELECT id FROM cotizaciones WHERE id = ?");
     $check->execute([$cot_id]);
     if (!$check->fetch()) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Cotización no encontrada']);
-        exit;
+        jsonResponse(['error' => 'Cotización no encontrada'], 404);
     }
 
     $params_forma = isset($body['params_forma']) ? json_encode($body['params_forma']) : null;
@@ -113,7 +105,7 @@ if ($metodo === 'POST') {
     ]);
 
     $nuevo_id = (int)$pdo->lastInsertId();
-    echo json_encode(['ok' => true, 'id' => $nuevo_id]);
+    jsonResponse(['ok' => true, 'id' => $nuevo_id]);
     exit;
 }
 
@@ -121,24 +113,22 @@ if ($metodo === 'POST') {
 //  PUT — actualizar
 // ════════════════════════════════════════════════════════════════════════════
 if ($metodo === 'PUT') {
-    if (!$puedeEditar) { http_response_code(403); echo json_encode(['error' => 'Sin permiso']); exit; }
+    if (!$puedeEditar) { jsonResponse(['error' => 'Sin permiso'], 403); }
 
     $id = (int)($body['id'] ?? 0);
-    if (!$id) { http_response_code(400); echo json_encode(['error' => 'ID requerido']); exit; }
+    if (!$id) { jsonResponse(['error' => 'ID requerido'], 400); }
 
     $stmt = $pdo->prepare("SELECT * FROM croquis_partidas WHERE id = ?");
     $stmt->execute([$id]);
     $actual = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$actual) { http_response_code(404); echo json_encode(['error' => 'No encontrado']); exit; }
+    if (!$actual) { jsonResponse(['error' => 'No encontrado'], 404); }
 
     $forma    = $body['forma']    ?? $actual['forma'];
     $ancho_mm = (float)($body['ancho_mm'] ?? $actual['ancho_mm']);
     $alto_mm  = (float)($body['alto_mm']  ?? $actual['alto_mm']);
 
     if (!in_array($forma, ['rect','corte','L','trap','poligono','esq'])) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Forma inválida']);
-        exit;
+        jsonResponse(['error' => 'Forma inválida'], 400);
     }
 
     $params_forma = isset($body['params_forma']) ? json_encode($body['params_forma']) : $actual['params_forma'];
@@ -153,7 +143,7 @@ if ($metodo === 'PUT') {
         WHERE id = ?
     ")->execute([$forma, $ancho_mm, $alto_mm, $params_forma, $elementos, $canteo, $notas ?: null, $id]);
 
-    echo json_encode(['ok' => true]);
+    jsonResponse(['ok' => true]);
     exit;
 }
 
@@ -161,18 +151,17 @@ if ($metodo === 'PUT') {
 //  DELETE
 // ════════════════════════════════════════════════════════════════════════════
 if ($metodo === 'DELETE') {
-    if (!$puedeEliminar) { http_response_code(403); echo json_encode(['error' => 'Solo dir_admin puede eliminar croquis']); exit; }
+    if (!$puedeEliminar) { jsonResponse(['error' => 'Solo dir_admin puede eliminar croquis'], 403); }
 
     $id = (int)($body['id'] ?? $_GET['id'] ?? 0);
-    if (!$id) { http_response_code(400); echo json_encode(['error' => 'ID requerido']); exit; }
+    if (!$id) { jsonResponse(['error' => 'ID requerido'], 400); }
 
     $pdo->prepare("DELETE FROM croquis_partidas WHERE id = ?")->execute([$id]);
-    echo json_encode(['ok' => true]);
+    jsonResponse(['ok' => true]);
     exit;
 }
 
-http_response_code(405);
-echo json_encode(['error' => 'Método no permitido']);
+jsonResponse(['error' => 'Método no permitido'], 405);
 
 // ── Helper: decodifica campos JSON del row ────────────────────────────────
 function decodificarJson($row) {

@@ -26,7 +26,7 @@ if ($method === 'GET') {
         $stmt = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
         $stmt->execute([$id]);
         $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$cliente) { echo json_encode(['error' => 'No encontrado']); exit; }
+        if (!$cliente) { jsonResponse(['error' => 'No encontrado']); exit; }
         if (!$ver_pass) {
             unset($cliente['portal_password'], $cliente['portal_password_hash']);
         } else {
@@ -35,7 +35,7 @@ if ($method === 'GET') {
         $stmt2 = $pdo->prepare("SELECT * FROM clientes_bitacora WHERE cliente_id = ? ORDER BY fecha DESC LIMIT 100");
         $stmt2->execute([$id]);
         $cliente['bitacora'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
-        echo json_encode($cliente); exit;
+        jsonResponse($cliente); exit;
     }
 
     $where  = $activos ? 'WHERE c.activo = 1' : 'WHERE 1=1';
@@ -54,12 +54,11 @@ if ($method === 'GET') {
         FROM clientes c $where ORDER BY codigo ASC LIMIT 350
     ");
     $stmt->execute($params);
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
+    jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
 }
 
 if (!$puede_editar) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Sin permiso']); exit;
+    jsonResponse(['error' => 'Sin permiso'], 403);
 }
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -68,18 +67,18 @@ $body = json_decode(file_get_contents('php://input'), true) ?? [];
 if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_contacto') {
     if (!in_array($rol, ['dir_admin', 'administracion', 'desarrollo'])) {
         http_response_code(403);
-        echo json_encode(['error' => 'Sin permiso']); exit;
+        jsonResponse(['error' => 'Sin permiso']); exit;
     }
 
     $id             = (int)($_POST['id'] ?? 0);
     $nuevoContacto  = strtoupper(trim($_POST['contacto'] ?? ''));
 
-    if (!$id) { echo json_encode(['error' => 'ID requerido']); exit; }
+    if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
 
     $stmt = $pdo->prepare("SELECT contacto FROM clientes WHERE id = ?");
     $stmt->execute([$id]);
     $actual = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$actual) { echo json_encode(['error' => 'Cliente no encontrado']); exit; }
+    if (!$actual) { jsonResponse(['error' => 'Cliente no encontrado']); exit; }
 
     $pdo->prepare("UPDATE clientes SET contacto = ? WHERE id = ?")
         ->execute([$nuevoContacto, $id]);
@@ -87,26 +86,26 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_contacto') {
     $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'Contacto', ?, ?, ?, ?)")
         ->execute([$id, $actual['contacto'] ?? '', $nuevoContacto, $usuario_id, $usuario_nombre]);
 
-    echo json_encode(['ok' => true, 'contacto' => $nuevoContacto]); exit;
+    jsonResponse(['ok' => true, 'contacto' => $nuevoContacto]); exit;
 }
 
 // ─── POST accion=editar_nombre ────────────────────────────────────────────────
 if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_nombre') {
     if (!in_array($rol, ['dir_admin', 'administracion', 'desarrollo'])) {
         http_response_code(403);
-        echo json_encode(['error' => 'Sin permiso']); exit;
+        jsonResponse(['error' => 'Sin permiso']); exit;
     }
 
     $id          = (int)($_POST['id'] ?? 0);
     $nuevoNombre = strtoupper(trim($_POST['nombre'] ?? ''));
 
-    if (!$id)          { echo json_encode(['error' => 'ID requerido']); exit; }
-    if (!$nuevoNombre) { echo json_encode(['error' => 'Nombre requerido']); exit; }
+    if (!$id)          { jsonResponse(['error' => 'ID requerido']); exit; }
+    if (!$nuevoNombre) { jsonResponse(['error' => 'Nombre requerido']); exit; }
 
     $stmt = $pdo->prepare("SELECT nombre, razon_social FROM clientes WHERE id = ?");
     $stmt->execute([$id]);
     $actual = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$actual) { echo json_encode(['error' => 'Cliente no encontrado']); exit; }
+    if (!$actual) { jsonResponse(['error' => 'Cliente no encontrado']); exit; }
 
     $nombreAnterior = $actual['razon_social'] ?: $actual['nombre'];
 
@@ -128,7 +127,7 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_nombre') {
     $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'Nombre', ?, ?, ?, ?)")
         ->execute([$id, $nombreAnterior, $nuevoNombre, $usuario_id, $usuario_nombre]);
 
-    echo json_encode([
+    jsonResponse([
         'ok'                  => true,
         'nombre'              => $nuevoNombre,
         'ordenes_actualizadas'=> $filas1 + $filas2,
@@ -139,22 +138,22 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_nombre') {
 if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_telefono') {
     if (!in_array($rol, ['dir_admin', 'administracion', 'comercial', 'desarrollo'])) {
         http_response_code(403);
-        echo json_encode(['error' => 'Sin permiso']); exit;
+        jsonResponse(['error' => 'Sin permiso']); exit;
     }
 
     $id      = (int)($_POST['id']    ?? 0);
     $campo   = $_POST['campo']        ?? '';
     $valor   = trim($_POST['valor']   ?? '');
 
-    if (!$id) { echo json_encode(['error' => 'ID requerido']); exit; }
+    if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
     if (!in_array($campo, ['telefono', 'telefono_alterno'])) {
-        echo json_encode(['error' => 'Campo inválido']); exit;
+        jsonResponse(['error' => 'Campo inválido']); exit;
     }
 
     $stmt = $pdo->prepare("SELECT telefono, telefono_alterno FROM clientes WHERE id = ?");
     $stmt->execute([$id]);
     $actual = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$actual) { echo json_encode(['error' => 'Cliente no encontrado']); exit; }
+    if (!$actual) { jsonResponse(['error' => 'Cliente no encontrado']); exit; }
 
     $valorAnterior = $actual[$campo] ?? '';
     $nuevoValor    = $valor ?: null;
@@ -166,7 +165,7 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_telefono') {
     $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, ?, ?, ?, ?, ?)")
         ->execute([$id, $etiqueta, $valorAnterior, $nuevoValor ?? '', $usuario_id, $usuario_nombre]);
 
-    echo json_encode(['ok' => true, 'campo' => $campo, 'valor' => $nuevoValor ?? '']); exit;
+    jsonResponse(['ok' => true, 'campo' => $campo, 'valor' => $nuevoValor ?? '']); exit;
 }
 
 // ─── POST accion=guardar_fiscal ───────────────────────────────────────────────
@@ -177,12 +176,12 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'guardar_fiscal') {
     $cp_fiscal      = trim($body['cp_fiscal']      ?? '') ?: null;
     $regimen_fiscal = trim($body['regimen_fiscal']  ?? '') ?: null;
 
-    if (!$id) { echo json_encode(['ok'=>false,'error'=>'ID requerido']); exit; }
+    if (!$id) { jsonResponse(['ok'=>false,'error'=>'ID requerido']); exit; }
 
     $stmt = $pdo->prepare("SELECT rfc, cp_fiscal, regimen_fiscal FROM clientes WHERE id = ?");
     $stmt->execute([$id]);
     $actual = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$actual) { echo json_encode(['ok'=>false,'error'=>'Cliente no encontrado']); exit; }
+    if (!$actual) { jsonResponse(['ok'=>false,'error'=>'Cliente no encontrado']); exit; }
 
     $pdo->prepare("UPDATE clientes SET rfc=?, cp_fiscal=?, regimen_fiscal=?, updated_at=NOW() WHERE id=?")
         ->execute([$rfc, $cp_fiscal, $regimen_fiscal, $id]);
@@ -199,7 +198,7 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'guardar_fiscal') {
         }
     }
 
-    echo json_encode(['ok'=>true, 'rfc'=>$rfc, 'cp_fiscal'=>$cp_fiscal, 'regimen_fiscal'=>$regimen_fiscal]);
+    jsonResponse(['ok'=>true, 'rfc'=>$rfc, 'cp_fiscal'=>$cp_fiscal, 'regimen_fiscal'=>$regimen_fiscal]);
     exit;
 }
 
@@ -213,8 +212,8 @@ if ($method === 'POST') {
     $localidad        = ($body['localidad'] ?? '') === 'foraneo' ? 'foraneo' : 'local';
     $ciudad           = trim($body['ciudad']            ?? '');
 
-    if (!$razon_social) { echo json_encode(['error' => 'La razón social es obligatoria']); exit; }
-    if ($localidad === 'foraneo' && !$ciudad) { echo json_encode(['error' => 'La ciudad es obligatoria para foráneos']); exit; }
+    if (!$razon_social) { jsonResponse(['error' => 'La razón social es obligatoria']); exit; }
+    if ($localidad === 'foraneo' && !$ciudad) { jsonResponse(['error' => 'La ciudad es obligatoria para foráneos']); exit; }
 
     $stmt  = $pdo->query("SELECT MAX(CAST(SUBSTRING(codigo, 5) AS UNSIGNED)) as max_num FROM clientes WHERE codigo LIKE 'CTN-%'");
     $row   = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -232,18 +231,18 @@ if ($method === 'POST') {
     $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'CREACION', '', ?, ?, ?)")
         ->execute([$new_id, "Cliente creado: $razon_social", $usuario_id, $usuario_nombre]);
 
-    echo json_encode(['ok' => true, 'id' => $new_id, 'codigo' => $codigo]); exit;
+    jsonResponse(['ok' => true, 'id' => $new_id, 'codigo' => $codigo]); exit;
 }
 
 // ─── PUT ──────────────────────────────────────────────────────────────────────
 if ($method === 'PUT') {
     $id = (int)($body['id'] ?? 0);
-    if (!$id) { echo json_encode(['error' => 'ID requerido']); exit; }
+    if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
 
     $stmt = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
     $stmt->execute([$id]);
     $actual = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$actual) { echo json_encode(['error' => 'No encontrado']); exit; }
+    if (!$actual) { jsonResponse(['error' => 'No encontrado']); exit; }
 
     $campos = [
         'razon_social'     => strtoupper(trim($body['razon_social']    ?? $actual['razon_social'])),
@@ -274,7 +273,7 @@ if ($method === 'PUT') {
     $params[] = $id;
     $pdo->prepare("UPDATE clientes SET $sets WHERE id = ?")->execute($params);
 
-    echo json_encode(['ok' => true]); exit;
+    jsonResponse(['ok' => true]); exit;
 }
 
-echo json_encode(['error' => 'Método no soportado']);
+jsonResponse(['error' => 'Método no soportado']);

@@ -11,8 +11,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 $user = requireSessionApi();
 if (!in_array($user['rol'], ['administracion','dir_admin','dueno','desarrollo'])) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Sin permiso']); exit;
+    jsonResponse(['error' => 'Sin permiso'], 403);
 }
 
 $ACCOUNT  = PROTRACK_ACCOUNT;
@@ -25,7 +24,7 @@ $IMEI_MAP = [
 ];
 
 if (!$ACCOUNT || !$PASSWORD) {
-    echo json_encode(['error' => 'Credenciales ProTrack365 no configuradas']); exit;
+    jsonResponse(['error' => 'Credenciales ProTrack365 no configuradas']); exit;
 }
 
 // ── Cache de token en sesion (valido 110 min para no acercarse al limite de 2h) ──
@@ -72,16 +71,16 @@ if ($accion === 'ubicacion') {
     } elseif (isset($IMEI_MAP[$unidad])) {
         $imeis = array_filter([$IMEI_MAP[$unidad]]);
     } else {
-        echo json_encode(['error' => 'Unidad no reconocida']); exit;
+        jsonResponse(['error' => 'Unidad no reconocida']); exit;
     }
 
     if (empty($imeis)) {
-        echo json_encode(['error' => 'IMEI no configurado']); exit;
+        jsonResponse(['error' => 'IMEI no configurado']); exit;
     }
 
     $token = getToken($BASE_URL, $ACCOUNT, $PASSWORD);
     if (!$token) {
-        echo json_encode(['error' => 'No se pudo autenticar con ProTrack365']); exit;
+        jsonResponse(['error' => 'No se pudo autenticar con ProTrack365']); exit;
     }
 
     $url = $BASE_URL . '/api/track?access_token=' . urlencode($token) . '&imeis=' . implode(',', $imeis);
@@ -96,7 +95,7 @@ if ($accion === 'ubicacion') {
     curl_close($ch);
 
     if ($code !== 200) {
-        echo json_encode(['error' => 'Error al contactar ProTrack365', 'http' => $code]); exit;
+        jsonResponse(['error' => 'Error al contactar ProTrack365', 'http' => $code]); exit;
     }
 
     $data = json_decode($resp, true);
@@ -115,7 +114,7 @@ if ($accion === 'ubicacion') {
     }
 
     if (($data['code'] ?? -1) !== 0) {
-        echo json_encode(['error' => 'ProTrack365: ' . ($data['message'] ?? 'Error desconocido')]); exit;
+        jsonResponse(['error' => 'ProTrack365: ' . ($data['message'] ?? 'Error desconocido')]); exit;
     }
 
     // Mapear IMEI -> nombre de unidad para respuesta
@@ -143,8 +142,8 @@ if ($accion === 'ubicacion') {
         ];
     }
 
-    echo json_encode(['ok' => true, 'unidades' => $resultado]);
+    jsonResponse(['ok' => true, 'unidades' => $resultado]);
     exit;
 }
 
-echo json_encode(['error' => 'Accion no reconocida']);
+jsonResponse(['error' => 'Accion no reconocida']);

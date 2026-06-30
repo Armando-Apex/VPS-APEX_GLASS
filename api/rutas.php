@@ -18,8 +18,7 @@ $esLogistica = in_array($rol, ['administracion', 'dir_admin', 'dueno', 'desarrol
 $esChofer    = $rol === 'chofer';
 
 if (!$esLogistica && !$esChofer) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Sin permiso']); exit;
+    jsonResponse(['error' => 'Sin permiso'], 403);
 }
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -70,7 +69,7 @@ if ($method === 'GET') {
         foreach ($ordenes as &$o) {
             $o['peso_kg'] = calcularPesoOrden($db, $o['id']);
         }
-        echo json_encode($ordenes); exit;
+        jsonResponse($ordenes); exit;
     }
 
     if ($accion === 'rutas_fecha') {
@@ -115,7 +114,7 @@ if ($method === 'GET') {
             unset($e);
             $ruta['entregas'] = $entregas;
         }
-        echo json_encode($rutas); exit;
+        jsonResponse($rutas); exit;
     }
 
     if ($accion === 'mi_ruta') {
@@ -156,13 +155,13 @@ if ($method === 'GET') {
         }
         unset($e);
 
-        echo json_encode($entregas); exit;
+        jsonResponse($entregas); exit;
     }
 
     if ($accion === 'piezas_orden') {
-        if (!$esLogistica) { echo json_encode(['error' => 'Sin permiso']); exit; }
+        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $orden_id = (int)($_GET['orden_id'] ?? 0);
-        if (!$orden_id) { echo json_encode(['error' => 'orden_id requerido']); exit; }
+        if (!$orden_id) { jsonResponse(['error' => 'orden_id requerido']); exit; }
         $stmt = $db->prepare("
             SELECT p.id, p.partida, p.pieza_num, p.pieza_total,
                    p.qr_code, p.cristal_corto, p.ancho_mm, p.alto_mm, p.estatus
@@ -171,10 +170,10 @@ if ($method === 'GET') {
             ORDER BY p.partida ASC, p.pieza_num ASC
         ");
         $stmt->execute([$orden_id]);
-        echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
+        jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
     }
 
-    echo json_encode(['error' => 'Acción no reconocida']); exit;
+    jsonResponse(['error' => 'Acción no reconocida']); exit;
 }
 
 // ── POST ──────────────────────────────────────────────────────
@@ -182,21 +181,21 @@ if ($method === 'POST') {
     $accion = $body['accion'] ?? '';
 
     if ($accion === 'crear_ruta') {
-        if (!$esLogistica) { echo json_encode(['error' => 'Sin permiso']); exit; }
+        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $fecha  = $body['fecha']  ?? date('Y-m-d');
         $unidad = $body['unidad'] ?? '';
         $chofer = trim($body['chofer'] ?? '');
         $notas  = trim($body['notas']  ?? '');
         if (!in_array($unidad, ['gris','blanca'])) {
-            echo json_encode(['error' => 'Unidad inválida']); exit;
+            jsonResponse(['error' => 'Unidad inválida']); exit;
         }
         $db->prepare("INSERT INTO rutas (fecha, unidad, chofer, notas, creado_por) VALUES (?,?,?,?,?)")
            ->execute([$fecha, $unidad, $chofer, $notas, $nombre]);
-        echo json_encode(['ok' => true, 'id' => (int)$db->lastInsertId()]); exit;
+        jsonResponse(['ok' => true, 'id' => (int)$db->lastInsertId()]); exit;
     }
 
     if ($accion === 'asignar') {
-        if (!$esLogistica) { echo json_encode(['error' => 'Sin permiso']); exit; }
+        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $ruta_id     = (int)($body['ruta_id']    ?? 0);
         $orden_id    = (int)($body['orden_id']   ?? 0);
         $direccion   = trim($body['direccion']   ?? '');
@@ -205,10 +204,10 @@ if ($method === 'POST') {
         $referencias = trim($body['referencias'] ?? '');
         $pieza_ids   = $body['pieza_ids'] ?? [];
         if (!$ruta_id || !$orden_id) {
-            echo json_encode(['error' => 'Datos incompletos']); exit;
+            jsonResponse(['error' => 'Datos incompletos']); exit;
         }
         if (empty($pieza_ids)) {
-            echo json_encode(['error' => 'Debes seleccionar al menos una pieza']); exit;
+            jsonResponse(['error' => 'Debes seleccionar al menos una pieza']); exit;
         }
 
         // Calcular peso solo de las piezas seleccionadas
@@ -239,7 +238,7 @@ if ($method === 'POST') {
         $usado     = (float)($r['usado'] ?? 0);
 
         if (($usado + $peso) > $capacidad) {
-            echo json_encode([
+            jsonResponse([
                 'error' => 'Excede la capacidad de la unidad ' . $r['unidad'] . ' ('.$capacidad.' kg). Disponible: '.round($capacidad-$usado,1).' kg, piezas: '.$peso.' kg'
             ]); exit;
         }
@@ -262,18 +261,18 @@ if ($method === 'POST') {
                 $ins->execute([$re_id, (int)$pid]);
             }
             $db->commit();
-            echo json_encode(['ok' => true, 'peso_kg' => $peso, 'entrega_id' => $re_id]);
+            jsonResponse(['ok' => true, 'peso_kg' => $peso, 'entrega_id' => $re_id]);
         } catch (Exception $e) {
             $db->rollBack();
-            echo json_encode(['error' => 'Esa orden ya está en esta ruta o hubo un error: ' . $e->getMessage()]);
+            jsonResponse(['error' => 'Esa orden ya está en esta ruta o hubo un error: ' . $e->getMessage()]);
         }
         exit;
     }
 
     if ($accion === 'actualizar_entrega') {
-        if (!$esLogistica) { echo json_encode(['error' => 'Sin permiso']); exit; }
+        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $id  = (int)($body['entrega_id'] ?? 0);
-        if (!$id) { echo json_encode(['error' => 'ID requerido']); exit; }
+        if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
         $db->prepare("UPDATE ruta_entregas SET direccion=?, colonia=?, ciudad=?, referencias=? WHERE id=?")
            ->execute([
                trim($body['direccion']   ?? ''),
@@ -282,24 +281,24 @@ if ($method === 'POST') {
                trim($body['referencias'] ?? ''),
                $id
            ]);
-        echo json_encode(['ok' => true]); exit;
+        jsonResponse(['ok' => true]); exit;
     }
 
     if ($accion === 'reordenar') {
-        if (!$esLogistica) { echo json_encode(['error' => 'Sin permiso']); exit; }
+        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         foreach (($body['orden'] ?? []) as $i => $eid) {
             $db->prepare("UPDATE ruta_entregas SET secuencia=? WHERE id=?")
                ->execute([$i + 1, (int)$eid]);
         }
-        echo json_encode(['ok' => true]); exit;
+        jsonResponse(['ok' => true]); exit;
     }
 
     if ($accion === 'iniciar_ruta') {
-        if (!$esLogistica) { echo json_encode(['error' => 'Sin permiso']); exit; }
+        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $id = (int)($body['ruta_id'] ?? 0);
-        if (!$id) { echo json_encode(['error' => 'ID requerido']); exit; }
+        if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
         $db->prepare("UPDATE rutas SET estado='en_ruta', updated_at=NOW() WHERE id=?")->execute([$id]);
-        echo json_encode(['ok' => true]); exit;
+        jsonResponse(['ok' => true]); exit;
     }
 
     if ($accion === 'marcar_estado') {
@@ -307,7 +306,7 @@ if ($method === 'POST') {
         $estado     = $body['estado'] ?? '';
         $notas      = trim($body['notas_entrega'] ?? '');
         if (!$entrega_id || !in_array($estado, ['entregado','no_entregado','pendiente'])) {
-            echo json_encode(['error' => 'Datos inválidos']); exit;
+            jsonResponse(['error' => 'Datos inválidos']); exit;
         }
         // Chofer solo puede marcar entregas de rutas asignadas a su nombre
         if ($esChofer) {
@@ -315,8 +314,7 @@ if ($method === 'POST') {
             $own->execute([$entrega_id]);
             $own = $own->fetch(PDO::FETCH_ASSOC);
             if (!$own || $own['chofer'] !== $nombre) {
-                http_response_code(403);
-                echo json_encode(['error' => 'Sin permiso sobre esta entrega']); exit;
+                jsonResponse(['error' => 'Sin permiso sobre esta entrega'], 403);
             }
         }
         $ts = ($estado === 'entregado') ? date('Y-m-d H:i:s') : null;
@@ -348,7 +346,7 @@ if ($method === 'POST') {
                    ->execute([$chk['ruta_id']]);
             }
         }
-        echo json_encode(['ok' => true]); exit;
+        jsonResponse(['ok' => true]); exit;
     }
 
     if ($accion === 'marcar_pieza') {
@@ -356,10 +354,10 @@ if ($method === 'POST') {
         $qr_code    = trim($body['qr_code']    ?? '');
         $estado     = $body['estado'] ?? 'entregada'; // entregada | rechazada
         if (!$entrega_id || !$qr_code) {
-            echo json_encode(['error' => 'Datos incompletos']); exit;
+            jsonResponse(['error' => 'Datos incompletos']); exit;
         }
         if (!in_array($estado, ['entregada','rechazada'])) {
-            echo json_encode(['error' => 'Estado inválido']); exit;
+            jsonResponse(['error' => 'Estado inválido']); exit;
         }
 
         // Verificar que el chofer tiene acceso
@@ -368,8 +366,7 @@ if ($method === 'POST') {
             $own->execute([$entrega_id]);
             $own = $own->fetch(PDO::FETCH_ASSOC);
             if (!$own || $own['chofer'] !== $nombre) {
-                http_response_code(403);
-                echo json_encode(['error' => 'Sin permiso']); exit;
+                jsonResponse(['error' => 'Sin permiso'], 403);
             }
         }
 
@@ -383,7 +380,7 @@ if ($method === 'POST') {
         $pieza = $pieza->fetch(PDO::FETCH_ASSOC);
 
         if (!$pieza) {
-            echo json_encode(['error' => 'QR no corresponde a esta entrega']); exit;
+            jsonResponse(['error' => 'QR no corresponde a esta entrega']); exit;
         }
 
         $rechazada_at = $estado === 'rechazada' ? date('Y-m-d H:i:s') : null;
@@ -457,23 +454,23 @@ if ($method === 'POST') {
             }
         }
 
-        echo json_encode($respuesta); exit;
+        jsonResponse($respuesta); exit;
     }
 
     if ($accion === 'quitar') {
-        if (!$esLogistica) { echo json_encode(['error' => 'Sin permiso']); exit; }
+        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $id = (int)($body['entrega_id'] ?? 0);
-        if (!$id) { echo json_encode(['error' => 'ID requerido']); exit; }
+        if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
         // Limpiar piezas primero
         $db->prepare("DELETE FROM ruta_entrega_piezas WHERE ruta_entrega_id=?")->execute([$id]);
         $db->prepare("DELETE FROM ruta_entregas WHERE id=?")->execute([$id]);
-        echo json_encode(['ok' => true]); exit;
+        jsonResponse(['ok' => true]); exit;
     }
 
     if ($accion === 'optimizar') {
-        if (!$esLogistica) { echo json_encode(['error' => 'Sin permiso']); exit; }
+        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $ruta_id = (int)($body['ruta_id'] ?? 0);
-        if (!$ruta_id) { echo json_encode(['error' => 'ID requerido']); exit; }
+        if (!$ruta_id) { jsonResponse(['error' => 'ID requerido']); exit; }
 
         // Obtener entregas pendientes de esta ruta
         $stmt = $db->prepare("
@@ -486,14 +483,14 @@ if ($method === 'POST') {
         $entregas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         if (count($entregas) < 2) {
-            echo json_encode(['ok' => true, 'msg' => 'Sin suficientes paradas para optimizar']);
+            jsonResponse(['ok' => true, 'msg' => 'Sin suficientes paradas para optimizar']);
             exit;
         }
 
         // Construir waypoints para Routes API
         $MAPS_KEY = defined('GOOGLE_MAPS_SERVER_KEY') && GOOGLE_MAPS_SERVER_KEY ? GOOGLE_MAPS_SERVER_KEY : (defined('GOOGLE_MAPS_KEY') ? GOOGLE_MAPS_KEY : '');
         if (!$MAPS_KEY) {
-            echo json_encode(['error' => 'Google Maps Key no configurada']); exit;
+            jsonResponse(['error' => 'Google Maps Key no configurada']); exit;
         }
 
         $origen = 'Avenida de la Industria 214, Parque Industrial Marfer, Santa Catarina, Nuevo León';
@@ -528,14 +525,14 @@ if ($method === 'POST') {
         curl_close($ch);
 
         if ($status !== 200) {
-            echo json_encode(['error' => 'Error al contactar Google Maps', 'detalle' => $resp]); exit;
+            jsonResponse(['error' => 'Error al contactar Google Maps', 'detalle' => $resp]); exit;
         }
 
         $data = json_decode($resp, true);
         $order = $data['routes'][0]['optimizedIntermediateWaypointIndex'] ?? null;
 
         if (!$order) {
-            echo json_encode(['ok' => true, 'msg' => 'Google Maps no devolvió orden optimizado']); exit;
+            jsonResponse(['ok' => true, 'msg' => 'Google Maps no devolvió orden optimizado']); exit;
         }
 
         // Reordenar entregas según el orden optimizado
@@ -552,7 +549,7 @@ if ($method === 'POST') {
         }, $legs));
         $totalMin = round($totalSeg / 60);
 
-        echo json_encode([
+        jsonResponse([
             'ok'        => true,
             'orden'     => $order,
             'tiempo_min'=> $totalMin,
@@ -561,7 +558,7 @@ if ($method === 'POST') {
         exit;
     }
 
-    echo json_encode(['error' => 'Acción no reconocida']); exit;
+    jsonResponse(['error' => 'Acción no reconocida']); exit;
 }
 
-echo json_encode(['error' => 'Método no soportado']);
+jsonResponse(['error' => 'Método no soportado']);

@@ -23,7 +23,7 @@ if ($method === 'GET') {
         $stmt = $db->prepare("SELECT COALESCE(SUM(monto),0) as saldo FROM clientes_saldo_favor WHERE cliente_id = ?");
         $stmt->execute([$cid]);
         $row  = $stmt->fetch(PDO::FETCH_ASSOC);
-        echo json_encode(['saldo' => (float)$row['saldo']]);
+        jsonResponse(['saldo' => (float)$row['saldo']]);
         exit;
     }
 
@@ -38,7 +38,7 @@ if ($method === 'GET') {
             ORDER BY sf.fecha DESC, sf.created_at DESC
         ");
         $stmt->execute([$cid]);
-        echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
         exit;
     }
 
@@ -56,18 +56,17 @@ if ($method === 'GET') {
             GROUP BY cl.id, cl.codigo, cl.razon_social, cl.nombre, cl.contacto, cl.telefono
             ORDER BY saldo DESC, COALESCE(cl.razon_social, cl.nombre) ASC
         ");
-        echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
         exit;
     }
 
-    echo json_encode(['error' => 'Acción no reconocida']); exit;
+    jsonResponse(['error' => 'Acción no reconocida']); exit;
 }
 
 // ─── POST ─────────────────────────────────────────────────────────────────────
 if ($method === 'POST') {
     if (!$puede_registrar) {
-        http_response_code(403);
-        echo json_encode(['error' => 'Sin permiso']); exit;
+        jsonResponse(['error' => 'Sin permiso'], 403);
     }
 
     $body   = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -80,12 +79,12 @@ if ($method === 'POST') {
         $referencia = trim($body['referencia']     ?? '');
         $notas      = trim($body['notas']          ?? '');
 
-        if (!$cliente_id) { echo json_encode(['error' => 'Cliente requerido']); exit; }
-        if ($monto <= 0)  { echo json_encode(['error' => 'El monto debe ser mayor a cero']); exit; }
+        if (!$cliente_id) { jsonResponse(['error' => 'Cliente requerido']); exit; }
+        if ($monto <= 0)  { jsonResponse(['error' => 'El monto debe ser mayor a cero']); exit; }
 
         $stmt = $db->prepare("SELECT id FROM clientes WHERE id = ? AND activo = 1");
         $stmt->execute([$cliente_id]);
-        if (!$stmt->fetch()) { echo json_encode(['error' => 'Cliente no encontrado']); exit; }
+        if (!$stmt->fetch()) { jsonResponse(['error' => 'Cliente no encontrado']); exit; }
 
         $db->prepare("
             INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, creado_por)
@@ -96,11 +95,11 @@ if ($method === 'POST') {
         $stmt2->execute([$cliente_id]);
         $row = $stmt2->fetch(PDO::FETCH_ASSOC);
 
-        echo json_encode(['ok' => true, 'saldo' => (float)$row['saldo']]);
+        jsonResponse(['ok' => true, 'saldo' => (float)$row['saldo']]);
         exit;
     }
 
-    echo json_encode(['error' => 'Acción no reconocida']); exit;
+    jsonResponse(['error' => 'Acción no reconocida']); exit;
 }
 
-echo json_encode(['error' => 'Método no soportado']);
+jsonResponse(['error' => 'Método no soportado']);

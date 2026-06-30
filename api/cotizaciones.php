@@ -105,7 +105,7 @@ if ($method === 'GET') {
         ");
         $stmt->execute([$id]);
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$cot) { echo json_encode(['error' => 'No encontrada']); exit; }
+        if (!$cot) { jsonResponse(['error' => 'No encontrada']); exit; }
 
         // Recalcular total desde partidas (c.subtotal puede ser bruto o neto según antigüedad del registro)
         $stBruto = $db->prepare("SELECT COALESCE(SUM(precio_m2_usado*m2*cantidad),0) FROM cotizaciones_partidas WHERE cotizacion_id=?");
@@ -148,7 +148,7 @@ if ($method === 'GET') {
             $cot['rechazo'] = $stmtR->fetch(PDO::FETCH_ASSOC) ?: null;
         }
 
-        echo json_encode($cot); exit;
+        jsonResponse($cot); exit;
     }
 
     // Lista
@@ -187,12 +187,11 @@ if ($method === 'GET') {
         LIMIT $limit
     ");
     $stmt->execute($params);
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
+    jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
 }
 
 if (!$puede_editar) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Sin permiso']); exit;
+    jsonResponse(['error' => 'Sin permiso'], 403);
 }
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -203,12 +202,12 @@ if ($method === 'POST') {
 
     // Autorizar entrega con adeudo
     if ($accion === 'autorizar_entrega') {
-        if (!$es_admin) { echo json_encode(['error' => 'Solo dir_admin puede autorizar']); exit; }
+        if (!$es_admin) { jsonResponse(['error' => 'Solo dir_admin puede autorizar']); exit; }
         $id   = (int)($body['id'] ?? 0);
         $nota = trim($body['nota'] ?? '');
         $db->prepare("UPDATE cotizaciones SET entrega_bloqueada=0, entrega_autorizada_por=?, entrega_autorizada_at=NOW(), entrega_autorizada_nota=? WHERE id=?")
            ->execute([$usuario_id, $nota, $id]);
-        echo json_encode(['ok' => true]); exit;
+        jsonResponse(['ok' => true]); exit;
     }
 
     // Convertir cotización a orden de producción
@@ -217,15 +216,15 @@ if ($method === 'POST') {
         $stmt = $db->prepare("SELECT * FROM cotizaciones WHERE id = ?");
         $stmt->execute([$id]);
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$cot) { echo json_encode(['error' => 'No encontrada']); exit; }
-        if ($cot['estatus'] !== 'cotizacion') { echo json_encode(['error' => 'Solo se pueden convertir cotizaciones']); exit; }
+        if (!$cot) { jsonResponse(['error' => 'No encontrada']); exit; }
+        if ($cot['estatus'] !== 'cotizacion') { jsonResponse(['error' => 'Solo se pueden convertir cotizaciones']); exit; }
 
         // Bloquear conversión si descuento > 10% sin autorización aprobada (excepto dir_admin)
         if ((float)$cot['descuento'] > 10 && !in_array($rol, ['dir_admin', 'desarrollo'])) {
             $authStmt = $db->prepare("SELECT id FROM autorizaciones_descuento WHERE cotizacion_id = ? AND estatus = 'aprobado' LIMIT 1");
             $authStmt->execute([$id]);
             if (!$authStmt->fetch()) {
-                echo json_encode(['error' => 'El descuento del ' . $cot['descuento'] . '% requiere autorización de Dirección. Solicita la autorización antes de convertir a orden.']); exit;
+                jsonResponse(['error' => 'El descuento del ' . $cot['descuento'] . '% requiere autorización de Dirección. Solicita la autorización antes de convertir a orden.']); exit;
             }
         }
 
@@ -314,11 +313,11 @@ if ($method === 'POST') {
                 ]);
             } catch (Exception $ignored) {}
 
-            echo json_encode(['ok' => true, 'orden_id' => $orden_id, 'folio' => $cot['folio']]); exit;
+            jsonResponse(['ok' => true, 'orden_id' => $orden_id, 'folio' => $cot['folio']]); exit;
 
         } catch (Exception $e) {
             $db->rollBack();
-            echo json_encode(['error' => $e->getMessage()]); exit;
+            jsonResponse(['error' => $e->getMessage()]); exit;
         }
     }
 
@@ -331,18 +330,18 @@ if ($method === 'POST') {
         $cant_piezas    = max(1, (int)($body['cantidad_piezas']    ?? 1));
 
         if (!$cot_id || !$partida_id || !$servicio_id) {
-            echo json_encode(['error' => 'Datos incompletos']); exit;
+            jsonResponse(['error' => 'Datos incompletos']); exit;
         }
 
         $stmtS = $db->prepare("SELECT id, nombre, precio_default FROM servicios_catalogo WHERE id = ? AND activo = 1");
         $stmtS->execute([$servicio_id]);
         $srv = $stmtS->fetch(PDO::FETCH_ASSOC);
-        if (!$srv) { echo json_encode(['error' => 'Servicio no encontrado']); exit; }
+        if (!$srv) { jsonResponse(['error' => 'Servicio no encontrado']); exit; }
 
         // Verificar que la partida pertenece a la cotización
         $stmtP = $db->prepare("SELECT id FROM cotizaciones_partidas WHERE id = ? AND cotizacion_id = ?");
         $stmtP->execute([$partida_id, $cot_id]);
-        if (!$stmtP->fetch()) { echo json_encode(['error' => 'Partida no pertenece a la cotización']); exit; }
+        if (!$stmtP->fetch()) { jsonResponse(['error' => 'Partida no pertenece a la cotización']); exit; }
 
         $precio    = (float)$srv['precio_default'];
         $subtotal  = round($precio * $und_x_pieza * $cant_piezas, 2);
@@ -362,14 +361,14 @@ if ($method === 'POST') {
                ->execute([$srv_total, $cot_id]);
 
             $db->commit();
-            echo json_encode(['ok' => true, 'servicios_subtotal' => $srv_total, 'nuevo_servicio' => [
+            jsonResponse(['ok' => true, 'servicios_subtotal' => $srv_total, 'nuevo_servicio' => [
                 'id' => (int)$db->lastInsertId(), 'descripcion' => $srv['nombre'],
                 'precio_unitario' => $precio, 'unidades_por_pieza' => $und_x_pieza,
                 'cantidad_piezas' => $cant_piezas, 'subtotal' => $subtotal,
             ]]);
         } catch (Exception $e) {
             $db->rollBack();
-            echo json_encode(['error' => $e->getMessage()]);
+            jsonResponse(['error' => $e->getMessage()]);
         }
         exit;
     }
@@ -378,7 +377,7 @@ if ($method === 'POST') {
     if ($accion === 'eliminar_servicio') {
         $srv_partida_id = (int)($body['servicio_partida_id'] ?? 0);
         $cot_id         = (int)($body['cotizacion_id']       ?? 0);
-        if (!$srv_partida_id || !$cot_id) { echo json_encode(['error' => 'Datos incompletos']); exit; }
+        if (!$srv_partida_id || !$cot_id) { jsonResponse(['error' => 'Datos incompletos']); exit; }
 
         $db->beginTransaction();
         try {
@@ -392,10 +391,10 @@ if ($method === 'POST') {
                ->execute([$srv_total, $cot_id]);
 
             $db->commit();
-            echo json_encode(['ok' => true, 'servicios_subtotal' => $srv_total]);
+            jsonResponse(['ok' => true, 'servicios_subtotal' => $srv_total]);
         } catch (Exception $e) {
             $db->rollBack();
-            echo json_encode(['error' => $e->getMessage()]);
+            jsonResponse(['error' => $e->getMessage()]);
         }
         exit;
     }
@@ -414,14 +413,14 @@ if ($method === 'POST') {
     $partidas     = $body['partidas']              ?? [];
     $fecha_entrega_manual = trim($body['fecha_entrega'] ?? '');
 
-    if (!$cliente_id) { echo json_encode(['error' => 'Cliente requerido']); exit; }
-    if (empty($partidas)) { echo json_encode(['error' => 'Se requiere al menos una partida']); exit; }
+    if (!$cliente_id) { jsonResponse(['error' => 'Cliente requerido']); exit; }
+    if (empty($partidas)) { jsonResponse(['error' => 'Se requiere al menos una partida']); exit; }
 
     // Datos del cliente
     $stmt = $db->prepare("SELECT razon_social, nombre FROM clientes WHERE id = ?");
     $stmt->execute([$cliente_id]);
     $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$cliente) { echo json_encode(['error' => 'Cliente no encontrado']); exit; }
+    if (!$cliente) { jsonResponse(['error' => 'Cliente no encontrado']); exit; }
     $cliente_nombre = $cliente['razon_social'] ?: $cliente['nombre'];
 
     // Calcular fecha entrega
@@ -477,7 +476,7 @@ if ($method === 'POST') {
         ];
     }
 
-    if (empty($partidas_data)) { echo json_encode(['error' => 'Ninguna partida válida']); exit; }
+    if (empty($partidas_data)) { jsonResponse(['error' => 'Ninguna partida válida']); exit; }
 
     $iva_total   = round($subtotal_total * 0.16, 2);
     $total_final = round($subtotal_total + $iva_total, 2);
@@ -537,12 +536,12 @@ if ($method === 'POST') {
             } catch (Exception $ignored) {}
         }
 
-        echo json_encode(['ok' => true, 'id' => $cot_id, 'folio' => $folio,
+        jsonResponse(['ok' => true, 'id' => $cot_id, 'folio' => $folio,
                           'fecha_entrega' => $fecha_entrega, 'total' => $total_final]);
 
     } catch (Exception $e) {
         $db->rollBack();
-        echo json_encode(['error' => $e->getMessage()]);
+        jsonResponse(['error' => $e->getMessage()]);
     }
     exit;
 }
@@ -551,18 +550,18 @@ if ($method === 'POST') {
 if ($method === 'PUT') {
     $id      = (int)($body['id']      ?? 0);
     $accion  = $body['accion']        ?? '';
-    if (!$id) { echo json_encode(['error' => 'ID requerido']); exit; }
+    if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
 
     // ── Actualizar contenido completo de una cotización ──
     if ($accion === 'actualizar') {
-        if (!$puede_editar) { echo json_encode(['error' => 'Sin permiso']); exit; }
+        if (!$puede_editar) { jsonResponse(['error' => 'Sin permiso']); exit; }
 
         // Verificar que existe y está en estatus cotizacion
         $stmt = $db->prepare("SELECT estatus FROM cotizaciones WHERE id = ?");
         $stmt->execute([$id]);
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$cot) { echo json_encode(['error' => 'Cotización no encontrada']); exit; }
-        if ($cot['estatus'] !== 'cotizacion') { echo json_encode(['error' => 'Solo se pueden editar cotizaciones (no órdenes)']); exit; }
+        if (!$cot) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
+        if ($cot['estatus'] !== 'cotizacion') { jsonResponse(['error' => 'Solo se pueden editar cotizaciones (no órdenes)']); exit; }
 
         $cliente_id   = (int)($body['cliente_id']    ?? 0);
         $proyecto     = trim($body['proyecto']        ?? '');
@@ -577,14 +576,14 @@ if ($method === 'PUT') {
         $partidas     = $body['partidas']              ?? [];
         $fecha_entrega_manual = trim($body['fecha_entrega'] ?? '');
 
-        if (!$cliente_id) { echo json_encode(['error' => 'Cliente requerido']); exit; }
-        if (empty($partidas)) { echo json_encode(['error' => 'Se requiere al menos una partida']); exit; }
+        if (!$cliente_id) { jsonResponse(['error' => 'Cliente requerido']); exit; }
+        if (empty($partidas)) { jsonResponse(['error' => 'Se requiere al menos una partida']); exit; }
 
         // Datos del cliente
         $stmt = $db->prepare("SELECT razon_social, nombre FROM clientes WHERE id = ?");
         $stmt->execute([$cliente_id]);
         $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$cliente) { echo json_encode(['error' => 'Cliente no encontrado']); exit; }
+        if (!$cliente) { jsonResponse(['error' => 'Cliente no encontrado']); exit; }
         $cliente_nombre = $cliente['razon_social'] ?: $cliente['nombre'];
 
         // Calcular fecha entrega
@@ -644,7 +643,7 @@ if ($method === 'PUT') {
             ];
         }
 
-        if (empty($partidas_data)) { echo json_encode(['error' => 'Ninguna partida válida']); exit; }
+        if (empty($partidas_data)) { jsonResponse(['error' => 'Ninguna partida válida']); exit; }
 
         $iva_total   = round($subtotal_total * 0.16, 2);
         $total_final = round($subtotal_total + $iva_total, 2);
@@ -756,11 +755,11 @@ if ($method === 'PUT') {
                    ->execute([$id]);
             }
 
-            echo json_encode(['ok' => true, 'total' => $total_final, 'fecha_entrega' => $fecha_entrega]);
+            jsonResponse(['ok' => true, 'total' => $total_final, 'fecha_entrega' => $fecha_entrega]);
 
         } catch (Exception $e) {
             $db->rollBack();
-            echo json_encode(['error' => $e->getMessage()]);
+            jsonResponse(['error' => $e->getMessage()]);
         }
         exit;
     }
@@ -771,10 +770,10 @@ if ($method === 'PUT') {
         $stmt->execute([$id]);
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($cot['entrega_bloqueada'] && !$es_admin) {
-            echo json_encode(['error' => 'Entrega bloqueada por saldo pendiente', 'bloqueada' => true]); exit;
+            jsonResponse(['error' => 'Entrega bloqueada por saldo pendiente', 'bloqueada' => true]); exit;
         }
         $db->prepare("UPDATE cotizaciones SET estatus='entregada', updated_at=NOW() WHERE id=?")->execute([$id]);
-        echo json_encode(['ok' => true]); exit;
+        jsonResponse(['ok' => true]); exit;
     }
 
     if ($accion === 'actualizar_saldo') {
@@ -782,26 +781,26 @@ if ($method === 'PUT') {
         $bloqueada = $saldo > 0 ? 1 : 0;
         $db->prepare("UPDATE cotizaciones SET saldo_pendiente=?, entrega_bloqueada=?, updated_at=NOW() WHERE id=?")
            ->execute([$saldo, $bloqueada, $id]);
-        echo json_encode(['ok' => true]); exit;
+        jsonResponse(['ok' => true]); exit;
     }
 
     if ($accion === 'cancelar') {
-        if (!$es_admin) { echo json_encode(['error' => 'Solo dir_admin puede cancelar']); exit; }
+        if (!$es_admin) { jsonResponse(['error' => 'Solo dir_admin puede cancelar']); exit; }
         $db->prepare("UPDATE cotizaciones SET estatus='cancelada', updated_at=NOW() WHERE id=?")->execute([$id]);
-        echo json_encode(['ok' => true]); exit;
+        jsonResponse(['ok' => true]); exit;
     }
 
     // ── Rechazar por calidad ──────────────────────────────────────────────────
     if ($accion === 'rechazar') {
-        if (!$es_admin) { echo json_encode(['error' => 'Solo dir_admin puede registrar rechazos']); exit; }
+        if (!$es_admin) { jsonResponse(['error' => 'Solo dir_admin puede registrar rechazos']); exit; }
         $motivo = trim($body['motivo'] ?? '');
-        if (!$motivo) { echo json_encode(['error' => 'El motivo del rechazo es obligatorio']); exit; }
+        if (!$motivo) { jsonResponse(['error' => 'El motivo del rechazo es obligatorio']); exit; }
 
         $stmtCot = $db->prepare("SELECT id, orden_id, cliente_id, saldo_pagado, folio FROM cotizaciones WHERE id = ?");
         $stmtCot->execute([$id]);
         $cot = $stmtCot->fetch(PDO::FETCH_ASSOC);
-        if (!$cot) { echo json_encode(['error' => 'Cotización no encontrada']); exit; }
-        if (!$cot['orden_id']) { echo json_encode(['error' => 'Esta cotización no tiene una orden generada']); exit; }
+        if (!$cot) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
+        if (!$cot['orden_id']) { jsonResponse(['error' => 'Esta cotización no tiene una orden generada']); exit; }
 
         $montoDevuelto = (float)($cot['saldo_pagado'] ?? 0);
         $db->beginTransaction();
@@ -832,10 +831,10 @@ if ($method === 'PUT') {
         }
 
         $db->commit();
-        echo json_encode(['ok' => true, 'monto_devuelto' => $montoDevuelto]); exit;
+        jsonResponse(['ok' => true, 'monto_devuelto' => $montoDevuelto]); exit;
     }
 
-    echo json_encode(['error' => 'Acción no reconocida']); exit;
+    jsonResponse(['error' => 'Acción no reconocida']); exit;
 }
 
 // ─── GET especial: calcular fecha entrega ─────────────────────────────────────
@@ -843,7 +842,7 @@ if ($method === 'GET' && isset($_GET['calcular_fecha'])) {
     $fecha    = $_GET['fecha']     ?? date('Y-m-d');
     $localidad= $_GET['localidad'] ?? 'local';
     $ciudad   = $_GET['ciudad']    ?? '';
-    echo json_encode(['fecha_entrega' => calcularFechaEntrega($db, $fecha, $localidad, $ciudad)]); exit;
+    jsonResponse(['fecha_entrega' => calcularFechaEntrega($db, $fecha, $localidad, $ciudad)]); exit;
 }
 
-echo json_encode(['error' => 'Método no soportado']);
+jsonResponse(['error' => 'Método no soportado']);

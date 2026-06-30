@@ -22,7 +22,7 @@ if ($method === 'GET') {
         $stmt->execute([$id]);
         $cristal = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cristal) {
-            echo json_encode(['error' => 'No encontrado']); exit;
+            jsonResponse(['error' => 'No encontrado']); exit;
         }
         $stmt2 = $pdo->prepare("
             SELECT * FROM cristales_historial
@@ -32,22 +32,20 @@ if ($method === 'GET') {
         ");
         $stmt2->execute([$id]);
         $cristal['historial'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
-        echo json_encode($cristal);
+        jsonResponse($cristal);
         exit;
     }
 
     // Lista completa
     $where = $solo_activos ? 'WHERE activo = 1' : '';
     $stmt  = $pdo->query("SELECT * FROM cristales $where ORDER BY nombre ASC");
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
     exit;
 }
 
 // ─── Solo dir_admin puede escribir ───────────────────────────────────────────
 if (!in_array($rol, ['dir_admin', 'dueno', 'desarrollo'])) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Sin permiso']);
-    exit;
+    jsonResponse(['error' => 'Sin permiso'], 403);
 }
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -59,7 +57,7 @@ if ($method === 'POST') {
     $precio   = (float)($body['precio_m2'] ?? 0);
 
     if (!$nombre || !$etiqueta || $precio <= 0) {
-        echo json_encode(['error' => 'Datos incompletos']); exit;
+        jsonResponse(['error' => 'Datos incompletos']); exit;
     }
 
     $stmt = $pdo->prepare("
@@ -76,7 +74,7 @@ if ($method === 'POST') {
         VALUES (?, 0, ?, ?, ?, 'Precio inicial')
     ")->execute([$new_id, $precio, $usuario_id, $usuario_nombre]);
 
-    echo json_encode(['ok' => true, 'id' => $new_id]);
+    jsonResponse(['ok' => true, 'id' => $new_id]);
     exit;
 }
 
@@ -89,13 +87,13 @@ if ($method === 'PUT') {
     $activo   = isset($body['activo']) ? (int)$body['activo'] : null;
     $motivo   = trim($body['motivo'] ?? '');
 
-    if (!$id) { echo json_encode(['error' => 'ID requerido']); exit; }
+    if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
 
     // Obtener precio actual para historial
     $stmt = $pdo->prepare("SELECT precio_m2 FROM cristales WHERE id = ?");
     $stmt->execute([$id]);
     $actual = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$actual) { echo json_encode(['error' => 'No encontrado']); exit; }
+    if (!$actual) { jsonResponse(['error' => 'No encontrado']); exit; }
 
     $precio_anterior = (float)$actual['precio_m2'];
 
@@ -108,7 +106,7 @@ if ($method === 'PUT') {
     if ($precio > 0) { $fields[] = 'precio_m2 = ?';     $params[] = $precio; }
     if ($activo !== null) { $fields[] = 'activo = ?';    $params[] = $activo; }
 
-    if (!$fields) { echo json_encode(['error' => 'Nada que actualizar']); exit; }
+    if (!$fields) { jsonResponse(['error' => 'Nada que actualizar']); exit; }
 
     $params[] = $id;
     $pdo->prepare("UPDATE cristales SET " . implode(', ', $fields) . " WHERE id = ?")
@@ -123,18 +121,18 @@ if ($method === 'PUT') {
         ")->execute([$id, $precio_anterior, $precio, $usuario_id, $usuario_nombre, $motivo]);
     }
 
-    echo json_encode(['ok' => true]);
+    jsonResponse(['ok' => true]);
     exit;
 }
 
 // ─── DELETE — desactivar cristal (soft delete) ───────────────────────────────
 if ($method === 'DELETE') {
     $id = (int)($body['id'] ?? $_GET['id'] ?? 0);
-    if (!$id) { echo json_encode(['error' => 'ID requerido']); exit; }
+    if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
 
     $pdo->prepare("UPDATE cristales SET activo = 0 WHERE id = ?")->execute([$id]);
-    echo json_encode(['ok' => true]);
+    jsonResponse(['ok' => true]);
     exit;
 }
 
-echo json_encode(['error' => 'Método no soportado']);
+jsonResponse(['error' => 'Método no soportado']);

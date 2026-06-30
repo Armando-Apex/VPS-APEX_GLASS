@@ -88,8 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'leer') {
             $db->prepare("UPDATE notificaciones SET leida = 1 WHERE id = ?")->execute([$id]);
         }
     }
-    echo json_encode(['ok' => true]);
-    exit;
+    jsonResponse(['ok' => true]);
 }
 
 // ── POST marcar todas leídas ──────────────────────────────
@@ -120,8 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'leer_todas') {
         ")->execute([$user_id, $user_id, $rol]);
     }
 
-    echo json_encode(['ok' => true]);
-    exit;
+    jsonResponse(['ok' => true]);
 }
 
-echo json_encode(['error' => 'Acción no reconocida']);
+jsonResponse(['error' => 'Acción no reconocida'], 400);

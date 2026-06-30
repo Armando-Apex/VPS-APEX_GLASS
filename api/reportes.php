@@ -15,7 +15,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 // ── GET lista (solo desarrollo / dir_admin) ───────────────────────────────────
 if ($method === 'GET' && $accion === 'lista') {
     if (!in_array($rol, ['desarrollo', 'dir_admin'])) {
-        http_response_code(403); echo json_encode(['ok'=>false,'error'=>'Sin permiso']); exit;
+        jsonResponse(['ok'=>false,'error'=>'Sin permiso'], 403);
     }
     $estado = $_GET['estado'] ?? '';
     $where  = $estado === 'completado' ? "WHERE estado='completado'" : ($estado === 'pendiente' ? "WHERE estado='pendiente'" : '');
@@ -27,7 +27,7 @@ if ($method === 'GET' && $accion === 'lista') {
         ORDER BY estado ASC, created_at DESC
         LIMIT 300
     ")->fetchAll(PDO::FETCH_ASSOC);
-    echo json_encode(['ok'=>true, 'reportes'=>$rows]);
+    jsonResponse(['ok'=>true, 'reportes'=>$rows]);
     exit;
 }
 
@@ -38,8 +38,8 @@ if ($method === 'POST' && $accion === 'crear') {
     $desc  = trim($d['descripcion'] ?? '');
     $elem  = isset($d['elemento']) && is_array($d['elemento']) ? json_encode($d['elemento'], JSON_UNESCAPED_UNICODE) : null;
 
-    if (!$tipo) { echo json_encode(['ok'=>false,'error'=>'Tipo requerido']); exit; }
-    if (!$desc) { echo json_encode(['ok'=>false,'error'=>'Descripción requerida']); exit; }
+    if (!$tipo) { jsonResponse(['ok'=>false,'error'=>'Tipo requerido']); exit; }
+    if (!$desc) { jsonResponse(['ok'=>false,'error'=>'Descripción requerida']); exit; }
 
     $stmt = $pdo->prepare("
         INSERT INTO reportes (tipo, descripcion, elemento, creado_por, creado_por_rol)
@@ -65,18 +65,18 @@ if ($method === 'POST' && $accion === 'crear') {
         ]);
     }
 
-    echo json_encode(['ok'=>true, 'id'=>$newId]);
+    jsonResponse(['ok'=>true, 'id'=>$newId]);
     exit;
 }
 
 // ── POST completar ────────────────────────────────────────────────────────────
 if ($method === 'POST' && $accion === 'completar') {
     if (!in_array($rol, ['desarrollo', 'dir_admin'])) {
-        http_response_code(403); echo json_encode(['ok'=>false,'error'=>'Sin permiso']); exit;
+        jsonResponse(['ok'=>false,'error'=>'Sin permiso'], 403);
     }
     $d  = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = (int)($d['id'] ?? 0);
-    if (!$id) { echo json_encode(['ok'=>false,'error'=>'ID requerido']); exit; }
+    if (!$id) { jsonResponse(['ok'=>false,'error'=>'ID requerido']); exit; }
 
     $stmt = $pdo->prepare("
         UPDATE reportes SET estado='completado', completado_por=?, completado_at=NOW()
@@ -85,11 +85,10 @@ if ($method === 'POST' && $accion === 'completar') {
     $stmt->execute([$nombre, $id]);
 
     if ($stmt->rowCount() === 0) {
-        echo json_encode(['ok'=>false,'error'=>'No encontrado o ya completado']); exit;
+        jsonResponse(['ok'=>false,'error'=>'No encontrado o ya completado']); exit;
     }
-    echo json_encode(['ok'=>true]);
+    jsonResponse(['ok'=>true]);
     exit;
 }
 
-http_response_code(400);
-echo json_encode(['ok'=>false,'error'=>'Acción no válida']);
+jsonResponse(['ok'=>false,'error'=>'Acción no válida'], 400);
