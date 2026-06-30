@@ -6,19 +6,19 @@
 //  POST { cotizacion_id, motivo, cambios_header, cambios_partidas }
 // ============================================================
 require_once 'config.php';
+require_once 'permisos.php';
 
-if (session_status() === PHP_SESSION_NONE) session_start();
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: https://apex.glass');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit;
 
-// Solo dir_admin o desarrollo
-if (empty($_SESSION['user_id']) || !in_array(($_SESSION['user_rol'] ?? ''), ['dir_admin', 'desarrollo'])) {
+$user = requireSessionApi();
+if (!in_array($user['rol'], ['dir_admin', 'desarrollo'])) {
     jsonResponse(['error' => 'Sin permiso'], 403);
 }
 
-$usuario = $_SESSION['user_name'] ?? 'dir_admin';
+$usuario = $user['nombre'];
 $method  = $_SERVER['REQUEST_METHOD'];
 $db      = getDB();
 

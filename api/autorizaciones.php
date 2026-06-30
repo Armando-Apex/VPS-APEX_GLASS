@@ -5,18 +5,16 @@
 //  POST { accion:'resolver', autorizacion_id, estatus, nota } → dir_admin resuelve
 // ============================================================
 require_once 'config.php';
+require_once 'permisos.php';
 
-if (session_status() === PHP_SESSION_NONE) session_start();
 header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: https://apex.glass');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit;
 
-if (empty($_SESSION['user_id'])) {
-    jsonResponse(['error' => 'No autenticado'], 401);
-}
-
-$rol     = $_SESSION['user_rol']  ?? '';
-$usuario = $_SESSION['user_name'] ?? '';
+$user    = requireSessionApi();
+$rol     = $user['rol'];
+$usuario = $user['nombre'];
 $method  = $_SERVER['REQUEST_METHOD'];
 $db      = getDB();
 
