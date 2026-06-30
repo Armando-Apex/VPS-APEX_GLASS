@@ -742,6 +742,46 @@ if ($metodo === 'POST' && $accion === 'marcar_no_leido') {
     exit;
 }
 
+// ── POST enviar ubicación ──
+if ($metodo === 'POST' && $accion === 'enviar_ubicacion') {
+    if (!$puedeEnviar) jsonResponse(['error' => 'Sin permiso para enviar mensajes'], 403);
+    $body   = json_decode(file_get_contents('php://input'), true);
+    $convId = (int)($body['conversacion_id'] ?? 0);
+    $lat    = (float)($body['lat'] ?? 0);
+    $lng    = (float)($body['lng'] ?? 0);
+    $nombre = substr(trim($body['nombre'] ?? ''), 0, 100);
+    if (!$convId || ($lat === 0.0 && $lng === 0.0)) jsonResponse(['error' => 'Faltan campos'], 400);
+
+    $stmtConv = $db->prepare("SELECT * FROM whatsapp_conversaciones WHERE id = ?");
+    $stmtConv->execute([$convId]);
+    $conv = $stmtConv->fetch(PDO::FETCH_ASSOC);
+    if (!$conv) jsonResponse(['error' => 'Conversación no encontrada'], 404);
+
+    $payload = [
+        'messaging_product' => 'whatsapp',
+        'to'                => $conv['telefono'],
+        'type'              => 'location',
+        'location'          => ['latitude' => $lat, 'longitude' => $lng]
+    ];
+    if ($nombre !== '') {
+        $payload['location']['name']    = $nombre;
+        $payload['location']['address'] = $nombre;
+    }
+    $res = enviarMensajeWA($payload);
+    if ($res['code'] !== 200) jsonResponse(['error' => 'Error Meta API', 'detalle' => $res['data']], 502);
+
+    $waId     = $res['data']['messages'][0]['id'] ?? null;
+    $contenido = $lat . ',' . $lng . ($nombre ? ('|' . $nombre) : '');
+    $db->prepare("INSERT INTO whatsapp_mensajes
+        (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por)
+        VALUES (?, 'outbound', ?, 'ubicacion', ?, ?)")
+       ->execute([$convId, $contenido, $waId, $user['nombre']]);
+    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
+       ->execute([$convId]);
+    jsonResponse(['ok' => true]);
+    exit;
+}
+
 // ── POST enviar cotización por WhatsApp (plantilla cotizacion_apex) ──
 if ($metodo === 'POST' && $accion === 'enviar_cotizacion_wa') {
     $body           = json_decode(file_get_contents('php://input'), true);

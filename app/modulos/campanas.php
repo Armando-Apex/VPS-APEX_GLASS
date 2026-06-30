@@ -71,8 +71,27 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno']);
 .conv-input textarea:focus{outline:none;border-color:#2563eb;}
 .conv-input button{padding:0 18px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;height:60px;}
 .conv-input button:hover{background:#1d4ed8;}
-.conv-btn-clip{padding:0 12px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;font-size:18px;cursor:pointer;height:60px;flex-shrink:0;}
-.conv-btn-clip:hover{background:#e2e8f0;}
+/* ── Botón + y burbujas de acciones ── */
+.conv-btn-plus{width:40px;height:40px;border-radius:50%;background:#e2e8f0;border:none;font-size:22px;cursor:pointer;color:#475569;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,transform .2s;}
+.conv-btn-plus:hover{background:#cbd5e1;}
+.conv-btn-plus.open{background:#2563eb;color:#fff;transform:rotate(45deg);}
+.conv-actions-wrap{position:relative;display:flex;align-items:flex-end;}
+.conv-bubbles{position:absolute;bottom:52px;left:0;display:flex;flex-direction:column;align-items:center;gap:10px;z-index:200;}
+.conv-bubbles.hidden{display:none;}
+.conv-bubble-item{display:flex;align-items:center;gap:8px;animation:bubbleIn .15s ease;}
+.conv-bubble-item button{width:42px;height:42px;border-radius:50%;border:none;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.18);}
+.conv-bubble-item button:hover{filter:brightness(.92);}
+.bubble-clip{background:#fff;color:#475569;}
+.bubble-emoji{background:#fbbf24;color:#fff;}
+.bubble-loc{background:#22c55e;color:#fff;}
+.conv-bubble-label{font-size:11px;background:rgba(0,0,0,.7);color:#fff;border-radius:4px;padding:2px 7px;white-space:nowrap;pointer-events:none;}
+@keyframes bubbleIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+/* ── Emoji panel (arriba derecha del área de input) ── */
+.emoji-panel{position:absolute;bottom:calc(100% + 8px);right:0;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:10px;z-index:9999;width:296px;max-height:320px;overflow-y:auto;display:grid;grid-template-columns:repeat(8,1fr);gap:2px;}
+.emoji-panel button{background:none;border:none;font-size:20px;cursor:pointer;padding:4px;border-radius:4px;line-height:1;}
+.emoji-panel button:hover{background:#f1f5f9;}
+.emoji-section-sep{grid-column:1/-1;height:1px;background:#f1f5f9;margin:4px 0;}
+.emoji-section-label{grid-column:1/-1;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px;}
 .conv-media-preview{display:flex;align-items:center;gap:10px;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#475569;}
 .conv-media-preview img{height:48px;width:48px;object-fit:cover;border-radius:4px;}
 .conv-media-preview .prev-nombre{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -1025,8 +1044,18 @@ var ModCampanas = (function() {
                 '</div>' +
                 '<div class="conv-input-row">' +
                 '<input type="file" id="cmpFileInput" accept="image/*,.pdf" style="display:none;" onchange="window.cmpArchivoSeleccionado(this)">' +
-                '<button class="conv-btn-clip" onclick="document.getElementById(\'cmpFileInput\').click()" title="Adjuntar archivo">&#128206;</button>' +
-                '<textarea id="cmpMsgInput" placeholder="Escribe tu respuesta... (Shift+Enter para nueva línea)" maxlength="4096"></textarea>' +
+                '<div class="conv-actions-wrap">' +
+                '<div class="conv-bubbles hidden" id="cmpBubblesMenu">' +
+                '<div class="conv-bubble-item"><span class="conv-bubble-label">Ubicaci&oacute;n</span><button class="bubble-loc" onclick="window.cmpEnviarUbicacion()" title="Enviar ubicaci&oacute;n">&#128205;</button></div>' +
+                '<div class="conv-bubble-item"><span class="conv-bubble-label">Emoji</span><button class="bubble-emoji" id="cmpBtnEmoji" onclick="window.cmpToggleEmojis()" title="Emojis">&#128512;</button></div>' +
+                '<div class="conv-bubble-item"><span class="conv-bubble-label">Archivo</span><button class="bubble-clip" onclick="document.getElementById(\'cmpFileInput\').click();window.cmpCerrarBurbujas();" title="Adjuntar archivo">&#128206;</button></div>' +
+                '</div>' +
+                '<button class="conv-btn-plus" id="cmpBtnPlus" onclick="window.cmpToggleBurbujas()" title="Acciones">&#43;</button>' +
+                '</div>' +
+                '<div style="position:relative;flex:1;display:flex;align-items:flex-end;">' +
+                '<div id="cmpEmojiPanelWrap" style="position:absolute;bottom:100%;right:0;padding-bottom:8px;display:none;z-index:300;"></div>' +
+                '<textarea id="cmpMsgInput" placeholder="Escribe tu respuesta... (Shift+Enter para nueva línea)" maxlength="4096" style="width:100%;"></textarea>' +
+                '</div>' +
                 '<button onclick="window.cmpEnviarMensaje()">Enviar</button>' +
                 '</div>' +
                 '</div>';
@@ -1130,14 +1159,23 @@ var ModCampanas = (function() {
                         contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#127916; Video</div>';
                     }
                 } else if (m.tipo === 'ubicacion') {
-                    var coords = (m.contenido || '').split(',');
+                    // formato: "lat,lng" (inbound) o "lat,lng|nombre" (outbound)
+                    var rawUbic = (m.contenido || '');
+                    var nombreUbic = '';
+                    if (rawUbic.indexOf('|') !== -1) {
+                        var partsUbic = rawUbic.split('|');
+                        rawUbic    = partsUbic[0];
+                        nombreUbic = partsUbic[1] || '';
+                    }
+                    var coords = rawUbic.split(',');
                     var coordRe = /^-?\d+(\.\d+)?$/;
                     if (coords.length === 2 && coordRe.test(coords[0].trim()) && coordRe.test(coords[1].trim())) {
                         var lat = coords[0].trim();
                         var lng = coords[1].trim();
                         var mapsUrl = 'https://www.google.com/maps?q=' + encodeURIComponent(lat) + ',' + encodeURIComponent(lng);
+                        var labelUbic = nombreUbic ? esc(nombreUbic) : (esc(lat) + ', ' + esc(lng));
                         contenidoHtml = '<a href="' + esc(mapsUrl) + '" target="_blank" rel="noopener noreferrer" style="display:block;text-decoration:none;">' +
-                            '<div style="font-size:12px;color:#2563eb;padding:6px 0;">&#128205; ' + esc(lat) + ', ' + esc(lng) + ' &mdash; Ver en Google Maps</div>' +
+                            '<div style="font-size:12px;color:#2563eb;padding:6px 0;">&#128205; ' + labelUbic + ' &mdash; Ver en Google Maps</div>' +
                             '</a>';
                     } else {
                         contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128205; Ubicaci&oacute;n</div>';
@@ -1207,9 +1245,11 @@ var ModCampanas = (function() {
         });
     }
 
-    var _mediaArchivo   = null;
-    var _replyToWaId    = null;
-    var _replyPreview   = null;
+    var _mediaArchivo      = null;
+    var _replyToWaId       = null;
+    var _replyPreview      = null;
+    var _emojiPanelEl      = null;
+    var _emojiStorageKey   = 'apex_emoji_recent_<?= (int)$user['id'] ?>';
 
     function setReply(waId, preview) {
         _replyToWaId  = waId;
@@ -1364,6 +1404,174 @@ var ModCampanas = (function() {
         });
     }
 
+    // ── Menú burbujas ────────────────────────────────────────
+    function toggleBurbujas() {
+        var menu = document.getElementById('cmpBubblesMenu');
+        var btn  = document.getElementById('cmpBtnPlus');
+        if (!menu) return;
+        var open = !menu.classList.contains('hidden');
+        if (open) {
+            menu.classList.add('hidden');
+            if (btn) btn.classList.remove('open');
+        } else {
+            menu.classList.remove('hidden');
+            if (btn) btn.classList.add('open');
+            // Cerrar al hacer click fuera
+            setTimeout(function() {
+                document.addEventListener('click', function _cls(e) {
+                    var wrap = document.querySelector('.conv-actions-wrap');
+                    if (!wrap || !wrap.contains(e.target)) {
+                        cerrarBurbujas();
+                    }
+                    document.removeEventListener('click', _cls);
+                });
+            }, 0);
+        }
+    }
+
+    function cerrarBurbujas() {
+        var menu = document.getElementById('cmpBubblesMenu');
+        var btn  = document.getElementById('cmpBtnPlus');
+        if (menu) menu.classList.add('hidden');
+        if (btn)  btn.classList.remove('open');
+    }
+
+    // ── Emoji picker ─────────────────────────────────────────
+    var EMOJIS = [
+        // Caras felices
+        '😀','😁','😂','🤣','😃','😄','😅','😆','😊','😋','😎','🥰','😍','😘','🤩','😗',
+        // Caras neutrales / pensativas
+        '🙂','🤔','🤨','😐','😑','😶','🙄','😏','🤗','🥱','😌','😛','😜','😝','🤤','🫠',
+        // Caras tristes / negativas
+        '😒','😓','😔','😕','🙃','🤑','😲','🥺','😢','😭','😤','😠','😡','🤬','🤯','😳',
+        // Caras susto / enfermas
+        '🥵','🥶','😱','😨','😰','😟','😧','😦','🤢','🤮','🤧','😷','🤒','🤕','🤠','🥳',
+        // Manos y gestos
+        '👍','👎','👋','🤙','🤝','👏','🙌','🙏','✊','👊','🤜','🤛','🤞','✌️','🤟','🤘',
+        // Más manos
+        '👌','🤏','🖐️','✋','👆','👇','👉','👈','☝️','💪','🦾','🫶','🫵','🫷','🫸','🖖',
+        // Corazones
+        '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','💕','💞','💓','💗','💖',
+        // Símbolos frecuentes
+        '🔥','⚡','✨','💫','⭐','🌟','💥','✅','❌','❗','❓','💯','🔴','🟢','🟡','🔵',
+        // Celebración / premios
+        '🎉','🎊','🎈','🎁','🎀','🏆','🥇','🥈','🥉','🎯','🚀','💎','🔑','🗝️','🎖️','🏅',
+        // Naturaleza
+        '☀️','🌙','🌈','❄️','💧','🌊','🌸','🌺','🌻','🌹','🌷','🌼','💐','🍀','🌿','🌱',
+        // Animales
+        '🐶','🐱','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🦋',
+        // Más animales
+        '🐝','🐞','🦎','🐢','🦕','🦓','🦒','🐘','🦏','🦛','🦚','🦜','🦩','🦢','🕊️','🦅',
+        // Comida y bebida
+        '🍎','🍊','🍋','🍇','🍓','🍑','🍒','🥭','🍕','🍔','🌮','🌯','🍜','🍣','🍩','🎂',
+        // Bebidas
+        '☕','🍵','🧋','🥤','🍺','🥂','🍷','🍸','🍹','🧃','🥛','🍫','🍬','🍭','🍦','🥧',
+        // Deportes
+        '⚽','🏀','🏈','⚾','🎾','🏐','🏉','🥊','🎯','🎮','🎲','🎳','🎸','🎹','🥁','🎤',
+        // Transporte
+        '✈️','🚗','🏎️','🚕','🚙','🚌','🚎','🚓','🚑','🚒','🚀','🛸','🛺','🚲','🛵','🏍️',
+        // Lugares
+        '🏠','🏢','🏰','🏯','⛩️','⛺','🌆','🌇','🌉','🌃','🌁','🗼','🗽','🗺️','🧭','📍',
+        // Objetos cotidianos
+        '📱','💻','🖥️','⌨️','📷','📸','📹','📞','☎️','📺','📻','🔋','💡','🔦','📚','📖',
+        // Oficina / trabajo
+        '📝','✏️','📌','🖊️','📋','📊','📈','📉','🗂️','📁','📂','🖨️','🖱️','💾','💿','📦',
+        // Herramientas
+        '🔧','🔨','⚙️','🔬','🔭','🧲','🪛','🪚','⚒️','🛠️','🔩','🪝','🧰','🔐','🔒','🔓'
+    ];
+
+    function getEmojiRecientes() {
+        try { return JSON.parse(localStorage.getItem(_emojiStorageKey) || '[]'); }
+        catch(e) { return []; }
+    }
+
+    function guardarEmojiReciente(emoji) {
+        var lista = getEmojiRecientes().filter(function(e) { return e !== emoji; });
+        lista.unshift(emoji);
+        if (lista.length > 24) lista = lista.slice(0, 24);
+        try { localStorage.setItem(_emojiStorageKey, JSON.stringify(lista)); } catch(e) {}
+    }
+
+    function renderEmojiPanel() {
+        var wrap = document.getElementById('cmpEmojiPanelWrap');
+        if (!wrap) return;
+        var panel = document.createElement('div');
+        panel.className = 'emoji-panel';
+        var html = '';
+        var recientes = getEmojiRecientes();
+        if (recientes.length > 0) {
+            html += '<div class="emoji-section-label">Recientes</div>';
+            for (var r = 0; r < recientes.length; r++) {
+                html += '<button onclick="window.cmpInsertarEmoji(\'' + recientes[r] + '\')" title="' + recientes[r] + '">' + recientes[r] + '</button>';
+            }
+            html += '<div class="emoji-section-sep"></div>';
+            html += '<div class="emoji-section-label">Todos</div>';
+        }
+        for (var i = 0; i < EMOJIS.length; i++) {
+            if (i > 0 && i % 16 === 0) html += '<div class="emoji-section-sep"></div>';
+            html += '<button onclick="window.cmpInsertarEmoji(\'' + EMOJIS[i] + '\')" title="' + EMOJIS[i] + '">' + EMOJIS[i] + '</button>';
+        }
+        panel.innerHTML = html;
+        wrap.innerHTML = '';
+        wrap.appendChild(panel);
+        wrap.style.display = 'block';
+    }
+
+    function toggleEmojis() {
+        var wrap = document.getElementById('cmpEmojiPanelWrap');
+        if (!wrap) return;
+        if (wrap.style.display !== 'none' && wrap.innerHTML !== '') {
+            wrap.style.display = 'none';
+            wrap.innerHTML = '';
+            return;
+        }
+        renderEmojiPanel();
+        cerrarBurbujas();
+        setTimeout(function() {
+            document.addEventListener('click', function _cls(e) {
+                if (!wrap.contains(e.target) && e.target.id !== 'cmpBtnEmoji') {
+                    wrap.style.display = 'none';
+                    wrap.innerHTML = '';
+                    document.removeEventListener('click', _cls);
+                }
+            });
+        }, 0);
+    }
+
+    function insertarEmoji(emoji) {
+        var ta = document.getElementById('cmpMsgInput');
+        if (!ta) return;
+        var start = ta.selectionStart;
+        var end   = ta.selectionEnd;
+        ta.value  = ta.value.substring(0, start) + emoji + ta.value.substring(end);
+        ta.selectionStart = ta.selectionEnd = start + emoji.length;
+        ta.focus();
+        guardarEmojiReciente(emoji);
+        // Refrescar el panel para que "Recientes" se actualice en tiempo real
+        var wrap = document.getElementById('cmpEmojiPanelWrap');
+        if (wrap && wrap.style.display !== 'none') renderEmojiPanel();
+    }
+
+    // ── Enviar ubicación (preset: Templadora Noreste) ────────
+    function enviarUbicacion() {
+        if (!_convActiva) return;
+        cerrarBurbujas();
+        fetch('/produccion/api/campanas.php?accion=enviar_ubicacion', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({conversacion_id: _convActiva, lat: 25.6930336, lng: -100.4807059, nombre: 'Templadora Noreste S.A. de C.V.'})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                cargarMensajes(_convActiva);
+            } else {
+                alert('Error al enviar ubicación: ' + (data.error || 'desconocido'));
+            }
+        })
+        .catch(function() { alert('Error de red al enviar la ubicación'); });
+    }
+
     // ── Init ──────────────────────────────────────────────────
     function init() {
         tab('conversaciones', document.getElementById('cmpTabBtnConv'));
@@ -1396,6 +1604,11 @@ var ModCampanas = (function() {
     window.cmpCancelarReply       = cancelarReply;
     window.cmpMenuConv            = menuConv;
     window.cmpMarcarNoLeido       = marcarNoLeido;
+    window.cmpToggleBurbujas      = toggleBurbujas;
+    window.cmpCerrarBurbujas      = cerrarBurbujas;
+    window.cmpToggleEmojis        = toggleEmojis;
+    window.cmpInsertarEmoji       = insertarEmoji;
+    window.cmpEnviarUbicacion     = enviarUbicacion;
 
     return { init: init };
 })();
