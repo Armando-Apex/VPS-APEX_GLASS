@@ -278,14 +278,15 @@ if ($metodo === 'POST' && $accion === 'crear') {
     $stmt->execute([$nombre, $template, $varsJson, $headerImageUrl ?: null, $segmentoJson, $user['nombre'], $total]);
     $campanaId = $db->lastInsertId();
 
-    $stmtCli = $db->prepare("SELECT id, nombre, telefono FROM clientes WHERE id = ?");
-    $stmtIns = $db->prepare("INSERT INTO campana_envios (campana_id, cliente_id, telefono) VALUES (?, ?, ?)");
+    $stmtCli = $db->prepare("SELECT id, nombre, contacto, telefono FROM clientes WHERE id = ?");
+    $stmtIns = $db->prepare("INSERT INTO campana_envios (campana_id, cliente_id, telefono, nombre_override) VALUES (?, ?, ?, ?)");
     foreach ($clienteIds as $cid) {
         $stmtCli->execute([(int)$cid]);
         $cli = $stmtCli->fetch(PDO::FETCH_ASSOC);
         if ($cli && $cli['telefono']) {
             $tel = normalizarTelefono($cli['telefono']);
-            $stmtIns->execute([$campanaId, $cli['id'], $tel]);
+            $nombreCorto = nombreCampanaCorto((int)$cli['id'], $cli['contacto'] ?: $cli['nombre']);
+            $stmtIns->execute([$campanaId, $cli['id'], $tel, $nombreCorto]);
         }
     }
 
@@ -323,8 +324,8 @@ if ($metodo === 'POST' && $accion === 'enviar') {
 
     $db->prepare("UPDATE campanas SET estado='enviando' WHERE id=?")->execute([$campanaId]);
 
-    $stmtE = $db->prepare("SELECT ce.id, ce.telefono,
-        COALESCE(c.nombre, ce.nombre_override) as nombre_cliente,
+    $stmtE = $db->prepare("SELECT ce.id, ce.telefono, ce.cliente_id,
+        COALESCE(ce.nombre_override, c.nombre) as nombre_cliente,
         c.codigo as codigo_cliente
         FROM campana_envios ce
         LEFT JOIN clientes c ON c.id = ce.cliente_id
@@ -405,6 +406,23 @@ if ($metodo === 'POST' && $accion === 'enviar') {
                 $cid = (int)$r['cliente_id'];
                 if (!isset($extraData[$cid]['asesor'])) {
                     $extraData[$cid]['asesor'] = $r['asesor'];
+                }
+            }
+            // Fallback: clientes sin orden calificada (ej. cotizaron pero no compraron) —
+            // usar el asesor de su cotización más reciente.
+            $rowsCot = $db->query("SELECT cliente_id, asesor_nombre FROM cotizaciones WHERE cliente_id IN ($in) ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($rowsCot as $r) {
+                $cid = (int)$r['cliente_id'];
+                if (!isset($extraData[$cid]['asesor'])) {
+                    $extraData[$cid]['asesor'] = $r['asesor_nombre'];
+                }
+            }
+            // Normalizar a asesoras reales — si quedó vacío o es alguien que no es
+            // comercial (ej. cotización hecha por el Director Administrativo), usar Bethy.
+            $asesorasReales = ['Bethy', 'Cynthia'];
+            foreach ($clienteIdsEnvio as $cid) {
+                if (empty($extraData[$cid]['asesor']) || !in_array($extraData[$cid]['asesor'], $asesorasReales, true)) {
+                    $extraData[$cid]['asesor'] = 'Bethy';
                 }
             }
         }
