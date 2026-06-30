@@ -220,7 +220,8 @@ if ($metodo === 'GET' && $accion === 'conversaciones') {
 // ── GET mensajes de conversación ─────────────────────────────
 if ($metodo === 'GET' && $accion === 'mensajes') {
     $cid  = (int)($_GET['conversacion_id'] ?? 0);
-    $stmt = $db->prepare("SELECT id, direccion, contenido, tipo, enviado_por, created_at
+    $stmt = $db->prepare("SELECT id, direccion, contenido, tipo, enviado_por, created_at,
+        wa_message_id, reply_to_wa_id, reply_preview
         FROM whatsapp_mensajes WHERE conversacion_id = ? ORDER BY created_at ASC");
     $stmt->execute([$cid]);
     jsonResponse(['mensajes' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
@@ -475,9 +476,11 @@ if ($metodo === 'POST' && $accion === 'enviar') {
 
 // ── POST responder en conversación ───────────────────────────
 if ($metodo === 'POST' && $accion === 'responder') {
-    $body    = json_decode(file_get_contents('php://input'), true);
-    $convId  = (int)($body['conversacion_id'] ?? 0);
-    $mensaje = trim($body['mensaje'] ?? '');
+    $body          = json_decode(file_get_contents('php://input'), true);
+    $convId        = (int)($body['conversacion_id'] ?? 0);
+    $mensaje       = trim($body['mensaje'] ?? '');
+    $replyToWaId   = trim($body['reply_to_wa_id'] ?? '');
+    $replyPreview  = substr(trim($body['reply_preview'] ?? ''), 0, 200);
     if (!$convId || !$mensaje) {
         jsonResponse(['error' => 'Faltan campos'], 400);
     }
@@ -495,6 +498,9 @@ if ($metodo === 'POST' && $accion === 'responder') {
         'type'              => 'text',
         'text'              => ['body' => $mensaje]
     ];
+    if ($replyToWaId) {
+        $payload['context'] = ['message_id' => $replyToWaId];
+    }
     $res = enviarMensajeWA($payload);
     if ($res['code'] !== 200) {
         jsonResponse(['error' => 'Error Meta API', 'detalle' => $res['data']], 502);
@@ -502,9 +508,9 @@ if ($metodo === 'POST' && $accion === 'responder') {
 
     $waId = $res['data']['messages'][0]['id'] ?? null;
     $db->prepare("INSERT INTO whatsapp_mensajes
-        (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por)
-        VALUES (?, 'outbound', ?, 'texto', ?, ?)")
-       ->execute([$convId, $mensaje, $waId, $user['nombre']]);
+        (conversacion_id, direccion, contenido, tipo, wa_message_id, reply_to_wa_id, reply_preview, enviado_por)
+        VALUES (?, 'outbound', ?, 'texto', ?, ?, ?, ?)")
+       ->execute([$convId, $mensaje, $waId, $replyToWaId ?: null, $replyPreview ?: null, $user['nombre']]);
 
     $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
        ->execute([$convId]);
@@ -679,6 +685,17 @@ if ($metodo === 'POST' && $accion === 'marcar_leido') {
     $body   = json_decode(file_get_contents('php://input'), true);
     $convId = (int)($body['conversacion_id'] ?? 0);
     $db->prepare("UPDATE whatsapp_conversaciones SET mensajes_sin_leer=0 WHERE id=?")
+       ->execute([$convId]);
+    jsonResponse(['ok' => true]);
+    exit;
+}
+
+// ── POST marcar conversación como no leída ───────────────────
+if ($metodo === 'POST' && $accion === 'marcar_no_leido') {
+    $body   = json_decode(file_get_contents('php://input'), true);
+    $convId = (int)($body['conversacion_id'] ?? 0);
+    if (!$convId) jsonResponse(['error' => 'Falta conversacion_id'], 400);
+    $db->prepare("UPDATE whatsapp_conversaciones SET mensajes_sin_leer=1 WHERE id=?")
        ->execute([$convId]);
     jsonResponse(['ok' => true]);
     exit;

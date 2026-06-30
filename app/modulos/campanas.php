@@ -35,19 +35,36 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno']);
 .cmp-progreso-bar{background:#2563eb;border-radius:99px;height:8px;transition:width .3s;}
 .conv-panel{display:flex;gap:0;height:520px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;}
 .conv-lista{width:300px;border-right:1px solid #e2e8f0;overflow-y:auto;flex-shrink:0;background:#fff;}
-.conv-item{padding:12px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background .1s;}
+.conv-item{padding:12px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background .1s;position:relative;}
 .conv-item:hover,.conv-item.active{background:#eff6ff;}
 .conv-item-nombre{font-size:13px;font-weight:600;color:#1e293b;}
-.conv-item-preview{font-size:11px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;}
+.conv-item-preview{font-size:11px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
 .conv-badge{background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;float:right;margin-top:2px;}
+.conv-item-menu-btn{position:absolute;right:8px;bottom:10px;background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;padding:2px 6px;border-radius:4px;display:none;line-height:1;}
+.conv-item:hover .conv-item-menu-btn{display:block;}
+.conv-item-menu-btn:hover{background:#e2e8f0;color:#475569;}
+.conv-ctx-menu{position:fixed;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:9999;min-width:160px;padding:4px 0;}
+.conv-ctx-menu button{display:block;width:100%;text-align:left;padding:8px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:#1e293b;}
+.conv-ctx-menu button:hover{background:#f1f5f9;}
 .conv-chat{flex:1;display:flex;flex-direction:column;background:#f8fafc;}
 .conv-header{padding:12px 16px;background:#fff;border-bottom:1px solid #e2e8f0;font-size:13px;font-weight:600;color:#1e293b;}
 .conv-mensajes{flex:1;padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;}
-.msg-burbuja{max-width:75%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5;word-break:break-word;}
-.msg-out{background:#dcfce7;align-self:flex-end;border-bottom-right-radius:3px;}
-.msg-in{background:#fff;border:1px solid #e2e8f0;align-self:flex-start;border-bottom-left-radius:3px;}
+.msg-wrap{display:flex;flex-direction:column;position:relative;}
+.msg-wrap.out{align-items:flex-end;}.msg-wrap.in{align-items:flex-start;}
+.msg-burbuja{max-width:75%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5;word-break:break-word;white-space:pre-wrap;}
+.msg-out{background:#dcfce7;border-bottom-right-radius:3px;}
+.msg-in{background:#fff;border:1px solid #e2e8f0;border-bottom-left-radius:3px;}
 .msg-meta{font-size:10px;color:#94a3b8;margin-top:4px;text-align:right;}
 .msg-in .msg-meta{text-align:left;}
+.msg-burbuja{position:relative;}
+.msg-reply-btn{display:none;position:absolute;top:4px;right:4px;background:rgba(255,255,255,.9);border:1px solid #e2e8f0;border-radius:99px;padding:2px 8px;font-size:12px;cursor:pointer;color:#475569;box-shadow:0 1px 4px rgba(0,0,0,.1);line-height:1.4;}
+.msg-burbuja:hover .msg-reply-btn{display:block;}
+.msg-quoted{background:rgba(0,0,0,.06);border-left:3px solid #2563eb;border-radius:4px;padding:4px 8px;margin-bottom:6px;font-size:11px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.msg-out .msg-quoted{border-left-color:#16a34a;}
+.reply-bar{display:flex;align-items:center;gap:8px;background:#f1f5f9;border-radius:6px;padding:6px 10px;font-size:12px;color:#475569;}
+.reply-bar-text{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.reply-bar-close{background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;line-height:1;padding:0 2px;}
+.reply-bar-close:hover{color:#dc2626;}
 .conv-input{border-top:1px solid #e2e8f0;padding:12px;display:flex;flex-direction:column;gap:8px;background:#fff;}
 .conv-input-row{display:flex;gap:8px;align-items:flex-end;}
 .conv-input textarea{flex:1;border:1px solid #e2e8f0;border-radius:6px;padding:8px;font-size:13px;resize:none;height:60px;font-family:inherit;}
@@ -902,10 +919,13 @@ var ModCampanas = (function() {
                 sinLeerTotal += sl;
                 var badgeSL   = sl > 0 ? '<span class="conv-badge">' + sl + '</span>' : '';
                 var badgeTipo = _tipoBadge[tipo] || '';
-                html += '<div class="conv-item" onclick="window.cmpAbrirConv(' + c.id + ',\'' + esc(c.nombre_cliente || c.telefono).replace(/'/g,"&#39;") + '\')" id="convItem' + c.id + '">' +
+                var cid = c.id;
+                var cnombre = esc(c.nombre_cliente || c.telefono).replace(/'/g,"&#39;");
+                html += '<div class="conv-item" onclick="window.cmpAbrirConv(' + cid + ',\'' + cnombre + '\')" id="convItem' + cid + '">' +
                     badgeSL +
                     '<div class="conv-item-nombre">' + esc(c.nombre_cliente || c.telefono) + badgeTipo + '</div>' +
                     '<div class="conv-item-preview">' + esc((c.ultimo_mensaje || 'Sin mensajes').substring(0, 60)) + '</div>' +
+                    '<button class="conv-item-menu-btn" onclick="event.stopPropagation();window.cmpMenuConv(event,' + cid + ')" title="Más opciones">&#8942;</button>' +
                     '</div>';
             });
             document.getElementById('cmpConvLista').innerHTML = html ||
@@ -956,10 +976,15 @@ var ModCampanas = (function() {
                 '<span class="prev-nombre" id="cmpMediaNombre"></span>' +
                 '<button class="prev-quitar" onclick="window.cmpQuitarMedia()">&#x2715;</button>' +
                 '</div>' +
+                '<div id="cmpReplyBar" class="reply-bar" style="display:none;">' +
+                '<span style="font-size:14px;">&#8626;</span>' +
+                '<span class="reply-bar-text" id="cmpReplyBarText"></span>' +
+                '<button class="reply-bar-close" onclick="window.cmpCancelarReply()" title="Cancelar">&#x2715;</button>' +
+                '</div>' +
                 '<div class="conv-input-row">' +
                 '<input type="file" id="cmpFileInput" accept="image/*,.pdf" style="display:none;" onchange="window.cmpArchivoSeleccionado(this)">' +
                 '<button class="conv-btn-clip" onclick="document.getElementById(\'cmpFileInput\').click()" title="Adjuntar archivo">&#128206;</button>' +
-                '<textarea id="cmpMsgInput" placeholder="Escribe tu respuesta... (Ctrl+V para pegar imagen)" maxlength="4096"></textarea>' +
+                '<textarea id="cmpMsgInput" placeholder="Escribe tu respuesta... (Shift+Enter para nueva línea)" maxlength="4096"></textarea>' +
                 '<button onclick="window.cmpEnviarMensaje()">Enviar</button>' +
                 '</div>' +
                 '</div>';
@@ -993,6 +1018,7 @@ var ModCampanas = (function() {
                         }
                     }
                 });
+                textarea.focus();
             }
         } else {
             // Cargar plantillas para el panel de reapertura
@@ -1029,12 +1055,18 @@ var ModCampanas = (function() {
           .then(function(data) {
             var msgs = '';
             (data.mensajes || []).forEach(function(m) {
+                var dir  = m.direccion === 'outbound' ? 'out' : 'in';
                 var cls  = m.direccion === 'outbound' ? 'msg-out' : 'msg-in';
                 var meta = '';
                 if (m.direccion === 'outbound' && m.enviado_por) {
                     meta = '<div class="msg-meta">' + esc(m.enviado_por) + ' &middot; ' + fmtFecha(m.created_at) + '</div>';
                 } else {
                     meta = '<div class="msg-meta">' + fmtFecha(m.created_at) + '</div>';
+                }
+                // Burbuja de mensaje citado (reply)
+                var quotedHtml = '';
+                if (m.reply_preview) {
+                    quotedHtml = '<div class="msg-quoted">&#8626; ' + esc(m.reply_preview.substring(0, 120)) + '</div>';
                 }
                 var contenidoHtml = '';
                 if (m.tipo === 'imagen') {
@@ -1052,15 +1084,27 @@ var ModCampanas = (function() {
                 } else if (m.tipo === 'documento') {
                     contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128196; ' + esc(m.contenido) + '</div>';
                 } else {
+                    // Texto: preservar saltos de línea con white-space:pre-wrap (aplicado via CSS en .msg-burbuja)
                     contenidoHtml = esc(m.contenido);
                 }
-                msgs += '<div class="msg-burbuja ' + cls + '">' + contenidoHtml + meta + '</div>';
+                // Botón reply — solo en mensajes de texto (no audio)
+                var waId    = esc(m.wa_message_id || '');
+                var preview = esc((m.contenido || '').substring(0, 100));
+                var replyBtn = (m.tipo !== 'audio' && waId)
+                    ? '<button class="msg-reply-btn" onclick="window.cmpSetReply(\'' + waId + '\',\'' + preview + '\')" title="Responder">&#8626;</button>'
+                    : '';
+                msgs += '<div class="msg-wrap ' + dir + '">' +
+                    '<div class="msg-burbuja ' + cls + '">' + replyBtn + quotedHtml + contenidoHtml + meta + '</div>' +
+                    '</div>';
             });
             var msgsEl = document.getElementById('cmpMsgs');
             if (msgsEl) {
                 msgsEl.innerHTML = msgs || '<p style="color:#94a3b8;font-size:12px;text-align:center;">Sin mensajes a&uacute;n.</p>';
                 msgsEl.scrollTop = msgsEl.scrollHeight;
             }
+            // Mantener foco en el textarea después de recargar mensajes
+            var ta = document.getElementById('cmpMsgInput');
+            if (ta && document.activeElement !== ta) ta.focus();
           });
     }
 
@@ -1092,7 +1136,62 @@ var ModCampanas = (function() {
         });
     }
 
-    var _mediaArchivo = null;
+    var _mediaArchivo   = null;
+    var _replyToWaId    = null;
+    var _replyPreview   = null;
+
+    function setReply(waId, preview) {
+        _replyToWaId  = waId;
+        _replyPreview = preview;
+        var bar = document.getElementById('cmpReplyBar');
+        if (bar) {
+            document.getElementById('cmpReplyBarText').textContent = preview;
+            bar.style.display = 'flex';
+        }
+        var ta = document.getElementById('cmpMsgInput');
+        if (ta) ta.focus();
+    }
+
+    function cancelarReply() {
+        _replyToWaId  = null;
+        _replyPreview = null;
+        var bar = document.getElementById('cmpReplyBar');
+        if (bar) bar.style.display = 'none';
+    }
+
+    function menuConv(e, convId) {
+        // Cerrar menú existente
+        var old = document.getElementById('cmpCtxMenu');
+        if (old) old.remove();
+        var menu = document.createElement('div');
+        menu.id = 'cmpCtxMenu';
+        menu.className = 'conv-ctx-menu';
+        menu.innerHTML = '<button onclick="window.cmpMarcarNoLeido(' + convId + ')">&#128140; Marcar como no leído</button>';
+        document.body.appendChild(menu);
+        var rect = e.target.getBoundingClientRect();
+        menu.style.top  = (rect.bottom + 4) + 'px';
+        menu.style.left = Math.max(4, rect.left - menu.offsetWidth + rect.width) + 'px';
+        setTimeout(function() {
+            document.addEventListener('click', function cerrar() {
+                var m = document.getElementById('cmpCtxMenu');
+                if (m) m.remove();
+                document.removeEventListener('click', cerrar);
+            });
+        }, 10);
+    }
+
+    function marcarNoLeido(convId) {
+        var m = document.getElementById('cmpCtxMenu');
+        if (m) m.remove();
+        fetch('/produccion/api/campanas.php?accion=marcar_no_leido', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': (window._csrfToken || '')},
+            body: JSON.stringify({conversacion_id: convId})
+        }).then(function() {
+            cargarConversaciones();
+            if (typeof window.actualizarBadgeWA === 'function') window.actualizarBadgeWA();
+        });
+    }
 
     function cmpSetMedia(blob, nombre) {
         _mediaArchivo = blob;
@@ -1164,17 +1263,21 @@ var ModCampanas = (function() {
         }
 
         // Envío solo texto
+        var replyId      = _replyToWaId;
+        var replyPreview = _replyPreview;
         input.value    = '';
         input.disabled = true;
+        cancelarReply();
 
         fetch('/produccion/api/campanas.php?accion=responder', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({conversacion_id: _convActiva, mensaje: msg})
+            body: JSON.stringify({conversacion_id: _convActiva, mensaje: msg, reply_to_wa_id: replyId || '', reply_preview: replyPreview || ''})
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             input.disabled = false;
+            input.focus();
             if (data.ok) {
                 cargarMensajes(_convActiva);
             } else {
@@ -1184,6 +1287,7 @@ var ModCampanas = (function() {
         })
         .catch(function() {
             input.disabled = false;
+            input.focus();
             alert('Error de red al enviar el mensaje');
             input.value = msg;
         });
@@ -1216,6 +1320,10 @@ var ModCampanas = (function() {
     window.cmpQuitarMedia         = quitarMedia;
     window.cmpArchivoSeleccionado = archivoSeleccionado;
     window.cmpEnviarTemplateInbox = enviarTemplateInbox;
+    window.cmpSetReply            = setReply;
+    window.cmpCancelarReply       = cancelarReply;
+    window.cmpMenuConv            = menuConv;
+    window.cmpMarcarNoLeido       = marcarNoLeido;
 
     return { init: init };
 })();

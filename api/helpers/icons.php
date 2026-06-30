@@ -1,6 +1,6 @@
 <?php
 // APEX GLASS — Helper SVG icons (Lucide inline)
-// Usage: <?= icono('bar-chart-2') ?> or <?= icono('bell', 20) ?>
+// Usage: echo icono('bar-chart-2') or echo icono('bell', 20)
 
 function icono($nombre, $size = 16) {
     $p = [
