@@ -126,7 +126,8 @@ if ($metodo === 'GET' && $accion === 'detalle') {
         jsonResponse(['error' => 'No encontrada'], 404);
     }
     $stmt2 = $db->prepare("SELECT ce.*,
-        COALESCE(c.nombre, ce.nombre_override) as nombre_cliente
+        COALESCE(c.nombre, ce.nombre_override) as nombre_cliente,
+        COALESCE(ce.nombre_override, c.nombre) as nombre_envio
         FROM campana_envios ce
         LEFT JOIN clientes c ON c.id = ce.cliente_id
         WHERE ce.campana_id = ?

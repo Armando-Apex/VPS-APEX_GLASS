@@ -279,6 +279,7 @@ var ModCampanas = (function() {
                 var estadoColor = {enviado:'#2563eb',entregado:'#16a34a',leido:'#7c3aed',fallido:'#dc2626',pendiente:'#64748b'};
                 filas += '<tr>' +
                     '<td style="padding:7px 10px;font-size:12px;">' + esc(e.nombre_cliente || '-') + '</td>' +
+                    '<td style="padding:7px 10px;font-size:12px;color:#2563eb;font-weight:600;">' + esc(e.nombre_envio || '-') + '</td>' +
                     '<td style="padding:7px 10px;font-size:12px;">' + esc(e.telefono) + '</td>' +
                     '<td style="padding:7px 10px;"><span class="cmp-badge" style="background:' + (estadoColor[e.estado] || '#64748b') + '20;color:' + (estadoColor[e.estado] || '#64748b') + ';">' + esc(e.estado) + '</span></td>' +
                     '<td style="padding:7px 10px;font-size:11px;color:#64748b;">' + fmtFecha(e.enviado_at) + '</td>' +
@@ -289,6 +290,7 @@ var ModCampanas = (function() {
                 '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">' +
                 '<thead><tr style="background:#f8fafc;">' +
                 '<th style="padding:8px 10px;text-align:left;font-size:12px;">Cliente</th>' +
+                '<th style="padding:8px 10px;text-align:left;font-size:12px;">Se enviar&aacute; como</th>' +
                 '<th style="padding:8px 10px;text-align:left;font-size:12px;">Tel&eacute;fono</th>' +
                 '<th style="padding:8px 10px;text-align:left;font-size:12px;">Estado</th>' +
                 '<th style="padding:8px 10px;text-align:left;font-size:12px;">Enviado</th>' +
