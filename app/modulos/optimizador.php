@@ -472,9 +472,9 @@ body {
 
 <script>
 
-const API = '/produccion/api/';
+var API = '/produccion/api/';
 
-let cristalSel = '';
+var cristalSel = '';
 
 
 

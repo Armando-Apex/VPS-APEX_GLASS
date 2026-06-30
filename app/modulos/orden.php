@@ -165,7 +165,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 </div>
 
 <script>
-const ESTATUS_LABELS = {
+var ESTATUS_LABELS = {
   pendiente:  '&#9203; Pendiente',
   en_corte:   '&#9881;&#65039; En CNC',
   cortado:    '&#9986;&#65039; Cortado',
@@ -178,10 +178,10 @@ const ESTATUS_LABELS = {
   entregado:  '&#9989; Entregado',
 };
 
-const ESTATUS_ORDEN = ['pendiente','en_corte','cortado','canteado','trazo','taladro','en_horno','terminado','entregado'];
+var ESTATUS_ORDEN = ['pendiente','en_corte','cortado','canteado','trazo','taladro','en_horno','terminado','entregado'];
 
-const params = new URLSearchParams(window.location.search);
-const FOLIO  = '<?= htmlspecialchars($folio_php, ENT_QUOTES) ?>' || params.get('folio') || '';
+var params = new URLSearchParams(window.location.search);
+var FOLIO  = '<?= htmlspecialchars($folio_php, ENT_QUOTES) ?>' || params.get('folio') || '';
 
 // Apuntar bot&#243;n de imprimir al folio correcto
 if (FOLIO) {
