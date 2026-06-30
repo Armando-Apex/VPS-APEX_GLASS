@@ -79,11 +79,12 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_contacto') {
     $actual = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$actual) { jsonResponse(['error' => 'Cliente no encontrado']); exit; }
 
+    $pdo->beginTransaction();
     $pdo->prepare("UPDATE clientes SET contacto = ? WHERE id = ?")
         ->execute([$nuevoContacto, $id]);
-
     $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'Contacto', ?, ?, ?, ?)")
         ->execute([$id, $actual['contacto'] ?? '', $nuevoContacto, $usuario_id, $usuario_nombre]);
+    $pdo->commit();
 
     jsonResponse(['ok' => true, 'contacto' => $nuevoContacto]); exit;
 }
