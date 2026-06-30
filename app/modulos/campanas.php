@@ -1082,7 +1082,17 @@ var ModCampanas = (function() {
                         contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#127908; Nota de voz</div>';
                     }
                 } else if (m.tipo === 'documento') {
-                    contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128196; ' + esc(m.contenido) + '</div>';
+                    var docParts = (m.contenido || '').split('|');
+                    if (docParts.length === 2 && docParts[0].indexOf('/produccion/') === 0) {
+                        // Nuevo formato: url|nombre
+                        contenidoHtml = '<a href="' + esc(docParts[0]) + '" target="_blank" style="display:flex;align-items:center;gap:6px;color:#2563eb;font-size:13px;text-decoration:none;">&#128196; ' + esc(docParts[1]) + '</a>';
+                    } else if (m.contenido && m.contenido.indexOf('/produccion/') === 0) {
+                        // URL directa sin nombre
+                        contenidoHtml = '<a href="' + esc(m.contenido) + '" target="_blank" style="display:flex;align-items:center;gap:6px;color:#2563eb;font-size:13px;text-decoration:none;">&#128196; Ver documento</a>';
+                    } else {
+                        // Solo nombre (mensajes viejos sin descarga)
+                        contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128196; ' + esc(m.contenido) + '</div>';
+                    }
                 } else {
                     // Texto: preservar saltos de línea con white-space:pre-wrap (aplicado via CSS en .msg-burbuja)
                     contenidoHtml = esc(m.contenido);

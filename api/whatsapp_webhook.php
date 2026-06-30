@@ -104,7 +104,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $tipo = 'imagen';
                 } elseif ($tipo === 'document') {
-                    $contenido = $msg['document']['filename'] ?? 'documento';
+                    $origName  = $msg['document']['filename'] ?? 'documento';
+                    $mediaId   = $msg['document']['id'] ?? '';
+                    $contenido = $origName; // fallback si falla la descarga
+                    if ($mediaId) {
+                        $chMeta = curl_init('https://graph.facebook.com/v20.0/' . $mediaId);
+                        curl_setopt($chMeta, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($chMeta, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . WA_TOKEN]);
+                        curl_setopt($chMeta, CURLOPT_TIMEOUT, 10);
+                        $metaRes     = json_decode(curl_exec($chMeta), true);
+                        curl_close($chMeta);
+                        $downloadUrl = $metaRes['url'] ?? '';
+                        $urlHost     = parse_url($downloadUrl, PHP_URL_HOST) ?? '';
+                        $metaDomains = ['lookaside.fbsbx.com','scontent.whatsapp.net','mmg.whatsapp.net','media.fbcdn.net'];
+                        $dominioValido = false;
+                        foreach ($metaDomains as $d) {
+                            if ($urlHost === $d || substr($urlHost, -(strlen($d)+1)) === '.'.$d) {
+                                $dominioValido = true; break;
+                            }
+                        }
+                        if ($downloadUrl && $dominioValido) {
+                            $chDoc = curl_init($downloadUrl);
+                            curl_setopt($chDoc, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($chDoc, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . WA_TOKEN]);
+                            curl_setopt($chDoc, CURLOPT_TIMEOUT, 30);
+                            $docData = curl_exec($chDoc);
+                            curl_close($chDoc);
+                            if ($docData && strlen($docData) <= 20 * 1024 * 1024) {
+                                $mime      = $metaRes['mime_type'] ?? 'application/octet-stream';
+                                $extMap    = ['application/pdf'=>'pdf','application/msword'=>'doc',
+                                              'application/vnd.openxmlformats-officedocument.wordprocessingml.document'=>'docx',
+                                              'application/vnd.ms-excel'=>'xls',
+                                              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'=>'xlsx'];
+                                $ext       = $extMap[$mime] ?? pathinfo($origName, PATHINFO_EXTENSION) ?: 'bin';
+                                $localName = uniqid('wa_doc_', true) . '.' . $ext;
+                                $localDir  = dirname(__DIR__) . '/archivos_campanas/wa_media/';
+                                file_put_contents($localDir . $localName, $docData);
+                                $contenido = '/produccion/archivos_campanas/wa_media/' . $localName . '|' . $origName;
+                            }
+                        }
+                    }
                     $tipo = 'documento';
                 } elseif ($tipo === 'reaction') {
                     $emoji = $msg['reaction']['emoji'] ?? '';
