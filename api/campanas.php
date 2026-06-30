@@ -18,9 +18,7 @@ $esCampanas  = in_array($rol, ['dir_admin','dueno','comercial','administracion',
 $puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo']);
 
 if (!$esCampanas) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Sin permiso']);
-    exit;
+    jsonResponse(['error' => 'Sin permiso'], 403);
 }
 
 // ── Función: normalizar teléfono a 52XXXXXXXXXX ──────────────
@@ -42,7 +40,7 @@ require_once __DIR__ . '/wa_helper.php';
 if ($metodo === 'GET' && $accion === 'sin_leer') {
     $stmt = $db->query("SELECT COALESCE(SUM(mensajes_sin_leer), 0) as total FROM whatsapp_conversaciones");
     $row  = $stmt->fetch(PDO::FETCH_ASSOC);
-    echo json_encode(['total' => (int)$row['total']]);
+    jsonResponse(['total' => (int)$row['total']]);
     exit;
 }
 
@@ -59,9 +57,7 @@ if ($metodo === 'GET' && $accion === 'listar_plantillas') {
     curl_close($ch);
 
     if ($code !== 200) {
-        http_response_code(502);
-        echo json_encode(['error' => 'Error al consultar Meta API', 'code' => $code]);
-        exit;
+        jsonResponse(['error' => 'Error al consultar Meta API', 'code' => $code], 502);
     }
     $data = json_decode($resp, true);
     $plantillas = [];
@@ -85,7 +81,7 @@ if ($metodo === 'GET' && $accion === 'listar_plantillas') {
         ];
     }
     usort($plantillas, function($a, $b) { return strcmp($a['name'], $b['name']); });
-    echo json_encode(['plantillas' => $plantillas]);
+    jsonResponse(['plantillas' => $plantillas]);
     exit;
 }
 
@@ -94,7 +90,7 @@ if ($metodo === 'GET' && $accion === 'listar') {
     $stmt = $db->query("SELECT id, nombre, template_nombre, estado,
         total_destinatarios, enviados, entregados, leidos, respuestas, created_at
         FROM campanas ORDER BY created_at DESC");
-    echo json_encode(['campanas' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    jsonResponse(['campanas' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     exit;
 }
 
@@ -105,9 +101,7 @@ if ($metodo === 'GET' && $accion === 'detalle') {
     $stmt->execute([$id]);
     $campana = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$campana) {
-        http_response_code(404);
-        echo json_encode(['error' => 'No encontrada']);
-        exit;
+        jsonResponse(['error' => 'No encontrada'], 404);
     }
     $stmt2 = $db->prepare("SELECT ce.*,
         COALESCE(c.nombre, ce.nombre_override) as nombre_cliente
@@ -116,7 +110,7 @@ if ($metodo === 'GET' && $accion === 'detalle') {
         WHERE ce.campana_id = ?
         ORDER BY nombre_cliente ASC");
     $stmt2->execute([$id]);
-    echo json_encode(['campana' => $campana, 'envios' => $stmt2->fetchAll(PDO::FETCH_ASSOC)]);
+    jsonResponse(['campana' => $campana, 'envios' => $stmt2->fetchAll(PDO::FETCH_ASSOC)]);
     exit;
 }
 
@@ -137,7 +131,7 @@ if ($metodo === 'GET' && $accion === 'prospectos_segmento') {
     $sql  = "SELECT id, nombre, telefono, estado FROM prospectos WHERE " . implode(' AND ', $where) . " ORDER BY nombre ASC";
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
-    echo json_encode(['prospectos' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    jsonResponse(['prospectos' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     exit;
 }
 
@@ -166,7 +160,7 @@ if ($metodo === 'GET' && $accion === 'clientes_segmento') {
              FROM clientes WHERE " . implode(' AND ', $where) . " ORDER BY nombre ASC";
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
-    echo json_encode(['clientes' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    jsonResponse(['clientes' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     exit;
 }
 
@@ -177,11 +171,9 @@ if ($metodo === 'GET' && $accion === 'progreso') {
     $stmt->execute([$id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
-        http_response_code(404);
-        echo json_encode(['error' => 'No encontrada']);
-        exit;
+        jsonResponse(['error' => 'No encontrada'], 404);
     }
-    echo json_encode([
+    jsonResponse([
         'estado'   => $row['estado'],
         'total'    => (int)$row['total_destinatarios'],
         'enviados' => (int)$row['enviados']
@@ -221,7 +213,7 @@ if ($metodo === 'GET' && $accion === 'conversaciones') {
         SET wc.cliente_id = cp.id
         WHERE wc.cliente_id IS NULL");
     $stmtVinc->execute();
-    echo json_encode(['conversaciones' => $rows]);
+    jsonResponse(['conversaciones' => $rows]);
     exit;
 }
 
@@ -231,16 +223,14 @@ if ($metodo === 'GET' && $accion === 'mensajes') {
     $stmt = $db->prepare("SELECT id, direccion, contenido, tipo, enviado_por, created_at
         FROM whatsapp_mensajes WHERE conversacion_id = ? ORDER BY created_at ASC");
     $stmt->execute([$cid]);
-    echo json_encode(['mensajes' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    jsonResponse(['mensajes' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     exit;
 }
 
 // ── POST crear campaña ───────────────────────────────────────
 if ($metodo === 'POST' && $accion === 'crear') {
     if (!$puedeEnviar) {
-        http_response_code(403);
-        echo json_encode(['error' => 'Sin permiso']);
-        exit;
+        jsonResponse(['error' => 'Sin permiso'], 403);
     }
     $body = json_decode(file_get_contents('php://input'), true);
 
@@ -253,9 +243,7 @@ if ($metodo === 'POST' && $accion === 'crear') {
     $headerImageUrl = trim($body['header_image_url'] ?? '');
 
     if (!$nombre || !$template || (empty($clienteIds) && empty($prospectoIds))) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Faltan campos']);
-        exit;
+        jsonResponse(['error' => 'Faltan campos'], 400);
     }
 
     $total = count($clienteIds) + count($prospectoIds);
@@ -290,16 +278,14 @@ if ($metodo === 'POST' && $accion === 'crear') {
     }
 
     $db->commit();
-    echo json_encode(['ok' => true, 'id' => $campanaId]);
+    jsonResponse(['ok' => true, 'id' => $campanaId]);
     exit;
 }
 
 // ── POST enviar campaña ──────────────────────────────────────
 if ($metodo === 'POST' && $accion === 'enviar') {
     if (!$puedeEnviar) {
-        http_response_code(403);
-        echo json_encode(['error' => 'Sin permiso']);
-        exit;
+        jsonResponse(['error' => 'Sin permiso'], 403);
     }
     set_time_limit(0); // background — sin límite; campaña grande puede tardar 30+ min
     $body = json_decode(file_get_contents('php://input'), true);
@@ -309,9 +295,7 @@ if ($metodo === 'POST' && $accion === 'enviar') {
     $stmtC->execute([$campanaId]);
     $campana = $stmtC->fetch(PDO::FETCH_ASSOC);
     if (!$campana) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Campaña no válida']);
-        exit;
+        jsonResponse(['error' => 'Campaña no válida'], 400);
     }
 
     $db->prepare("UPDATE campanas SET estado='enviando' WHERE id=?")->execute([$campanaId]);
@@ -442,18 +426,14 @@ if ($metodo === 'POST' && $accion === 'responder') {
     $convId  = (int)($body['conversacion_id'] ?? 0);
     $mensaje = trim($body['mensaje'] ?? '');
     if (!$convId || !$mensaje) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Faltan campos']);
-        exit;
+        jsonResponse(['error' => 'Faltan campos'], 400);
     }
 
     $stmtConv = $db->prepare("SELECT * FROM whatsapp_conversaciones WHERE id = ?");
     $stmtConv->execute([$convId]);
     $conv = $stmtConv->fetch(PDO::FETCH_ASSOC);
     if (!$conv) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Conversación no encontrada']);
-        exit;
+        jsonResponse(['error' => 'Conversación no encontrada'], 404);
     }
 
     $payload = [
@@ -464,9 +444,7 @@ if ($metodo === 'POST' && $accion === 'responder') {
     ];
     $res = enviarMensajeWA($payload);
     if ($res['code'] !== 200) {
-        http_response_code(502);
-        echo json_encode(['error' => 'Error Meta API', 'detalle' => $res['data']]);
-        exit;
+        jsonResponse(['error' => 'Error Meta API', 'detalle' => $res['data']], 502);
     }
 
     $waId = $res['data']['messages'][0]['id'] ?? null;
@@ -477,32 +455,26 @@ if ($metodo === 'POST' && $accion === 'responder') {
 
     $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
        ->execute([$convId]);
-    echo json_encode(['ok' => true, 'wa_message_id' => $waId]);
+    jsonResponse(['ok' => true, 'wa_message_id' => $waId]);
     exit;
 }
 
 // ── POST enviar template directo desde inbox (reabrir ventana 24h) ──
 if ($metodo === 'POST' && $accion === 'template_inbox') {
     if (!$puedeEnviar) {
-        http_response_code(403);
-        echo json_encode(['error' => 'Sin permiso para enviar mensajes']);
-        exit;
+        jsonResponse(['error' => 'Sin permiso para enviar mensajes'], 403);
     }
     $body     = json_decode(file_get_contents('php://input'), true);
     $convId   = (int)($body['conversacion_id'] ?? 0);
     $template = trim($body['template_nombre'] ?? '');
     if (!$convId || !$template) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Faltan campos']);
-        exit;
+        jsonResponse(['error' => 'Faltan campos'], 400);
     }
     $stmtConv = $db->prepare("SELECT * FROM whatsapp_conversaciones WHERE id = ?");
     $stmtConv->execute([$convId]);
     $conv = $stmtConv->fetch(PDO::FETCH_ASSOC);
     if (!$conv) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Conversación no encontrada']);
-        exit;
+        jsonResponse(['error' => 'Conversación no encontrada'], 404);
     }
     $nombreCliente = substr(strip_tags(trim($body['nombre_cliente'] ?? '')), 0, 60);
     $nombreAsesor  = substr(strip_tags($user['nombre']), 0, 60);
@@ -526,9 +498,7 @@ if ($metodo === 'POST' && $accion === 'template_inbox') {
     $res  = enviarMensajeWA($payload);
     $waId = $res['data']['messages'][0]['id'] ?? null;
     if (!$waId) {
-        http_response_code(502);
-        echo json_encode(['error' => 'Error Meta API', 'detalle' => $res['data']]);
-        exit;
+        jsonResponse(['error' => 'Error Meta API', 'detalle' => $res['data']], 502);
     }
     $contenido = '[Template: ' . $template . ($nombreCliente ? ' → ' . $nombreCliente : '') . ']';
     $db->prepare("INSERT INTO whatsapp_mensajes
@@ -537,7 +507,7 @@ if ($metodo === 'POST' && $accion === 'template_inbox') {
        ->execute([$convId, $contenido, $waId, $user['nombre']]);
     $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
        ->execute([$convId]);
-    echo json_encode(['ok' => true]);
+    jsonResponse(['ok' => true]);
     exit;
 }
 
@@ -545,18 +515,14 @@ if ($metodo === 'POST' && $accion === 'template_inbox') {
 if ($metodo === 'POST' && $accion === 'enviar_media') {
     $convId = (int)($_POST['conversacion_id'] ?? 0);
     if (!$convId || empty($_FILES['archivo'])) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Faltan campos']);
-        exit;
+        jsonResponse(['error' => 'Faltan campos'], 400);
     }
 
     $stmtConv = $db->prepare("SELECT * FROM whatsapp_conversaciones WHERE id = ?");
     $stmtConv->execute([$convId]);
     $conv = $stmtConv->fetch(PDO::FETCH_ASSOC);
     if (!$conv) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Conversación no encontrada']);
-        exit;
+        jsonResponse(['error' => 'Conversación no encontrada'], 404);
     }
 
     $file     = $_FILES['archivo'];
@@ -571,9 +537,7 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
     } elseif ($mime === 'application/pdf') {
         $waType = 'document';
     } else {
-        http_response_code(415);
-        echo json_encode(['error' => 'Tipo de archivo no soportado']);
-        exit;
+        jsonResponse(['error' => 'Tipo de archivo no soportado'], 415);
     }
 
     // Guardar copia local con nombre único — extensión validada por whitelist + MIME real
@@ -584,16 +548,12 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
     ];
     $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
     if (!isset($extAllowed[$ext])) {
-        http_response_code(415);
-        echo json_encode(['error' => 'Extensión de archivo no permitida']);
-        exit;
+        jsonResponse(['error' => 'Extensión de archivo no permitida'], 415);
     }
     $finfo    = new finfo(FILEINFO_MIME_TYPE);
     $mimeReal = $finfo->file($tmpPath);
     if ($mimeReal !== $extAllowed[$ext]) {
-        http_response_code(415);
-        echo json_encode(['error' => 'Tipo de archivo no coincide con la extensión']);
-        exit;
+        jsonResponse(['error' => 'Tipo de archivo no coincide con la extensión'], 415);
     }
     $localName = uniqid('wa_', true) . '.' . $ext;
     $localDir  = dirname(__DIR__) . '/archivos_campanas/wa_media/';
@@ -619,9 +579,7 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
     curl_close($ch);
 
     if ($mediaCode !== 200 || empty($mediaRes['id'])) {
-        http_response_code(502);
-        echo json_encode(['error' => 'Error subiendo media a Meta', 'detalle' => $mediaRes]);
-        exit;
+        jsonResponse(['error' => 'Error subiendo media a Meta', 'detalle' => $mediaRes], 502);
     }
 
     $mediaId = $mediaRes['id'];
@@ -645,9 +603,7 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
 
     $res = enviarMensajeWA($payload);
     if ($res['code'] !== 200) {
-        http_response_code(502);
-        echo json_encode(['error' => 'Error enviando mensaje', 'detalle' => $res['data']]);
-        exit;
+        jsonResponse(['error' => 'Error enviando mensaje', 'detalle' => $res['data']], 502);
     }
 
     $waId    = $res['data']['messages'][0]['id'] ?? null;
@@ -661,7 +617,7 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
     $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
        ->execute([$convId]);
 
-    echo json_encode(['ok' => true, 'wa_message_id' => $waId, 'tipo' => $tipoMsg]);
+    jsonResponse(['ok' => true, 'wa_message_id' => $waId, 'tipo' => $tipoMsg]);
     exit;
 }
 
@@ -671,7 +627,7 @@ if ($metodo === 'POST' && $accion === 'marcar_leido') {
     $convId = (int)($body['conversacion_id'] ?? 0);
     $db->prepare("UPDATE whatsapp_conversaciones SET mensajes_sin_leer=0 WHERE id=?")
        ->execute([$convId]);
-    echo json_encode(['ok' => true]);
+    jsonResponse(['ok' => true]);
     exit;
 }
 
@@ -683,17 +639,13 @@ if ($metodo === 'POST' && $accion === 'enviar_cotizacion_wa') {
     $guardarAlterno = !empty($body['guardar_alterno']);
 
     if (!$cotizacionId || !$telefonoRaw) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Datos incompletos']);
-        exit;
+        jsonResponse(['error' => 'Datos incompletos'], 400);
     }
 
     // Validar formato teléfono: solo dígitos, entre 10 y 15 caracteres
     $telefonoDigitos = preg_replace('/[^0-9]/', '', $telefonoRaw);
     if (strlen($telefonoDigitos) < 10 || strlen($telefonoDigitos) > 15) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Número de teléfono inválido']);
-        exit;
+        jsonResponse(['error' => 'Número de teléfono inválido'], 400);
     }
 
     $esAdminWA = in_array($user['rol'], ['dir_admin', 'dueno', 'administracion', 'desarrollo']);
@@ -716,9 +668,7 @@ if ($metodo === 'POST' && $accion === 'enviar_cotizacion_wa') {
     $stmtCot->execute($params);
     $cot = $stmtCot->fetch(PDO::FETCH_ASSOC);
     if (!$cot) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Cotización no encontrada']);
-        exit;
+        jsonResponse(['error' => 'Cotización no encontrada'], 404);
     }
 
     // Calcular total igual que imprimir_cotizacion.php
@@ -753,9 +703,7 @@ if ($metodo === 'POST' && $accion === 'enviar_cotizacion_wa') {
     $waId = $res['data']['messages'][0]['id'] ?? null;
 
     if (!$waId) {
-        http_response_code(502);
-        echo json_encode(['error' => 'Error al enviar', 'detalle' => $res['data']]);
-        exit;
+        jsonResponse(['error' => 'Error al enviar', 'detalle' => $res['data']], 502);
     }
 
     // Guardar en conversación para que aparezca en el inbox
@@ -782,9 +730,8 @@ if ($metodo === 'POST' && $accion === 'enviar_cotizacion_wa') {
            ->execute([$telefonoRaw, $cot['cliente_id']]);
     }
 
-    echo json_encode(['ok' => true, 'wa_message_id' => $waId]);
+    jsonResponse(['ok' => true, 'wa_message_id' => $waId]);
     exit;
 }
 
-http_response_code(400);
-echo json_encode(['error' => 'Accion no reconocida']);
+jsonResponse(['error' => 'Accion no reconocida'], 400);

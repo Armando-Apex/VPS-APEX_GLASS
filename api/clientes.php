@@ -66,8 +66,7 @@ $body = json_decode(file_get_contents('php://input'), true) ?? [];
 // ─── POST accion=editar_contacto ─────────────────────────────────────────────
 if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_contacto') {
     if (!in_array($rol, ['dir_admin', 'administracion', 'desarrollo'])) {
-        http_response_code(403);
-        jsonResponse(['error' => 'Sin permiso']); exit;
+        jsonResponse(['error' => 'Sin permiso'], 403);
     }
 
     $id             = (int)($_POST['id'] ?? 0);
@@ -92,8 +91,7 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_contacto') {
 // ─── POST accion=editar_nombre ────────────────────────────────────────────────
 if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_nombre') {
     if (!in_array($rol, ['dir_admin', 'administracion', 'desarrollo'])) {
-        http_response_code(403);
-        jsonResponse(['error' => 'Sin permiso']); exit;
+        jsonResponse(['error' => 'Sin permiso'], 403);
     }
 
     $id          = (int)($_POST['id'] ?? 0);
@@ -137,8 +135,7 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_nombre') {
 // ─── POST accion=editar_telefono ─────────────────────────────────────────────
 if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_telefono') {
     if (!in_array($rol, ['dir_admin', 'administracion', 'comercial', 'desarrollo'])) {
-        http_response_code(403);
-        jsonResponse(['error' => 'Sin permiso']); exit;
+        jsonResponse(['error' => 'Sin permiso'], 403);
     }
 
     $id      = (int)($_POST['id']    ?? 0);

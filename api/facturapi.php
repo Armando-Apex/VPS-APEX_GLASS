@@ -12,7 +12,7 @@ $accion = $_GET['accion'] ?? '';
 // ── GET buscar_clientes ───────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_clientes') {
     $q = trim($_GET['q'] ?? '');
-    if (strlen($q) < 2) { echo json_encode(['ok'=>true,'clientes'=>[]]); exit; }
+    if (strlen($q) < 2) { jsonResponse(['ok'=>true,'clientes'=>[]]); exit; }
     $like = '%' . $q . '%';
     $stmt = $pdo->prepare("
         SELECT id, codigo, razon_social, nombre, email,
@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_clientes') {
     ");
     $stmt->execute([$like, $like, $like]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    echo json_encode(['ok'=>true,'clientes'=>$rows]);
+    jsonResponse(['ok'=>true,'clientes'=>$rows]);
     exit;
 }
 
@@ -41,21 +41,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'lista') {
         ORDER BY id DESC
         LIMIT 200
     ")->fetchAll(PDO::FETCH_ASSOC);
-    echo json_encode(['ok' => true, 'facturas' => $rows]);
+    jsonResponse(['ok' => true, 'facturas' => $rows]);
     exit;
 }
 
 // ── POST guardar (borrador) ───────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
     $d = json_decode(file_get_contents('php://input'), true);
-    if (!$d) { echo json_encode(['ok'=>false,'error'=>'Datos inválidos']); exit; }
+    if (!$d) { jsonResponse(['ok'=>false,'error'=>'Datos inválidos']); exit; }
 
     // Validaciones mínimas
     $requeridos = ['receptor_rfc','receptor_nombre','receptor_cp','receptor_regimen',
                    'receptor_uso_cfdi','forma_pago','metodo_pago','conceptos'];
     foreach ($requeridos as $k) {
         if (empty($d[$k])) {
-            echo json_encode(['ok'=>false,'error'=>'Campo requerido: '.$k]); exit;
+            jsonResponse(['ok'=>false,'error'=>'Campo requerido: '.$k]); exit;
         }
     }
 
@@ -97,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
             $d['receptor_email'] ?? null, $d['forma_pago'], $d['metodo_pago'],
             json_encode($d['conceptos']), $sub, $iva, $total, $id, $user['nombre']
         ]);
-        echo json_encode(['ok'=>true,'id'=>$id,'folio'=>$folioInterno,'total'=>$total]);
+        jsonResponse(['ok'=>true,'id'=>$id,'folio'=>$folioInterno,'total'=>$total]);
     } else {
         // Nueva factura
         $stmt = $pdo->prepare("
@@ -118,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
             FACTURAPI_MODE, $user['nombre']
         ]);
         $newId = $pdo->lastInsertId();
-        echo json_encode(['ok'=>true,'id'=>$newId,'folio'=>$folioInterno,'total'=>$total]);
+        jsonResponse(['ok'=>true,'id'=>$newId,'folio'=>$folioInterno,'total'=>$total]);
     }
     exit;
 }
@@ -127,13 +127,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     $d  = json_decode(file_get_contents('php://input'), true);
     $id = (int)($d['id'] ?? 0);
-    if (!$id) { echo json_encode(['ok'=>false,'error'=>'ID requerido']); exit; }
+    if (!$id) { jsonResponse(['ok'=>false,'error'=>'ID requerido']); exit; }
 
     // Cargar factura — verificar propiedad
     $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=? AND estatus='borrador' AND creado_por=?");
     $stmt->execute([$id, $user['nombre']]);
     $fac = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$fac) { echo json_encode(['ok'=>false,'error'=>'Factura no encontrada o ya timbrada']); exit; }
+    if (!$fac) { jsonResponse(['ok'=>false,'error'=>'Factura no encontrada o ya timbrada']); exit; }
 
     $conceptos = json_decode($fac['conceptos'], true);
 
@@ -198,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     curl_close($ch);
 
     if ($curlErr) {
-        echo json_encode(['ok'=>false,'error'=>'Error de conexión con FacturAPI: '.$curlErr]);
+        jsonResponse(['ok'=>false,'error'=>'Error de conexión con FacturAPI: '.$curlErr]);
         exit;
     }
 
@@ -207,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     if ($httpCode !== 200) {
         $msg = $res['message'] ?? $res['error'] ?? 'Error desconocido de FacturAPI';
         error_log('APEX FacturAPI error '.$httpCode.': '.$response);
-        echo json_encode(['ok'=>false,'error'=>'FacturAPI: '.$msg]);
+        jsonResponse(['ok'=>false,'error'=>'FacturAPI: '.$msg]);
         exit;
     }
 
@@ -225,7 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     ");
     $stmt->execute([$facurapiId, $uuid, $pdfUrl, $xmlUrl, $id]);
 
-    echo json_encode([
+    jsonResponse([
         'ok'           => true,
         'uuid'         => $uuid,
         'facturapi_id' => $facurapiId,
@@ -269,19 +269,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && in_array($accion, ['pdf','xml'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'eliminar') {
     $d  = json_decode(file_get_contents('php://input'), true);
     $id = (int)($d['id'] ?? 0);
-    if (!$id) { echo json_encode(['ok'=>false,'error'=>'ID requerido']); exit; }
+    if (!$id) { jsonResponse(['ok'=>false,'error'=>'ID requerido']); exit; }
 
     // Verificar propiedad antes de eliminar
     $stmt = $pdo->prepare("DELETE FROM facturas WHERE id=? AND creado_por=? AND (estatus='borrador' OR (estatus='timbrada' AND modo='test'))");
     $stmt->execute([$id, $user['nombre']]);
 
     if ($stmt->rowCount() === 0) {
-        echo json_encode(['ok'=>false,'error'=>'No se puede eliminar: no existe o es una factura timbrada en producción']);
+        jsonResponse(['ok'=>false,'error'=>'No se puede eliminar: no existe o es una factura timbrada en producción']);
         exit;
     }
-    echo json_encode(['ok'=>true]);
+    jsonResponse(['ok'=>true]);
     exit;
 }
 
-http_response_code(400);
-echo json_encode(['ok'=>false,'error'=>'Acción no válida']);
+jsonResponse(['ok'=>false,'error'=>'Acción no válida'], 400);
