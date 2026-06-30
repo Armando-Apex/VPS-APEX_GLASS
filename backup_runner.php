@@ -285,7 +285,7 @@ $errores     = [];
 // Intentar mysqldump primero
 $mysqldumpPath = '';
 foreach (['/usr/bin/mysqldump', '/usr/local/bin/mysqldump', 'mysqldump'] as $path) {
-    $test = @shell_exec($path . ' --version 2>&1');
+    $test = @exec($path . ' --version 2>&1');
     if ($test && strpos($test, 'Distrib') !== false) {
         $mysqldumpPath = $path;
         break;
