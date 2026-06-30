@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 26 junio 2026 | Próximo UPD disponible: UPD-235
+# Última actualización: 30 junio 2026 | Próximo UPD disponible: UPD-265
 
 **REGLA DE ORO:** Este archivo es la memoria compartida del proyecto. Claude lo lee al inicio de cada sesión y lo actualiza al terminar. Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -483,4 +483,8 @@ Al terminar cualquier sesión con cambios:
 | UPD-258 | 29-jun-2026 | Mando | Vista operador para desarrollo: agregado a `$rolesOperador` en `operador.php`; botón "Vista Operador" en sidebar (solo desarrollo) abre nueva pestaña. Archivos: app/operador.php, app/dashboard.php |
 | UPD-259 | 29-jun-2026 | Armando | Fix SSL AdminBolt: cert `*.myboltip.com` en `/etc/ssl/bolt/` expiró 17-jun; reemplazado con Let's Encrypt de panel.apex.glass (`/home/apexglass2025/panel.apex.glass/certs/`); recargado bolt-nginx. Fix XSS stored en `app/modulos/reportes.php`: agregada función `esc()` y aplicada a el.modulo, el.ruta, el.texto, r.creado_por, r.completado_por, rolLabel. Cambio teléfono: 81 2315 3005 → 81 1180 5078 en index.html, enviar-contacto.php, imprimir_cotizacion.php. |
 | UPD-260 | 29-jun-2026 | Armando | WIP Portal WA por cliente: botón "📱 Enviar por WA" en panel de cliente (junto a contraseña portal); endpoint `api/portal_clientes.php?accion=enviar_acceso_wa` genera pass si no tiene y envía template `acceso_portal`. PENDIENTE: Meta rechaza como UTILITY/MARKETING — debe ser plantilla de Autenticación (Authentication). Armando debe crear en Meta BM y confirmar nombre exacto. |
-**Próximo UPD disponible: UPD-261**
+| UPD-261 | 30-jun-2026 | Mando | Auditoría arquitectura completa (Fixes 1-13): SQL injection, CORS wildcard, auth centralizado, IIFE namespaces, exception handler, jsonResponse, transacciones PDO, utils.js compartido, icono() a helpers/icons.php (fix bug ?> en comentario), historiales a docs/ |
+| UPD-262 | 30-jun-2026 | Mando | Inbox campañas WA: marcar como no leído (menú ⋮), multilinea Shift+Enter, foco automático en textarea, reply con cita (botón ↩ en burbuja + `context.message_id` a Meta). BD: reply_to_wa_id, reply_preview en whatsapp_mensajes |
+| UPD-263 | 30-jun-2026 | Mando | Performance: session_write_close() en permisos.php; N+1 fix en ordenes.php y cotizaciones.php; polling 30s→90s/60s en estaciones/resumen/SmartTV; productividad.php de 25 queries a 1 por franja con metricasFranjaAll() |
+| UPD-264 | 30-jun-2026 | Mando | Fix PDFs inbound WA: webhook descarga y guarda documentos recibidos (wa_doc_*.ext en archivos_campanas/wa_media/); frontend muestra link clicable en lugar de texto plano |
+**Próximo UPD disponible: UPD-265**
