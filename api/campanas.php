@@ -361,8 +361,53 @@ if ($metodo === 'POST' && $accion === 'enviar') {
 
     $enviados = 0;
 
+    // Pre-fetch datos extra para variables dinámicas de BD (una sola query por variable)
+    $extraData = [];
+    $clienteIdsEnvio = [];
+    foreach ($envios as $e) {
+        if (!empty($e['cliente_id'])) {
+            $cid = (int)$e['cliente_id'];
+            if (!in_array($cid, $clienteIdsEnvio, true)) {
+                $clienteIdsEnvio[] = $cid;
+            }
+        }
+    }
+    $varsExtra = ['{{nombre_asesor}}', '{{num_ordenes}}', '{{num_cotizaciones}}', '{{monto_cotizado}}'];
+    if (!empty($clienteIdsEnvio) && count(array_intersect($vars, $varsExtra)) > 0) {
+        $in = implode(',', $clienteIdsEnvio); // safe: todos son intval de BD
+
+        if (in_array('{{nombre_asesor}}', $vars)) {
+            $rows = $db->query("SELECT cliente_id, asesor FROM ordenes WHERE cliente_id IN ($in) AND estado IN ('activa','entregada','pendiente_vobo') ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($rows as $r) {
+                $cid = (int)$r['cliente_id'];
+                if (!isset($extraData[$cid]['asesor'])) {
+                    $extraData[$cid]['asesor'] = $r['asesor'];
+                }
+            }
+        }
+        if (in_array('{{num_ordenes}}', $vars)) {
+            $rows = $db->query("SELECT cliente_id, COUNT(*) as cnt FROM ordenes WHERE cliente_id IN ($in) AND estado IN ('activa','entregada','pendiente_vobo') AND es_prueba=0 GROUP BY cliente_id")->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($rows as $r) {
+                $extraData[(int)$r['cliente_id']]['num_ordenes'] = (string)(int)$r['cnt'];
+            }
+        }
+        if (in_array('{{num_cotizaciones}}', $vars)) {
+            $rows = $db->query("SELECT cliente_id, COUNT(*) as cnt FROM cotizaciones WHERE cliente_id IN ($in) AND estatus NOT IN ('cancelada','rechazada') GROUP BY cliente_id")->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($rows as $r) {
+                $extraData[(int)$r['cliente_id']]['num_cotizaciones'] = (string)(int)$r['cnt'];
+            }
+        }
+        if (in_array('{{monto_cotizado}}', $vars)) {
+            $rows = $db->query("SELECT cliente_id, SUM(total) as monto FROM cotizaciones WHERE cliente_id IN ($in) AND estatus NOT IN ('cancelada','rechazada') GROUP BY cliente_id")->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($rows as $r) {
+                $extraData[(int)$r['cliente_id']]['monto_cotizado'] = '$' . number_format((float)$r['monto'], 0, '.', ',');
+            }
+        }
+    }
+
     foreach ($envios as $envio) {
         $parametros = [];
+        $extra = $extraData[(int)($envio['cliente_id'] ?? 0)] ?? [];
         foreach ($vars as $var) {
             $valor = $var;
             if ($var === '{{nombre_cliente}}') {
@@ -371,6 +416,14 @@ if ($metodo === 'POST' && $accion === 'enviar') {
                 $valor = $envio['codigo_cliente'] ?? '';
             } elseif ($var === '{{punto}}') {
                 $valor = '.';
+            } elseif ($var === '{{nombre_asesor}}') {
+                $valor = $extra['asesor'] ?? '';
+            } elseif ($var === '{{num_ordenes}}') {
+                $valor = $extra['num_ordenes'] ?? '0';
+            } elseif ($var === '{{num_cotizaciones}}') {
+                $valor = $extra['num_cotizaciones'] ?? '0';
+            } elseif ($var === '{{monto_cotizado}}') {
+                $valor = $extra['monto_cotizado'] ?? '$0';
             }
             // Sanitizar: solo texto plano, máx 1024 chars (límite Meta)
             $valor = strip_tags((string)$valor);

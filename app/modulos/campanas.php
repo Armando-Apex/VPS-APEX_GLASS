@@ -364,7 +364,7 @@ var ModCampanas = (function() {
                 '</div>' +
                 '<div id="cmpVarsSection" style="display:none;margin-bottom:14px;">' +
                 '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Variables del mensaje</label>' +
-                '<p style="font-size:11px;color:#64748b;margin:0 0 8px;">Variables disponibles: <code>{{nombre_cliente}}</code> · <code>{{codigo_portal}}</code> · <code>{{punto}}</code> (un punto)</p>' +
+                '<p style="font-size:11px;color:#64748b;margin:0 0 8px;">Selecciona qu&eacute; dato se env&iacute;a en cada posici&oacute;n &mdash; se consulta de BD al momento de enviar.</p>' +
                 '<div id="cmpVarsLista"></div>' +
                 '</div>' +
                 '<div id="cmpPreviewArea"></div>' +
@@ -422,27 +422,40 @@ var ModCampanas = (function() {
         }
     }
 
+    var _varOpciones = [
+        ['', '— elige una variable —'],
+        ['{{nombre_cliente}}',  '{{nombre_cliente}} — Nombre del cliente'],
+        ['{{nombre_asesor}}',   '{{nombre_asesor}} — Asesor que lo atendió'],
+        ['{{num_ordenes}}',     '{{num_ordenes}} — Total de órdenes'],
+        ['{{num_cotizaciones}}','{{num_cotizaciones}} — Núm. de cotizaciones'],
+        ['{{monto_cotizado}}',  '{{monto_cotizado}} — Monto total cotizado'],
+        ['{{codigo_portal}}',   '{{codigo_portal}} — Código CTN'],
+        ['{{punto}}',           '{{punto}} — Un punto (.)'],
+    ];
+
     function renderVars() {
         var el = document.getElementById('cmpVarsLista');
         if (!el) return;
         el.innerHTML = '';
         _templateVars.forEach(function(v, i) {
-            var wrap  = document.createElement('div');
+            var wrap = document.createElement('div');
             wrap.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;';
 
             var lbl = document.createElement('span');
             lbl.style.cssText = 'font-size:12px;color:#94a3b8;width:32px;flex-shrink:0;';
-            lbl.textContent = '{{' + (i+1) + '}}';
+            lbl.textContent = '{{' + (i + 1) + '}}';
 
-            var inp = document.createElement('input');
-            inp.type = 'text';
-            inp.value = v;
-            inp.placeholder = '{{nombre_cliente}}, {{codigo_portal}} o texto fijo';
-            inp.maxLength = 200;
-            inp.style.cssText = 'flex:1;padding:7px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;';
-            // Closure captura i correctamente — sin datos de usuario en atributos JS
+            var sel = document.createElement('select');
+            sel.style.cssText = 'flex:1;padding:7px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;background:#fff;';
+            for (var oi = 0; oi < _varOpciones.length; oi++) {
+                var opt = document.createElement('option');
+                opt.value       = _varOpciones[oi][0];
+                opt.textContent = _varOpciones[oi][1];
+                if (_varOpciones[oi][0] === v) { opt.selected = true; }
+                sel.appendChild(opt);
+            }
             (function(idx) {
-                inp.addEventListener('input', function() { actualizarVar(idx, this.value); });
+                sel.addEventListener('change', function() { actualizarVar(idx, this.value); });
             })(i);
 
             var btn = document.createElement('button');
@@ -454,7 +467,7 @@ var ModCampanas = (function() {
             })(i);
 
             wrap.appendChild(lbl);
-            wrap.appendChild(inp);
+            wrap.appendChild(sel);
             wrap.appendChild(btn);
             el.appendChild(wrap);
         });
@@ -547,10 +560,15 @@ var ModCampanas = (function() {
         if (!_templateBody) return _templateNombre ? 'Template: ' + _templateNombre : '(selecciona una plantilla)';
         var texto = _templateBody;
         for (var i = 0; i < _templateVars.length; i++) {
-            var val = _templateVars[i] === '{{nombre_cliente}}' ? (nombreCliente || 'Cliente') :
-                      _templateVars[i] === '{{punto}}' ? '.' :
-                      (_templateVars[i] || '...');
-            // Reemplazar todas las ocurrencias de {{i+1}}
+            var v = _templateVars[i];
+            var val = v === '{{nombre_cliente}}'   ? (nombreCliente || 'Cliente') :
+                      v === '{{punto}}'             ? '.' :
+                      v === '{{nombre_asesor}}'     ? 'Cynthia' :
+                      v === '{{num_ordenes}}'       ? '3' :
+                      v === '{{num_cotizaciones}}'  ? '2' :
+                      v === '{{monto_cotizado}}'    ? '$12,500' :
+                      v === '{{codigo_portal}}'     ? 'CTN-171' :
+                      (v || '...');
             var token = '{{' + (i + 1) + '}}';
             while (texto.indexOf(token) !== -1) {
                 texto = texto.replace(token, val);
