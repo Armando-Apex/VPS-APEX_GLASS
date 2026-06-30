@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 30 junio 2026 | Próximo UPD disponible: UPD-265
+# Última actualización: 30 junio 2026 | Próximo UPD disponible: UPD-266
 
 **REGLA DE ORO:** Este archivo es la memoria compartida del proyecto. Claude lo lee al inicio de cada sesión y lo actualiza al terminar. Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -400,6 +400,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | MEDIA | Mando | AUDIT Fix 11: Split módulos grandes — cotizacion.php (1854 líneas), inventario.php (1715), croquis.php (1527); skip por ahora por actividad activa; hacer cuando haya pausa natural en desarrollo | Pendiente |
 | MEDIA | Mando | AUDIT Fix 12: Mover HISTORIAL_UPD_*.md a docs/ y limpiar error_log en api/, app/, app/modulos/ | HECHO |
 | MEDIA | Ambos | Performance: índices BD — hacer cuando producción esté inactiva (fin de semana/noche): `CREATE INDEX idx_piezas_estatus_orden ON piezas(estatus, orden_id)`, `idx_historial_pieza_estatus_fecha ON historial_estatus(pieza_id, estatus_nuevo, created_at)`, `idx_historial_creado ON historial_estatus(created_at, estatus_nuevo)`, `idx_ordenes_estado_cierre ON ordenes(estado, fecha_cierre)` | Pendiente |
+| MEDIA | Armando | Campañas WA segmentadas mensuales (4 segmentos: frecuentes/compradores del mes/cotizó sin comprar/sin cotizar en el mes) — correr `scripts/generar_campanas_segmentadas.php` día 25-28 con los 4 templates Meta del mes, revisar y dar OK de envío por campaña en el módulo Campañas | RECURRENTE — primera corrida UPD-265 (jun-2026, campañas #18-21), trigger mensual automático día 26 |
 
 ---
 
@@ -488,4 +489,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-262 | 30-jun-2026 | Mando | Inbox campañas WA: marcar como no leído (menú ⋮), multilinea Shift+Enter, foco automático en textarea, reply con cita (botón ↩ en burbuja + `context.message_id` a Meta). BD: reply_to_wa_id, reply_preview en whatsapp_mensajes |
 | UPD-263 | 30-jun-2026 | Mando | Performance: session_write_close() en permisos.php; N+1 fix en ordenes.php y cotizaciones.php; polling 30s→90s/60s en estaciones/resumen/SmartTV; productividad.php de 25 queries a 1 por franja con metricasFranjaAll() |
 | UPD-264 | 30-jun-2026 | Mando | Fix PDFs inbound WA: webhook descarga y guarda documentos recibidos (wa_doc_*.ext en archivos_campanas/wa_media/); frontend muestra link clicable en lugar de texto plano |
-**Próximo UPD disponible: UPD-265**
+| UPD-265 | 30-jun-2026 | Armando | Campañas WA segmentadas mensuales: 4 segmentos por cliente (frecuentes ≥3 órdenes/mes, compradores del mes 1-2 órdenes/mes, cotizó sin comprar, sin cotizar en el mes), prioridad 1>2>3>4 sin traslape, cubre 100% de clientes activos con teléfono. `{{1}}`=nombre corto desde `clientes.contacto` (primeras 2 palabras, Title Case, overrides manuales por cliente_id en código); `{{2}}` solo en "cotizó sin comprar"=asesora de `cotizaciones.asesor_nombre` más reciente, normalizado a Bethy/Cynthia (default Bethy si quedó a nombre de un no-comercial). Primera corrida junio 2026: campañas #18-21 (16/77/51/90 destinatarios) en estado borrador. Nuevo botón "Enviar campaña" en detalle de campaña (antes no existía forma de enviar un borrador ya creado desde la lista). Nueva columna "Se enviará como" en detalle para distinguir razón social vs nombre real del mensaje. Script reusable `scripts/generar_campanas_segmentadas.php` (protegido con .htaccess) + trigger mensual día 26 para repetir el proceso con los templates Meta de cada mes. Fix bug latente: `ce.cliente_id` faltaba en el SELECT de `accion=enviar`, por lo que `{{nombre_asesor}}`/`{{num_ordenes}}`/`{{num_cotizaciones}}`/`{{monto_cotizado}}` nunca funcionaban para clientes (solo para prospectos). Fix XSS en mensajes de ubicación del inbox (lat/lng sin escapar). Archivos: api/campanas.php, app/modulos/campanas.php, scripts/generar_campanas_segmentadas.php |
+**Próximo UPD disponible: UPD-266**

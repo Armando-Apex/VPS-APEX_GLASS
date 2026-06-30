@@ -1131,12 +1131,13 @@ var ModCampanas = (function() {
                     }
                 } else if (m.tipo === 'ubicacion') {
                     var coords = (m.contenido || '').split(',');
-                    if (coords.length === 2) {
+                    var coordRe = /^-?\d+(\.\d+)?$/;
+                    if (coords.length === 2 && coordRe.test(coords[0].trim()) && coordRe.test(coords[1].trim())) {
                         var lat = coords[0].trim();
                         var lng = coords[1].trim();
-                        var mapsUrl = 'https://www.google.com/maps?q=' + lat + ',' + lng;
-                        contenidoHtml = '<a href="' + mapsUrl + '" target="_blank" style="display:block;text-decoration:none;">' +
-                            '<div style="font-size:12px;color:#2563eb;padding:6px 0;">&#128205; ' + lat + ', ' + lng + ' &mdash; Ver en Google Maps</div>' +
+                        var mapsUrl = 'https://www.google.com/maps?q=' + encodeURIComponent(lat) + ',' + encodeURIComponent(lng);
+                        contenidoHtml = '<a href="' + esc(mapsUrl) + '" target="_blank" rel="noopener noreferrer" style="display:block;text-decoration:none;">' +
+                            '<div style="font-size:12px;color:#2563eb;padding:6px 0;">&#128205; ' + esc(lat) + ', ' + esc(lng) + ' &mdash; Ver en Google Maps</div>' +
                             '</a>';
                     } else {
                         contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128205; Ubicaci&oacute;n</div>';
