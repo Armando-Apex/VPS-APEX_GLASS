@@ -86,126 +86,83 @@ function horasProductivas(DateTime $desde, DateTime $hasta): float {
 
 // created_at en BD ya está en hora local — sin conversiones
 
-function metricasFranja(PDO $db, string $est, string $desde, string $hasta, bool $soloExtra = false): array {
+function statusToEst(string $s): ?string {
+    static $m = ['cortado'=>'corte','en_corte'=>'corte','canteado'=>'canteado',
+                  'trazo'=>'trazo','taladro'=>'taladro','templado'=>'horno','en_horno'=>'horno'];
+    return $m[$s] ?? null;
+}
+
+// 1 query para las 5 estaciones en lugar de 5 queries separadas
+function metricasFranjaAll(PDO $db, string $desde, string $hasta, bool $soloExtra = false): array {
 
     $filtroExtra = $soloExtra
         ? " AND (TIME(h.created_at) < '08:30' OR (DAYOFWEEK(h.created_at) BETWEEN 2 AND 6 AND TIME(h.created_at) >= '17:00') OR (DAYOFWEEK(h.created_at) = 7 AND TIME(h.created_at) >= '13:00') OR DAYOFWEEK(h.created_at) = 1)"
         : "";
 
-    $sql = [
-        'corte'    => 'SELECT h.created_at, COALESCE(p.m2, (p.ancho_mm * p.alto_mm / 1000000)) as v FROM historial_estatus h JOIN piezas p ON p.id=h.pieza_id WHERE h.estatus_nuevo IN ("cortado","en_corte") AND h.created_at BETWEEN ? AND ?' . $filtroExtra . ' ORDER BY h.created_at ASC',
-        'canteado' => 'SELECT h.created_at, ((p.ancho_mm+p.alto_mm)*2/1000) as v FROM historial_estatus h JOIN piezas p ON p.id=h.pieza_id WHERE h.estatus_nuevo = "canteado" AND h.created_at BETWEEN ? AND ?' . $filtroExtra . ' ORDER BY h.created_at ASC',
-        'trazo'    => 'SELECT h.created_at, 1 as v FROM historial_estatus h WHERE h.estatus_nuevo = "trazo" AND h.created_at BETWEEN ? AND ?' . $filtroExtra . ' ORDER BY h.created_at ASC',
-        'taladro'  => 'SELECT h.created_at, 1 as v FROM historial_estatus h WHERE h.estatus_nuevo = "taladro" AND h.created_at BETWEEN ? AND ?' . $filtroExtra . ' ORDER BY h.created_at ASC',
-        'horno'    => 'SELECT h.created_at, COALESCE(p.m2, (p.ancho_mm * p.alto_mm / 1000000)) as v FROM historial_estatus h JOIN piezas p ON p.id=h.pieza_id WHERE h.estatus_nuevo IN ("templado","en_horno") AND h.created_at BETWEEN ? AND ?' . $filtroExtra . ' ORDER BY h.created_at ASC',
-    ];
-
-    $stmt = $db->prepare($sql[$est]);
-
+    $stmt = $db->prepare("
+        SELECT h.created_at, h.estatus_nuevo,
+            COALESCE(p.m2, (p.ancho_mm * p.alto_mm / 1000000)) AS m2,
+            ((p.ancho_mm + p.alto_mm) * 2 / 1000)              AS metros_lin,
+            p.cristal
+        FROM historial_estatus h
+        LEFT JOIN piezas p ON p.id = h.pieza_id
+        WHERE h.estatus_nuevo IN ('cortado','en_corte','canteado','trazo','taladro','templado','en_horno')
+          AND h.created_at BETWEEN ? AND ?
+          $filtroExtra
+        ORDER BY h.estatus_nuevo, h.created_at ASC
+    ");
     $stmt->execute([$desde, $hasta]);
-
     $rows = $stmt->fetchAll();
 
-
-
-    $total = 0.0; $conteo = 0;
-
-    $deltas = []; $muertos = 0;
-
-    $prevDt = null;
-
-    $porCristal = [];
-
-
+    $ests = ['corte','canteado','trazo','taladro','horno'];
+    $buckets = [];
+    foreach ($ests as $e) $buckets[$e] = [];
 
     foreach ($rows as $r) {
+        $est = statusToEst($r['estatus_nuevo']);
+        if (!$est) continue;
+        if ($est === 'corte' || $est === 'horno') $v = floatval($r['m2']);
+        elseif ($est === 'canteado')               $v = floatval($r['metros_lin']);
+        else                                        $v = 1.0;
+        $buckets[$est][] = ['created_at' => $r['created_at'], 'v' => $v, 'cristal' => $r['cristal'] ?? ''];
+    }
 
-        $val    = floatval($r['v']);
-
-        $total += $val; $conteo++;
-
-        $curDt  = new DateTime($r['created_at'], $GLOBALS['TZ']);
-
-
-
-        if ($est === 'horno' && !empty($r['cristal'])) {
-
-            $c = $r['cristal'];
-
-            $porCristal[$c] = ($porCristal[$c] ?? 0) + $val;
-
-        }
-
-
-
-        if ($prevDt !== null) {
-
-            $delta  = ($curDt->getTimestamp() - $prevDt->getTimestamp()) / 60;
-
-            $esCom  = ($prevDt->format('H:i') <= '13:00' && $curDt->format('H:i') >= '13:30'
-
-                       && (int)$curDt->format('N') <= 5);
-
-            if (!$esCom) {
-
-                $deltas[] = $delta;
-
-                if ($delta >= MUERTO_MIN) $muertos++;
-
+    $result = [];
+    foreach ($ests as $est) {
+        $total = 0.0; $conteo = 0; $deltas = []; $muertos = 0; $prevDt = null; $porCristal = [];
+        foreach ($buckets[$est] as $r) {
+            $val = $r['v'];
+            $total += $val; $conteo++;
+            $curDt = new DateTime($r['created_at'], $GLOBALS['TZ']);
+            if ($est === 'horno' && $r['cristal'] !== '') {
+                $porCristal[$r['cristal']] = ($porCristal[$r['cristal']] ?? 0) + $val;
             }
-
+            if ($prevDt !== null) {
+                $delta = ($curDt->getTimestamp() - $prevDt->getTimestamp()) / 60;
+                $esCom = ($prevDt->format('H:i') <= '13:00' && $curDt->format('H:i') >= '13:30'
+                          && (int)$curDt->format('N') <= 5);
+                if (!$esCom) { $deltas[] = $delta; if ($delta >= MUERTO_MIN) $muertos++; }
+            }
+            $prevDt = $curDt;
         }
-
-        $prevDt = $curDt;
-
+        $promDelta = count($deltas) > 0 ? round(array_sum($deltas) / count($deltas), 1) : null;
+        arsort($porCristal);
+        $cristalFmt = [];
+        foreach ($porCristal as $c => $v) $cristalFmt[] = ['cristal' => $c, 'm2' => round($v, 2)];
+        $result[$est] = ['total' => round($total, 2), 'conteo' => $conteo,
+                         'prom_delta_min' => $promDelta, 'tiempos_muertos' => $muertos,
+                         'por_cristal' => $cristalFmt];
     }
-
-
-
-    $promDelta = count($deltas) > 0 ? round(array_sum($deltas) / count($deltas), 1) : null;
-
-
-
-    arsort($porCristal);
-
-    $cristalFmt = [];
-
-    foreach ($porCristal as $c => $v) {
-
-        $cristalFmt[] = ['cristal' => $c, 'm2' => round($v, 2)];
-
-    }
-
-
-
-    return [
-
-        'total'          => round($total, 2),
-
-        'conteo'         => $conteo,
-
-        'prom_delta_min' => $promDelta,
-
-        'tiempos_muertos'=> $muertos,
-
-        'por_cristal'    => $cristalFmt,
-
-    ];
-
+    return $result;
 }
 
-
+// Compatibilidad: llamadas individuales a metricasFranja() siguen funcionando
+function metricasFranja(PDO $db, string $est, string $desde, string $hasta, bool $soloExtra = false): array {
+    return metricasFranjaAll($db, $desde, $hasta, $soloExtra)[$est];
+}
 
 function metricasPeriodo(PDO $db, string $desde, string $hasta): array {
-
-    $ests = ['corte','canteado','trazo','taladro','horno'];
-
-    $r = [];
-
-    foreach ($ests as $e) $r[$e] = metricasFranja($db, $e, $desde, $hasta);
-
-    return $r;
-
+    return metricasFranjaAll($db, $desde, $hasta);
 }
 
 
@@ -330,13 +287,7 @@ if ($vista === 'hora') {
 
     foreach ($franjas as $f) {
 
-        $datos = [];
-
-        foreach ($ests as $e) {
-
-            $datos[$e] = metricasFranja($db, $e, $f['desde'], $f['hasta'], $f['tipo'] === 'extra');
-
-        }
+        $datos = metricasFranjaAll($db, $f['desde'], $f['hasta'], $f['tipo'] === 'extra');
 
         $resultado[] = array_merge($f, ['datos' => $datos]);
 
