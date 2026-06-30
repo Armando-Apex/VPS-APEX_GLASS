@@ -142,6 +142,7 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno']);
       <h3 style="margin:0;font-size:16px;color:#1e293b;" id="cmpDetalleTitulo">Detalle de campa&ntilde;a</h3>
       <button onclick="window.cmpCerrarDetalle()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;">&#10005;</button>
     </div>
+    <div id="cmpDetalleAcciones" style="margin-bottom:14px;"></div>
     <div id="cmpDetalleContenido"></div>
   </div>
 </div>
@@ -286,6 +287,16 @@ var ModCampanas = (function() {
                     '</tr>';
             });
             document.getElementById('cmpDetalleTitulo').textContent = c.nombre;
+            var accionesEl = document.getElementById('cmpDetalleAcciones');
+            if (accionesEl) {
+                if (c.estado === 'borrador' || c.estado === 'cancelada') {
+                    accionesEl.innerHTML = '<button id="cmpBtnEnviarExistente" onclick="window.cmpEnviarCampanaExistente(' + c.id + ', ' + c.total_destinatarios + ')" ' +
+                        'style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;">' +
+                        '&#128241; Enviar campa&ntilde;a (' + c.total_destinatarios + ' destinatarios)</button>';
+                } else {
+                    accionesEl.innerHTML = '';
+                }
+            }
             document.getElementById('cmpDetalleContenido').innerHTML =
                 '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">' +
                 '<thead><tr style="background:#f8fafc;">' +
@@ -300,6 +311,35 @@ var ModCampanas = (function() {
 
     function cerrarDetalle() {
         document.getElementById('cmpModalDetalle').style.display = 'none';
+    }
+
+    // ── Enviar una campaña ya creada (estado borrador/cancelada) ──
+    function enviarCampanaExistente(campanaId, total) {
+        if (!confirm('Esto enviará el mensaje de WhatsApp real a ' + total + ' destinatarios. ¿Confirmas?')) {
+            return;
+        }
+        var btn = document.getElementById('cmpBtnEnviarExistente');
+        if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+        fetch('/produccion/api/campanas.php?accion=enviar', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': (window._csrfToken || '')},
+            body: JSON.stringify({campana_id: campanaId})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                if (btn) { btn.textContent = 'Enviando en proceso ✓'; }
+                alert('Envío iniciado: ' + data.total + ' mensajes en proceso (1 por segundo). Cierra y vuelve a abrir el detalle en unos minutos para ver el avance.');
+                verDetalle(campanaId);
+            } else {
+                alert('Error: ' + (data.error || 'desconocido'));
+                if (btn) { btn.disabled = false; btn.textContent = '📱 Enviar campaña (' + total + ' destinatarios)'; }
+            }
+        })
+        .catch(function() {
+            alert('Error de red al iniciar el envío');
+            if (btn) { btn.disabled = false; btn.textContent = '📱 Enviar campaña (' + total + ' destinatarios)'; }
+        });
     }
 
     // ── Wizard Nueva Campaña ──────────────────────────────────
@@ -1319,6 +1359,7 @@ var ModCampanas = (function() {
     window.cmpEnviarCampana      = enviarCampana;
     window.cmpVerDetalle         = verDetalle;
     window.cmpCerrarDetalle      = cerrarDetalle;
+    window.cmpEnviarCampanaExistente = enviarCampanaExistente;
     window.cmpFiltrarClientes    = cmpFiltrarClientes;
     window.cmpToggleCliente      = toggleCliente;
     window.cmpToggleTodos        = toggleTodos;
