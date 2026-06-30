@@ -197,10 +197,7 @@ function rdDias(fecha) {
   var f = fecha.includes('T') ? new Date(fecha) : new Date(fecha + 'T12:00:00');
   return Math.ceil((f - new Date()) / 86400000);
 }
-function fmtMXN(n) {
-  if (!n || isNaN(parseFloat(n))) return '$0';
-  return '$' + parseFloat(n).toLocaleString('es-MX', {minimumFractionDigits:0, maximumFractionDigits:0});
-}
+// fmtMXN — definida en utils.js
 
 function mkTopPanel(titulo, lista, valFn) {
   var rows = '';

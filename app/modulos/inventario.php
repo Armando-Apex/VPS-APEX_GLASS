@@ -742,12 +742,7 @@ function invTab(t) {
 
 // ── Formatters ───────────────────────────────────────────────
 var $ = function(id){ return document.getElementById(id); };
-function fmt(n, dec) {
-  dec = dec === undefined ? 2 : dec;
-  return n == null ? '&#8212;' : parseFloat(n).toLocaleString('es-MX',{minimumFractionDigits:dec,maximumFractionDigits:dec});
-}
-function fmtPeso(n) { return n == null ? '&#8212;' : '$'+fmt(n,2); }
-function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// fmt, fmtPeso, escAttr — definidos en utils.js
 var tipoLabel = {
   claro:'Claro', claro_zafiro:'Claro Zafiro', filtrasol:'Filtrasol',
   espejo:'Espejo', espejo_aluminio:'Espejo Aluminio', laminado_claro:'Laminado Claro',
@@ -758,11 +753,7 @@ var fleteLabel = {
   cobrado: '<span class="flete-cobrado">&#36; Cobrado</span>',
   propio:  '<span class="flete-propio">&#128666; Propio</span>'
 };
-function fmtFecha(f) {
-  if (!f) return '&#8212;';
-  var d = new Date(f+'T12:00:00');
-  return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
-}
+// fmtFecha — definida en utils.js
 
 // ── Cargar Stock ─────────────────────────────────────────────
 async function cargarStock() {

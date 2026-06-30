@@ -153,12 +153,7 @@ var CATS = {
   'croquis':             'Croquis',
 };
 
-function fmtFecha(f) {
-  if (!f) return '—';
-  var d = new Date(f.includes('T') ? f : f.replace(' ', 'T'));
-  return d.toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric'}) + ' ' +
-         d.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
-}
+// fmtFechaHora — definida en utils.js
 
 function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -223,7 +218,7 @@ function archRender() {
       + '<td><span class="cat-badge ' + catClass + '">' + catLabel + '</span></td>'
       + '<td style="font-size:12px;color:#64748b">' + icono + ' ' + escHtml(a.nombre_original) + '</td>'
       + '<td style="font-size:12px;color:#64748b">' + escHtml(a.subido_por) + '</td>'
-      + '<td style="font-size:12px;color:#64748b">' + fmtFecha(a.created_at) + '</td>'
+      + '<td style="font-size:12px;color:#64748b">' + fmtFechaHora(a.created_at) + '</td>'
       + '<td style="display:flex;gap:6px;align-items:center">'
       +   '<button class="btn-ver" onclick="archVer(' + a.id + ')">&#128065; Ver</button>'
       +   btnBorrar

@@ -334,17 +334,7 @@ const ESTS = Object.keys(EST);
 
 
 
-function fmt(v, dec=2) {
-
-  if (v===null||v===undefined) return '&#8212;';
-
-  const n = parseFloat(v);
-
-  if (isNaN(n)) return '&#8212;';
-
-  return dec===0 ? n.toLocaleString('es-MX') : n.toFixed(dec);
-
-}
+// fmt — definida en utils.js
 
 
 
