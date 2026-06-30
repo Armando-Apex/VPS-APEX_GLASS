@@ -1179,8 +1179,8 @@ function mostrarSiguienteComunicado() {
 
 // Iniciar comunicados
 cargarComunicados().then(() => tickComunicados());
-setInterval(cargarComunicados, 30 * 1000);  // cada 30s para detectar mostrar_ahora
-setInterval(tickComunicados,   30 * 1000);
+setInterval(cargarComunicados, 60 * 1000);
+setInterval(tickComunicados,   60 * 1000);
 </script>
 <!-- Overlay Comunicados SmartTV -->
 <div id="overlay-comunicado">

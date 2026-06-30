@@ -57,23 +57,33 @@ $stmt = $db->prepare("
 $stmt->execute(array_merge($paramAsesor, $paramBusqueda, [$porPagina, $offset]));
 $folios_pi = $stmt->fetchAll();
 
-// Para cada orden, obtener sus partidas pendientes
+// Obtener partidas pendientes de todas las órdenes en una sola query
 $por_iniciar = [];
-foreach ($folios_pi as $ord) {
+if ($folios_pi) {
+    $folios_ids = array_column($folios_pi, 'folio');
+    $inPlaceholders = implode(',', array_fill(0, count($folios_ids), '?'));
     $stmt_p = $db->prepare("
-        SELECT p.partida, p.cristal, p.ancho_mm, p.alto_mm, COUNT(*) AS piezas_pendientes
+        SELECT o.folio, p.partida, p.cristal, p.ancho_mm, p.alto_mm, COUNT(*) AS piezas_pendientes
         FROM piezas p
         JOIN ordenes o ON o.id = p.orden_id
-        WHERE p.estatus = 'pendiente' AND o.folio = ?
-        GROUP BY p.partida, p.cristal, p.ancho_mm, p.alto_mm
-        ORDER BY p.partida ASC
+        WHERE p.estatus = 'pendiente' AND o.folio IN ($inPlaceholders)
+        GROUP BY o.folio, p.partida, p.cristal, p.ancho_mm, p.alto_mm
+        ORDER BY o.folio, p.partida ASC
     ");
-    $stmt_p->execute([$ord['folio']]);
-    $partidas = $stmt_p->fetchAll();
-    $por_iniciar[] = array_merge($ord, [
-        'total_pendientes' => array_sum(array_column($partidas, 'piezas_pendientes')),
-        'partidas' => $partidas,
-    ]);
+    $stmt_p->execute($folios_ids);
+    $todasPartidas = $stmt_p->fetchAll();
+    // Agrupar por folio en PHP
+    $partidasPorFolio = [];
+    foreach ($todasPartidas as $row) {
+        $partidasPorFolio[$row['folio']][] = $row;
+    }
+    foreach ($folios_pi as $ord) {
+        $partidas = $partidasPorFolio[$ord['folio']] ?? [];
+        $por_iniciar[] = array_merge($ord, [
+            'total_pendientes' => array_sum(array_column($partidas, 'piezas_pendientes')),
+            'partidas' => $partidas,
+        ]);
+    }
 }
 
 // ── 2. EN PROCESO ────────────────────────────────────────────

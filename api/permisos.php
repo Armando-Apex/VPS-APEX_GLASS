@@ -167,12 +167,15 @@ function requireSessionApi() {
         echo json_encode(['error' => 'Sesion requerida']);
         exit;
     }
-    return [
+    $user = [
         'id'      => $_SESSION['user_id'],
         'nombre'  => $_SESSION['user_name'],
         'rol'     => $_SESSION['user_rol'],
         'estacion'=> $_SESSION['user_estacion'] ?? null,
     ];
+    // Liberar lock de sesión — permite requests concurrentes del mismo usuario
+    session_write_close();
+    return $user;
 }
 
 // Para APIs: verificar permiso especifico via JSON

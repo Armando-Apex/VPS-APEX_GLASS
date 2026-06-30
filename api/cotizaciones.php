@@ -125,17 +125,25 @@ if ($method === 'GET') {
         $stmt2->execute([$id]);
         $partidas = $stmt2->fetchAll(PDO::FETCH_ASSOC);
 
-        // Adjuntar servicios a cada partida
-        $stmtSrv = $db->prepare("
-            SELECT cps.*, sc.nombre as servicio_nombre
-            FROM cotizacion_partida_servicios cps
-            LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id
-            WHERE cps.partida_id = ?
-            ORDER BY cps.id ASC
-        ");
+        // Adjuntar servicios a cada partida — 1 sola query para todas
+        $serviciosPorPartida = [];
+        if ($partidas) {
+            $pidIds = array_column($partidas, 'id');
+            $inPh   = implode(',', array_fill(0, count($pidIds), '?'));
+            $stmtSrv = $db->prepare("
+                SELECT cps.*, sc.nombre as servicio_nombre
+                FROM cotizacion_partida_servicios cps
+                LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id
+                WHERE cps.partida_id IN ($inPh)
+                ORDER BY cps.partida_id ASC, cps.id ASC
+            ");
+            $stmtSrv->execute($pidIds);
+            foreach ($stmtSrv->fetchAll(PDO::FETCH_ASSOC) as $srv) {
+                $serviciosPorPartida[$srv['partida_id']][] = $srv;
+            }
+        }
         foreach ($partidas as &$par) {
-            $stmtSrv->execute([$par['id']]);
-            $par['servicios'] = $stmtSrv->fetchAll(PDO::FETCH_ASSOC);
+            $par['servicios'] = $serviciosPorPartida[$par['id']] ?? [];
         }
         unset($par);
 

@@ -279,8 +279,8 @@ window.ModResumen = (function() {
     if (_timer) clearInterval(_timer);
   }
 
-  // Auto-refresh cada 30s
-  _timer = setInterval(cargar, 30000);
+  // Auto-refresh cada 60s
+  _timer = setInterval(cargar, 60000);
 
   return { init: cargar, destroy, prio, setPag, irPagina };
 })();

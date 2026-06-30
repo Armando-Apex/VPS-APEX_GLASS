@@ -89,7 +89,7 @@ function estRender(data) {
 }
 
 estCargar();
-setInterval(estCargar, 30000);
+setInterval(estCargar, 90000);
 
 return{init:estCargar};
 })();
