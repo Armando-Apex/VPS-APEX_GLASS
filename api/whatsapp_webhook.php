@@ -194,16 +194,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $tipo = 'audio';
                 } elseif ($tipo === 'video') {
+                    $mediaId   = $msg['video']['id'] ?? '';
                     $contenido = '[Video]';
-                    $tipo = 'texto';
+                    if ($mediaId) {
+                        $chMeta = curl_init('https://graph.facebook.com/v20.0/' . $mediaId);
+                        curl_setopt($chMeta, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($chMeta, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . WA_TOKEN]);
+                        curl_setopt($chMeta, CURLOPT_TIMEOUT, 10);
+                        $metaRes     = json_decode(curl_exec($chMeta), true);
+                        curl_close($chMeta);
+                        $downloadUrl = $metaRes['url'] ?? '';
+                        $urlHost     = parse_url($downloadUrl, PHP_URL_HOST) ?? '';
+                        $metaDomains = ['lookaside.fbsbx.com','scontent.whatsapp.net','mmg.whatsapp.net','media.fbcdn.net'];
+                        $dominioValido = false;
+                        foreach ($metaDomains as $d) {
+                            if ($urlHost === $d || substr($urlHost, -(strlen($d)+1)) === '.'.$d) { $dominioValido = true; break; }
+                        }
+                        if ($downloadUrl && $dominioValido) {
+                            $chVid = curl_init($downloadUrl);
+                            curl_setopt($chVid, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($chVid, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . WA_TOKEN]);
+                            curl_setopt($chVid, CURLOPT_TIMEOUT, 60);
+                            $vidData = curl_exec($chVid);
+                            curl_close($chVid);
+                            if ($vidData && strlen($vidData) <= 16 * 1024 * 1024) {
+                                $localName = uniqid('wa_vid_', true) . '.mp4';
+                                $localDir  = dirname(__DIR__) . '/archivos_campanas/wa_media/';
+                                file_put_contents($localDir . $localName, $vidData);
+                                $contenido = '/produccion/archivos_campanas/wa_media/' . $localName;
+                            }
+                        }
+                    }
+                    $tipo = 'video';
                 } elseif ($tipo === 'sticker') {
+                    $mediaId   = $msg['sticker']['id'] ?? '';
                     $contenido = '[Sticker]';
-                    $tipo = 'texto';
+                    if ($mediaId) {
+                        $chMeta = curl_init('https://graph.facebook.com/v20.0/' . $mediaId);
+                        curl_setopt($chMeta, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($chMeta, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . WA_TOKEN]);
+                        curl_setopt($chMeta, CURLOPT_TIMEOUT, 10);
+                        $metaRes     = json_decode(curl_exec($chMeta), true);
+                        curl_close($chMeta);
+                        $downloadUrl = $metaRes['url'] ?? '';
+                        $urlHost     = parse_url($downloadUrl, PHP_URL_HOST) ?? '';
+                        $metaDomains = ['lookaside.fbsbx.com','scontent.whatsapp.net','mmg.whatsapp.net','media.fbcdn.net'];
+                        $dominioValido = false;
+                        foreach ($metaDomains as $d) {
+                            if ($urlHost === $d || substr($urlHost, -(strlen($d)+1)) === '.'.$d) { $dominioValido = true; break; }
+                        }
+                        if ($downloadUrl && $dominioValido) {
+                            $chImg = curl_init($downloadUrl);
+                            curl_setopt($chImg, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($chImg, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . WA_TOKEN]);
+                            curl_setopt($chImg, CURLOPT_TIMEOUT, 15);
+                            $imgData = curl_exec($chImg);
+                            curl_close($chImg);
+                            if ($imgData && strlen($imgData) <= 1 * 1024 * 1024) {
+                                $localName = uniqid('wa_stk_', true) . '.webp';
+                                $localDir  = dirname(__DIR__) . '/archivos_campanas/wa_media/';
+                                file_put_contents($localDir . $localName, $imgData);
+                                $contenido = '/produccion/archivos_campanas/wa_media/' . $localName;
+                            }
+                        }
+                    }
+                    $tipo = 'imagen';
                 } elseif ($tipo === 'location') {
                     $lat = $msg['location']['latitude']  ?? '';
                     $lng = $msg['location']['longitude'] ?? '';
-                    $contenido = '[Ubicación: ' . $lat . ',' . $lng . ']';
-                    $tipo = 'texto';
+                    $contenido = $lat . ',' . $lng;
+                    $tipo = 'ubicacion';
                 } elseif ($tipo === 'interactive') {
                     $contenido = $msg['interactive']['button_reply']['title']
                               ?? $msg['interactive']['list_reply']['title']

@@ -1123,6 +1123,24 @@ var ModCampanas = (function() {
                     } else {
                         contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#127908; Nota de voz</div>';
                     }
+                } else if (m.tipo === 'video') {
+                    if (m.contenido && m.contenido.indexOf('/produccion/') === 0) {
+                        contenidoHtml = '<video controls style="max-width:260px;max-height:200px;border-radius:6px;display:block;"><source src="' + esc(m.contenido) + '" type="video/mp4">Tu navegador no soporta video.</video>';
+                    } else {
+                        contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#127916; Video</div>';
+                    }
+                } else if (m.tipo === 'ubicacion') {
+                    var coords = (m.contenido || '').split(',');
+                    if (coords.length === 2) {
+                        var lat = coords[0].trim();
+                        var lng = coords[1].trim();
+                        var mapsUrl = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+                        contenidoHtml = '<a href="' + mapsUrl + '" target="_blank" style="display:block;text-decoration:none;">' +
+                            '<div style="font-size:12px;color:#2563eb;padding:6px 0;">&#128205; ' + lat + ', ' + lng + ' &mdash; Ver en Google Maps</div>' +
+                            '</a>';
+                    } else {
+                        contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128205; Ubicaci&oacute;n</div>';
+                    }
                 } else if (m.tipo === 'documento') {
                     var docParts = (m.contenido || '').split('|');
                     if (docParts.length === 2 && docParts[0].indexOf('/produccion/') === 0) {
