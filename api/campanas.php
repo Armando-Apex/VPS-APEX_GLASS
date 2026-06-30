@@ -33,6 +33,28 @@ function normalizarTelefono($tel) {
     return '52' . substr($tel, -10);
 }
 
+// ── Función: nombre corto para campañas (primeras 2 palabras del contacto) ──
+// Overrides manuales confirmados por Armando (30-jun-2026) para contactos
+// con formato "fulano / sutano" o nombres comerciales que no son personas.
+function nombreCampanaCorto($clienteId, $contacto) {
+    $overrides = [
+        44 => 'Veronica Guajardo',
+        45 => 'Ignacio Romo',
+        84 => 'Paola Lopez',
+        66 => 'Srta Luz',
+    ];
+    if (isset($overrides[$clienteId])) {
+        return $overrides[$clienteId];
+    }
+    $contacto = trim($contacto ?? '');
+    if ($contacto === '') {
+        return 'Cliente';
+    }
+    $palabras = preg_split('/\s+/', $contacto);
+    $palabras = array_slice($palabras, 0, 2);
+    return mb_convert_case(implode(' ', $palabras), MB_CASE_TITLE, 'UTF-8');
+}
+
 // ── Función: enviar mensaje a Meta Cloud API ─────────────────
 require_once __DIR__ . '/wa_helper.php';
 
