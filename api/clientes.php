@@ -108,23 +108,21 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_nombre') {
 
     $nombreAnterior = $actual['razon_social'] ?: $actual['nombre'];
 
-    // Actualizar clientes
+    $pdo->beginTransaction();
     $pdo->prepare("UPDATE clientes SET nombre = ?, razon_social = ? WHERE id = ?")
         ->execute([$nuevoNombre, $nuevoNombre, $id]);
 
-    // Actualizar ordenes por cliente_id
     $stmtOrd1 = $pdo->prepare("UPDATE ordenes SET cliente_nombre = ? WHERE cliente_id = ?");
     $stmtOrd1->execute([$nuevoNombre, $id]);
     $filas1 = $stmtOrd1->rowCount();
 
-    // Actualizar ordenes por nombre anterior (fallback FK nulo)
     $stmtOrd2 = $pdo->prepare("UPDATE ordenes SET cliente_nombre = ? WHERE cliente_nombre = ? AND (cliente_id IS NULL OR cliente_id = 0)");
     $stmtOrd2->execute([$nuevoNombre, $nombreAnterior]);
     $filas2 = $stmtOrd2->rowCount();
 
-    // Bitácora
     $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'Nombre', ?, ?, ?, ?)")
         ->execute([$id, $nombreAnterior, $nuevoNombre, $usuario_id, $usuario_nombre]);
+    $pdo->commit();
 
     jsonResponse([
         'ok'                  => true,
@@ -156,12 +154,13 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_telefono') {
     $valorAnterior = $actual[$campo] ?? '';
     $nuevoValor    = $valor ?: null;
 
+    $pdo->beginTransaction();
     $pdo->prepare("UPDATE clientes SET $campo = ? WHERE id = ?")
         ->execute([$nuevoValor, $id]);
-
     $etiqueta = $campo === 'telefono' ? 'Teléfono' : 'Teléfono Alterno WA';
     $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, ?, ?, ?, ?, ?)")
         ->execute([$id, $etiqueta, $valorAnterior, $nuevoValor ?? '', $usuario_id, $usuario_nombre]);
+    $pdo->commit();
 
     jsonResponse(['ok' => true, 'campo' => $campo, 'valor' => $nuevoValor ?? '']); exit;
 }
@@ -181,9 +180,9 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'guardar_fiscal') {
     $actual = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$actual) { jsonResponse(['ok'=>false,'error'=>'Cliente no encontrado']); exit; }
 
+    $pdo->beginTransaction();
     $pdo->prepare("UPDATE clientes SET rfc=?, cp_fiscal=?, regimen_fiscal=?, updated_at=NOW() WHERE id=?")
         ->execute([$rfc, $cp_fiscal, $regimen_fiscal, $id]);
-
     $stmt_log = $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?,?,?,?,?,?)");
     $cambios = [
         'RFC'            => ['rfc',            $actual['rfc'],            $rfc],
@@ -195,6 +194,7 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'guardar_fiscal') {
             $stmt_log->execute([$id, $etiqueta, $vals[1] ?? '', $vals[2] ?? '', $usuario_id, $usuario_nombre]);
         }
     }
+    $pdo->commit();
 
     jsonResponse(['ok'=>true, 'rfc'=>$rfc, 'cp_fiscal'=>$cp_fiscal, 'regimen_fiscal'=>$regimen_fiscal]);
     exit;
@@ -222,12 +222,13 @@ if ($method === 'POST') {
     $cp_fiscal      = trim($body['cp_fiscal']      ?? '') ?: null;
     $regimen_fiscal = trim($body['regimen_fiscal']  ?? '') ?: null;
 
+    $pdo->beginTransaction();
     $pdo->prepare("INSERT INTO clientes (codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email, localidad, ciudad, rfc, cp_fiscal, regimen_fiscal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
         ->execute([$codigo, $razon_social, $razon_social, $contacto, $telefono, $telefono_alterno ?: null, $email, $localidad, $ciudad, $rfc, $cp_fiscal, $regimen_fiscal]);
     $new_id = $pdo->lastInsertId();
-
     $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'CREACION', '', ?, ?, ?)")
         ->execute([$new_id, "Cliente creado: $razon_social", $usuario_id, $usuario_nombre]);
+    $pdo->commit();
 
     jsonResponse(['ok' => true, 'id' => $new_id, 'codigo' => $codigo]); exit;
 }
@@ -259,6 +260,7 @@ if ($method === 'PUT') {
     $etiquetas = ['razon_social'=>'Razón Social','contacto'=>'Contacto','telefono'=>'Teléfono','telefono_alterno'=>'Teléfono Alterno WA','email'=>'Email','localidad'=>'Localidad','ciudad'=>'Ciudad','activo'=>'Estatus','rfc'=>'RFC','cp_fiscal'=>'CP Fiscal','regimen_fiscal'=>'Régimen Fiscal'];
     $stmt_log  = $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?,?,?,?,?,?)");
 
+    $pdo->beginTransaction();
     foreach ($campos as $campo => $nuevo) {
         if ((string)$nuevo !== (string)($actual[$campo] ?? '')) {
             $stmt_log->execute([$id, $etiquetas[$campo] ?? $campo, $actual[$campo] ?? '', $nuevo, $usuario_id, $usuario_nombre]);
@@ -270,6 +272,7 @@ if ($method === 'PUT') {
     $params = array_values($campos);
     $params[] = $id;
     $pdo->prepare("UPDATE clientes SET $sets WHERE id = ?")->execute($params);
+    $pdo->commit();
 
     jsonResponse(['ok' => true]); exit;
 }

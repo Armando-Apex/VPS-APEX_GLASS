@@ -60,19 +60,19 @@ if ($method === 'POST') {
         jsonResponse(['error' => 'Datos incompletos']); exit;
     }
 
+    $pdo->beginTransaction();
     $stmt = $pdo->prepare("
         INSERT INTO cristales (nombre, nombre_etiqueta, precio_m2)
         VALUES (?, ?, ?)
     ");
     $stmt->execute([$nombre, $etiqueta, $precio]);
     $new_id = $pdo->lastInsertId();
-
-    // Registrar en historial como precio inicial
     $pdo->prepare("
         INSERT INTO cristales_historial
             (cristal_id, precio_anterior, precio_nuevo, usuario_id, usuario_nombre, motivo)
         VALUES (?, 0, ?, ?, ?, 'Precio inicial')
     ")->execute([$new_id, $precio, $usuario_id, $usuario_nombre]);
+    $pdo->commit();
 
     jsonResponse(['ok' => true, 'id' => $new_id]);
     exit;
@@ -109,10 +109,9 @@ if ($method === 'PUT') {
     if (!$fields) { jsonResponse(['error' => 'Nada que actualizar']); exit; }
 
     $params[] = $id;
+    $pdo->beginTransaction();
     $pdo->prepare("UPDATE cristales SET " . implode(', ', $fields) . " WHERE id = ?")
         ->execute($params);
-
-    // Historial solo si cambió el precio
     if ($precio > 0 && $precio != $precio_anterior) {
         $pdo->prepare("
             INSERT INTO cristales_historial
@@ -120,6 +119,7 @@ if ($method === 'PUT') {
             VALUES (?, ?, ?, ?, ?, ?)
         ")->execute([$id, $precio_anterior, $precio, $usuario_id, $usuario_nombre, $motivo]);
     }
+    $pdo->commit();
 
     jsonResponse(['ok' => true]);
     exit;
