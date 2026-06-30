@@ -65,12 +65,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'listar') {
         $no_leidas = count(array_filter($notifs, fn($n) => !$n['leida']));
 
     } else {
-        echo json_encode(['ok' => true, 'notificaciones' => [], 'no_leidas' => 0]);
-        exit;
+        jsonResponse(['ok' => true, 'notificaciones' => [], 'no_leidas' => 0]);
     }
 
-    echo json_encode(['ok' => true, 'notificaciones' => $notifs, 'no_leidas' => $no_leidas]);
-    exit;
+    jsonResponse(['ok' => true, 'notificaciones' => $notifs, 'no_leidas' => $no_leidas]);
 }
 
 // ── POST marcar leída ─────────────────────────────────────

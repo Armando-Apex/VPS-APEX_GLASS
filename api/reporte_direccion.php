@@ -392,7 +392,7 @@ $stmtHorno = $pdo->prepare("
 $stmtHorno->execute();
 $horno_semanas = $stmtHorno->fetchAll(PDO::FETCH_ASSOC);
 
-echo json_encode([
+jsonResponse([
     'resumen'               => $resumen,
     'mensual'               => $mensual,
     'finanzas'              => $finanzas,

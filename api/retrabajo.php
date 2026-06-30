@@ -64,4 +64,4 @@ if ($rol === 'comercial') {
     ");
 }
 
-echo json_encode(['ok' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+jsonResponse(['ok' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
