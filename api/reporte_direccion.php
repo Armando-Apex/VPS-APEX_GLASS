@@ -265,7 +265,10 @@ $stmtF = $pdo->prepare("
 $stmtF->execute($params4);
 $finanzas = $stmtF->fetch(PDO::FETCH_ASSOC);
 
-// ── Cotizaciones desde COT-0100 (solo estatus cotizacion) ──
+// ── Pipeline vigente: TODAS las cotizaciones abiertas (estatus=cotizacion),
+// sin filtrar por período — son cotizaciones vivas hoy sin importar cuándo se crearon.
+// Filtrar por created_at las hacía "desaparecer" del reporte al cambiar de mes
+// aunque siguieran pendientes de decisión del cliente.
 $stmtC = $pdo->prepare("
     SELECT
         COUNT(c.id)                                                                         AS total_cots,
@@ -276,9 +279,8 @@ $stmtC = $pdo->prepare("
     FROM cotizaciones c
     WHERE c.folio >= 'COT-0100'
       AND c.estatus = 'cotizacion'
-      AND c.created_at BETWEEN ? AND ?
 ");
-$stmtC->execute([$desde . ' 00:00:00', $hasta . ' 23:59:59']);
+$stmtC->execute();
 $cots_resumen = $stmtC->fetch(PDO::FETCH_ASSOC);
 
 // ── Tasa de conversión cotizaciones (período) ──

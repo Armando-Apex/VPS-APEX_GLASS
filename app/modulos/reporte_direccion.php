@@ -266,7 +266,7 @@ function rdRender(rep, dash, inv) {
     '<div class="kpi-card"><div class="kpi-num-sm">' + convTotal + '</div><div class="kpi-label">Cotizaciones</div><div class="kpi-sub">' + convConv + ' convertidas a orden</div></div>' +
     '<div class="kpi-card"><div class="kpi-num-sm" style="color:' + convColor + '">' + convPct + '%</div><div class="kpi-label">Tasa conversi&#243;n</div><div class="kpi-sub">Cotizaciones convertidas</div></div>' +
     '<div class="kpi-card"><div class="kpi-num-sm" style="color:var(--blue)">' + fmtMXN(cot.total_cotizado) + '</div><div class="kpi-label">Pipeline vigente</div><div class="kpi-sub">Ticket prom: ' + fmtMXN(cot.ticket_promedio) + '</div></div>' +
-    '<div class="kpi-card"><div class="kpi-num-sm">' + parseInt(cot.total_cots||0) + '</div><div class="kpi-label">Pendientes</div><div class="kpi-sub">Sin convertir a orden</div></div>' +
+    '<div class="kpi-card"><div class="kpi-num-sm">' + parseInt(cot.total_cots||0) + '</div><div class="kpi-label">Pendientes</div><div class="kpi-sub">Vivas hoy, cualquier fecha</div></div>' +
   '</div>';
 
   /* ─── Rendimiento por asesor ─── */
