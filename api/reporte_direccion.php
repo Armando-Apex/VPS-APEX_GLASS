@@ -269,18 +269,26 @@ $finanzas = $stmtF->fetch(PDO::FETCH_ASSOC);
 // sin filtrar por período — son cotizaciones vivas hoy sin importar cuándo se crearon.
 // Filtrar por created_at las hacía "desaparecer" del reporte al cambiar de mes
 // aunque siguieran pendientes de decisión del cliente.
+// Además se desglosa mes anterior vs mes actual (calendario fijo, independiente
+// del selector de período) para comparar cómo evoluciona el pipeline mes a mes.
+$mesActualIni    = $hoy->format('Y-m-01') . ' 00:00:00';
+$mesAnteriorIni  = (clone $hoy)->modify('first day of last month')->format('Y-m-01') . ' 00:00:00';
+$mesAnteriorFin  = (clone $hoy)->modify('last day of last month')->format('Y-m-d') . ' 23:59:59';
+
 $stmtC = $pdo->prepare("
     SELECT
         COUNT(c.id)                                                                         AS total_cots,
         COALESCE(SUM(c.total), 0)                                                          AS total_cotizado,
         AVG(CASE WHEN COALESCE(c.total,0) > 0 THEN c.total ELSE NULL END)                  AS ticket_promedio,
         COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Bethy%' THEN c.total ELSE 0 END), 0) AS bethy_total,
-        COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Cynthia%' THEN c.total ELSE 0 END),0) AS cynthia_total
+        COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Cynthia%' THEN c.total ELSE 0 END),0) AS cynthia_total,
+        COALESCE(SUM(CASE WHEN c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0)   AS pipeline_mes_anterior,
+        COALESCE(SUM(CASE WHEN c.created_at >= ? THEN c.total ELSE 0 END), 0)              AS pipeline_mes_actual
     FROM cotizaciones c
     WHERE c.folio >= 'COT-0100'
       AND c.estatus = 'cotizacion'
 ");
-$stmtC->execute();
+$stmtC->execute([$mesAnteriorIni, $mesAnteriorFin, $mesActualIni]);
 $cots_resumen = $stmtC->fetch(PDO::FETCH_ASSOC);
 
 // ── Tasa de conversión cotizaciones (período) ──

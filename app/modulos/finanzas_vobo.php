@@ -3,7 +3,7 @@ require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
 $user = requirePermiso('ver_ordenes');
 $_rol = $user['rol'];
-$es_finanzas = in_array($_rol, ['administracion','dir_admin','dueno']);
+$es_finanzas = in_array($_rol, ['administracion','dir_admin','dueno','desarrollo']);
 if (!$es_finanzas) {
     echo '<div style="padding:40px;text-align:center;color:#dc2626">Sin permiso para esta sección.</div>'; exit;
 }

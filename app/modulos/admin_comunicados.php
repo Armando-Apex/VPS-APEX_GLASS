@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
 $user = requirePermiso('ver_dashboard');
-if ($user['rol'] !== 'dir_admin') { http_response_code(403); exit; }
+if (!in_array($user['rol'], ['dir_admin', 'desarrollo'])) { http_response_code(403); exit; }
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=admin_comunicados'); exit;
 }
