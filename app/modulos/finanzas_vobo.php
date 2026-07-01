@@ -35,7 +35,7 @@ tbody td { padding: 12px 14px; font-size: 13px; }
 .det-panel { background: white; border: 1px solid #e2e8f0; border-radius: 14px; padding: 24px; display: none; }
 .det-panel.show { display: block; }
 .det-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-.det-folio { font-family: 'Syncopate', sans-serif; font-size: 20px; font-weight: 700; background: #1a1a2e; color: white; padding: 6px 16px; border-radius: 8px; }
+.det-folio { font-family: 'Syncopate', sans-serif; font-size: 20px; font-weight: 700; background: var(--c-dark-2); color: white; padding: 6px 16px; border-radius: var(--r-sm); }
 .det-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 20px; }
 .det-field { background: #f8fafc; border-radius: 8px; padding: 10px 14px; }
 .det-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
@@ -64,7 +64,7 @@ tbody td { padding: 12px 14px; font-size: 13px; }
 .pago-monto { font-weight: 700; color: #1e293b; margin-left: auto; }
 
 /* Formulario pago */
-.pago-form { background: #f0f9ff; border: 1.5px solid #bae6fd; border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+.pago-form { background: var(--c-blue-light); border: 1px solid #bae6fd; border-radius: var(--r-sm); padding: 16px; margin-bottom: 20px; }
 .pago-form-title { font-size: 13px; font-weight: 700; color: #0369a1; margin-bottom: 12px; }
 .pago-form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
 .pf-field { display: flex; flex-direction: column; gap: 4px; }
@@ -73,7 +73,7 @@ tbody td { padding: 12px 14px; font-size: 13px; }
 .pf-field input:focus, .pf-field select:focus { outline: none; border-color: #0369a1; }
 
 /* VoBo */
-.vobo-box { background: #f0fdf4; border: 2px solid #bbf7d0; border-radius: 12px; padding: 20px; }
+.vobo-box { background: var(--c-green-light); border: 2px solid #bbf7d0; border-radius: var(--r-md); padding: 20px; }
 .vobo-box-title { font-size: 14px; font-weight: 700; color: #15803d; margin-bottom: 14px; }
 .vobo-fecha-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
 .vf-field { display: flex; flex-direction: column; gap: 4px; }
@@ -84,7 +84,7 @@ tbody td { padding: 12px 14px; font-size: 13px; }
 /* Botones */
 .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: opacity .15s; }
 .btn:hover { opacity: .85; }
-.btn-success { background: #16a34a; color: white; font-size: 15px; padding: 12px 28px; }
+.btn-success { background: var(--c-green); color: white; font-size: 14px; padding: 10px 20px; }
 .btn-blue    { background: #2563eb; color: white; }
 .btn-ghost   { background: #f1f5f9; color: #374151; }
 .btn-sm { padding: 7px 14px; font-size: 12px; }
