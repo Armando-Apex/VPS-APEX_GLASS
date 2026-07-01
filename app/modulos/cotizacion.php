@@ -26,7 +26,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .main { padding: 24px; max-width: 1400px; margin: 0 auto; }
 .card { background: white; border-radius: 14px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 20px; }
 .card-title { font-size: 15px; font-weight: 800; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
-.folio-badge { background: #1a1a2e; color: white; font-size: 22px; font-weight: 800; padding: 8px 20px; border-radius: 10px; font-family: 'Syncopate', sans-serif; letter-spacing: 2px; }
+.folio-badge { background: var(--c-dark-2); color: white; font-size: 22px; font-weight: 800; padding: 8px 20px; border-radius: var(--r-sm); font-family: 'Syncopate', sans-serif; letter-spacing: 2px; }
 .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .span-2 { grid-column: span 2; }
 .span-3 { grid-column: span 3; }
@@ -44,8 +44,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 /* Partidas */
 .partidas-header { display: grid; grid-template-columns: 34px 190px 54px 72px 72px 115px 145px 50px 50px 50px 70px 125px 34px; gap: 5px; padding: 6px 8px; background: #f8fafc; border-radius: 8px; margin-bottom: 6px; }
 .partidas-header span { font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; }
-.partida-row { display: grid; grid-template-columns: 34px 190px 54px 72px 72px 115px 145px 50px 50px 50px 70px 125px 34px; gap: 5px; padding: 8px; background: white; border: 1.5px solid #e2e8f0; border-radius: 10px; margin-bottom: 6px; align-items: center; }
-.partida-row input, .partida-row select { padding: 6px 7px; border: 1.5px solid #e2e8f0; border-radius: 6px; font-size: 12px; width: 100%; }
+.partida-row { display: grid; grid-template-columns: 34px 190px 54px 72px 72px 115px 145px 50px 50px 50px 70px 125px 34px; gap: 5px; padding: 8px; background: white; border: 1px solid var(--c-border); border-radius: var(--r-sm); margin-bottom: 6px; align-items: center; }
+.partida-row input, .partida-row select { padding: 6px 7px; border: 1px solid var(--c-border); border-radius: 6px; font-size: 12px; width: 100%; }
 .partida-row input:focus, .partida-row select:focus { outline: none; border-color: #2563eb; }
 .partida-row input[readonly] { background: #f8fafc; color: #64748b; }
 .num-partida { font-weight: 800; color: #2563eb; text-align: center; font-size: 14px; }

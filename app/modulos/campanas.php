@@ -7,7 +7,7 @@ require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
 $user = requireSession();
 $rol  = $user['rol'];
-$puedeEnviar = in_array($rol, ['dir_admin','dueno']);
+$puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','administracion']);
 ?>
 <style>
 .cmp-tabs{display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:16px;}
@@ -36,7 +36,7 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno']);
 .conv-panel{display:flex;gap:0;height:520px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;}
 .conv-lista{width:300px;border-right:1px solid #e2e8f0;overflow-y:auto;flex-shrink:0;background:#fff;}
 .conv-item{padding:12px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background .1s;position:relative;}
-.conv-item:hover,.conv-item.active{background:#eff6ff;}
+.conv-item:hover,.conv-item.active{background:var(--c-blue-light);}
 .conv-item-nombre{font-size:13px;font-weight:600;color:#1e293b;}
 .conv-item-preview{font-size:11px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
 .conv-badge{background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;float:right;margin-top:2px;}
@@ -52,7 +52,7 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno']);
 .msg-wrap{display:flex;flex-direction:column;position:relative;}
 .msg-wrap.out{align-items:flex-end;}.msg-wrap.in{align-items:flex-start;}
 .msg-burbuja{max-width:75%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5;word-break:break-word;white-space:pre-wrap;}
-.msg-out{background:#dcfce7;border-bottom-right-radius:3px;}
+.msg-out{background:var(--c-blue-light);border-bottom-right-radius:3px;}
 .msg-in{background:#fff;border:1px solid #e2e8f0;border-bottom-left-radius:3px;}
 .msg-meta{font-size:10px;color:#94a3b8;margin-top:4px;text-align:right;}
 .msg-in .msg-meta{text-align:left;}
@@ -82,8 +82,8 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno']);
 .conv-bubble-item button{width:42px;height:42px;border-radius:50%;border:none;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.18);}
 .conv-bubble-item button:hover{filter:brightness(.92);}
 .bubble-clip{background:#fff;color:#475569;}
-.bubble-emoji{background:#fbbf24;color:#fff;}
-.bubble-loc{background:#22c55e;color:#fff;}
+.bubble-emoji{background:var(--c-amber);color:#fff;}
+.bubble-loc{background:var(--c-green);color:#fff;}
 .conv-bubble-label{font-size:11px;background:rgba(0,0,0,.7);color:#fff;border-radius:4px;padding:2px 7px;white-space:nowrap;pointer-events:none;}
 @keyframes bubbleIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
 /* ── Emoji panel (arriba derecha del área de input) ── */

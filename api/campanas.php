@@ -15,7 +15,7 @@ $accion = $_GET['accion'] ?? '';
 $metodo = $_SERVER['REQUEST_METHOD'];
 
 $esCampanas  = in_array($rol, ['dir_admin','dueno','comercial','administracion','desarrollo']);
-$puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo']);
+$puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','administracion']);
 
 if (!$esCampanas) {
     jsonResponse(['error' => 'Sin permiso'], 403);
@@ -736,7 +736,7 @@ if ($metodo === 'POST' && $accion === 'marcar_no_leido') {
     $body   = json_decode(file_get_contents('php://input'), true);
     $convId = (int)($body['conversacion_id'] ?? 0);
     if (!$convId) jsonResponse(['error' => 'Falta conversacion_id'], 400);
-    $db->prepare("UPDATE whatsapp_conversaciones SET mensajes_sin_leer=1 WHERE id=?")
+    $db->prepare("UPDATE whatsapp_conversaciones SET mensajes_sin_leer=1, ultima_actividad=NOW() WHERE id=?")
        ->execute([$convId]);
     jsonResponse(['ok' => true]);
     exit;

@@ -10,13 +10,13 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .ord-wrap { padding: 24px; }
 .page-title { font-size: 18px; font-weight: 600; color: #1a1a1a; margin-bottom: 4px; }
 .page-sub   { font-size: 12px; color: #9ca3af; margin-bottom: 20px; }
-.tabs { display:flex; gap:2px; margin-bottom:20px; background:#f3f4f6; padding:3px; border-radius:10px; width:fit-content; }
+.tabs { display:flex; gap:2px; margin-bottom:20px; background:var(--c-bg); padding:3px; border-radius:var(--r-sm); width:fit-content; }
 .tab-btn { padding:7px 18px; border-radius:8px; border:none; font-size:13px; cursor:pointer; font-weight:500; background:none; color:#6b7280; transition:all .15s; display:flex; align-items:center; gap:6px; }
 .tab-btn.active { background:#fff; color:#1a1a1a; box-shadow:0 1px 3px rgba(0,0,0,.08); }
 .tab-cnt { font-size:11px; font-weight:600; padding:1px 7px; border-radius:99px; background:#e5e7eb; color:#6b7280; }
 .tab-btn.active .tab-cnt { background:#dcfce7; color:#166534; }
 .seccion { display:none; } .seccion.visible { display:block; }
-.orden-card { background:#fff; border:0.5px solid #e5e7eb; border-radius:12px; margin-bottom:10px; overflow:hidden; }
+.orden-card { background:#fff; border:1px solid var(--c-border); border-radius:12px; margin-bottom:10px; overflow:hidden; }
 .orden-card.prioritaria { border-left:3px solid #f59e0b; }
 .orden-head { display:flex; align-items:center; gap:12px; padding:13px 18px; cursor:pointer; transition:background .1s; }
 .orden-head:hover { background:#fafafa; }
@@ -31,14 +31,14 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .pzs-term   { background:#dcfce7; color:#166534; }
 .toggle-icon { font-size:12px; color:#9ca3af; margin-left:4px; transition:transform .2s; }
 .toggle-icon.open { transform:rotate(180deg); }
-.partidas-wrap { display:none; border-top:0.5px solid #f3f4f6; }
+.partidas-wrap { display:none; border-top:1px solid var(--c-border); }
 .partidas-wrap.open { display:block; }
-.partida-row { display:flex; align-items:center; gap:12px; padding:10px 18px 10px 36px; border-bottom:0.5px solid #f9fafb; font-size:12px; }
+.partida-row { display:flex; align-items:center; gap:12px; padding:10px 18px 10px 36px; border-bottom:1px solid #f1f5f9; font-size:12px; }
 .partida-row:last-child { border-bottom:none; }
 .partida-num  { font-weight:500; color:#374151; min-width:60px; }
 .partida-desc { color:#6b7280; flex:1; }
 .partida-pzs  { font-weight:500; color:#991b1b; background:#fee2e2; padding:2px 8px; border-radius:99px; font-size:11px; }
-.entr-row { display:flex; align-items:center; gap:12px; padding:13px 18px; border-bottom:0.5px solid #f9fafb; font-size:13px; }
+.entr-row { display:flex; align-items:center; gap:12px; padding:13px 18px; border-bottom:1px solid #f1f5f9; font-size:13px; }
 .entr-row:last-child { border-bottom:none; }
 .entr-folio   { font-size:14px; font-weight:600; color:#2563eb; min-width:90px; cursor:pointer; }
 .entr-folio:hover { text-decoration:underline; }
@@ -51,10 +51,10 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .cierre-parcial { background:#fef9c3; color:#854d0e; }
 .card-empty { text-align:center; padding:48px; color:#9ca3af; font-size:14px; }
 .search-sort-bar { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
-#ord-busqueda { flex:1; min-width:200px; background:#fff; border:0.5px solid #e5e7eb; border-radius:8px; padding:8px 14px; font-size:13px; color:#1a1a1a; outline:none; }
+#ord-busqueda { flex:1; min-width:200px; background:#fff; border:1px solid var(--c-border); border-radius:8px; padding:8px 14px; font-size:13px; color:#1a1a1a; outline:none; }
 #ord-busqueda:focus { border-color:#16a34a; }
 .sort-btns { display:flex; gap:6px; flex-wrap:wrap; }
-.sort-btn { background:#fff; border:0.5px solid #e5e7eb; border-radius:8px; padding:7px 12px; font-size:12px; color:#6b7280; cursor:pointer; transition:all .15s; display:flex; align-items:center; gap:4px; }
+.sort-btn { background:#fff; border:1px solid var(--c-border); border-radius:8px; padding:7px 12px; font-size:12px; color:#6b7280; cursor:pointer; transition:all .15s; display:flex; align-items:center; gap:4px; }
 .sort-btn:hover { background:#f3f4f6; }
 .sort-btn.active { background:#f0fdf4; color:#166534; border-color:#bbf7d0; font-weight:500; }
 .sort-arrow { font-size:11px; }
@@ -245,9 +245,9 @@ function ordFiltrar() {
     // Etiquetar cada orden con su estado usando el campo devuelto por el API
     const etiquetaEstado = function(o) {
       var est = o.estado || '';
-      if (est === 'entregada')     return '<span style="background:#e0f2fe;color:#0891b2;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">Entregada</span>';
+      if (est === 'entregada')     return '<span style="background:var(--c-blue-light);color:var(--c-blue);padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">Entregada</span>';
       if (est === 'cancelada')     return '<span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">Cancelada</span>';
-      if (est === 'pendiente_vobo')return '<span style="background:#f3e8ff;color:#7c3aed;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">VoBo pendiente</span>';
+      if (est === 'pendiente_vobo')return '<span style="background:var(--c-amber-light);color:var(--c-amber);padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">VoBo pendiente</span>';
       if (est === 'activa') {
         if ((_ordData.listas||[]).find(function(x){return x.folio===o.folio;}))      return '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">Lista para entregar</span>';
         if ((_ordData.en_proceso||[]).find(function(x){return x.folio===o.folio;}))  return '<span style="background:#fef9c3;color:#ca8a04;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:6px">En proceso</span>';

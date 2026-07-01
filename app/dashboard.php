@@ -38,7 +38,7 @@ require_once __DIR__ . '/../api/helpers/icons.php';
 <title>APEX GLASS &mdash; Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&display=swap" rel="stylesheet">
 <style>
-:root { --sidebar-w:220px; --topbar-h:56px; --c-bg:#f8fafc; --c-white:#fff; --c-border:#e2e8f0; --c-text:#1e293b; --c-muted:#64748b; --c-blue:#2563eb; --c-red:#dc2626; }
+:root { --sidebar-w:220px; --topbar-h:56px; --c-bg:#f8fafc; --c-white:#fff; --c-border:#e2e8f0; --c-text:#1e293b; --c-muted:#64748b; --c-blue:#2563eb; --c-blue-dark:#1d4ed8; --c-blue-light:#eff6ff; --c-red:#dc2626; --c-red-light:#fee2e2; --c-green:#16a34a; --c-green-light:#dcfce7; --c-amber:#d97706; --c-amber-light:#fef9c3; --c-dark:#0f172a; --c-dark-2:#1a1a2e; --r-sm:8px; --r-md:12px; --r-lg:16px; --r-pill:99px; }
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;overflow:hidden;}
 body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color:var(--c-text);display:flex;flex-direction:column;}
