@@ -12,6 +12,96 @@ header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: https://apex.glass');
 
 $pdo     = getDB();
+$accion  = $_GET['accion'] ?? '';
+
+// ============================================================
+//  Pestaña "Ventas y Cobranza" — listado de órdenes por día/semana/mes
+//  con anticipo/restante como foto histórica (no saldo vivo de hoy)
+// ============================================================
+if ($accion === 'ventas_cobranza') {
+    $gran = $_GET['gran'] ?? 'dia';
+    try {
+        $ref = new DateTime($_GET['fecha'] ?? 'today');
+    } catch (Exception $e) {
+        $ref = new DateTime();
+    }
+
+    $mesesEs = [1=>'Enero',2=>'Febrero',3=>'Marzo',4=>'Abril',5=>'Mayo',6=>'Junio',
+                7=>'Julio',8=>'Agosto',9=>'Septiembre',10=>'Octubre',11=>'Noviembre',12=>'Diciembre'];
+
+    if ($gran === 'semana') {
+        $dow    = (int)$ref->format('N'); // 1=Lun … 7=Dom
+        $desdeD = (clone $ref)->modify('-' . ($dow - 1) . ' days');
+        $hastaD = (clone $desdeD)->modify('+6 days');
+        $label  = 'Semana del ' . $desdeD->format('d M') . ' al ' . $hastaD->format('d M Y');
+    } elseif ($gran === 'mes') {
+        $desdeD = (clone $ref)->modify('first day of this month');
+        $hastaD = (clone $ref)->modify('last day of this month');
+        $label  = $mesesEs[(int)$hastaD->format('n')] . ' ' . $hastaD->format('Y');
+    } else {
+        $gran   = 'dia';
+        $desdeD = clone $ref;
+        $hastaD = clone $ref;
+        $label  = $desdeD->format('d/m/Y');
+    }
+    $desde = $desdeD->format('Y-m-d');
+    $hasta = $hastaD->format('Y-m-d');
+
+    $stmtO = $pdo->prepare("
+        SELECT o.folio, COALESCE(o.fecha_pedido, DATE(o.created_at)) AS fecha_orden,
+               c.id AS cotizacion_id, c.asesor_nombre, c.total,
+               cl.nombre AS cliente_nombre
+        FROM ordenes o
+        JOIN cotizaciones c ON c.orden_id = o.id
+        JOIN clientes cl ON cl.id = c.cliente_id
+        WHERE o.estado IN ('activa','entregada')
+          AND COALESCE(o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
+        ORDER BY fecha_orden ASC, o.id ASC
+    ");
+    $stmtO->execute([$desde, $hasta]);
+    $ordenes = $stmtO->fetchAll(PDO::FETCH_ASSOC);
+
+    $pagos = [];
+    if ($ordenes) {
+        $cotIds = array_column($ordenes, 'cotizacion_id');
+        $in     = implode(',', array_fill(0, count($cotIds), '?'));
+        $stmtP  = $pdo->prepare("
+            SELECT cotizacion_id, COALESCE(SUM(monto),0) AS pagado
+            FROM cotizacion_pagos
+            WHERE cotizacion_id IN ($in) AND fecha_pago <= ?
+            GROUP BY cotizacion_id
+        ");
+        $stmtP->execute(array_merge($cotIds, [$hasta]));
+        foreach ($stmtP->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            $pagos[$p['cotizacion_id']] = (float)$p['pagado'];
+        }
+    }
+
+    $acumulado = 0;
+    $rows = [];
+    foreach ($ordenes as $o) {
+        $total     = round((float)$o['total'], 2);
+        $anticipo  = round($pagos[$o['cotizacion_id']] ?? 0, 2);
+        $restante  = round($total - $anticipo, 2);
+        $acumulado = round($acumulado + $total, 2);
+        $rows[] = [
+            'folio'          => $o['folio'],
+            'fecha_orden'    => $o['fecha_orden'],
+            'asesor_nombre'  => $o['asesor_nombre'],
+            'cliente_nombre' => $o['cliente_nombre'],
+            'total'          => $total,
+            'anticipo'       => $anticipo,
+            'restante'       => $restante,
+            'acumulado'      => $acumulado,
+        ];
+    }
+
+    jsonResponse([
+        'periodo' => ['gran' => $gran, 'desde' => $desde, 'hasta' => $hasta, 'label' => $label],
+        'ordenes' => $rows,
+    ]);
+}
+
 $periodo = $_GET['periodo'] ?? 'mes_actual';
 
 // Festivos para excluir del cálculo de días hábiles

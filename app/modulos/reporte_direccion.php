@@ -137,22 +137,73 @@ tfoot td { padding:9px 14px; font-size:13px; }
   text-transform:uppercase;
   border-bottom:1px solid var(--border);
 }
+.rd-tabs { display:flex; gap:4px; margin-bottom:16px; border-bottom:1px solid var(--border); }
+.rd-tab {
+  background:none; border:none; padding:10px 16px; font-size:13px; font-weight:600;
+  color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;
+  transition:color .15s, border-color .15s;
+}
+.rd-tab:hover  { color:var(--text); }
+.rd-tab.active { color:var(--blue); border-bottom-color:var(--blue); }
+.rv-toolbar { justify-content:space-between; }
+.rv-toggle  { display:flex; background:var(--bg); border-radius:8px; padding:3px; gap:2px; }
+.rv-toggle button {
+  border:none; background:none; padding:6px 14px; font-size:12px; font-weight:600;
+  color:var(--muted); border-radius:6px; cursor:pointer; transition:all .15s;
+}
+.rv-toggle button.active { background:var(--surface); color:var(--blue); box-shadow:0 1px 2px rgba(0,0,0,.08); }
+.rv-nav-btn {
+  border:1px solid var(--border); background:var(--surface); width:30px; height:30px;
+  border-radius:6px; cursor:pointer; font-size:16px; color:var(--muted); display:flex;
+  align-items:center; justify-content:center; transition:background .15s;
+}
+.rv-nav-btn:hover { background:var(--bg); }
+.rv-label   { font-size:13px; font-weight:700; color:var(--text); min-width:200px; text-align:center; }
+.rv-hoy-btn {
+  border:1px solid var(--border); background:var(--surface); padding:6px 12px; border-radius:6px;
+  font-size:12px; font-weight:600; color:var(--blue); cursor:pointer;
+}
+.rv-hoy-btn:hover { background:var(--blue-lt); }
 </style>
 
 <div class="rd-wrap">
-  <div class="rd-toolbar">
-    <label>Per&#237;odo</label>
-    <select id="rdFiltro" onchange="rdCargar()">
-      <option value="mes_actual">Este mes</option>
-      <option value="mes_anterior">Mes anterior</option>
-      <option value="3meses">&#218;ltimos 3 meses</option>
-      <option value="6meses">&#218;ltimos 6 meses</option>
-      <option value="a&#241;o">Este a&#241;o</option>
-      <option value="todo">Todo el historial</option>
-    </select>
-    <div class="ts-label"><span class="live-dot"></span><span id="rdTs">Cargando&#8230;</span></div>
+  <div class="rd-tabs">
+    <button type="button" class="rd-tab active" data-tab="resumen" onclick="rdTabSwitch('resumen')">Resumen</button>
+    <button type="button" class="rd-tab" data-tab="ventas" onclick="rdTabSwitch('ventas')">Ventas y Cobranza</button>
   </div>
-  <div id="rdMain"><div class="loading"><div class="spin"></div>Cargando reporte&#8230;</div></div>
+
+  <div id="rdPanelResumen">
+    <div class="rd-toolbar">
+      <label>Per&#237;odo</label>
+      <select id="rdFiltro" onchange="rdCargar()">
+        <option value="mes_actual">Este mes</option>
+        <option value="mes_anterior">Mes anterior</option>
+        <option value="3meses">&#218;ltimos 3 meses</option>
+        <option value="6meses">&#218;ltimos 6 meses</option>
+        <option value="a&#241;o">Este a&#241;o</option>
+        <option value="todo">Todo el historial</option>
+      </select>
+      <div class="ts-label"><span class="live-dot"></span><span id="rdTs">Cargando&#8230;</span></div>
+    </div>
+    <div id="rdMain"><div class="loading"><div class="spin"></div>Cargando reporte&#8230;</div></div>
+  </div>
+
+  <div id="rdPanelVentas" style="display:none">
+    <div class="rd-toolbar rv-toolbar">
+      <div class="rv-toggle">
+        <button type="button" data-g="dia" class="active" onclick="rvSetGran('dia')">D&#237;a</button>
+        <button type="button" data-g="semana" onclick="rvSetGran('semana')">Semana</button>
+        <button type="button" data-g="mes" onclick="rvSetGran('mes')">Mes</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button type="button" class="rv-nav-btn" onclick="rvNav(-1)">&#8249;</button>
+        <span class="rv-label" id="rvLabel">&#8212;</span>
+        <button type="button" class="rv-nav-btn" onclick="rvNav(1)">&#8250;</button>
+      </div>
+      <button type="button" class="rv-hoy-btn" onclick="rvHoy()">Hoy</button>
+    </div>
+    <div id="rvMain"><div class="loading"><div class="spin"></div>Cargando&#8230;</div></div>
+  </div>
 </div>
 
 <script>
@@ -583,11 +634,119 @@ function rdToggleAlmacen(gi) {
   if (toggle) toggle.innerHTML = open ? '&#9654;' : '&#9660;';
 }
 
+/* ─── Pestaña Ventas y Cobranza ─── */
+var rvGran   = 'dia';
+var rvFecha  = rvFmtDate(new Date());
+var rvLoaded = false;
+
+function rvFmtDate(d) {
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1);
+  var day = String(d.getDate());
+  if (m.length < 2) m = '0' + m;
+  if (day.length < 2) day = '0' + day;
+  return y + '-' + m + '-' + day;
+}
+
+function rvParseDate(s) {
+  return new Date(s + 'T12:00:00');
+}
+
+function rdTabSwitch(tab) {
+  document.getElementById('rdPanelResumen').style.display = (tab === 'resumen') ? '' : 'none';
+  document.getElementById('rdPanelVentas').style.display  = (tab === 'ventas')  ? '' : 'none';
+  document.querySelectorAll('.rd-tab').forEach(function(b) {
+    if (b.getAttribute('data-tab') === tab) b.classList.add('active');
+    else b.classList.remove('active');
+  });
+  if (tab === 'ventas' && !rvLoaded) {
+    rvLoaded = true;
+    rvCargar();
+  }
+}
+
+function rvSetGran(g) {
+  rvGran  = g;
+  rvFecha = rvFmtDate(new Date());
+  document.querySelectorAll('.rv-toggle button').forEach(function(b) {
+    if (b.getAttribute('data-g') === g) b.classList.add('active');
+    else b.classList.remove('active');
+  });
+  rvCargar();
+}
+
+function rvNav(delta) {
+  var d = rvParseDate(rvFecha);
+  if (rvGran === 'dia') {
+    d.setDate(d.getDate() + delta);
+  } else if (rvGran === 'semana') {
+    d.setDate(d.getDate() + (delta * 7));
+  } else {
+    d.setDate(15);
+    d.setMonth(d.getMonth() + delta);
+  }
+  rvFecha = rvFmtDate(d);
+  rvCargar();
+}
+
+function rvHoy() {
+  rvFecha = rvFmtDate(new Date());
+  rvCargar();
+}
+
+function rvCargar() {
+  document.getElementById('rvMain').innerHTML = '<div class="loading"><div class="spin"></div>Cargando&#8230;</div>';
+  fetch('../api/reporte_direccion.php?accion=ventas_cobranza&gran=' + rvGran + '&fecha=' + rvFecha)
+    .then(function(r) { return r.json(); })
+    .then(function(data) { rvRender(data); })
+    .catch(function() {
+      document.getElementById('rvMain').innerHTML = '<div class="loading" style="color:#dc2626">Error de conexi&#243;n</div>';
+    });
+}
+
+function rvRender(data) {
+  var p = data.periodo || {};
+  var lbl = document.getElementById('rvLabel');
+  if (lbl) lbl.textContent = p.label || '&#8212;';
+  var ordenes = data.ordenes || [];
+  var html = '';
+  if (ordenes.length === 0) {
+    html = '<div class="loading" style="padding:40px">Sin &#243;rdenes en este per&#237;odo</div>';
+  } else {
+    var granLbl = rvGran === 'dia' ? 'D&#237;a' : (rvGran === 'semana' ? 'Semana' : 'Mes');
+    html += '<div class="table-card"><table><thead><tr>' +
+      '<th>#Orden</th><th>Asesor</th><th>Cliente</th>' +
+      '<th style="text-align:right">Anticipo</th>' +
+      '<th style="text-align:right">Restante</th>' +
+      '<th style="text-align:right">Total del Pedido</th>' +
+      '<th style="text-align:right">Acumulado en Pedidos del ' + granLbl + '</th>' +
+    '</tr></thead><tbody>';
+    ordenes.forEach(function(o) {
+      var restanteColor = parseFloat(o.restante) > 0.005 ? 'var(--red)' : 'var(--muted-lt)';
+      html += '<tr>' +
+        '<td><strong style="color:var(--blue)">' + esc(o.folio) + '</strong></td>' +
+        '<td>' + esc(o.asesor_nombre || '&#8212;') + '</td>' +
+        '<td>' + esc(o.cliente_nombre) + '</td>' +
+        '<td style="text-align:right;color:var(--green)">' + fmtMXN(o.anticipo) + '</td>' +
+        '<td style="text-align:right;color:' + restanteColor + '">' + fmtMXN(o.restante) + '</td>' +
+        '<td style="text-align:right;font-weight:700">' + fmtMXN(o.total) + '</td>' +
+        '<td style="text-align:right;color:var(--muted)">' + fmtMXN(o.acumulado) + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  document.getElementById('rvMain').innerHTML = html;
+}
+
 rdCargar();
 setInterval(rdCargar, 300000);
 
 window.rdCargar        = rdCargar;
 window.rdToggleAlmacen = rdToggleAlmacen;
+window.rdTabSwitch     = rdTabSwitch;
+window.rvSetGran       = rvSetGran;
+window.rvNav           = rvNav;
+window.rvHoy           = rvHoy;
 return { init: rdCargar };
 })();
 ModReporte.init();
