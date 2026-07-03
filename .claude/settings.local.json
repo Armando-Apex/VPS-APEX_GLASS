@@ -108,7 +108,9 @@
       "Bash(cp /etc/ssl/bolt/fullchain.pem /etc/ssl/bolt/fullchain.pem.bak)",
       "Bash(cp /etc/ssl/bolt/privkey.pem /etc/ssl/bolt/privkey.pem.bak)",
       "Bash(cp /home/apexglass2025/panel.apex.glass/certs/fullchain.pem /etc/ssl/bolt/cert.pem)",
-      "Bash(cp /home/apexglass2025/panel.apex.glass/certs/fullchain.pem /etc/ssl/bolt/fullchain.pem)"
+      "Bash(cp /home/apexglass2025/panel.apex.glass/certs/fullchain.pem /etc/ssl/bolt/fullchain.pem)",
+      "Bash(git commit *)",
+      "Bash(cd *)"
     ]
   },
   "hooks": {
