@@ -756,7 +756,7 @@ function extraerCodigo(raw) {
 function extraerOrdenMasivo(raw) {
   try {
     const url = new URL(raw);
-    const param = url.searchParams.get('orden_masivo');
+    const param = url.searchParams.get('orden_masivo') || url.searchParams.get('ORDEN_MASIVO');
     if (param) return parseInt(param, 10) || null;
   } catch(_) {}
   return null;
