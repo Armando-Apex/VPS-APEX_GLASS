@@ -69,11 +69,13 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 /* ── Documento ── */
 .doc { padding: 20px 28px; max-width: 960px; margin: 0 auto; }
 
-/* ── Header ── */
-.header { text-align: center; border: 2px solid #000; padding: 10px; margin-bottom: 0; position: relative; }
-.qr-masivo { position: absolute; top: 6px; right: 8px; width: 56px; text-align: center; }
-.qr-masivo canvas, .qr-masivo img { width: 56px !important; height: 56px !important; }
-.qr-masivo .qr-masivo-lbl { font-size: 6px; font-weight: 700; color: #6b7280; margin-top: 1px; letter-spacing: .3px; }
+/* ── Header + QR maestro ── */
+.doc-top { display: flex; gap: 10px; align-items: stretch; margin-bottom: 0; }
+.doc-left { width: calc(80% - 5px); }
+.doc-right { width: calc(20% - 5px); border: 2px solid #000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px; text-align: center; }
+.qr-masivo canvas, .qr-masivo img { width: 120px; height: 120px; }
+.qr-masivo-lbl { font-size: 9px; font-weight: 700; color: #374151; margin-top: 6px; letter-spacing: .3px; text-transform: uppercase; }
+.header { text-align: center; border: 2px solid #000; padding: 10px; margin-bottom: 0; }
 .empresa { font-family: 'Syncopate', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 1px; }
 .titulo { font-size: 13px; font-weight: 700; margin-top: 2px; }
 .subtipo { font-size: 12px; font-weight: 600; color: #374151; }
@@ -162,44 +164,50 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 
 <div class="doc">
 
-  <!-- Header -->
-  <div class="header">
-    <div class="empresa">TEMPLADORA NORESTE, S. A. DE C. V.</div>
-    <div class="titulo">ORDEN DE PRODUCCIÓN — TEMPLADOS</div>
+  <div class="doc-top">
+    <div class="doc-left">
+      <!-- Header -->
+      <div class="header">
+        <div class="empresa">TEMPLADORA NORESTE, S. A. DE C. V.</div>
+        <div class="titulo">ORDEN DE PRODUCCIÓN — TEMPLADOS</div>
+      </div>
+
+      <!-- Info -->
+      <table class="info-table">
+        <tr>
+          <td class="lbl">Fecha:</td>
+          <td class="val"><?= $fecha ?></td>
+          <td class="lbl">Asesor comercial:</td>
+          <td class="val"><?= htmlspecialchars($asesor) ?></td>
+        </tr>
+        <tr>
+          <td class="lbl">Orden de trabajo:</td>
+          <td class="val" style="font-family:'Syncopate',sans-serif;font-size:13px;font-weight:700;color:#1a1a2e"><?= htmlspecialchars($folio) ?></td>
+          <td class="lbl">Tipo entrega:</td>
+          <td class="val"><?= $tipoEntrega ?></td>
+        </tr>
+        <tr>
+          <td class="lbl">Fecha entrega:</td>
+          <td class="val" style="font-weight:700;color:#dc2626"><?= $fechaEnt ?></td>
+          <td class="lbl">M²:</td>
+          <td class="val"><?= number_format($m2_total, 4) ?></td>
+        </tr>
+        <tr>
+          <td class="lbl">Cliente:</td>
+          <td class="val"><?= htmlspecialchars($cliente) ?></td>
+          <td class="lbl">Proyecto:</td>
+          <td class="val"><?= htmlspecialchars($proyecto) ?></td>
+        </tr>
+      </table>
+    </div>
+
     <?php if ($ordenId): ?>
-    <div class="qr-masivo" id="qrMasivo">
-      <div class="qr-masivo-lbl">ESCANEA AL<br>TERMINAR CNC</div>
+    <div class="doc-right">
+      <div class="qr-masivo" id="qrMasivo"></div>
+      <div class="qr-masivo-lbl">ESCANEA AL TERMINAR CNC</div>
     </div>
     <?php endif; ?>
   </div>
-
-  <!-- Info -->
-  <table class="info-table">
-    <tr>
-      <td class="lbl">Fecha:</td>
-      <td class="val"><?= $fecha ?></td>
-      <td class="lbl">Asesor comercial:</td>
-      <td class="val"><?= htmlspecialchars($asesor) ?></td>
-    </tr>
-    <tr>
-      <td class="lbl">Orden de trabajo:</td>
-      <td class="val" style="font-family:'Syncopate',sans-serif;font-size:13px;font-weight:700;color:#1a1a2e"><?= htmlspecialchars($folio) ?></td>
-      <td class="lbl">Tipo entrega:</td>
-      <td class="val"><?= $tipoEntrega ?></td>
-    </tr>
-    <tr>
-      <td class="lbl">Fecha entrega:</td>
-      <td class="val" style="font-weight:700;color:#dc2626"><?= $fechaEnt ?></td>
-      <td class="lbl">M²:</td>
-      <td class="val"><?= number_format($m2_total, 4) ?></td>
-    </tr>
-    <tr>
-      <td class="lbl">Cliente:</td>
-      <td class="val"><?= htmlspecialchars($cliente) ?></td>
-      <td class="lbl">Proyecto:</td>
-      <td class="val"><?= htmlspecialchars($proyecto) ?></td>
-    </tr>
-  </table>
 
   <!-- Tabla partidas -->
   <table class="partidas-table">
@@ -372,12 +380,10 @@ document.getElementById('com-overlay').addEventListener('click', function(e) {
 
 if (ORDEN_ID_MASIVO) {
     var qrEl = document.getElementById('qrMasivo');
-    var qrBox = document.createElement('div');
-    qrEl.insertBefore(qrBox, qrEl.firstChild);
-    new QRCode(qrBox, {
+    new QRCode(qrEl, {
         text: 'https://apex.glass/produccion/app/operador.php?orden_masivo=' + ORDEN_ID_MASIVO,
-        width: 48,
-        height: 48,
+        width: 120,
+        height: 120,
         colorDark: '#000000',
         colorLight: '#ffffff',
         correctLevel: QRCode.CorrectLevel.M
