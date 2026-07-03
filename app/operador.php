@@ -778,6 +778,7 @@ async function loadPieza(raw) {
 
 function renderPieza(p) {
   document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('ordenMasivaCard').classList.remove('show');
   document.getElementById('piezaCard').classList.add('show');
   document.getElementById('pcFolio').textContent   = p.folio + ' — P' + p.partida;
   document.getElementById('pcCliente').textContent = p.cliente_nombre || '—';
@@ -1208,7 +1209,7 @@ async function confirmarOrdenMasiva() {
 function cancelarOrdenMasiva() {
   ordenMasivaActual = null;
   document.getElementById('ordenMasivaCard').classList.remove('show');
-  document.getElementById('emptyState').style.display = 'flex';
+  document.getElementById('emptyState').style.display = 'block';
 }
 
 // ── Manual ────────────────────────────────────────────────
