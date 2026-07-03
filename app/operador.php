@@ -403,6 +403,17 @@ body {
       </div>
     </div>
 
+    <div class="pieza-card" id="ordenMasivaCard">
+      <div class="card-head">
+        <div>
+          <div class="card-folio" id="omFolio">—</div>
+          <div class="card-cliente" id="omCliente">—</div>
+        </div>
+      </div>
+      <div id="omBody" style="padding:14px 0;font-size:14px;color:#cbd5e1;text-align:center"></div>
+      <div class="action-wrap" id="omActions"></div>
+    </div>
+
     <div class="manual-wrap">
       <input type="text" class="manual-input" id="manualQR"
              placeholder="N&#250;mero de orden (ej: 820)"
@@ -742,7 +753,19 @@ function extraerCodigo(raw) {
   return raw.toUpperCase().trim();
 }
 
+function extraerOrdenMasivo(raw) {
+  try {
+    const url = new URL(raw);
+    const param = url.searchParams.get('orden_masivo');
+    if (param) return parseInt(param, 10) || null;
+  } catch(_) {}
+  return null;
+}
+
 async function loadPieza(raw) {
+  const ordenId = extraerOrdenMasivo(raw);
+  if (ordenId) { await loadOrdenMasiva(ordenId); return; }
+
   const qr = extraerCodigo(raw);
   try {
     const r = await fetch(API + 'pieza.php?qr=' + encodeURIComponent(qr));
@@ -1105,6 +1128,87 @@ async function doUpdate(nuevoEstatus, esOmision) {
     toast('❌ Error de conexión', 'error');
     btn.textContent = orig;
   } finally { btn.disabled = false; }
+}
+
+// ── Orden masiva (QR maestro de Corte) ────────────────────
+let ordenMasivaActual = null;
+
+async function loadOrdenMasiva(ordenId) {
+  const est = session.estacion || session.rol || 'admin';
+  if (est !== 'corte') {
+    toast('Este QR es solo para la estación de Corte', 'error');
+    return;
+  }
+  try {
+    const r = await fetch(API + 'orden_masivo.php?orden_id=' + encodeURIComponent(ordenId));
+    const d = await r.json();
+    if (d.error) { showFeedback('err', '❌', 'Orden no encontrada', ''); return; }
+    ordenMasivaActual = d;
+    renderOrdenMasiva(d);
+  } catch(e) { toast('Error de conexión', 'error'); }
+}
+
+function renderOrdenMasiva(d) {
+  document.getElementById('emptyState').classList.remove('show');
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('piezaCard').classList.remove('show');
+  document.getElementById('ordenMasivaCard').classList.add('show');
+
+  document.getElementById('omFolio').textContent   = d.folio;
+  document.getElementById('omCliente').textContent = d.cliente || '—';
+
+  const body   = document.getElementById('omBody');
+  const acts   = document.getElementById('omActions');
+
+  if (d.pendientes === 0) {
+    body.textContent = 'Esta orden ya fue registrada en CNC';
+    acts.innerHTML = '';
+    return;
+  }
+
+  body.textContent = d.pendientes + (d.pendientes === 1 ? ' pieza pendiente' : ' piezas pendientes') + ' → pasarán a EN CNC';
+  acts.innerHTML = '';
+
+  const btnOk = document.createElement('button');
+  btnOk.className = 'btn-action go';
+  btnOk.textContent = '▶ Confirmar y registrar en CNC';
+  btnOk.onclick = confirmarOrdenMasiva;
+
+  const btnCancel = document.createElement('button');
+  btnCancel.className = 'btn-sec';
+  btnCancel.style.marginTop = '8px';
+  btnCancel.textContent = 'Cancelar';
+  btnCancel.onclick = cancelarOrdenMasiva;
+
+  acts.appendChild(btnOk);
+  acts.appendChild(btnCancel);
+}
+
+async function confirmarOrdenMasiva() {
+  if (!ordenMasivaActual) return;
+  const acts = document.getElementById('omActions');
+  acts.innerHTML = '<span class="spin"></span>';
+  try {
+    const r = await fetch(API + 'actualizar_estatus_masivo.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orden_id: ordenMasivaActual.orden_id, usuario_id: session.id })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showFeedback('ok', '✅', 'Orden ' + d.folio, d.actualizadas + ' piezas registradas en CNC');
+      cancelarOrdenMasiva();
+    } else {
+      toast('❌ ' + (d.error || 'Error'), 'error');
+    }
+  } catch(e) {
+    toast('❌ Error de conexión', 'error');
+  }
+}
+
+function cancelarOrdenMasiva() {
+  ordenMasivaActual = null;
+  document.getElementById('ordenMasivaCard').classList.remove('show');
+  document.getElementById('emptyState').style.display = 'flex';
 }
 
 // ── Manual ────────────────────────────────────────────────
