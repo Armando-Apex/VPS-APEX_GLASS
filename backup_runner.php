@@ -16,7 +16,7 @@
 // ── CONFIGURACIÓN ─────────────────────────────────────────────────────────────
 
 // Leer .env (mismo archivo que usa el resto del sistema)
-$_envFile = dirname(__DIR__, 2) . '/apex.glass/.env';
+$_envFile = dirname(__DIR__, 2) . '/.env';
 if (is_readable($_envFile)) {
     foreach (file($_envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $_line) {
         if (str_starts_with(trim($_line), '#') || !str_contains($_line, '=')) continue;

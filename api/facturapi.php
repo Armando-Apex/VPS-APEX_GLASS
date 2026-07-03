@@ -29,6 +29,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_clientes') {
     exit;
 }
 
+// ── GET lista_clientes (para el <select>) ───────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'lista_clientes') {
+    $rows = $pdo->query("
+        SELECT id, codigo, razon_social, nombre, email,
+               rfc, cp_fiscal, regimen_fiscal
+        FROM clientes
+        WHERE activo = 1
+        ORDER BY COALESCE(NULLIF(razon_social, ''), nombre) ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    jsonResponse(['ok'=>true,'clientes'=>$rows]);
+    exit;
+}
+
+// ── GET sugerir_ordenes (folio parcial) ──────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'sugerir_ordenes') {
+    $q = trim($_GET['q'] ?? '');
+    if ($q === '') { jsonResponse(['ok'=>true,'ordenes'=>[]]); exit; }
+    $like = '%' . $q . '%';
+    $stmt = $pdo->prepare("
+        SELECT folio, cliente_nombre
+        FROM ordenes
+        WHERE folio LIKE ?
+        ORDER BY id DESC
+        LIMIT 15
+    ");
+    $stmt->execute([$like]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    jsonResponse(['ok'=>true,'ordenes'=>$rows]);
+    exit;
+}
+
+// ── GET buscar_orden (folio) ─────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
+    $folio = trim($_GET['folio'] ?? '');
+    if ($folio === '') { jsonResponse(['ok'=>false,'error'=>'Folio requerido']); exit; }
+
+    $stmt = $pdo->prepare("SELECT id, folio, cliente_id, cliente_nombre FROM ordenes WHERE folio = ? LIMIT 1");
+    $stmt->execute([$folio]);
+    $orden = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$orden) { jsonResponse(['ok'=>false,'error'=>'No se encontró una orden con ese folio']); exit; }
+
+    $cliente = null;
+    if ($orden['cliente_id']) {
+        $stmt = $pdo->prepare("
+            SELECT id, codigo, razon_social, nombre, email, rfc, cp_fiscal, regimen_fiscal
+            FROM clientes WHERE id = ?
+        ");
+        $stmt->execute([$orden['cliente_id']]);
+        $cliente = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    // Relacionar con la cotización de origen vía prefijo del qr_code de sus piezas
+    // (ordenes no tiene cotizacion_id; el qr_code se generó como "{folio_cotizacion}-P{partida}-...")
+    $stmt = $pdo->prepare("
+        SELECT c.id
+        FROM piezas pz
+        JOIN cotizaciones c ON pz.qr_code LIKE CONCAT(c.folio, '-%')
+        WHERE pz.orden_id = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$orden['id']]);
+    $cotId = $stmt->fetchColumn();
+
+    $conceptos = [];
+    if ($cotId) {
+        $stmt = $pdo->prepare("
+            SELECT cristal_nombre, m2, cantidad, precio_m2_usado
+            FROM cotizaciones_partidas
+            WHERE cotizacion_id = ?
+            ORDER BY num_partida ASC
+        ");
+        $stmt->execute([$cotId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            $conceptos[] = [
+                'desc'   => $p['cristal_nombre'] ?: 'Vidrio',
+                'clave'  => '',
+                'unidad' => 'MTK',
+                'cant'   => round((float)$p['m2'] * (int)$p['cantidad'], 4),
+                'precio' => (float)$p['precio_m2_usado'],
+                'iva'    => true,
+            ];
+        }
+    }
+
+    jsonResponse(['ok'=>true, 'orden'=>$orden, 'cliente'=>$cliente, 'conceptos'=>$conceptos]);
+    exit;
+}
+
 // ── GET lista ─────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'lista') {
     $rows = $pdo->query("

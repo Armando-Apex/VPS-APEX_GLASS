@@ -263,15 +263,27 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
         </div>
       </div>
 
+      <!-- Buscar por folio de orden -->
+      <div class="fac-section-title">Orden de producción (opcional)</div>
+      <div class="fac-field" style="margin-bottom:14px">
+        <label>Folio de orden</label>
+        <div class="fac-cli-wrap" style="display:flex;gap:8px">
+          <input type="text" id="fac-orden-folio" placeholder="Ej. R-224 o solo 224" autocomplete="off" style="flex:1"
+            oninput="ModFacturacion.sugerirOrdenes()"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();ModFacturacion.buscarOrden();}">
+          <button type="button" class="fac-cst-usar" style="width:auto;padding:0 16px" onclick="ModFacturacion.buscarOrden()">Buscar</button>
+          <div id="fac-orden-drop" class="fac-cli-drop"></div>
+        </div>
+        <div id="fac-orden-msg" class="fac-cli-warn"></div>
+      </div>
+
       <!-- Buscar cliente CRM -->
       <div class="fac-section-title">Receptor (Cliente)</div>
       <div class="fac-field" style="margin-bottom:14px">
-        <label>Buscar cliente en CRM</label>
-        <div class="fac-cli-wrap">
-          <input type="text" id="fac-cli-q" placeholder="Nombre, razón social o CTN-XXX&#8230;" autocomplete="off"
-            oninput="ModFacturacion.buscarCliente()" onkeydown="ModFacturacion.buscarTecla(event)">
-          <div id="fac-cli-drop" class="fac-cli-drop"></div>
-        </div>
+        <label>Cliente en CRM</label>
+        <select id="fac-cli-q" onchange="ModFacturacion.seleccionarClienteSelect()">
+          <option value="">— Selecciona un cliente —</option>
+        </select>
         <div id="fac-cli-ok"   class="fac-cli-ok">&#10003; <strong id="fac-cli-ok-nombre"></strong> seleccionado — datos pre-llenados desde el CRM. <button onclick="ModFacturacion.limpiarCliente()" style="background:none;border:none;color:#166534;text-decoration:underline;cursor:pointer;font-size:11px;padding:0">Limpiar</button></div>
         <div id="fac-cli-warn" class="fac-cli-warn">&#9888; Este cliente no tiene datos fiscales en el CRM. Sube la Constancia SAT abajo o agrégalos en el m&#243;dulo <strong>Clientes</strong>.</div>
       </div>
@@ -466,13 +478,8 @@ var ModFacturacion = (function() {
 
   var CLAVES_SAT = [
     {v:'01010101', l:'01010101 – No existe en catálogo (pruebas)'},
-    {v:'44111501', l:'44111501 – Vidrio de ventana'},
-    {v:'44111502', l:'44111502 – Vidrio templado'},
-    {v:'44111503', l:'44111503 – Vidrio laminado de seguridad'},
-    {v:'44111504', l:'44111504 – Vidrio aislante'},
-    {v:'44111505', l:'44111505 – Vidrio reflectante'},
-    {v:'72154300', l:'72154300 – Servicio de instalación'},
-    {v:'78101803', l:'78101803 – Servicio de transporte'},
+    {v:'30171706', l:'30171706 – Vidrio templado'},
+    {v:'31241700', l:'31241700 – Espejos'},
   ];
 
   var UNIDADES_SAT = [
@@ -631,14 +638,17 @@ var ModFacturacion = (function() {
   function _resetBuscador() {
     var qEl = document.getElementById('fac-cli-q');
     if (qEl) qEl.value = '';
-    _cerrarSugerencias();
-    _cliOpciones = [];
     var okEl   = document.getElementById('fac-cli-ok');
     var warnEl = document.getElementById('fac-cli-warn');
     if (okEl)   okEl.className = 'fac-cli-ok';
     if (warnEl) warnEl.className = 'fac-cli-warn';
     var cstDrop = document.getElementById('fac-cst-drop');
     if (cstDrop) cstDrop.style.opacity = '1';
+    var folioEl = document.getElementById('fac-orden-folio');
+    if (folioEl) folioEl.value = '';
+    var msgEl = document.getElementById('fac-orden-msg');
+    if (msgEl) { msgEl.className = 'fac-cli-warn'; msgEl.textContent = ''; }
+    if (!_clienteslistaCargada) _cargarListaClientes();
   }
 
   function _clearForm() {
@@ -657,7 +667,7 @@ var ModFacturacion = (function() {
     document.getElementById('fac-forma-pago').value  = '';
     document.getElementById('fac-metodo-pago').value = '';
     tipoChange();
-    document.getElementById('fac-conceptos-body').innerHTML = _conceptoRow('Vidrio templado', '44111702', '', 1, '', true);
+    document.getElementById('fac-conceptos-body').innerHTML = _conceptoRow('', '', '', 1, '', true);
     recalc();
   }
 
@@ -709,6 +719,7 @@ var ModFacturacion = (function() {
     var f = null;
     for (var i = 0; i < _facturas.length; i++) { if (String(_facturas[i].id) === String(id)) { f = _facturas[i]; break; } }
     if (!f) return;
+    if (!_clienteslistaCargada) _cargarListaClientes();
     document.getElementById('fac-modal-titulo').textContent = 'Editar Factura';
     document.getElementById('fac-edit-id').value            = f.id;
     document.getElementById('fac-folio').value              = f.folio_interno;
@@ -731,7 +742,7 @@ var ModFacturacion = (function() {
       var c = conceptos[j];
       tbody.innerHTML += _conceptoRow(c.desc, c.clave, c.unidad, c.cant, c.precio, c.iva);
     }
-    if (!conceptos.length) tbody.innerHTML = _conceptoRow('', '44111702', '', 1, '', true);
+    if (!conceptos.length) tbody.innerHTML = _conceptoRow('', '', '', 1, '', true);
     recalc();
     document.getElementById('fac-overlay').classList.add('open');
   }
@@ -863,93 +874,54 @@ var ModFacturacion = (function() {
   }
 
   function agregarConcepto() {
-    document.getElementById('fac-conceptos-body').innerHTML += _conceptoRow('', '44111702', '', 1, '');
+    document.getElementById('fac-conceptos-body').innerHTML += _conceptoRow('', '', '', 1, '');
     recalc();
   }
 
-  // ── Buscador cliente CRM ──────────────────────────────────────────────────────
-  var _cliTimer    = null;
-  var _cliActivo   = -1;
-  var _cliOpciones = [];
+  // ── Selector cliente CRM (dropdown, sin escribir) ─────────────────────────────
+  var _cliOpciones  = [];
+  var _clienteslistaCargada = false;
 
-  function buscarCliente() {
-    clearTimeout(_cliTimer);
-    _cliActivo = -1;
-    var q = (document.getElementById('fac-cli-q') || {}).value || '';
-    if (q.trim().length < 2) { _cerrarSugerencias(); return; }
-    _cliTimer = setTimeout(function() {
-      _apiFetch('../api/facturapi.php?accion=buscar_clientes&q=' + encodeURIComponent(q.trim()), {}, function(err, res) {
-        if (err || !res.ok) return;
-        _cliOpciones = res.clientes || [];
-        _renderSugerencias(_cliOpciones);
-      });
-    }, 280);
+  function _cargarListaClientes(cb) {
+    _apiFetch('../api/facturapi.php?accion=lista_clientes', {}, function(err, res) {
+      if (err || !res.ok) { if (cb) cb(); return; }
+      _cliOpciones = res.clientes || [];
+      var sel = document.getElementById('fac-cli-q');
+      if (sel) {
+        var html = '<option value="">— Selecciona un cliente —</option>';
+        for (var i = 0; i < _cliOpciones.length; i++) {
+          var c = _cliOpciones[i];
+          var nombre = c.razon_social || c.nombre || '—';
+          html += '<option value="' + i + '">' + nombre + (c.codigo ? ' (' + c.codigo + ')' : '') + '</option>';
+        }
+        sel.innerHTML = html;
+      }
+      _clienteslistaCargada = true;
+      if (cb) cb();
+    });
   }
 
-  function buscarTecla(e) {
-    var drop = document.getElementById('fac-cli-drop');
-    if (!drop || !drop.classList.contains('open')) return;
-    var items = drop.querySelectorAll('.fac-cli-opt');
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      _cliActivo = Math.min(_cliActivo + 1, items.length - 1);
-      _marcarActivo(items);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      _cliActivo = Math.max(_cliActivo - 1, 0);
-      _marcarActivo(items);
-    } else if (e.key === 'Enter' && _cliActivo >= 0) {
-      e.preventDefault();
-      if (_cliOpciones[_cliActivo]) _seleccionarCliente(_cliOpciones[_cliActivo]);
-    } else if (e.key === 'Escape') {
-      _cerrarSugerencias();
-    }
-  }
-
-  function _marcarActivo(items) {
-    for (var i = 0; i < items.length; i++) {
-      items[i].style.background = (i === _cliActivo) ? '#eff6ff' : '';
-    }
-  }
-
-  function _renderSugerencias(lista) {
-    var drop = document.getElementById('fac-cli-drop');
-    if (!drop) return;
-    if (!lista.length) {
-      drop.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:#94a3b8">Sin resultados</div>';
-      drop.classList.add('open');
-      return;
-    }
-    var html = '';
-    for (var i = 0; i < lista.length; i++) {
-      var c = lista[i];
-      var nombre = c.razon_social || c.nombre || '—';
-      var rfcTag = c.rfc
-        ? '<span class="fac-cli-opt-rfc">' + c.rfc + '</span>'
-        : '<span style="color:#fbbf24;font-size:11px">Sin RFC</span>';
-      html += '<div class="fac-cli-opt" onclick="ModFacturacion._seleccionarClienteIdx(' + i + ')">';
-      html += '<div class="fac-cli-opt-nombre">' + nombre + '</div>';
-      html += '<div class="fac-cli-opt-sub">' + rfcTag + '<span>' + (c.codigo || '') + '</span></div>';
-      html += '</div>';
-    }
-    drop.innerHTML = html;
-    drop.classList.add('open');
-  }
-
-  function _cerrarSugerencias() {
-    var drop = document.getElementById('fac-cli-drop');
-    if (drop) { drop.innerHTML = ''; drop.classList.remove('open'); }
-  }
-
-  function _seleccionarClienteIdx(idx) {
+  function seleccionarClienteSelect() {
+    var sel = document.getElementById('fac-cli-q');
+    var idx = sel ? sel.value : '';
+    if (idx === '') { limpiarCliente(); return; }
     if (_cliOpciones[idx]) _seleccionarCliente(_cliOpciones[idx]);
   }
 
+  function _seleccionarClientePorId(clienteId) {
+    for (var i = 0; i < _cliOpciones.length; i++) {
+      if (String(_cliOpciones[i].id) === String(clienteId)) {
+        var sel = document.getElementById('fac-cli-q');
+        if (sel) sel.value = String(i);
+        _seleccionarCliente(_cliOpciones[i]);
+        return true;
+      }
+    }
+    return false;
+  }
+
   function _seleccionarCliente(c) {
-    _cerrarSugerencias();
     var nombre = c.razon_social || c.nombre || '';
-    var qEl = document.getElementById('fac-cli-q');
-    if (qEl) qEl.value = nombre;
 
     // Pre-llenar campos del receptor
     var setVal = function(id, val) { var el = document.getElementById(id); if (el) el.value = val || ''; };
@@ -974,10 +946,8 @@ var ModFacturacion = (function() {
   }
 
   function limpiarCliente() {
-    var qEl = document.getElementById('fac-cli-q');
-    if (qEl) qEl.value = '';
-    _cerrarSugerencias();
-    _cliOpciones = [];
+    var sel = document.getElementById('fac-cli-q');
+    if (sel) sel.value = '';
     var okEl   = document.getElementById('fac-cli-ok');
     var warnEl = document.getElementById('fac-cli-warn');
     if (okEl)   okEl.className   = 'fac-cli-ok';
@@ -986,10 +956,106 @@ var ModFacturacion = (function() {
     if (cstDrop) cstDrop.style.opacity = '1';
   }
 
-  // Cerrar sugerencias al click fuera del buscador
+  // ── Sugerencias de folio de orden ─────────────────────────────────────────────
+  var _ordenTimer = null;
+
+  function sugerirOrdenes() {
+    clearTimeout(_ordenTimer);
+    var q = (document.getElementById('fac-orden-folio') || {}).value || '';
+    q = q.trim();
+    if (q.length < 1) { _cerrarSugerenciasOrden(); return; }
+    _ordenTimer = setTimeout(function() {
+      _apiFetch('../api/facturapi.php?accion=sugerir_ordenes&q=' + encodeURIComponent(q), {}, function(err, res) {
+        if (err || !res.ok) return;
+        _renderSugerenciasOrden(res.ordenes || []);
+      });
+    }, 250);
+  }
+
+  function _renderSugerenciasOrden(lista) {
+    var drop = document.getElementById('fac-orden-drop');
+    if (!drop) return;
+    if (!lista.length) {
+      drop.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:#94a3b8">Sin resultados</div>';
+      drop.classList.add('open');
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < lista.length; i++) {
+      var o = lista[i];
+      html += '<div class="fac-cli-opt" onclick="ModFacturacion._elegirOrdenFolio(\'' + o.folio.replace(/'/g, "\\'") + '\')">';
+      html += '<div class="fac-cli-opt-nombre">' + o.folio + '</div>';
+      html += '<div class="fac-cli-opt-sub"><span>' + (o.cliente_nombre || 'Sin cliente') + '</span></div>';
+      html += '</div>';
+    }
+    drop.innerHTML = html;
+    drop.classList.add('open');
+  }
+
+  function _cerrarSugerenciasOrden() {
+    var drop = document.getElementById('fac-orden-drop');
+    if (drop) { drop.innerHTML = ''; drop.classList.remove('open'); }
+  }
+
+  function _elegirOrdenFolio(folio) {
+    _cerrarSugerenciasOrden();
+    var folioEl = document.getElementById('fac-orden-folio');
+    if (folioEl) folioEl.value = folio;
+    buscarOrden();
+  }
+
   document.addEventListener('click', function(e) {
-    if (!e.target.closest('.fac-cli-wrap')) _cerrarSugerencias();
+    if (!e.target.closest('#fac-orden-drop') && !e.target.closest('#fac-orden-folio')) _cerrarSugerenciasOrden();
   });
+
+  // ── Buscar por folio de orden ─────────────────────────────────────────────────
+  function buscarOrden() {
+    _cerrarSugerenciasOrden();
+    var folioEl = document.getElementById('fac-orden-folio');
+    var msgEl   = document.getElementById('fac-orden-msg');
+    var folio   = folioEl ? folioEl.value.trim() : '';
+    if (!folio) return;
+    if (msgEl) { msgEl.className = 'fac-cli-warn vis'; msgEl.textContent = 'Buscando orden ' + folio + '…'; }
+
+    _apiFetch('../api/facturapi.php?accion=buscar_orden&folio=' + encodeURIComponent(folio), {}, function(err, res) {
+      if (err || !res.ok) {
+        if (msgEl) { msgEl.className = 'fac-cli-warn vis'; msgEl.textContent = '⚠ ' + ((res && res.error) || 'No se encontró esa orden'); }
+        return;
+      }
+
+      var clienteOk = false;
+      if (res.cliente) {
+        if (!_clienteslistaCargada) {
+          _cargarListaClientes(function() { _seleccionarClientePorId(res.cliente.id); });
+        } else {
+          clienteOk = _seleccionarClientePorId(res.cliente.id);
+        }
+      }
+
+      if (res.conceptos && res.conceptos.length) {
+        var tbody = document.getElementById('fac-conceptos-body');
+        tbody.innerHTML = '';
+        for (var i = 0; i < res.conceptos.length; i++) {
+          var c = res.conceptos[i];
+          tbody.innerHTML += _conceptoRow(c.desc, c.clave, c.unidad, c.cant, c.precio, c.iva);
+        }
+        recalc();
+      }
+
+      if (msgEl) {
+        if (!res.cliente) {
+          msgEl.className = 'fac-cli-warn vis';
+          msgEl.textContent = '⚠ Orden encontrada pero sin cliente ligado en el CRM — selecciónalo manualmente.';
+        } else if (!res.conceptos || !res.conceptos.length) {
+          msgEl.className = 'fac-cli-warn vis';
+          msgEl.textContent = '⚠ Orden y cliente cargados, pero no se encontraron partidas de precio — captura los conceptos manualmente.';
+        } else {
+          msgEl.className = 'fac-cli-ok vis';
+          msgEl.textContent = '✓ Orden ' + folio + ' cargada: cliente y ' + res.conceptos.length + ' concepto(s).';
+        }
+      }
+    });
+  }
 
   // ── Menú 3 puntos ─────────────────────────────────────────────────────────
   function menuToggle(btn) {
@@ -1309,9 +1375,10 @@ var ModFacturacion = (function() {
     timbrar:              timbrar,
     menuToggle:           menuToggle,
     menuCerrar:           menuCerrar,
-    buscarCliente:        buscarCliente,
-    buscarTecla:          buscarTecla,
-    _seleccionarClienteIdx: _seleccionarClienteIdx,
+    seleccionarClienteSelect: seleccionarClienteSelect,
+    buscarOrden:          buscarOrden,
+    sugerirOrdenes:       sugerirOrdenes,
+    _elegirOrdenFolio:    _elegirOrdenFolio,
     limpiarCliente:       limpiarCliente
   };
 })();

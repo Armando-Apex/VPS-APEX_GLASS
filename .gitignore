@@ -11,3 +11,6 @@ archivos_ordenes/
 # Logs y temporales
 *.log
 *.tmp
+
+# Dependencias Composer
+vendor/
