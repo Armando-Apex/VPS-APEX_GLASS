@@ -116,7 +116,8 @@
       "Bash(/root/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.0/skills/subagent-driven-development/scripts/review-package 755eb9cde2d2494f3933dde144f3d78557e43314 HEAD)",
       "Bash(/root/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.0/skills/subagent-driven-development/scripts/task-brief docs/superpowers/plans/2026-07-03-qr-maestro-corte.md 4)",
       "Bash(/root/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.0/skills/subagent-driven-development/scripts/review-package e1be5df22f792378010d1851464c42647b23d28f *)",
-      "Bash(/root/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.0/skills/subagent-driven-development/scripts/review-package bb655ab676f6cf83fdb758164f189c95d6ccc84d *)"
+      "Bash(/root/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.0/skills/subagent-driven-development/scripts/review-package bb655ab676f6cf83fdb758164f189c95d6ccc84d *)",
+      "Bash(/root/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.0/skills/subagent-driven-development/scripts/review-package 53256995ae0da03bc912f2d3ef2900e3458fc89c HEAD)"
     ]
   },
   "hooks": {
