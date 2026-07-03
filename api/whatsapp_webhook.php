@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $waId      = $msg['id'] ?? '';
                 $tipo      = $msg['type'] ?? 'texto';
                 $contenido = '';
+                $flowTokenEnvioId = null;
 
                 // Validar teléfono y wa_message_id
                 if (!$telefono || strlen($telefono) < 10 || strlen($telefono) > 15) continue;
@@ -265,9 +266,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $contenido = $lat . ',' . $lng;
                     $tipo = 'ubicacion';
                 } elseif ($tipo === 'interactive') {
-                    $contenido = $msg['interactive']['button_reply']['title']
-                              ?? $msg['interactive']['list_reply']['title']
-                              ?? '[Respuesta interactiva]';
+                    if (($msg['interactive']['type'] ?? '') === 'nfm_reply') {
+                        // Respuesta de un WhatsApp Flow (ej. encuesta_clientes) —
+                        // response_json trae las respuestas + el flow_token que mandamos al enviar.
+                        $respJson = json_decode($msg['interactive']['nfm_reply']['response_json'] ?? '{}', true) ?: [];
+                        $tokenCrudo = $respJson['flow_token'] ?? null;
+                        unset($respJson['flow_token']);
+                        if ($tokenCrudo !== null && ctype_digit((string)$tokenCrudo)) {
+                            $flowTokenEnvioId = (int)$tokenCrudo;
+                        }
+                        $lineas = [];
+                        foreach ($respJson as $k => $v) {
+                            $lineas[] = $k . ': ' . (is_array($v) ? json_encode($v, JSON_UNESCAPED_UNICODE) : $v);
+                        }
+                        $contenido = "Respuesta de encuesta:\n" . implode("\n", $lineas);
+                    } else {
+                        $contenido = $msg['interactive']['button_reply']['title']
+                                  ?? $msg['interactive']['list_reply']['title']
+                                  ?? '[Respuesta interactiva]';
+                    }
                     $tipo = 'texto';
                 } else {
                     $contenido = '[' . $tipo . ']';
@@ -302,9 +319,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // Asociar a envío de campaña si existe
-                $stmtEnv = $db->prepare("SELECT id, campana_id FROM campana_envios WHERE telefono = ? AND estado IN ('enviado','entregado','leido') ORDER BY enviado_at DESC LIMIT 1");
-                $stmtEnv->execute([$telefono]);
+                // Asociar a envío de campaña si existe.
+                // Si viene de un WhatsApp Flow, el flow_token YA es el id exacto de
+                // campana_envios (lo pusimos nosotros al enviar) — más preciso que
+                // adivinar por teléfono/fecha, que puede fallar con múltiples campañas activas.
+                if ($flowTokenEnvioId !== null) {
+                    $stmtEnv = $db->prepare("SELECT id, campana_id FROM campana_envios WHERE id = ? AND telefono = ?");
+                    $stmtEnv->execute([$flowTokenEnvioId, $telefono]);
+                } else {
+                    $stmtEnv = $db->prepare("SELECT id, campana_id FROM campana_envios WHERE telefono = ? AND estado IN ('enviado','entregado','leido') ORDER BY enviado_at DESC LIMIT 1");
+                    $stmtEnv->execute([$telefono]);
+                }
                 $envio = $stmtEnv->fetch(PDO::FETCH_ASSOC);
                 $campanaEnvioId = $envio ? $envio['id'] : null;
 

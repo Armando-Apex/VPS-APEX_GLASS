@@ -386,6 +386,25 @@ if ($metodo === 'POST' && $accion === 'enviar') {
 
     $enviados = 0;
 
+    // Detectar si la plantilla tiene un botón de WhatsApp Flow (encuestas interactivas).
+    // Se necesita un componente 'button' con flow_token único por destinatario, si no
+    // Meta rechaza el envío completo con error 131009 "Components sub_type invalid".
+    $tieneFlowButton = false;
+    $chTpl = curl_init('https://graph.facebook.com/v20.0/' . WA_WABA_ID .
+        '/message_templates?fields=name,components&name=' . urlencode($campana['template_nombre']) .
+        '&access_token=' . WA_TOKEN);
+    curl_setopt($chTpl, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($chTpl, CURLOPT_TIMEOUT, 10);
+    $tplRes = json_decode(curl_exec($chTpl), true);
+    curl_close($chTpl);
+    foreach (($tplRes['data'][0]['components'] ?? []) as $comp) {
+        if (($comp['type'] ?? '') === 'BUTTONS') {
+            foreach (($comp['buttons'] ?? []) as $btn) {
+                if (($btn['type'] ?? '') === 'FLOW') { $tieneFlowButton = true; break 2; }
+            }
+        }
+    }
+
     // Pre-fetch datos extra para variables dinámicas de BD (una sola query por variable)
     $extraData = [];
     $clienteIdsEnvio = [];
@@ -485,6 +504,18 @@ if ($metodo === 'POST' && $accion === 'enviar') {
         }
         if (!empty($parametros)) {
             $components[] = ['type' => 'body', 'parameters' => $parametros];
+        }
+        if ($tieneFlowButton) {
+            // flow_token = id de campana_envios: único por destinatario y ya existe,
+            // permite correlacionar la respuesta del Flow (webhook) con el cliente exacto.
+            $components[] = [
+                'type'       => 'button',
+                'sub_type'   => 'flow',
+                'index'      => '0',
+                'parameters' => [
+                    ['type' => 'action', 'action' => ['flow_token' => (string)$envio['id']]]
+                ]
+            ];
         }
 
         $payload = [
