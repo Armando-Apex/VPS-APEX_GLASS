@@ -1,8 +1,8 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 30 junio 2026 | Próximo UPD disponible: UPD-266
+# Última actualización: 03 julio 2026 | Próximo UPD disponible: UPD-271
 
-**REGLA DE ORO:** Este archivo es la memoria compartida del proyecto. Claude lo lee al inicio de cada sesión y lo actualiza al terminar. Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
+**REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
 ---
 
@@ -84,6 +84,10 @@ El SPA loader del dashboard agrega scripts al head sin limpiarlos entre navegaci
 **Seguridad:**
 - NUNCA escribir credenciales en el chat — usar .env o cPanel directamente
 - SIEMPRE hacer SELECT de verificación antes de cualquier UPDATE/ALTER en producción
+
+**Memoria del proyecto (premisa, 03-jul-2026):**
+- `CLAUDE.md` es la ÚNICA memoria de este proyecto — no crear documentos de memoria sueltos para hechos/features/historial del proyecto.
+- Actualizarlo EN AUTOMÁTICO al terminar cualquier sesión con cambios: nuevo UPD en la sección 13, refrescar "Próximo UPD disponible" (cabecera + sección 13), sin esperar que Armando o Mando lo pidan.
 
 ---
 
@@ -494,4 +498,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-267 | 01-jul-2026 | Armando | Fix Reporte Dirección — "Pipeline vigente"/"Pendientes" (cots_resumen) estaban filtrados por `c.created_at BETWEEN` del período seleccionado, por lo que cotizaciones abiertas (estatus='cotizacion') creadas en meses anteriores desaparecían del reporte al cambiar de mes aunque siguieran vivas sin decisión del cliente. Detectado con caso real: 150 cotizaciones abiertas ($1,157,007.75) todas creadas en junio, invisibles al ver "mes_actual" en julio. Fix: quitado el filtro de fecha de ese query — ahora es una foto del estado actual (todas las abiertas, sin importar cuándo se crearon), independiente del período. "Tasa de conversión" (query `conversion`) sí se dejó period-based intencionalmente porque mide desempeño de cotizaciones generadas en el período. Archivos: api/reporte_direccion.php, app/modulos/reporte_direccion.php |
 | UPD-268 | 01-jul-2026 | Mando | Auditoría cohesión visual: tokens CSS unificados en dashboard.php + 6 módulos (colores/radios/bordes consistentes). Fix acceso: 4 módulos (admin_ordenes, admin_comunicados, finanzas_vobo, finanzas_cobranza) tenían chequeo de rol viejo que bloqueaba a `desarrollo` aunque sus APIs ya lo permitían. |
 | UPD-269 | 01-jul-2026 | Armando | Reporte Dirección — Pipeline vigente (card de Cotizaciones) ahora muestra "mes anterior / mes actual" en vez de un solo total, ej. $1,157,008 / $5,345, para poder comparar cómo evoluciona el pipeline sin perder de vista lo que sigue vivo del mes pasado. Backend: 2 columnas nuevas (pipeline_mes_anterior, pipeline_mes_actual) en la query cots_resumen de UPD-267, con SUM condicional sobre calendario fijo (mes calendario pasado completo / mes calendario actual en adelante) — independiente del selector de período del reporte. El total histórico de todas las abiertas (cot.total_cotizado) se conservó como dato secundario entre paréntesis en el card "Pendientes". Archivos: api/reporte_direccion.php, app/modulos/reporte_direccion.php |
-**Próximo UPD disponible: UPD-270**
+| UPD-270 | 03-jul-2026 | Armando | Reporte Dirección — nueva pestaña "Ventas y Cobranza" junto a "Resumen" (navegación por pestañas agregada al módulo). Listado de órdenes (solo `activa`/`entregada`, excluye pendiente_vobo y cancelada) con columnas #Orden, Asesor, Cliente, Anticipo, Restante, Total del Pedido y Acumulado en Pedidos del Día/Semana/Mes (suma corrida cronológica). Toggle Día/Semana/Mes + flechas `< >` para navegar a periodos pasados + botón "Hoy". Anticipo/Restante son una FOTO HISTÓRICA al final del período visto (`SUM(cotizacion_pagos.monto) WHERE fecha_pago <= fin_del_período`), no el saldo vivo de hoy — confirmado explícitamente por Armando: "es una radiografía del día, no un reporte de cobranza". Nuevo endpoint `api/reporte_direccion.php?accion=ventas_cobranza&gran=dia\|semana\|mes&fecha=YYYY-MM-DD`, independiente del selector de período de la pestaña Resumen. Probado end-to-end contra la BD real (día/semana/mes + caso vacío) simulando sesión PHP con `php84` CLI, sin acceso a navegador (Playwright MCP no disponible en esta sesión) — pendiente una verificación visual en el navegador real cuando Armando pueda. Archivos: api/reporte_direccion.php, app/modulos/reporte_direccion.php |
+**Próximo UPD disponible: UPD-271**
