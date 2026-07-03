@@ -11,7 +11,7 @@ $cot = $db->prepare('
     SELECT c.*,
            cl.razon_social, cl.telefono as cliente_tel,
            u.nombre as asesor_nombre_usr,
-           o.folio AS orden_folio
+           o.id AS orden_id_real, o.folio AS orden_folio
     FROM cotizaciones c
     LEFT JOIN clientes cl ON cl.id = c.cliente_id
     LEFT JOIN usuarios u  ON u.id  = c.asesor_id
@@ -38,6 +38,7 @@ $fechaEnt      = $c['fecha_entrega'] ? date('d/m/Y', strtotime($c['fecha_entrega
 $asesor        = $c['asesor_nombre_usr'] ?? $c['asesor_nombre'] ?? '—';
 $proyecto      = $c['proyecto'] ?: '—';
 $tipoEntrega   = $c['tipo_entrega'] === 'domicilio' ? 'Domicilio' : 'Planta';
+$ordenId = (int)($c['orden_id_real'] ?? 0);
 
 // Calcular m² total
 $m2_total = 0;
@@ -53,6 +54,7 @@ foreach ($parts as $p) {
 <head>
 <meta charset="UTF-8">
 <title>Orden de Producción <?= htmlspecialchars($folio) ?> — APEX GLASS</title>
+<script src="../lib/qrcode.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syncopate:wght@700&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -68,7 +70,10 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .doc { padding: 20px 28px; max-width: 960px; margin: 0 auto; }
 
 /* ── Header ── */
-.header { text-align: center; border: 2px solid #000; padding: 10px; margin-bottom: 0; }
+.header { text-align: center; border: 2px solid #000; padding: 10px; margin-bottom: 0; position: relative; }
+.qr-masivo { position: absolute; top: 6px; right: 8px; width: 56px; text-align: center; }
+.qr-masivo canvas, .qr-masivo img { width: 56px !important; height: 56px !important; }
+.qr-masivo .qr-masivo-lbl { font-size: 6px; font-weight: 700; color: #6b7280; margin-top: 1px; letter-spacing: .3px; }
 .empresa { font-family: 'Syncopate', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 1px; }
 .titulo { font-size: 13px; font-weight: 700; margin-top: 2px; }
 .subtipo { font-size: 12px; font-weight: 600; color: #374151; }
@@ -161,6 +166,11 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
   <div class="header">
     <div class="empresa">TEMPLADORA NORESTE, S. A. DE C. V.</div>
     <div class="titulo">ORDEN DE PRODUCCIÓN — TEMPLADOS</div>
+    <?php if ($ordenId): ?>
+    <div class="qr-masivo" id="qrMasivo">
+      <div class="qr-masivo-lbl">ESCANEA AL<br>TERMINAR CNC</div>
+    </div>
+    <?php endif; ?>
   </div>
 
   <!-- Info -->
@@ -280,6 +290,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 
 <script>
 var COT_ID = <?= (int)$id ?>;
+var ORDEN_ID_MASIVO = <?= (int)$ordenId ?>;
 var API_COM = '../api/orden_comentarios.php';
 
 function cargarComentarios() {
@@ -358,6 +369,20 @@ function cancelarComentario(id) {
 document.getElementById('com-overlay').addEventListener('click', function(e) {
     if (e.target === this) cerrarModalComentario();
 });
+
+if (ORDEN_ID_MASIVO) {
+    var qrEl = document.getElementById('qrMasivo');
+    var qrBox = document.createElement('div');
+    qrEl.insertBefore(qrBox, qrEl.firstChild);
+    new QRCode(qrBox, {
+        text: 'https://apex.glass/produccion/app/operador.php?orden_masivo=' + ORDEN_ID_MASIVO,
+        width: 48,
+        height: 48,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+    });
+}
 
 cargarComentarios();
 </script>
