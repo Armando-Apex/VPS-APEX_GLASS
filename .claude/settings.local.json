@@ -111,7 +111,8 @@
       "Bash(cp /home/apexglass2025/panel.apex.glass/certs/fullchain.pem /etc/ssl/bolt/fullchain.pem)",
       "Bash(git commit *)",
       "Bash(cd *)",
-      "Bash(/root/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.0/skills/subagent-driven-development/scripts/review-package ce06afdc5006612e7b7bb981fe3649636d692706 *)"
+      "Bash(/root/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.0/skills/subagent-driven-development/scripts/review-package ce06afdc5006612e7b7bb981fe3649636d692706 *)",
+      "Bash(/root/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.0/skills/subagent-driven-development/scripts/task-brief docs/superpowers/plans/2026-07-03-qr-maestro-corte.md 3)"
     ]
   },
   "hooks": {
