@@ -119,7 +119,8 @@
       "Bash(/root/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.0/skills/subagent-driven-development/scripts/review-package bb655ab676f6cf83fdb758164f189c95d6ccc84d *)",
       "Bash(/root/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.0/skills/subagent-driven-development/scripts/review-package 53256995ae0da03bc912f2d3ef2900e3458fc89c HEAD)",
       "Bash(grep *)",
-      "Bash(awk -F: '{print $1}')"
+      "Bash(awk -F: '{print $1}')",
+      "Bash(/root/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.1/skills/subagent-driven-development/scripts/task-brief *)"
     ]
   },
   "hooks": {
