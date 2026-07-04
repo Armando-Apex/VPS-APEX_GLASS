@@ -307,3 +307,128 @@ return {
 })();
 </script>
 <?php endif; ?>
+
+<?php if ($vista === 'detalle'): ?>
+<meta charset="UTF-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; }
+.main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+.top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.section-title { font-size: 18px; font-weight: 700; color: #1e293b; }
+.btn { padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; }
+.btn-primary { background: #2563eb; color: white; }
+.table-wrap { background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+table { width: 100%; border-collapse: collapse; }
+thead { background: #f8fafc; }
+th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .5px; }
+td { padding: 14px 16px; border-top: 1px solid #f1f5f9; font-size: 14px; color: #374151; }
+</style>
+<div class="main">
+  <div class="top-bar">
+    <div class="section-title" id="md_titulo">Cargando...</div>
+    <button class="btn" onclick="ModMaquilaDetalle._volver()" style="background:#f1f5f9;color:#374151">&larr; Volver</button>
+  </div>
+  <div class="table-wrap" style="padding:24px">
+    <div id="md_info"></div>
+    <table style="margin-top:16px">
+      <thead><tr><th>#</th><th>Medidas</th><th>Espesor</th><th>Servicios</th><th>Subtotal</th></tr></thead>
+      <tbody id="md_partidas"></tbody>
+    </table>
+    <div style="margin-top:20px;display:flex;gap:10px">
+      <button class="btn btn-primary" id="md_btnConvertir" onclick="ModMaquilaDetalle._convertir()" style="display:none">Convertir a Orden</button>
+      <button class="btn" id="md_btnCancelar" onclick="ModMaquilaDetalle._cancelar()" style="background:#fee2e2;color:#991b1b;display:none">Cancelar</button>
+    </div>
+    <div id="md_error" style="color:#dc2626;margin-top:8px"></div>
+  </div>
+</div>
+
+<script>
+var ModMaquilaDetalle = (function(){
+var API = '../api/maquila.php';
+var cotId = new URLSearchParams(location.search).get('id');
+var cot = null;
+
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = (s == null) ? '' : String(s);
+  return d.innerHTML;
+}
+
+async function cargar() {
+  var res = await fetch(API + '?recurso=cotizacion&id=' + cotId);
+  cot = await res.json();
+  if (cot.error) {
+    document.getElementById('md_titulo').textContent = 'Error';
+    document.getElementById('md_error').textContent = cot.error;
+    return;
+  }
+  render();
+}
+
+function render() {
+  var folioMostrado = cot.orden_folio || cot.folio;
+  document.getElementById('md_titulo').textContent = 'Maquila ' + folioMostrado;
+  document.getElementById('md_info').innerHTML =
+    '<div>Cliente: ' + esc(cot.cliente_nombre || '') + '</div>' +
+    '<div>Estatus: ' + esc(cot.estatus) + '</div>' +
+    '<div>Total: $' + esc(parseFloat(cot.total).toLocaleString('es-MX', {minimumFractionDigits:2})) + '</div>';
+
+  var html = '';
+  for (var i = 0; i < cot.partidas.length; i++) {
+    var p = cot.partidas[i];
+    var servicios = [];
+    if (p.corte == 1) servicios.push('Corte (' + parseFloat(p.ml_corte).toFixed(2) + 'ml)');
+    if (p.canteado == 1) servicios.push('Canteado ' + esc(p.cpb) + ' (' + parseFloat(p.ml_canteado).toFixed(2) + 'ml)');
+    if ((parseInt(p.taladros_pasados)||0) + (parseInt(p.taladros_avellanados)||0) > 0) servicios.push('Taladro (' + p.taladros_pasados + 'p/' + p.taladros_avellanados + 'a)');
+    if (p.templado == 1) servicios.push('Templado');
+    html += '<tr>';
+    html += '<td>' + (i+1) + '</td>';
+    html += '<td>' + p.ancho + 'x' + p.alto + ' mm &times;' + p.cantidad + '</td>';
+    html += '<td>' + p.espesor_mm + 'mm</td>';
+    html += '<td>' + servicios.join(', ') + '</td>';
+    html += '<td>$' + parseFloat(p.subtotal).toLocaleString('es-MX', {minimumFractionDigits:2}) + '</td>';
+    html += '</tr>';
+  }
+  document.getElementById('md_partidas').innerHTML = html;
+
+  if (cot.estatus === 'cotizacion' && window._puedeEditarMaquila) {
+    document.getElementById('md_btnConvertir').style.display = 'inline-block';
+    document.getElementById('md_btnCancelar').style.display = 'inline-block';
+  }
+}
+
+async function convertir() {
+  if (!confirm('¿Convertir esta cotización de maquila en orden de producción?')) return;
+  var res = await fetch('../api/cotizaciones.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accion: 'convertir_orden', id: cotId })
+  });
+  var data = await res.json();
+  if (data.error) { document.getElementById('md_error').textContent = data.error; return; }
+  cargar();
+}
+
+async function cancelar() {
+  if (!confirm('¿Cancelar esta cotización de maquila?')) return;
+  var res = await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recurso: 'cotizacion', accion: 'cancelar', id: cotId })
+  });
+  var data = await res.json();
+  if (data.error) { document.getElementById('md_error').textContent = data.error; return; }
+  cargar();
+}
+
+function volver() {
+  window.irA('maquila');
+}
+
+cargar();
+
+return { init: cargar, _convertir: convertir, _cancelar: cancelar, _volver: volver };
+})();
+</script>
+<?php endif; ?>
