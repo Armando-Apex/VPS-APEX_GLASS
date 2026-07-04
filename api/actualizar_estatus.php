@@ -124,10 +124,20 @@ if ($pieza['orden_tipo'] === 'maquila') {
     if ($idxDestino === false) {
         jsonResponse(['error' => 'La pieza no requiere el estatus "' . $estatus . '"'], 400);
     }
-    $predecesorValido = $idxDestino > 0 ? $aplicables[$idxDestino - 1] : null;
 
-    if (!$omision && $predecesorValido !== null && $estatusActual !== $predecesorValido) {
-        jsonResponse(['error' => 'La pieza est&#225; en "' . $estatusActual . '" y no puede pasar a "' . $estatus . '"'], 400);
+    if ($estatus === 'pendiente') {
+        // Reproceso: mismo whitelist de orígenes válidos que suministro, filtrado
+        // a las estaciones que esta pieza realmente tiene (evita reset sin validar
+        // desde cualquier estatus, ej. vía el botón "Reproceso" de operador.php).
+        $origenesValidos = array_intersect(['canteado', 'trazo', 'taladro', 'en_horno'], $aplicables);
+        if (!$omision && !in_array($estatusActual, $origenesValidos)) {
+            jsonResponse(['error' => 'La pieza est&#225; en "' . $estatusActual . '" y no puede pasar a "' . $estatus . '"'], 400);
+        }
+    } else {
+        $predecesorValido = $idxDestino > 0 ? $aplicables[$idxDestino - 1] : null;
+        if (!$omision && $predecesorValido !== null && $estatusActual !== $predecesorValido) {
+            jsonResponse(['error' => 'La pieza est&#225; en "' . $estatusActual . '" y no puede pasar a "' . $estatus . '"'], 400);
+        }
     }
 } else {
     $sinTemplado = (int)($pieza['requiere_templado'] ?? 1) === 0;
