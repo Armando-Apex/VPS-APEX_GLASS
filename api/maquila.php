@@ -177,7 +177,7 @@ if ($recurso === 'cotizacion') {
         exit;
     }
 
-    if (($body['accion'] ?? '') === 'crear') {
+    if ($method === 'POST' && ($body['accion'] ?? '') === 'crear') {
     if (!in_array($rol, ['dir_admin','dueno','comercial','desarrollo'])) {
         jsonResponse(['error' => 'Sin permiso'], 403);
     }
