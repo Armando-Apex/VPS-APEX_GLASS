@@ -67,4 +67,51 @@ if ($recurso === 'tipos_vidrio') {
     exit;
 }
 
+// ─── Recurso: precios (corte/canteado/taladro/horno por espesor) ─────────────
+if ($recurso === 'precios') {
+    if ($method === 'GET') {
+        $stmt = $db->query("SELECT * FROM maquila_precios WHERE activo = 1 ORDER BY servicio, espesor_mm");
+        jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
+        exit;
+    }
+
+    if (!tienePermiso($rol, 'gestionar_maquila_precios')) {
+        jsonResponse(['error' => 'Sin permiso'], 403);
+    }
+
+    if ($method === 'POST' || $method === 'PUT') {
+        $servicio   = $body['servicio']   ?? '';
+        $espesor_mm = (float)($body['espesor_mm'] ?? 0);
+        $precio     = (float)($body['precio']     ?? 0);
+
+        if (!in_array($servicio, ['corte','canteado','taladro','horno'])) {
+            jsonResponse(['error' => 'Servicio inválido']); exit;
+        }
+        if ($espesor_mm <= 0 || $precio <= 0) {
+            jsonResponse(['error' => 'Espesor y precio deben ser mayores a 0']); exit;
+        }
+
+        // Upsert por (servicio, espesor_mm) — la UNIQUE KEY del Task 1 lo garantiza
+        $db->prepare("
+            INSERT INTO maquila_precios (servicio, espesor_mm, precio, activo)
+            VALUES (?, ?, ?, 1)
+            ON DUPLICATE KEY UPDATE precio = VALUES(precio), activo = 1
+        ")->execute([$servicio, $espesor_mm, $precio]);
+
+        jsonResponse(['ok' => true]);
+        exit;
+    }
+
+    if ($method === 'DELETE') {
+        $id = (int)($body['id'] ?? ($_GET['id'] ?? 0));
+        if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
+        $db->prepare("UPDATE maquila_precios SET activo = 0 WHERE id = ?")->execute([$id]);
+        jsonResponse(['ok' => true]);
+        exit;
+    }
+
+    jsonResponse(['error' => 'Método no permitido'], 405);
+    exit;
+}
+
 jsonResponse(['error' => 'Recurso no encontrado'], 404);
