@@ -304,7 +304,8 @@ if ($method === 'POST') {
                 ]);
             } catch (Exception $ignored) {}
 
-            jsonResponse(['ok' => true, 'orden_id' => $orden_id, 'folio' => $folio_mostrado]); exit;
+            $folio_respuesta = ($cot['tipo'] === 'maquila') ? $folio_final : $cot['folio'];
+            jsonResponse(['ok' => true, 'orden_id' => $orden_id, 'folio' => $folio_respuesta]); exit;
 
         } catch (Exception $e) {
             $db->rollBack();
