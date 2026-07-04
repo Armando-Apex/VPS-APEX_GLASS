@@ -59,6 +59,12 @@ async function cargar() {
   }
 }
 
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = (s == null) ? '' : String(s);
+  return d.innerHTML;
+}
+
 function renderTabla() {
   if (!lista.length) {
     document.getElementById('tablaMaquila').innerHTML = '<tr><td colspan="5" class="empty">No hay maquilas registradas</td></tr>';
@@ -67,14 +73,15 @@ function renderTabla() {
   var html = '';
   for (var i = 0; i < lista.length; i++) {
     var c = lista[i];
+    var idNum = parseInt(c.id, 10) || 0;
     var folioMostrado = c.orden_folio || c.folio;
     var badgeClass = c.estatus === 'cotizacion' ? 'badge-cotizacion' : (c.estatus === 'cancelada' ? 'badge-cancelada' : 'badge-orden');
     var total = parseFloat(c.total).toLocaleString('es-MX', {minimumFractionDigits:2});
-    html += '<tr style="cursor:pointer" onclick="ModMaquila._abrirDetalle(' + c.id + ')">';
-    html += '<td style="font-weight:600">' + folioMostrado + '</td>';
-    html += '<td>' + (c.cliente_nombre || '') + '</td>';
-    html += '<td><span class="badge ' + badgeClass + '">' + c.estatus + '</span></td>';
-    html += '<td>$' + total + '</td>';
+    html += '<tr style="cursor:pointer" onclick="ModMaquila._abrirDetalle(' + idNum + ')">';
+    html += '<td style="font-weight:600">' + esc(folioMostrado) + '</td>';
+    html += '<td>' + esc(c.cliente_nombre || '') + '</td>';
+    html += '<td><span class="badge ' + badgeClass + '">' + esc(c.estatus) + '</span></td>';
+    html += '<td>$' + esc(total) + '</td>';
     html += '<td></td>';
     html += '</tr>';
   }
