@@ -77,7 +77,10 @@ function renderPrecios() {
     var p = precios[i];
     var idNum = parseInt(p.id, 10) || 0;
     html += '<tr><td>' + esc(p.servicio) + '</td><td>' + esc(p.espesor_mm) + 'mm</td><td>$' + esc(parseFloat(p.precio).toFixed(2)) + '</td>';
-    html += '<td><button onclick="ModMaquilaPrecios._eliminar(' + idNum + ')" style="color:#dc2626">Desactivar</button></td></tr>';
+    html += '<td style="display:flex;gap:8px">';
+    html += '<button onclick="ModMaquilaPrecios._editar(' + idNum + ')" style="color:#2563eb">Editar</button>';
+    html += '<button onclick="ModMaquilaPrecios._eliminar(' + idNum + ')" style="color:#dc2626">Desactivar</button>';
+    html += '</td></tr>';
   }
   document.getElementById('mp_tabla').innerHTML = html;
 }
@@ -104,6 +107,18 @@ async function guardarPrecio() {
     body: JSON.stringify({ recurso: 'precios', servicio: servicio, espesor_mm: espesor, precio: precio })
   });
   cargar();
+}
+
+function editarPrecio(id) {
+  var p = null;
+  for (var i = 0; i < precios.length; i++) {
+    if (parseInt(precios[i].id, 10) === id) { p = precios[i]; break; }
+  }
+  if (!p) return;
+  document.getElementById('mp_servicio').value = p.servicio;
+  document.getElementById('mp_espesor').value = p.espesor_mm;
+  document.getElementById('mp_precio').value = parseFloat(p.precio).toFixed(2);
+  document.getElementById('mp_precio').focus();
 }
 
 async function eliminarPrecio(id) {
@@ -138,6 +153,6 @@ async function toggleTipo(id, activo) {
 
 cargar();
 
-return { init: cargar, _guardar: guardarPrecio, _eliminar: eliminarPrecio, _crearTipo: crearTipo, _toggleTipo: toggleTipo };
+return { init: cargar, _guardar: guardarPrecio, _editar: editarPrecio, _eliminar: eliminarPrecio, _crearTipo: crearTipo, _toggleTipo: toggleTipo };
 })();
 </script>
