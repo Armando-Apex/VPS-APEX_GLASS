@@ -18,6 +18,7 @@ define('PERMISOS', [
     'comercial' => [
         'ver_dashboard',
         'ver_ordenes',
+        'ver_maquila',
         'ver_estaciones',
         'imprimir_etiquetas',
         'registrar_entrega',
@@ -32,6 +33,7 @@ define('PERMISOS', [
     'director' => [
         'ver_dashboard',
         'ver_ordenes',
+        'ver_maquila',
         'ver_estaciones',
         'imprimir_etiquetas',
         'cambiar_cualquier_estatus',
@@ -40,6 +42,7 @@ define('PERMISOS', [
     'dir_admin' => [
         'ver_dashboard',
         'ver_ordenes',
+        'ver_maquila',
         'ver_estaciones',
         'imprimir_etiquetas',
         'cambiar_cualquier_estatus',
@@ -47,10 +50,12 @@ define('PERMISOS', [
         'ver_reportes',
         'ver_inventario',
         'gestionar_inventario',
+        'gestionar_maquila_precios',
     ],
     'administracion' => [
         'ver_dashboard',
         'ver_ordenes',
+        'ver_maquila',
         'ver_estaciones',
         'imprimir_etiquetas',
         'registrar_entrega',
@@ -62,6 +67,7 @@ define('PERMISOS', [
     'dueno' => [
         'ver_dashboard',
         'ver_ordenes',
+        'ver_maquila',
         'ver_estaciones',
         'imprimir_etiquetas',
         'cambiar_cualquier_estatus',
@@ -69,10 +75,12 @@ define('PERMISOS', [
         'ver_reportes',
         'ver_inventario',
         'gestionar_inventario',
+        'gestionar_maquila_precios',
     ],
     'desarrollo' => [
         'ver_dashboard',
         'ver_ordenes',
+        'ver_maquila',
         'ver_estaciones',
         'imprimir_etiquetas',
         'cambiar_cualquier_estatus',
@@ -81,6 +89,7 @@ define('PERMISOS', [
         'ver_inventario',
         'gestionar_inventario',
         'ver_wip',
+        'gestionar_maquila_precios',
     ],
 ]);
 
