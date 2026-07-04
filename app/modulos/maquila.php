@@ -346,7 +346,6 @@ function esc(s) {
   d.textContent = (s == null) ? '' : String(s);
   return d.innerHTML;
 }
-function escJs(s) { return String(s || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
 async function cargarCatalogos() {
   var r1 = await fetch(API + '?recurso=tipos_vidrio');
@@ -363,15 +362,24 @@ function buscarCliente() {
   if (q.length < 2) { lista.style.display = 'none'; return; }
   _buscarTimer = setTimeout(function() {
     fetch(API_CLI + '?q=' + encodeURIComponent(q)).then(function(r) { return r.json(); }).then(function(items) {
+      lista.innerHTML = '';
       if (!items.length) { lista.style.display = 'none'; return; }
-      var html = '';
       for (var i = 0; i < items.length; i++) {
         var c = items[i];
         var nombre = c.razon_social || c.nombre;
-        html += '<div class="autocomplete-item" onclick="ModMaquilaNueva._seleccionarCliente(' + (parseInt(c.id,10)||0) + ",'" + escJs(nombre) + "')\">"
-              + esc(nombre) + '<div class="codigo">' + esc(c.codigo || '') + '</div></div>';
+        var idNum = parseInt(c.id, 10) || 0;
+        var item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.appendChild(document.createTextNode(nombre));
+        var codigoEl = document.createElement('div');
+        codigoEl.className = 'codigo';
+        codigoEl.textContent = c.codigo || '';
+        item.appendChild(codigoEl);
+        item.addEventListener('click', (function(id, nom) {
+          return function() { seleccionarCliente(id, nom); };
+        })(idNum, nombre));
+        lista.appendChild(item);
       }
-      lista.innerHTML = html;
       lista.style.display = 'block';
     }).catch(function(){ lista.style.display = 'none'; });
   }, 250);
