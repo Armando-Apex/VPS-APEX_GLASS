@@ -22,12 +22,24 @@ $cot->execute([$id]);
 $c = $cot->fetch();
 if (!$c) die('Orden no encontrada');
 
-$partidas = $db->prepare('
-    SELECT cp.*
-    FROM cotizaciones_partidas cp
-    WHERE cp.cotizacion_id = ?
-    ORDER BY cp.num_partida ASC
-');
+$esMaquila = ($c['tipo'] ?? 'suministro') === 'maquila';
+
+if ($esMaquila) {
+    $partidas = $db->prepare('
+        SELECT mp.*, tv.nombre AS tipo_vidrio_nombre
+        FROM cotizaciones_maquila_partidas mp
+        LEFT JOIN maquila_tipos_vidrio tv ON tv.id = mp.cristal_tipo_id
+        WHERE mp.cotizacion_id = ?
+        ORDER BY mp.num_partida ASC
+    ');
+} else {
+    $partidas = $db->prepare('
+        SELECT cp.*
+        FROM cotizaciones_partidas cp
+        WHERE cp.cotizacion_id = ?
+        ORDER BY cp.num_partida ASC
+    ');
+}
 $partidas->execute([$id]);
 $parts = $partidas->fetchAll();
 
@@ -212,6 +224,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
   <!-- Tabla partidas -->
   <table class="partidas-table">
     <thead>
+    <?php if (!$esMaquila): ?>
       <tr>
         <th style="width:40px">Part.</th>
         <th>Cristal</th>
@@ -228,6 +241,19 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
         <th style="width:55px">Pintura</th>
         <th>Observaciones</th>
       </tr>
+    <?php else: ?>
+      <tr>
+        <th style="width:40px">Part.</th>
+        <th>Vidrio del cliente</th>
+        <th style="width:70px">Ancho mm</th>
+        <th style="width:70px">Alto mm</th>
+        <th style="width:50px">Pzas.</th>
+        <th style="width:65px">M²</th>
+        <th style="width:65px">Espesor</th>
+        <th>Servicios</th>
+        <th>Observaciones</th>
+      </tr>
+    <?php endif; ?>
     </thead>
     <tbody>
     <?php foreach ($parts as $p):
@@ -235,6 +261,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
       $m2t = round($m2 * $p['cantidad'], 4);
       $templado = $p['requiere_templado'] ?? 1;
     ?>
+    <?php if (!$esMaquila): ?>
       <tr>
         <td style="font-weight:700;color:#1d4ed8"><?= $p['num_partida'] ?></td>
         <td class="cristal-cell"><?= htmlspecialchars($p['cristal_nombre'] ?? '—') ?></td>
@@ -251,6 +278,25 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
         <td><?= htmlspecialchars($p['pintura'] ?? '—') ?></td>
         <td class="left"><?= htmlspecialchars($p['comentarios_etiqueta'] ?: '') ?></td>
       </tr>
+    <?php else:
+      $servicios = [];
+      if ($p['corte'])    $servicios[] = 'Corte (' . number_format($p['ml_corte'], 2) . 'ml)';
+      if ($p['canteado']) $servicios[] = 'Canteado ' . $p['cpb'] . ' (' . number_format($p['ml_canteado'], 2) . 'ml)';
+      if ((int)$p['taladros_pasados'] + (int)$p['taladros_avellanados'] > 0) $servicios[] = 'Taladro (' . $p['taladros_pasados'] . 'p/' . $p['taladros_avellanados'] . 'a)';
+      if ($p['templado'])  $servicios[] = 'Templado';
+    ?>
+      <tr>
+        <td style="font-weight:700;color:#1d4ed8"><?= $p['num_partida'] ?></td>
+        <td class="cristal-cell"><?= htmlspecialchars($p['tipo_vidrio_nombre'] ?? '—') ?></td>
+        <td><?= number_format($p['ancho']) ?></td>
+        <td><?= number_format($p['alto']) ?></td>
+        <td><?= $p['cantidad'] ?></td>
+        <td><?= number_format($m2t, 4) ?></td>
+        <td><?= htmlspecialchars($p['espesor_mm']) ?>mm</td>
+        <td class="left"><?= htmlspecialchars(implode(', ', $servicios) ?: '—') ?></td>
+        <td class="left"><?= htmlspecialchars($p['detalles'] ?: '') ?></td>
+      </tr>
+    <?php endif; ?>
     <?php endforeach; ?>
     </tbody>
   </table>
