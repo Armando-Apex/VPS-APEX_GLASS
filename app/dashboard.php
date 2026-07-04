@@ -272,6 +272,9 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
         <span class="sidebar-icon"><?= icono('message-square') ?></span>Campa&ntilde;as WA
         <span id="waBadge" style="display:none;background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;margin-left:auto;"></span>
       </button>
+      <button class="sidebar-link" data-modulo="maquila" onclick="cargarModulo('maquila')">
+        <span class="sidebar-icon"><?= icono('scissors') ?></span>Maquila
+      </button>
     </div>
     <?php endif; ?>
     <?php if ($esDir): ?>
@@ -293,6 +296,9 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       </button>
       <button class="sidebar-link" data-modulo="admin_comunicados" onclick="cargarModulo('admin_comunicados')">
         <span class="sidebar-icon"><?= icono('megaphone') ?></span>Admin Comunicados
+      </button>
+      <button class="sidebar-link" data-modulo="maquila_precios" onclick="cargarModulo('maquila_precios')">
+        <span class="sidebar-icon"><?= icono('settings') ?></span>Precios Maquila
       </button>
       <?php if ($esDesarrollo || $esAdmin): ?>
       <button class="sidebar-link" data-modulo="reportes" onclick="cargarModulo('reportes')">
@@ -393,6 +399,10 @@ const MODULOS = {
   omisiones:'modulos/omisiones.php',
   campanas:'modulos/campanas.php',
   orden:'modulos/orden.php', cotizacion:'modulos/cotizacion.php',
+  maquila:'modulos/maquila.php',
+  maquila_nueva:'modulos/maquila.php?vista=nueva',
+  maquila_detalle:'modulos/maquila.php?vista=detalle',
+  maquila_precios:'modulos/maquila_precios.php',
 };
 
 let _moduloActivo = null;
@@ -432,7 +442,8 @@ async function cargarModulo(nombre, params = {}) {
   document.getElementById('spa-loading').classList.add('show');
 
   const qs  = new URLSearchParams(params).toString();
-  const url = archivo + (qs ? '?' + qs : '');
+  const sep = archivo.indexOf('?') === -1 ? '?' : '&';
+  const url = archivo + (qs ? sep + qs : '');
 
   try {
     const res = await fetch(url, { headers: { 'X-SPA-Request': '1' } });
