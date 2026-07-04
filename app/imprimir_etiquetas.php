@@ -42,6 +42,8 @@ if (empty($piezas)) {
     die('<p>No hay piezas para este folio.</p>');
 }
 
+$esMaquila = ($orden['tipo'] ?? 'suministro') === 'maquila';
+
 // Servicios adicionales por partida
 $serviciosPorPartida = [];
 $stmtSrv = $db->prepare("
@@ -191,6 +193,13 @@ body {
 }
 .badge-srv span { font-size: 9.5px; font-weight: 700; color: #000; letter-spacing: .2px; }
 
+/* Badge MAQUILA — vidrio propio del cliente */
+.badge-maquila {
+    background: #000; border-radius: 2px;
+    padding: 2px 6px; display: inline-block; margin-bottom: 2px;
+}
+.badge-maquila span { font-size: 9.5px; font-weight: 700; color: #fff; letter-spacing: .3px; }
+
 /* Detalle */
 .detalle {
     background: #fff; border: 1.5px solid #000;
@@ -232,7 +241,7 @@ body {
     .partida { font-size: 3.5mm; }
     .cristal-val { font-size: 3.5mm; }
     .medidas-val { font-size: 4mm; }
-    .badge-cpb span, .badge-fm span, .badge-srv span { font-size: 3mm; }
+    .badge-cpb span, .badge-fm span, .badge-srv span, .badge-maquila span { font-size: 3mm; }
     .chip    { font-size: 2.8mm; }
     .detalle span { font-size: 2.8mm; }
     .footer-val { font-size: 3mm; }
@@ -303,6 +312,10 @@ body {
         <!-- Folio + partida/pieza -->
         <div class="folio"><?= htmlspecialchars($folio) ?></div>
         <div class="partida">P<?= $p['partida'] ?> &middot; <?= $p['pieza_num'] ?> de <?= $p['pieza_total'] ?></div>
+
+        <?php if ($esMaquila): ?>
+            <div class="badge-maquila"><span>MAQUILA</span></div>
+        <?php endif; ?>
 
         <hr class="divider">
 
