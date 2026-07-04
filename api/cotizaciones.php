@@ -180,6 +180,52 @@ if ($method === 'POST') {
         $folio_orden = generarFolioOrden($db);
         $db->beginTransaction();
         try {
+            if ($cot['tipo'] === 'maquila') {
+                $folio_final = 'MA-' . $folio_orden;
+
+                $stmt3 = $db->prepare("INSERT INTO ordenes
+                    (folio, orden_trabajo, tipo, cliente_id, cliente_nombre, asesor, proyecto,
+                     fecha_pedido, fecha_entrega, tipo_entrega, observaciones)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                ");
+                $stmt3->execute([
+                    $folio_final, $folio_final, 'maquila',
+                    $cot['cliente_id'] ?: null, $cot['cliente_nombre'], $cot['asesor_nombre'],
+                    $cot['proyecto'] ?? '', $cot['fecha'], $cot['fecha_entrega'],
+                    $cot['tipo_entrega'], $cot['alerta'] ?? ''
+                ]);
+                $orden_id = $db->lastInsertId();
+
+                $stmt2 = $db->prepare("
+                    SELECT mp.*, tv.nombre AS tipo_vidrio_nombre
+                    FROM cotizaciones_maquila_partidas mp
+                    LEFT JOIN maquila_tipos_vidrio tv ON tv.id = mp.cristal_tipo_id
+                    WHERE mp.cotizacion_id = ? ORDER BY mp.num_partida ASC
+                ");
+                $stmt2->execute([$id]);
+                $partidas = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+                $stmtPieza = $db->prepare("INSERT INTO piezas
+                    (orden_id, partida, pieza_num, pieza_total,
+                     cristal, cristal_corto, requiere_templado, requiere_corte,
+                     ancho_mm, alto_mm, m2,
+                     cpb, detalles, tp, ta, qr_code, estatus)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ");
+                foreach ($partidas as $p) {
+                    $etiqueta = trim(($p['tipo_vidrio_nombre'] ?? 'Cliente') . ' ' . $p['espesor_mm'] . 'mm');
+                    for ($i = 1; $i <= $p['cantidad']; $i++) {
+                        $qr = $folio_final . '-' . str_pad($p['num_partida'], 2, '0', STR_PAD_LEFT) . '-' . str_pad($i, 3, '0', STR_PAD_LEFT) . '-' . str_pad($p['cantidad'], 3, '0', STR_PAD_LEFT);
+                        $stmtPieza->execute([
+                            $orden_id, $p['num_partida'], $i, $p['cantidad'],
+                            $etiqueta, $etiqueta, (int)$p['templado'], (int)$p['corte'],
+                            $p['ancho'], $p['alto'], $p['m2'],
+                            $p['cpb'], $p['detalles'] ?? '', $p['taladros_pasados'], $p['taladros_avellanados'],
+                            $qr, 'pendiente'
+                        ]);
+                    }
+                }
+            } else {
             $stmt3 = $db->prepare("INSERT INTO ordenes
                 (folio, orden_trabajo, tipo, cliente_id, cliente_nombre, asesor, proyecto,
                  fecha_pedido, fecha_entrega, tipo_entrega, observaciones)
@@ -234,6 +280,9 @@ if ($method === 'POST') {
                     ]);
                 }
             }
+            }
+
+            $folio_mostrado = ($cot['tipo'] === 'maquila') ? $folio_final : $folio_orden;
 
             // Actualizar cotización
             // Orden arranca en pendiente_vobo hasta VoBo de Finanzas
@@ -249,13 +298,13 @@ if ($method === 'POST') {
                     INSERT INTO notificaciones (tipo, titulo, mensaje, folio, orden_id, rol_destino, leida)
                     VALUES ('nueva_oc', 'Nueva OC pendiente de VoBo', ?, ?, ?, 'administracion', 0)
                 ")->execute([
-                    'Orden ' . $folio_orden . ' — ' . $cot['cliente_nombre'] . ' requiere autorización.',
-                    $folio_orden,
+                    'Orden ' . $folio_mostrado . ' — ' . $cot['cliente_nombre'] . ' requiere autorización.',
+                    $folio_mostrado,
                     $orden_id
                 ]);
             } catch (Exception $ignored) {}
 
-            jsonResponse(['ok' => true, 'orden_id' => $orden_id, 'folio' => $cot['folio']]); exit;
+            jsonResponse(['ok' => true, 'orden_id' => $orden_id, 'folio' => $folio_mostrado]); exit;
 
         } catch (Exception $e) {
             $db->rollBack();
