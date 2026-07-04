@@ -82,7 +82,7 @@ $db = getDB();
 
 $stmt = $db->prepare('
 
-    SELECT p.*, o.folio, o.cliente_nombre, o.id as orden_id_val
+    SELECT p.*, o.folio, o.cliente_nombre, o.id as orden_id_val, o.tipo AS orden_tipo
 
     FROM piezas p
 
@@ -102,22 +102,50 @@ if (!$pieza) jsonResponse(['error' => 'C&#243;digo QR no encontrado'], 404);
 
 // Validar flujo
 // Para piezas sin templado: canteado→terminado y taladro→terminado son válidos
-$sinTemplado = (int)($pieza['requiere_templado'] ?? 1) === 0;
-
-$FLUJO_PREVIO = [
-    'en_corte'  => ['pendiente'],
-    'cortado'   => ['en_corte'],
-    'canteado'  => ['cortado'],
-    'trazo'     => ['canteado'],
-    'taladro'   => ['trazo'],
-    'en_horno'  => ['taladro','canteado'],
-    'terminado' => $sinTemplado ? ['taladro','canteado','en_horno'] : ['en_horno'],
-    'entregado' => ['terminado'],
-    'pendiente' => ['canteado','trazo','taladro','en_horno'],
-];
 $estatusActual = $pieza['estatus'];
-if (!$omision && isset($FLUJO_PREVIO[$estatus]) && !in_array($estatusActual, $FLUJO_PREVIO[$estatus])) {
-    jsonResponse(['error' => 'La pieza est&#225; en "' . $estatusActual . '" y no puede pasar a "' . $estatus . '"'], 400);
+
+if ($pieza['orden_tipo'] === 'maquila') {
+    // Flujo dinámico: solo las estaciones que la pieza realmente necesita
+    $FLUJO_COMPLETO = ['pendiente','en_corte','cortado','canteado','trazo','taladro','en_horno','terminado','entregado'];
+    $requiereCorte    = (int)($pieza['requiere_corte'] ?? 0) === 1;
+    $requiereCanteado = trim($pieza['cpb'] ?? 'No') !== 'No' && trim($pieza['cpb'] ?? '') !== '';
+    $requiereTaladro  = ((int)($pieza['tp'] ?? 0) + (int)($pieza['ta'] ?? 0)) > 0;
+    $requiereHorno    = (int)($pieza['requiere_templado'] ?? 0) === 1;
+
+    $aplicables = ['pendiente'];
+    if ($requiereCorte)    { $aplicables[] = 'en_corte'; $aplicables[] = 'cortado'; }
+    if ($requiereCanteado) { $aplicables[] = 'canteado'; }
+    if ($requiereTaladro)  { $aplicables[] = 'trazo'; $aplicables[] = 'taladro'; }
+    if ($requiereHorno)    { $aplicables[] = 'en_horno'; }
+    $aplicables[] = 'terminado';
+    $aplicables[] = 'entregado';
+
+    $idxDestino = array_search($estatus, $aplicables);
+    if ($idxDestino === false) {
+        jsonResponse(['error' => 'La pieza no requiere el estatus "' . $estatus . '"'], 400);
+    }
+    $predecesorValido = $idxDestino > 0 ? $aplicables[$idxDestino - 1] : null;
+
+    if (!$omision && $predecesorValido !== null && $estatusActual !== $predecesorValido) {
+        jsonResponse(['error' => 'La pieza est&#225; en "' . $estatusActual . '" y no puede pasar a "' . $estatus . '"'], 400);
+    }
+} else {
+    $sinTemplado = (int)($pieza['requiere_templado'] ?? 1) === 0;
+
+    $FLUJO_PREVIO = [
+        'en_corte'  => ['pendiente'],
+        'cortado'   => ['en_corte'],
+        'canteado'  => ['cortado'],
+        'trazo'     => ['canteado'],
+        'taladro'   => ['trazo'],
+        'en_horno'  => ['taladro','canteado'],
+        'terminado' => $sinTemplado ? ['taladro','canteado','en_horno'] : ['en_horno'],
+        'entregado' => ['terminado'],
+        'pendiente' => ['canteado','trazo','taladro','en_horno'],
+    ];
+    if (!$omision && isset($FLUJO_PREVIO[$estatus]) && !in_array($estatusActual, $FLUJO_PREVIO[$estatus])) {
+        jsonResponse(['error' => 'La pieza est&#225; en "' . $estatusActual . '" y no puede pasar a "' . $estatus . '"'], 400);
+    }
 }
 
 
