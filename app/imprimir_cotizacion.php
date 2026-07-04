@@ -17,17 +17,30 @@ $stmt->execute([$id]);
 $c = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$c) { echo "Cotización no encontrada"; exit; }
 
-$stmt2 = $db->prepare("SELECT * FROM cotizaciones_partidas WHERE cotizacion_id = ? ORDER BY num_partida ASC");
-$stmt2->execute([$id]);
-$partidas = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+$esMaquila = ($c['tipo'] ?? 'suministro') === 'maquila';
 
-// Servicios adicionales por partida
-$stmtSrv = $db->prepare("SELECT cps.*, sc.nombre as servicio_nombre FROM cotizacion_partida_servicios cps LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id WHERE cps.cotizacion_id = ? ORDER BY cps.partida_id, cps.id");
-$stmtSrv->execute([$id]);
-$servicios_raw = $stmtSrv->fetchAll(PDO::FETCH_ASSOC);
 $servicios_por_partida = [];
-foreach ($servicios_raw as $srv) {
-    $servicios_por_partida[$srv['partida_id']][] = $srv;
+if ($esMaquila) {
+    $stmt2 = $db->prepare("
+        SELECT mp.*, tv.nombre AS tipo_vidrio_nombre
+        FROM cotizaciones_maquila_partidas mp
+        LEFT JOIN maquila_tipos_vidrio tv ON tv.id = mp.cristal_tipo_id
+        WHERE mp.cotizacion_id = ? ORDER BY mp.num_partida ASC
+    ");
+    $stmt2->execute([$id]);
+    $partidas = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    $stmt2 = $db->prepare("SELECT * FROM cotizaciones_partidas WHERE cotizacion_id = ? ORDER BY num_partida ASC");
+    $stmt2->execute([$id]);
+    $partidas = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+    // Servicios adicionales por partida
+    $stmtSrv = $db->prepare("SELECT cps.*, sc.nombre as servicio_nombre FROM cotizacion_partida_servicios cps LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id WHERE cps.cotizacion_id = ? ORDER BY cps.partida_id, cps.id");
+    $stmtSrv->execute([$id]);
+    $servicios_raw = $stmtSrv->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($servicios_raw as $srv) {
+        $servicios_por_partida[$srv['partida_id']][] = $srv;
+    }
 }
 $servicios_subtotal = (float)($c['servicios_subtotal'] ?? 0);
 
@@ -63,8 +76,15 @@ $descuento = (float)($c['descuento'] ?? 0);
 // precio_unitario en registros viejos almacenaba precio bruto (sin descuento aplicado),
 // por lo que SUM(precio_unitario×cantidad) no es confiable como neto.
 $subtotal = 0;
-foreach ($partidas as $p) {
-    $subtotal += (float)$p['precio_m2_usado'] * (float)$p['m2'] * (int)$p['cantidad'];
+if ($esMaquila) {
+    // Partidas de maquila ya traen su subtotal calculado y guardado por api/maquila.php
+    foreach ($partidas as $p) {
+        $subtotal += (float)$p['subtotal'];
+    }
+} else {
+    foreach ($partidas as $p) {
+        $subtotal += (float)$p['precio_m2_usado'] * (float)$p['m2'] * (int)$p['cantidad'];
+    }
 }
 $subtotal = round($subtotal, 2);
 
@@ -336,6 +356,7 @@ function waEnviar() {
 
   <!-- Tabla de partidas -->
   <div class="section-title">Partidas</div>
+  <?php if (!$esMaquila): ?>
   <table>
     <thead>
       <tr>
@@ -387,33 +408,78 @@ function waEnviar() {
     <?php endforeach; ?>
     </tbody>
   </table>
+  <?php else: ?>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28px">#</th>
+        <th>Medidas</th>
+        <th>Espesor</th>
+        <th>Servicios</th>
+        <th class="right">Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($partidas as $p):
+        $servicios = [];
+        if (!empty($p['corte']))    $servicios[] = 'Corte (' . number_format((float)$p['ml_corte'], 2) . 'ml)';
+        if (!empty($p['canteado'])) $servicios[] = 'Canteado ' . htmlspecialchars((string)$p['cpb']) . ' (' . number_format((float)$p['ml_canteado'], 2) . 'ml)';
+        if ((int)$p['taladros_pasados'] + (int)$p['taladros_avellanados'] > 0) $servicios[] = 'Taladro (' . (int)$p['taladros_pasados'] . 'p/' . (int)$p['taladros_avellanados'] . 'a)';
+        if (!empty($p['templado']))  $servicios[] = 'Templado';
+    ?>
+      <tr>
+        <td class="center"><?= (int)$p['num_partida'] ?></td>
+        <td>
+          <?= (int)$p['ancho'] ?> × <?= (int)$p['alto'] ?>mm &times; <?= (int)$p['cantidad'] ?>
+          <?php if (!empty($p['tipo_vidrio_nombre'])): ?>
+          <div class="cristal-det"><?= htmlspecialchars($p['tipo_vidrio_nombre']) ?></div>
+          <?php endif; ?>
+          <?php if (!empty($p['detalles'])): ?>
+          <div class="cristal-det"><?= htmlspecialchars($p['detalles']) ?></div>
+          <?php endif; ?>
+        </td>
+        <td class="center"><?= htmlspecialchars((string)$p['espesor_mm']) ?>mm</td>
+        <td><?= htmlspecialchars(implode(', ', $servicios)) ?></td>
+        <td class="right">$<?= number_format((float)$p['subtotal'], 2) ?></td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+  <?php endif; ?>
 
   <!-- Totales -->
   <?php
   $resumen_cristal = [];
   $total_piezas = 0;
   $total_m2_general = 0;
-  foreach ($partidas as $p) {
-      $cristal = $p['cristal_nombre'] ?: $p['cristal_etiqueta'];
-      $m2 = round($p['m2'] * $p['cantidad'], 4);
-      if (!isset($resumen_cristal[$cristal])) $resumen_cristal[$cristal] = 0;
-      $resumen_cristal[$cristal] += $m2;
-      $total_piezas += $p['cantidad'];
-      $total_m2_general += $m2;
+  if (!$esMaquila) {
+      foreach ($partidas as $p) {
+          $cristal = $p['cristal_nombre'] ?: $p['cristal_etiqueta'];
+          $m2 = round($p['m2'] * $p['cantidad'], 4);
+          if (!isset($resumen_cristal[$cristal])) $resumen_cristal[$cristal] = 0;
+          $resumen_cristal[$cristal] += $m2;
+          $total_piezas += $p['cantidad'];
+          $total_m2_general += $m2;
+      }
+  } else {
+      foreach ($partidas as $p) {
+          $total_piezas += (int)$p['cantidad'];
+          $total_m2_general += round((float)$p['m2'] * (int)$p['cantidad'], 4);
+      }
   }
   ?>
   <div style="display:flex; gap:16px; justify-content:space-between; margin-bottom:14px; align-items:flex-start;">
 
     <!-- Resumen material -->
     <div style="border:1px solid #e2e8f0; border-radius:6px; overflow:hidden; min-width:200px;">
-      <div style="background:#f8fafc; padding:5px 10px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#64748b; border-bottom:1px solid #e2e8f0;">Resumen de Material</div>
+      <div style="background:#f8fafc; padding:5px 10px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#64748b; border-bottom:1px solid #e2e8f0;"><?= $esMaquila ? 'Resumen de Servicio' : 'Resumen de Material' ?></div>
       <div style="padding:6px 10px;">
-        <?php foreach ($resumen_cristal as $cristal => $m2): ?>
+        <?php if (!$esMaquila): foreach ($resumen_cristal as $cristal => $m2): ?>
         <div style="display:flex; justify-content:space-between; font-size:9.5px; padding:2px 0; border-bottom:1px solid #f8fafc;">
           <span style="color:#374151;"><?= htmlspecialchars($cristal) ?></span>
           <span style="font-weight:700;"><?= number_format($m2, 3) ?> m²</span>
         </div>
-        <?php endforeach; ?>
+        <?php endforeach; endif; ?>
         <div style="display:flex; justify-content:space-between; font-size:10px; padding:4px 0 2px; border-top:1px solid #e2e8f0; margin-top:3px;">
           <span style="font-weight:700; color:#1a1a2e;">Total m²</span>
           <span style="font-weight:700; color:#1a1a2e;"><?= number_format($total_m2_general, 3) ?></span>
