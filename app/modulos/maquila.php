@@ -344,6 +344,7 @@ td { padding: 14px 16px; border-top: 1px solid #f1f5f9; font-size: 14px; color: 
 </div>
 
 <script>
+window._puedeEditarMaquila = <?= $puedeEditar ? 'true' : 'false' ?>;
 var ModMaquilaDetalle = (function(){
 var API = '../api/maquila.php';
 var cotId = new URLSearchParams(location.search).get('id');
