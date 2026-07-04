@@ -147,15 +147,16 @@ Al convertir (mismo botón "Convertir a Orden" existente en
 `api/cotizaciones.php`, acción `convertir`):
 - `generarFolioOrden()` se llama igual que hoy (misma secuencia S-XXX
   compartida con suministro — el contador nunca se reinicia ni cambia).
-- Se guarda `ordenes.folio = "MA " . $folio_orden` y `ordenes.tipo =
-  'maquila'`.
+- Se guarda `ordenes.folio = "MA-" . $folio_orden` y `ordenes.tipo =
+  'maquila'` (ej. `MA-S-321`, sin espacio para no romper parsers/regex de
+  folio en otros módulos).
 - Se crean `piezas` igual que hoy (mismo INSERT, misma tabla), con las
   columnas de servicios ya descritas arriba, más `requiere_corte`.
 - `cristal` / `cristal_corto` de la pieza se llenan con el nombre del tipo
   de vidrio + espesor (ej. "Cliente: Claro 6mm") para que la etiqueta lo
   muestre — son campos de texto libre, no requieren catálogo en `piezas`.
 - **QR de la pieza**: para `tipo='maquila'`, el QR usa el folio de la
-  **orden** (`"MA S-321" . '-P' . partida . '-' . n . 'de' . total`), a
+  **orden** (`"MA-S-321" . '-P' . partida . '-' . n . 'de' . total`), a
   diferencia de suministro que sigue usando el folio de cotización sin
   cambios. Este es el único punto donde el comportamiento difiere entre
   tipos en el código de generación de QR.
@@ -227,7 +228,7 @@ Ejemplos:
 
 - SmartTV / Estaciones / Operador: sin cambios de código — leen `piezas`
   por estatus tal cual; las piezas de maquila aparecen mezcladas,
-  identificables por el folio `MA S-321`.
+  identificables por el folio `MA-S-321`.
 - Finanzas VoBo/Cobranza: sin cambios — queries no filtran por `tipo`.
 - Retrabajo/reproceso (`api/reproceso.php`): sin cambios, opera sobre
   `piezas` sin importar el tipo de orden.
@@ -237,9 +238,9 @@ Ejemplos:
 ## Riesgos / puntos de atención para el plan de implementación
 
 - Verificar que ningún reporte/consulta existente asuma implícitamente
-  `tipo='suministro'` o dependa de que `ordenes.folio` no tenga espacios
-  (el prefijo `"MA "` incluye un espacio — revisar parsers/regex de folio
-  en `api/ordenes.php`, WA helper, portal de clientes, etc.).
+  `tipo='suministro'` o dependa de un formato de folio sin el prefijo
+  `MA-` (revisar parsers/regex de folio en `api/ordenes.php`, WA helper,
+  portal de clientes, etc.).
 - `generarFolioOrden()` sigue compartiendo el mismo contador global; no
   requiere cambios, pero confirmar que no hay unicidad rota si dos
   procesos leen `folio` sin el prefijo en algún reporte.
