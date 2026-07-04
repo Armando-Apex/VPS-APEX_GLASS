@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../api/permisos.php';
 $user = requirePermiso('ver_maquila');
 $puedeEditar = in_array($user['rol'], ['dir_admin','dueno','comercial','desarrollo']);
 $vista = $_GET['vista'] ?? 'lista';
+$idMaquila = (int)($_GET['id'] ?? 0);
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=maquila'); exit;
 }
@@ -610,7 +611,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 window._puedeEditarMaquila = <?= $puedeEditar ? 'true' : 'false' ?>;
 var ModMaquilaDetalle = (function(){
 var API = '../api/maquila.php';
-var cotId = new URLSearchParams(location.search).get('id');
+var cotId = <?= $idMaquila ?>;
 var cot = null;
 
 function esc(s) {
