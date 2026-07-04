@@ -144,7 +144,7 @@ y `requiere_taladro` **no necesitan columna nueva** — se derivan de
 ## 2. Flujo cotización → orden → VoBo
 
 Al convertir (mismo botón "Convertir a Orden" existente en
-`api/cotizaciones.php`, acción `convertir`):
+`api/cotizaciones.php`, acción `convertir_orden`):
 - `generarFolioOrden()` se llama igual que hoy (misma secuencia S-XXX
   compartida con suministro — el contador nunca se reinicia ni cambia).
 - Se guarda `ordenes.folio = "MA-" . $folio_orden` y `ordenes.tipo =
