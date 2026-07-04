@@ -126,7 +126,58 @@ function calcularPartidaMaquila($db, $p) {
 }
 
 // ─── Recurso: cotizacion (maquila) ────────────────────────────────────────────
-if ($recurso === 'cotizacion' && $method === 'POST' && ($body['accion'] ?? '') === 'crear') {
+if ($recurso === 'cotizacion') {
+    if ($method === 'GET') {
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : null;
+
+        if ($id) {
+            $stmt = $db->prepare("
+                SELECT c.*, o.folio AS orden_folio
+                FROM cotizaciones c
+                LEFT JOIN ordenes o ON o.id = c.orden_id
+                WHERE c.id = ? AND c.tipo = 'maquila'
+            ");
+            $stmt->execute([$id]);
+            $cot = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$cot) { jsonResponse(['error' => 'No encontrada']); exit; }
+
+            $stmt2 = $db->prepare("
+                SELECT mp.*, tv.nombre AS tipo_vidrio_nombre
+                FROM cotizaciones_maquila_partidas mp
+                LEFT JOIN maquila_tipos_vidrio tv ON tv.id = mp.cristal_tipo_id
+                WHERE mp.cotizacion_id = ?
+                ORDER BY mp.num_partida ASC
+            ");
+            $stmt2->execute([$id]);
+            $cot['partidas'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+            jsonResponse($cot);
+            exit;
+        }
+
+        $q     = trim($_GET['q'] ?? '');
+        $limit = min((int)($_GET['limit'] ?? 50), 1000);
+        $where = "WHERE c.tipo = 'maquila'";
+        $params = [];
+        if ($q) {
+            $where .= " AND (c.folio LIKE ? OR c.cliente_nombre LIKE ? OR o.folio LIKE ?)";
+            $params = ["%$q%", "%$q%", "%$q%"];
+        }
+        $stmt = $db->prepare("
+            SELECT c.id, c.folio, c.fecha, c.cliente_nombre, c.estatus, c.total,
+                   o.folio AS orden_folio, o.estado AS orden_estado
+            FROM cotizaciones c
+            LEFT JOIN ordenes o ON o.id = c.orden_id
+            $where
+            ORDER BY c.id DESC
+            LIMIT $limit
+        ");
+        $stmt->execute($params);
+        jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
+        exit;
+    }
+
+    if (($body['accion'] ?? '') === 'crear') {
     if (!in_array($rol, ['dir_admin','dueno','comercial','desarrollo'])) {
         jsonResponse(['error' => 'Sin permiso'], 403);
     }
@@ -208,6 +259,7 @@ if ($recurso === 'cotizacion' && $method === 'POST' && ($body['accion'] ?? '') =
         $db->rollBack();
         jsonResponse(['error' => 'Error al guardar: ' . $e->getMessage()], 500);
         exit;
+    }
     }
 }
 
