@@ -338,7 +338,7 @@ var precios = [];
 var partidas = [];
 var clienteId = 0;
 var _buscarTimer = null;
-var ESPESORES = [3,4,5,6,8,10,12,15,19];
+var ESPESORES = [5,6,9,12];
 var CPB_OPTS = ['No','Perimetral','Larguero','Largueros','Cabezal','Cabezales','1 Larguero - 1 cabezal','2 Largueros - 1 cabezal','1 Larguero - 2 cabezales'];
 
 function esc(s) {
