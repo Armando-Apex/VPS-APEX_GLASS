@@ -261,6 +261,84 @@ if ($recurso === 'cotizacion') {
         exit;
     }
     }
+
+    if ($method === 'POST' && ($body['accion'] ?? '') === 'actualizar') {
+        if (!in_array($rol, ['dir_admin','dueno','comercial','desarrollo'])) {
+            jsonResponse(['error' => 'Sin permiso'], 403);
+        }
+        $id = (int)($body['id'] ?? 0);
+        if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
+
+        $stmt = $db->prepare("SELECT estatus FROM cotizaciones WHERE id = ? AND tipo = 'maquila'");
+        $stmt->execute([$id]);
+        $cot = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$cot) { jsonResponse(['error' => 'No encontrada']); exit; }
+        if ($cot['estatus'] !== 'cotizacion') { jsonResponse(['error' => 'Solo se pueden editar cotizaciones (no órdenes)']); exit; }
+
+        $partidas = $body['partidas'] ?? [];
+        if (empty($partidas)) { jsonResponse(['error' => 'Se requiere al menos una partida']); exit; }
+
+        $partidas_calc = [];
+        $subtotal_total = 0;
+        foreach ($partidas as $p) {
+            $calc = calcularPartidaMaquila($db, $p);
+            if ($calc === null) continue;
+            if (isset($calc['__error'])) { jsonResponse(['error' => $calc['__error']]); exit; }
+            $partidas_calc[] = $calc;
+            $subtotal_total += $calc['subtotal'];
+        }
+        if (empty($partidas_calc)) { jsonResponse(['error' => 'Ninguna partida válida']); exit; }
+
+        $iva_total   = round($subtotal_total * 0.16, 2);
+        $total_final = round($subtotal_total + $iva_total, 2);
+
+        $db->beginTransaction();
+        try {
+            $db->prepare("UPDATE cotizaciones SET subtotal=?, iva=?, total=?, saldo_pendiente=?, updated_at=NOW() WHERE id=?")
+               ->execute([$subtotal_total, $iva_total, $total_final, $total_final, $id]);
+
+            $db->prepare("DELETE FROM cotizaciones_maquila_partidas WHERE cotizacion_id = ?")->execute([$id]);
+
+            $stmtP = $db->prepare("INSERT INTO cotizaciones_maquila_partidas
+                (cotizacion_id, num_partida, cristal_tipo_id, espesor_mm, ancho, alto, cantidad, m2,
+                 corte, ml_corte, precio_corte_usado, subtotal_corte,
+                 canteado, cpb, ml_canteado, precio_canteado_usado, subtotal_canteado,
+                 taladros_pasados, taladros_avellanados, precio_taladro_usado, subtotal_taladro,
+                 templado, precio_horno_usado, subtotal_horno,
+                 detalles, subtotal)
+                VALUES (?,?,?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?)
+            ");
+            foreach ($partidas_calc as $i => $p) {
+                $stmtP->execute([
+                    $id, $i + 1, $p['cristal_tipo_id'], $p['espesor_mm'], $p['ancho'], $p['alto'], $p['cantidad'], $p['m2'],
+                    $p['corte'], $p['ml_corte'], $p['precio_corte_usado'], $p['subtotal_corte'],
+                    $p['canteado'], $p['cpb'], $p['ml_canteado'], $p['precio_canteado_usado'], $p['subtotal_canteado'],
+                    $p['taladros_pasados'], $p['taladros_avellanados'], $p['precio_taladro_usado'], $p['subtotal_taladro'],
+                    $p['templado'], $p['precio_horno_usado'], $p['subtotal_horno'],
+                    $p['detalles'], $p['subtotal']
+                ]);
+            }
+
+            $db->commit();
+            jsonResponse(['ok' => true]);
+            exit;
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => 'Error al actualizar: ' . $e->getMessage()], 500);
+            exit;
+        }
+    }
+
+    if ($method === 'POST' && ($body['accion'] ?? '') === 'cancelar') {
+        if (!in_array($rol, ['dir_admin','dueno','desarrollo'])) {
+            jsonResponse(['error' => 'Sin permiso'], 403);
+        }
+        $id = (int)($body['id'] ?? 0);
+        if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
+        $db->prepare("UPDATE cotizaciones SET estatus = 'cancelada' WHERE id = ? AND tipo = 'maquila'")->execute([$id]);
+        jsonResponse(['ok' => true]);
+        exit;
+    }
 }
 
 // ─── Recurso: tipos_vidrio ────────────────────────────────────────────────────
