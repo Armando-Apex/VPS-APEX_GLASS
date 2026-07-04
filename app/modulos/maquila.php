@@ -603,6 +603,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
   <div class="acciones">
     <button class="btn btn-primary" id="md_btnConvertir" onclick="ModMaquilaDetalle._convertir()" style="display:none">Convertir a Orden</button>
     <button class="btn btn-danger" id="md_btnCancelar" onclick="ModMaquilaDetalle._cancelar()" style="display:none">Cancelar</button>
+    <span id="md_acciones_imprimir" style="display:contents"></span>
   </div>
   <div id="md_error" style="color:#dc2626;margin-top:8px;font-size:13px;font-weight:600"></div>
 </div>
@@ -663,6 +664,19 @@ function render() {
     document.getElementById('md_btnConvertir').style.display = 'inline-block';
     document.getElementById('md_btnCancelar').style.display = 'inline-block';
   }
+
+  var htmlImp = '';
+  if (cot.estatus === 'cotizacion') {
+    htmlImp += '<a class="btn btn-ghost" href="../app/imprimir_cotizacion.php?id=' + cotId + '" target="_blank" rel="noopener">Imprimir Cotizaci&oacute;n</a>';
+  }
+  if (cot.estatus === 'orden' && window._puedeEditarMaquila) {
+    htmlImp += '<a class="btn btn-ghost" href="../app/imprimir_cotizacion.php?id=' + cotId + '&remision=1" target="_blank" rel="noopener">Remisi&oacute;n</a>';
+    htmlImp += '<a class="btn btn-ghost" href="../app/imprimir_orden.php?id=' + cotId + '" target="_blank" rel="noopener">Orden de Producci&oacute;n</a>';
+    if (cot.orden_folio) {
+      htmlImp += '<a class="btn btn-ghost" href="../app/imprimir_etiquetas.php?folio=' + encodeURIComponent(cot.orden_folio) + '" target="_blank" rel="noopener">Imprimir Etiquetas</a>';
+    }
+  }
+  document.getElementById('md_acciones_imprimir').innerHTML = htmlImp;
 }
 
 async function convertir() {
