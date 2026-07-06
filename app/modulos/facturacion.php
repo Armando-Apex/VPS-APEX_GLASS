@@ -279,12 +279,28 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 
       <!-- Buscar cliente CRM -->
       <div class="fac-section-title">Receptor (Cliente)</div>
+
       <div class="fac-field" style="margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;font-weight:600">
+          <input type="checkbox" id="fac-publico-general" onchange="ModFacturacion.togglePublicoGeneral()" style="width:auto">
+          Facturar a Público en General
+        </label>
+        <div class="fac-hint">Úsalo cuando el cliente no quiere factura a su nombre. El CFDI sale genérico, pero queda registrado internamente quién lo pidió.</div>
+      </div>
+
+      <div class="fac-field" id="fac-solicito-wrap" style="display:none;margin-bottom:14px">
+        <label>Cliente que lo solicitó <span style="font-weight:400;text-transform:none;font-size:10px;color:#94a3b8">(registro interno, no aparece en el CFDI)</span></label>
+        <select id="fac-solicito-cli">
+          <option value="">— Selecciona el cliente real —</option>
+        </select>
+      </div>
+
+      <div class="fac-field" id="fac-cli-normal-wrap" style="margin-bottom:14px">
         <label>Cliente en CRM</label>
         <select id="fac-cli-q" onchange="ModFacturacion.seleccionarClienteSelect()">
           <option value="">— Selecciona un cliente —</option>
         </select>
-        <div id="fac-cli-ok"   class="fac-cli-ok">&#10003; <strong id="fac-cli-ok-nombre"></strong> seleccionado — datos pre-llenados desde el CRM. <button onclick="ModFacturacion.limpiarCliente()" style="background:none;border:none;color:#166534;text-decoration:underline;cursor:pointer;font-size:11px;padding:0">Limpiar</button></div>
+        <div id="fac-cli-ok"   class="fac-cli-ok">&#10003; <strong id="fac-cli-ok-nombre"></strong> seleccionado — datos pre-llenados desde el CRM (bloqueados para edición). <button onclick="ModFacturacion.limpiarCliente()" style="background:none;border:none;color:#166534;text-decoration:underline;cursor:pointer;font-size:11px;padding:0">Limpiar</button> <button id="fac-receptor-unlock" onclick="ModFacturacion.desbloquearReceptor()" style="display:none;background:none;border:none;color:#92400e;text-decoration:underline;cursor:pointer;font-size:11px;padding:0;margin-left:8px">Editar de todos modos</button></div>
         <div id="fac-cli-warn" class="fac-cli-warn">&#9888; Este cliente no tiene datos fiscales en el CRM. Sube la Constancia SAT abajo o agrégalos en el m&#243;dulo <strong>Clientes</strong>.</div>
       </div>
       <div class="fac-row cols2">
@@ -300,8 +316,8 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
       </div>
       <div class="fac-row cols3">
         <div class="fac-field">
-          <label>RFC <span style="font-weight:400;text-transform:none;font-size:10px;color:#94a3b8">(prueba)</span></label>
-          <input type="text" id="fac-rfc" value="XAXX010101000" maxlength="13" style="text-transform:uppercase">
+          <label>RFC</label>
+          <input type="text" id="fac-rfc" placeholder="XAXX010101000 (público en general)" maxlength="13" style="text-transform:uppercase">
           <div class="fac-hint">CFDI 4.0: debe coincidir exactamente con el SAT</div>
         </div>
         <div class="fac-field">
@@ -419,40 +435,17 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
   </div>
 </div>
 
-<!-- ── Modal cambio de estatus ── -->
+<!-- ── Modal cancelar factura (timbrada → cancelada, vía FacturAPI) ── -->
 <div class="fac-overlay" id="fac-est-overlay">
   <div class="fac-modal" style="width:420px">
     <div class="fac-modal-head">
-      <h3>Cambiar Estatus</h3>
+      <h3>Cancelar Factura</h3>
       <button class="fac-modal-close" onclick="ModFacturacion.cerrarEstatus()">&times;</button>
     </div>
     <div class="fac-modal-body">
-      <div style="font-size:13px;color:#475569;margin-bottom:4px">Factura: <strong id="fac-est-folio"></strong></div>
+      <div style="font-size:13px;color:#475569;margin-bottom:12px">Factura: <strong id="fac-est-folio"></strong></div>
 
-      <div class="fac-est-opts">
-        <button class="fac-est-btn" id="fac-ebtn-pendiente" onclick="ModFacturacion.selEstatus('pendiente')">
-          <div style="font-size:20px;margin-bottom:6px">🕐</div>
-          Pendiente
-        </button>
-        <button class="fac-est-btn" id="fac-ebtn-timbrada" onclick="ModFacturacion.selEstatus('timbrada')">
-          <div style="font-size:20px;margin-bottom:6px">✅</div>
-          Timbrada
-        </button>
-        <button class="fac-est-btn" id="fac-ebtn-cancelada" onclick="ModFacturacion.selEstatus('cancelada')">
-          <div style="font-size:20px;margin-bottom:6px">❌</div>
-          Cancelada
-        </button>
-      </div>
-
-      <!-- UUID — solo aparece al seleccionar Timbrada -->
-      <div id="fac-uuid-wrap" class="fac-uuid-box" style="display:none">
-        <label>UUID / Folio Fiscal SAT</label>
-        <input type="text" id="fac-uuid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" maxlength="36" style="font-family:monospace">
-        <div class="fac-hint" style="color:#166534;margin-top:4px">El UUID lo entrega el PAC (Facturama / FacturAPI) al timbrar</div>
-      </div>
-
-      <!-- Motivo cancelación — solo aparece al seleccionar Cancelada -->
-      <div id="fac-motivo-wrap" class="fac-motivo-wrap">
+      <div class="fac-motivo-wrap visible">
         <label>Motivo de cancelación (SAT)</label>
         <select id="fac-motivo-cancel">
           <option value="01">01 – Error en la factura, se sustituye por otra</option>
@@ -460,12 +453,12 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
           <option value="03">03 – No se realizó la operación</option>
           <option value="04">04 – Operación nominativa en factura global</option>
         </select>
-        <div class="fac-hint" style="margin-top:4px;color:#dc2626">La cancelación >$1,000 MXN o después de 72 hrs requiere aceptación del cliente en su buzón SAT</div>
+        <div class="fac-hint" style="margin-top:4px;color:#dc2626">La cancelación >$1,000 MXN o después de 72 hrs requiere aceptación del cliente en su buzón SAT. Esta acción se envía directamente al PAC (FacturAPI) y no se puede deshacer.</div>
       </div>
     </div>
     <div class="fac-modal-foot">
-      <button class="fac-btn-cancel" onclick="ModFacturacion.cerrarEstatus()">Cancelar</button>
-      <button class="fac-btn-save" onclick="ModFacturacion.confirmarEstatus()">Aplicar</button>
+      <button class="fac-btn-cancel" onclick="ModFacturacion.cerrarEstatus()">Cerrar</button>
+      <button class="fac-btn-save" onclick="ModFacturacion.confirmarEstatus()">Confirmar cancelación</button>
     </div>
   </div>
 </div>
@@ -473,7 +466,6 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 <script>
 var ModFacturacion = (function() {
   var _editingEstId = null;
-  var _estatusSel   = null;
   var _facturas     = [];
 
   var CLAVES_SAT = [
@@ -490,6 +482,12 @@ var ModFacturacion = (function() {
     {v:'ACT', l:'ACT – Actividad'},
     {v:'KGM', l:'KGM – Kilogramo'},
   ];
+
+  function _esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+  }
 
   function _apiFetch(url, opts, cb) {
     var xhr = new XMLHttpRequest();
@@ -602,10 +600,16 @@ var ModFacturacion = (function() {
       var esBorrador  = f.estatus === 'borrador';
       var esTimbrada  = f.estatus === 'timbrada';
       var modoBadge   = (f.modo === 'test') ? '<span style="font-size:9px;background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">PRUEBA</span>' : '';
+      var pubGeneral  = (f.receptor_rfc === 'XAXX010101000');
+      var pubBadge    = pubGeneral ? '<span style="font-size:9px;background:#e0e7ff;color:#3730a3;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">PÚB. GRAL.</span>' : '';
       html += '<tr>';
-      html += '<td style="font-weight:600;color:#2563eb">' + f.folio_interno + modoBadge + '</td>';
+      html += '<td style="font-weight:600;color:#2563eb">' + f.folio_interno + modoBadge + pubBadge + '</td>';
       html += '<td><div style="font-weight:600">' + (f.receptor_nombre||'—') + '</div>';
-      html += '<div style="font-size:11px;color:#94a3b8">' + (f.receptor_rfc||'') + '</div></td>';
+      html += '<div style="font-size:11px;color:#94a3b8">' + (f.receptor_rfc||'') + '</div>';
+      if (pubGeneral && f.cliente_solicito_nombre) {
+        html += '<div style="font-size:10px;color:#3730a3;margin-top:2px">Solicitó: ' + _esc(f.cliente_solicito_nombre) + '</div>';
+      }
+      html += '</td>';
       html += '<td style="font-size:12px">' + (TIPOS[f.tipo_cfdi]||f.tipo_cfdi) + '</td>';
       html += '<td style="font-size:12px">' + (f.receptor_uso_cfdi||'') + ' <span style="color:#94a3b8">/ ' + (f.metodo_pago||'') + '</span></td>';
       html += '<td style="font-weight:600">' + _fmt(f.total) + '</td>';
@@ -624,8 +628,9 @@ var ModFacturacion = (function() {
       } else if (esTimbrada) {
         html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">Descargar PDF</a>';
         html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=xml&id=' + f.id + '" target="_blank">Descargar XML</a>';
+        html += '<hr class="fac-menu-sep">';
+        html += '<button class="fac-menu-item danger" onclick="ModFacturacion.menuCerrar();ModFacturacion.abrirEstatus(' + f.id + ')">Cancelar factura (SAT)</button>';
         if (f.modo === 'test') {
-          html += '<hr class="fac-menu-sep">';
           html += '<button class="fac-menu-item danger" onclick="ModFacturacion.menuCerrar();ModFacturacion.eliminar(' + f.id + ')">Eliminar (prueba)</button>';
         }
       }
@@ -666,6 +671,10 @@ var ModFacturacion = (function() {
     document.getElementById('fac-regimen').value    = '';
     document.getElementById('fac-forma-pago').value  = '';
     document.getElementById('fac-metodo-pago').value = '';
+    document.getElementById('fac-publico-general').checked = false;
+    document.getElementById('fac-solicito-wrap').style.display   = 'none';
+    document.getElementById('fac-cli-normal-wrap').style.display = 'block';
+    document.getElementById('fac-uso-cfdi').disabled = false;
     tipoChange();
     document.getElementById('fac-conceptos-body').innerHTML = _conceptoRow('', '', '', 1, '', true);
     recalc();
@@ -719,7 +728,6 @@ var ModFacturacion = (function() {
     var f = null;
     for (var i = 0; i < _facturas.length; i++) { if (String(_facturas[i].id) === String(id)) { f = _facturas[i]; break; } }
     if (!f) return;
-    if (!_clienteslistaCargada) _cargarListaClientes();
     document.getElementById('fac-modal-titulo').textContent = 'Editar Factura';
     document.getElementById('fac-edit-id').value            = f.id;
     document.getElementById('fac-folio').value              = f.folio_interno;
@@ -734,6 +742,19 @@ var ModFacturacion = (function() {
     document.getElementById('fac-regimen').value            = f.receptor_regimen  || '';
     document.getElementById('fac-forma-pago').value         = f.forma_pago        || '';
     document.getElementById('fac-metodo-pago').value        = f.metodo_pago       || '';
+
+    var esPublicoGeneral = (f.receptor_rfc === 'XAXX010101000');
+    document.getElementById('fac-publico-general').checked = esPublicoGeneral;
+    document.getElementById('fac-solicito-wrap').style.display   = esPublicoGeneral ? 'block' : 'none';
+    document.getElementById('fac-cli-normal-wrap').style.display = esPublicoGeneral ? 'none'  : 'block';
+    document.getElementById('fac-uso-cfdi').disabled = esPublicoGeneral;
+    _lockReceptor(esPublicoGeneral);
+    var setSolicito = function() {
+      var sel = document.getElementById('fac-solicito-cli');
+      if (sel) sel.value = f.cliente_solicito_id || '';
+    };
+    if (!_clienteslistaCargada) { _cargarListaClientes(setSolicito); } else { setSolicito(); }
+
     tipoChange();
     var tbody = document.getElementById('fac-conceptos-body');
     tbody.innerHTML = '';
@@ -752,6 +773,8 @@ var ModFacturacion = (function() {
   }
 
   function guardar() {
+    var esPublicoGeneral = document.getElementById('fac-publico-general').checked;
+
     var errores = [];
     if (!document.getElementById('fac-receptor-nombre').value.trim()) errores.push('Nombre / Razón Social');
     if (!document.getElementById('fac-rfc').value.trim())             errores.push('RFC');
@@ -760,25 +783,27 @@ var ModFacturacion = (function() {
     if (!document.getElementById('fac-regimen').value)                errores.push('Régimen Fiscal');
     if (!document.getElementById('fac-forma-pago').value)             errores.push('Forma de Pago');
     if (!document.getElementById('fac-metodo-pago').value)            errores.push('Método de Pago');
+    if (esPublicoGeneral && !document.getElementById('fac-solicito-cli').value) errores.push('Cliente que solicitó Público en General');
     if (errores.length) {
       alert('Faltan campos obligatorios:\n\n• ' + errores.join('\n• '));
       return;
     }
 
     var payload = {
-      id:                 document.getElementById('fac-edit-id').value || null,
-      serie:              document.getElementById('fac-serie').value.trim() || 'A',
-      tipo_cfdi:          document.getElementById('fac-tipo-cfdi').value,
-      fecha:              document.getElementById('fac-fecha').value,
-      receptor_nombre:    document.getElementById('fac-receptor-nombre').value.trim(),
-      receptor_rfc:       document.getElementById('fac-rfc').value.trim().toUpperCase(),
-      receptor_cp:        document.getElementById('fac-cp').value.trim(),
-      receptor_regimen:   document.getElementById('fac-regimen').value,
-      receptor_uso_cfdi:  document.getElementById('fac-uso-cfdi').value,
-      receptor_email:     document.getElementById('fac-email').value.trim(),
-      forma_pago:         document.getElementById('fac-forma-pago').value,
-      metodo_pago:        document.getElementById('fac-metodo-pago').value,
-      conceptos:          _getConceptos(),
+      id:                   document.getElementById('fac-edit-id').value || null,
+      serie:                document.getElementById('fac-serie').value.trim() || 'A',
+      tipo_cfdi:            document.getElementById('fac-tipo-cfdi').value,
+      fecha:                document.getElementById('fac-fecha').value,
+      receptor_nombre:      document.getElementById('fac-receptor-nombre').value.trim(),
+      receptor_rfc:         document.getElementById('fac-rfc').value.trim().toUpperCase(),
+      receptor_cp:          document.getElementById('fac-cp').value.trim(),
+      receptor_regimen:     document.getElementById('fac-regimen').value,
+      receptor_uso_cfdi:    document.getElementById('fac-uso-cfdi').value,
+      receptor_email:       document.getElementById('fac-email').value.trim(),
+      cliente_solicito_id:  esPublicoGeneral ? (document.getElementById('fac-solicito-cli').value || null) : null,
+      forma_pago:           document.getElementById('fac-forma-pago').value,
+      metodo_pago:          document.getElementById('fac-metodo-pago').value,
+      conceptos:            _getConceptos(),
     };
 
     var btn = document.querySelector('#fac-overlay .fac-btn-save');
@@ -819,58 +844,30 @@ var ModFacturacion = (function() {
   }
 
   function abrirEstatus(id) {
-    var data = _load();
     var f = null;
-    for (var i = 0; i < data.length; i++) { if (data[i].id === id) { f = data[i]; break; } }
+    for (var i = 0; i < _facturas.length; i++) { if (String(_facturas[i].id) === String(id)) { f = _facturas[i]; break; } }
     if (!f) return;
     _editingEstId = f.id;
-    _estatusSel   = f.estatus;
-    document.getElementById('fac-est-folio').textContent = f.folio;
-    document.getElementById('fac-uuid').value = f.uuid || '';
-    document.getElementById('fac-motivo-cancel').value = f.motivo_cancel || '01';
-    _actualizarEstPanel(f.estatus);
+    document.getElementById('fac-est-folio').textContent = f.folio_interno;
+    document.getElementById('fac-motivo-cancel').value = '01';
     document.getElementById('fac-est-overlay').classList.add('open');
-  }
-
-  function _actualizarEstPanel(est) {
-    var ids = ['pendiente', 'timbrada', 'cancelada'];
-    for (var i = 0; i < ids.length; i++) {
-      var btn = document.getElementById('fac-ebtn-' + ids[i]);
-      if (btn) { btn.className = 'fac-est-btn' + (ids[i] === est ? ' sel-' + ids[i] : ''); }
-    }
-    document.getElementById('fac-uuid-wrap').style.display    = (est === 'timbrada')  ? 'block' : 'none';
-    document.getElementById('fac-motivo-wrap').className = 'fac-motivo-wrap' + (est === 'cancelada' ? ' visible' : '');
-  }
-
-  function selEstatus(est) {
-    _estatusSel = est;
-    _actualizarEstPanel(est);
   }
 
   function cerrarEstatus() {
     _editingEstId = null;
-    _estatusSel   = null;
     document.getElementById('fac-est-overlay').classList.remove('open');
   }
 
   function confirmarEstatus() {
-    if (!_editingEstId || !_estatusSel) return;
-    var data = _load();
-    for (var i = 0; i < data.length; i++) {
-      if (data[i].id === _editingEstId) {
-        data[i].estatus = _estatusSel;
-        if (_estatusSel === 'timbrada') {
-          data[i].uuid = document.getElementById('fac-uuid').value.trim();
-        }
-        if (_estatusSel === 'cancelada') {
-          data[i].motivo_cancel = document.getElementById('fac-motivo-cancel').value;
-        }
-        break;
-      }
-    }
-    _save(data);
-    cerrarEstatus();
-    _renderTabla();
+    if (!_editingEstId) return;
+    var motivo = document.getElementById('fac-motivo-cancel').value;
+    if (!confirm('¿Cancelar esta factura ante el SAT? Esta acción no se puede deshacer.')) return;
+    var id = _editingEstId;
+    _apiFetch('../api/facturapi.php?accion=cancelar', {method:'POST', body:JSON.stringify({id:id, motivo:motivo})}, function(err, res) {
+      if (err || !res.ok) { alert('Error al cancelar: ' + (err || res.error)); return; }
+      cerrarEstatus();
+      _cargarLista();
+    });
   }
 
   function agregarConcepto() {
@@ -895,6 +892,16 @@ var ModFacturacion = (function() {
           html += '<option value="' + i + '">' + nombre + (c.codigo ? ' (' + c.codigo + ')' : '') + '</option>';
         }
         sel.innerHTML = html;
+      }
+      var selSolicito = document.getElementById('fac-solicito-cli');
+      if (selSolicito) {
+        var html2 = '<option value="">— Selecciona el cliente real —</option>';
+        for (var j = 0; j < _cliOpciones.length; j++) {
+          var c2 = _cliOpciones[j];
+          var nombre2 = c2.razon_social || c2.nombre || '—';
+          html2 += '<option value="' + c2.id + '">' + nombre2 + (c2.codigo ? ' (' + c2.codigo + ')' : '') + '</option>';
+        }
+        selSolicito.innerHTML = html2;
       }
       _clienteslistaCargada = true;
       if (cb) cb();
@@ -943,6 +950,55 @@ var ModFacturacion = (function() {
     // Si ya tiene RFC completo, bajar opacidad de la zona CSF (ya no es necesaria)
     var cstDrop = document.getElementById('fac-cst-drop');
     if (cstDrop) cstDrop.style.opacity = tieneFiscal ? '0.4' : '1';
+
+    // Bloquear edición manual del receptor mientras haya un cliente CRM con datos fiscales completos seleccionado
+    _lockReceptor(tieneFiscal);
+  }
+
+  function _lockReceptor(lock) {
+    var campos = ['fac-receptor-nombre', 'fac-email', 'fac-rfc', 'fac-cp', 'fac-regimen'];
+    for (var i = 0; i < campos.length; i++) {
+      var el = document.getElementById(campos[i]);
+      if (!el) continue;
+      if (lock) { el.setAttribute('readonly', 'readonly'); el.disabled = (el.tagName === 'SELECT'); el.style.background = '#f8fafc'; el.style.color = '#64748b'; }
+      else { el.removeAttribute('readonly'); el.disabled = false; el.style.background = ''; el.style.color = ''; }
+    }
+    var link = document.getElementById('fac-receptor-unlock');
+    if (link) link.style.display = lock ? 'inline' : 'none';
+  }
+
+  function desbloquearReceptor() {
+    if (!confirm('¿Editar el receptor manualmente? Asegúrate de que los datos coincidan exactamente con el SAT del cliente.')) return;
+    _lockReceptor(false);
+  }
+
+  function togglePublicoGeneral() {
+    var chk = document.getElementById('fac-publico-general');
+    var on  = chk && chk.checked;
+    document.getElementById('fac-solicito-wrap').style.display   = on ? 'block' : 'none';
+    document.getElementById('fac-cli-normal-wrap').style.display = on ? 'none'  : 'block';
+
+    if (on) {
+      limpiarCliente();
+      if (!_clienteslistaCargada) _cargarListaClientes();
+      var setVal = function(id, val) { var el = document.getElementById(id); if (el) el.value = val; };
+      setVal('fac-receptor-nombre', 'PUBLICO EN GENERAL');
+      setVal('fac-rfc', 'XAXX010101000');
+      setVal('fac-regimen', '616');
+      setVal('fac-uso-cfdi', 'S01');
+      setVal('fac-email', '');
+      _lockReceptor(true);
+      document.getElementById('fac-uso-cfdi').disabled = true;
+    } else {
+      document.getElementById('fac-solicito-cli').value = '';
+      var setVal2 = function(id, val) { var el = document.getElementById(id); if (el) el.value = val; };
+      setVal2('fac-receptor-nombre', '');
+      setVal2('fac-rfc', '');
+      setVal2('fac-regimen', '');
+      setVal2('fac-uso-cfdi', '');
+      _lockReceptor(false);
+      document.getElementById('fac-uso-cfdi').disabled = false;
+    }
   }
 
   function limpiarCliente() {
@@ -954,6 +1010,7 @@ var ModFacturacion = (function() {
     if (warnEl) warnEl.className = 'fac-cli-warn';
     var cstDrop = document.getElementById('fac-cst-drop');
     if (cstDrop) cstDrop.style.opacity = '1';
+    _lockReceptor(false);
   }
 
   // ── Sugerencias de folio de orden ─────────────────────────────────────────────
@@ -1360,7 +1417,6 @@ var ModFacturacion = (function() {
     eliminar:        eliminar,
     abrirEstatus:    abrirEstatus,
     cerrarEstatus:   cerrarEstatus,
-    selEstatus:      selEstatus,
     confirmarEstatus: confirmarEstatus,
     agregarConcepto: agregarConcepto,
     recalc:          recalc,
@@ -1379,7 +1435,9 @@ var ModFacturacion = (function() {
     buscarOrden:          buscarOrden,
     sugerirOrdenes:       sugerirOrdenes,
     _elegirOrdenFolio:    _elegirOrdenFolio,
-    limpiarCliente:       limpiarCliente
+    limpiarCliente:       limpiarCliente,
+    desbloquearReceptor:  desbloquearReceptor,
+    togglePublicoGeneral: togglePublicoGeneral
   };
 })();
 

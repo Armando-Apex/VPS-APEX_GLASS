@@ -83,14 +83,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
     // Relacionar con la cotización de origen vía prefijo del qr_code de sus piezas
     // (ordenes no tiene cotizacion_id; el qr_code se generó como "{folio_cotizacion}-P{partida}-...")
     $stmt = $pdo->prepare("
-        SELECT c.id
+        SELECT c.id, c.descuento
         FROM piezas pz
         JOIN cotizaciones c ON pz.qr_code LIKE CONCAT(c.folio, '-%')
         WHERE pz.orden_id = ?
         LIMIT 1
     ");
     $stmt->execute([$orden['id']]);
-    $cotId = $stmt->fetchColumn();
+    $cot       = $stmt->fetch(PDO::FETCH_ASSOC);
+    $cotId     = $cot['id'] ?? null;
+    $descuento = (float)($cot['descuento'] ?? 0);
 
     $conceptos = [];
     if ($cotId) {
@@ -102,12 +104,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
         ");
         $stmt->execute([$cotId]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            // precio_m2_usado es bruto (sin descuento) — aplicar el % de la cotización, igual que el resto del sistema.
+            // Se redondea a 6 decimales (no 4) para no perder precisión de m2 (decimal(10,6) en BD) al multiplicar.
+            $precioNeto = $descuento > 0
+                ? round((float)$p['precio_m2_usado'] * (1 - $descuento / 100), 6)
+                : (float)$p['precio_m2_usado'];
             $conceptos[] = [
                 'desc'   => $p['cristal_nombre'] ?: 'Vidrio',
                 'clave'  => '',
                 'unidad' => 'MTK',
-                'cant'   => round((float)$p['m2'] * (int)$p['cantidad'], 4),
-                'precio' => (float)$p['precio_m2_usado'],
+                'cant'   => round((float)$p['m2'] * (int)$p['cantidad'], 6),
+                'precio' => $precioNeto,
                 'iva'    => true,
             ];
         }
@@ -120,13 +127,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
 // ── GET lista ─────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'lista') {
     $rows = $pdo->query("
-        SELECT id, folio_interno, serie, folio_numero, tipo_cfdi, fecha,
-               receptor_nombre, receptor_rfc, receptor_cp, receptor_regimen,
-               receptor_uso_cfdi, receptor_email, forma_pago, metodo_pago,
-               conceptos, subtotal, iva, total,
-               estatus, uuid, modo, pdf_url, created_at
-        FROM facturas
-        ORDER BY id DESC
+        SELECT f.id, f.folio_interno, f.serie, f.folio_numero, f.tipo_cfdi, f.fecha,
+               f.receptor_nombre, f.receptor_rfc, f.receptor_cp, f.receptor_regimen,
+               f.receptor_uso_cfdi, f.receptor_email, f.cliente_solicito_id,
+               COALESCE(NULLIF(cs.razon_social,''), cs.nombre) AS cliente_solicito_nombre,
+               f.forma_pago, f.metodo_pago,
+               f.conceptos, f.subtotal, f.iva, f.total,
+               f.estatus, f.uuid, f.modo, f.pdf_url, f.created_at
+        FROM facturas f
+        LEFT JOIN clientes cs ON cs.id = f.cliente_solicito_id
+        ORDER BY f.id DESC
         LIMIT 200
     ")->fetchAll(PDO::FETCH_ASSOC);
     jsonResponse(['ok' => true, 'facturas' => $rows]);
@@ -144,6 +154,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
     foreach ($requeridos as $k) {
         if (empty($d[$k])) {
             jsonResponse(['ok'=>false,'error'=>'Campo requerido: '.$k]); exit;
+        }
+    }
+
+    // Público en General: exige ligar al cliente real que lo pidió, para trazabilidad interna
+    $clienteSolicitoId = null;
+    if (strtoupper(trim($d['receptor_rfc'])) === 'XAXX010101000') {
+        $clienteSolicitoId = (int)($d['cliente_solicito_id'] ?? 0);
+        if (!$clienteSolicitoId) {
+            jsonResponse(['ok'=>false,'error'=>'Facturas a Público en General requieren ligar al cliente real que lo solicitó']); exit;
+        }
+        $stmt = $pdo->prepare("SELECT id FROM clientes WHERE id=?");
+        $stmt->execute([$clienteSolicitoId]);
+        if (!$stmt->fetchColumn()) {
+            jsonResponse(['ok'=>false,'error'=>'El cliente que solicitó Público en General no existe']); exit;
         }
     }
 
@@ -174,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
             UPDATE facturas SET
                 tipo_cfdi=?, fecha=?, receptor_nombre=?, receptor_rfc=?,
                 receptor_cp=?, receptor_regimen=?, receptor_uso_cfdi=?,
-                receptor_email=?, forma_pago=?, metodo_pago=?,
+                receptor_email=?, cliente_solicito_id=?, forma_pago=?, metodo_pago=?,
                 conceptos=?, subtotal=?, iva=?, total=?, updated_at=NOW()
             WHERE id=? AND estatus='borrador' AND creado_por=?
         ");
@@ -182,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
             $d['tipo_cfdi'] ?? 'I', $d['fecha'] ?? date('Y-m-d'),
             $d['receptor_nombre'], $d['receptor_rfc'], $d['receptor_cp'],
             $d['receptor_regimen'], $d['receptor_uso_cfdi'],
-            $d['receptor_email'] ?? null, $d['forma_pago'], $d['metodo_pago'],
+            $d['receptor_email'] ?? null, $clienteSolicitoId, $d['forma_pago'], $d['metodo_pago'],
             json_encode($d['conceptos']), $sub, $iva, $total, $id, $user['nombre']
         ]);
         jsonResponse(['ok'=>true,'id'=>$id,'folio'=>$folioInterno,'total'=>$total]);
@@ -192,16 +216,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
             INSERT INTO facturas
                 (folio_interno, serie, folio_numero, tipo_cfdi, fecha,
                  receptor_nombre, receptor_rfc, receptor_cp, receptor_regimen,
-                 receptor_uso_cfdi, receptor_email, forma_pago, metodo_pago,
+                 receptor_uso_cfdi, receptor_email, cliente_solicito_id, forma_pago, metodo_pago,
                  conceptos, subtotal, iva, total, estatus, modo, creado_por)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'borrador',?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'borrador',?,?)
         ");
         $stmt->execute([
             $folioInterno, $serie, $folioNum,
             $d['tipo_cfdi'] ?? 'I', $d['fecha'] ?? date('Y-m-d'),
             $d['receptor_nombre'], $d['receptor_rfc'], $d['receptor_cp'],
             $d['receptor_regimen'], $d['receptor_uso_cfdi'],
-            $d['receptor_email'] ?? null, $d['forma_pago'], $d['metodo_pago'],
+            $d['receptor_email'] ?? null, $clienteSolicitoId, $d['forma_pago'], $d['metodo_pago'],
             json_encode($d['conceptos']), $sub, $iva, $total,
             FACTURAPI_MODE, $user['nombre']
         ]);
@@ -283,7 +307,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curlErr  = curl_error($ch);
-    curl_close($ch);
+    unset($ch);
 
     if ($curlErr) {
         jsonResponse(['ok'=>false,'error'=>'Error de conexión con FacturAPI: '.$curlErr]);
@@ -343,7 +367,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && in_array($accion, ['pdf','xml'])) {
     ]);
     $data     = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    unset($ch);
 
     if ($httpCode !== 200) { http_response_code(502); exit; }
 
@@ -368,6 +392,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'eliminar') {
         exit;
     }
     jsonResponse(['ok'=>true]);
+    exit;
+}
+
+// ── POST cancelar (timbrada → cancelada, vía FacturAPI) ──────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'cancelar') {
+    $d      = json_decode(file_get_contents('php://input'), true);
+    $id     = (int)($d['id'] ?? 0);
+    $motivo = $d['motivo'] ?? '';
+    if (!$id) { jsonResponse(['ok'=>false,'error'=>'ID requerido']); exit; }
+    if (!in_array($motivo, ['01','02','03','04'], true)) {
+        jsonResponse(['ok'=>false,'error'=>'Motivo de cancelación inválido']); exit;
+    }
+
+    $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=? AND estatus='timbrada' AND creado_por=?");
+    $stmt->execute([$id, $user['nombre']]);
+    $fac = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$fac) { jsonResponse(['ok'=>false,'error'=>'Factura no encontrada o no está timbrada']); exit; }
+
+    $url = 'https://www.facturapi.io/v2/invoices/' . $fac['facturapi_id'];
+    $ch  = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER  => true,
+        CURLOPT_CUSTOMREQUEST   => 'DELETE',
+        CURLOPT_POSTFIELDS      => json_encode(['motive' => $motivo]),
+        CURLOPT_HTTPHEADER      => [
+            'Authorization: Bearer ' . FACTURAPI_KEY,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_TIMEOUT         => 30,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr  = curl_error($ch);
+    unset($ch);
+
+    if ($curlErr) {
+        jsonResponse(['ok'=>false,'error'=>'Error de conexión con FacturAPI: '.$curlErr]);
+        exit;
+    }
+
+    $res = json_decode($response, true);
+
+    if ($httpCode !== 200) {
+        $msg = $res['message'] ?? $res['error'] ?? 'Error desconocido de FacturAPI';
+        error_log('APEX FacturAPI cancelar error '.$httpCode.': '.$response);
+        jsonResponse(['ok'=>false,'error'=>'FacturAPI: '.$msg]);
+        exit;
+    }
+
+    $stmt = $pdo->prepare("
+        UPDATE facturas SET estatus='cancelada', motivo_cancel=?, updated_at=NOW()
+        WHERE id=?
+    ");
+    $stmt->execute([$motivo, $id]);
+
+    jsonResponse(['ok'=>true, 'estatus'=>$res['status'] ?? 'canceled']);
     exit;
 }
 
