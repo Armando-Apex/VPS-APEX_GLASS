@@ -212,54 +212,59 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     <div class="fac-modal-body">
       <input type="hidden" id="fac-edit-id" value="">
 
-      <!-- Datos generales -->
-      <div class="fac-section-title">Datos Generales</div>
-      <div class="fac-row cols4">
-        <div class="fac-field">
-          <label>Folio interno</label>
-          <input type="text" id="fac-folio" readonly style="background:#f8fafc;color:#64748b">
-        </div>
-        <div class="fac-field">
-          <label>Serie CFDI</label>
-          <input type="text" id="fac-serie" value="A" maxlength="10">
-          <div class="fac-hint">Letra(s) que identifica la serie de folios en el SAT</div>
-        </div>
-        <div class="fac-field">
-          <label>Moneda</label>
-          <input type="text" id="fac-moneda" value="MXN" readonly style="background:#f8fafc;color:#64748b">
-        </div>
-        <div class="fac-field">
-          <label>Fecha</label>
-          <input type="date" id="fac-fecha">
+      <!-- Datos generales — oculto (folios internos aún no definidos); los campos se mantienen en el DOM
+           con sus valores por default (serie 'A', fecha de hoy) para no romper guardar()/recalc() -->
+      <div style="display:none">
+        <div class="fac-section-title">Datos Generales</div>
+        <div class="fac-row cols4">
+          <div class="fac-field">
+            <label>Folio interno</label>
+            <input type="text" id="fac-folio" readonly style="background:#f8fafc;color:#64748b">
+          </div>
+          <div class="fac-field">
+            <label>Serie CFDI</label>
+            <input type="text" id="fac-serie" value="A" maxlength="10">
+            <div class="fac-hint">Letra(s) que identifica la serie de folios en el SAT</div>
+          </div>
+          <div class="fac-field">
+            <label>Moneda</label>
+            <input type="text" id="fac-moneda" value="MXN" readonly style="background:#f8fafc;color:#64748b">
+          </div>
+          <div class="fac-field">
+            <label>Fecha</label>
+            <input type="date" id="fac-fecha">
+          </div>
         </div>
       </div>
 
-      <!-- Constancia SAT -->
-      <div class="fac-section-title">Constancia de Situación Fiscal</div>
-      <label class="fac-cst-drop" id="fac-cst-drop" ondragover="ModFacturacion.cstDrag(event,true)" ondragleave="ModFacturacion.cstDrag(event,false)" ondrop="ModFacturacion.cstDrop(event)">
-        <input type="file" id="fac-cst-file" accept=".pdf,application/pdf" onchange="ModFacturacion.cstSubir(this.files[0])">
-        <div class="fac-cst-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-        </div>
-        <div class="fac-cst-txt">
-          <strong>Subir Constancia de Situación Fiscal (PDF)</strong>
-          <span>Haz clic o arrastra el PDF del SAT — extrae RFC, nombre, CP y régimen automáticamente</span>
-        </div>
-      </label>
+      <!-- Constancia SAT — oculto (se sube desde el módulo Clientes); campos se mantienen en el DOM -->
+      <div style="display:none">
+        <div class="fac-section-title">Constancia de Situación Fiscal</div>
+        <label class="fac-cst-drop" id="fac-cst-drop" ondragover="ModFacturacion.cstDrag(event,true)" ondragleave="ModFacturacion.cstDrag(event,false)" ondrop="ModFacturacion.cstDrop(event)">
+          <input type="file" id="fac-cst-file" accept=".pdf,application/pdf" onchange="ModFacturacion.cstSubir(this.files[0])">
+          <div class="fac-cst-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          </div>
+          <div class="fac-cst-txt">
+            <strong>Subir Constancia de Situación Fiscal (PDF)</strong>
+            <span>Haz clic o arrastra el PDF del SAT — extrae RFC, nombre, CP y régimen automáticamente</span>
+          </div>
+        </label>
 
-      <div class="fac-cst-loading" id="fac-cst-loading">
-        <div class="fac-cst-spin"></div>
-        Extrayendo datos del PDF…
-      </div>
-      <div class="fac-cst-error" id="fac-cst-error"></div>
+        <div class="fac-cst-loading" id="fac-cst-loading">
+          <div class="fac-cst-spin"></div>
+          Extrayendo datos del PDF…
+        </div>
+        <div class="fac-cst-error" id="fac-cst-error"></div>
 
-      <div class="fac-cst-preview" id="fac-cst-preview">
-        <h4>Datos encontrados en la constancia</h4>
-        <div class="fac-cst-fields" id="fac-cst-fields"></div>
-        <div class="fac-cst-warn" id="fac-cst-warn"></div>
-        <div class="fac-cst-actions">
-          <button class="fac-cst-usar" onclick="ModFacturacion.cstAplicar()">Usar estos datos</button>
-          <button class="fac-cst-usar" onclick="ModFacturacion.cstDescartar()" style="background:#64748b">Descartar</button>
+        <div class="fac-cst-preview" id="fac-cst-preview">
+          <h4>Datos encontrados en la constancia</h4>
+          <div class="fac-cst-fields" id="fac-cst-fields"></div>
+          <div class="fac-cst-warn" id="fac-cst-warn"></div>
+          <div class="fac-cst-actions">
+            <button class="fac-cst-usar" onclick="ModFacturacion.cstAplicar()">Usar estos datos</button>
+            <button class="fac-cst-usar" onclick="ModFacturacion.cstDescartar()" style="background:#64748b">Descartar</button>
+          </div>
         </div>
       </div>
 
@@ -658,6 +663,7 @@ var ModFacturacion = (function() {
 
   function _clearForm() {
     _resetBuscador();
+    _ultimoClienteOrdenId = null;
     document.getElementById('fac-edit-id').value    = '';
     document.getElementById('fac-folio').value      = '(se asigna al guardar)';
     document.getElementById('fac-fecha').value      = new Date().toISOString().slice(0,10);
@@ -878,6 +884,12 @@ var ModFacturacion = (function() {
   // ── Selector cliente CRM (dropdown, sin escribir) ─────────────────────────────
   var _cliOpciones  = [];
   var _clienteslistaCargada = false;
+  var _ultimoClienteOrdenId = null;
+
+  function _setSolicitoCliente(id) {
+    var sel = document.getElementById('fac-solicito-cli');
+    if (sel && id) sel.value = String(id);
+  }
 
   function _cargarListaClientes(cb) {
     _apiFetch('../api/facturapi.php?accion=lista_clientes', {}, function(err, res) {
@@ -980,7 +992,11 @@ var ModFacturacion = (function() {
 
     if (on) {
       limpiarCliente();
-      if (!_clienteslistaCargada) _cargarListaClientes();
+      if (!_clienteslistaCargada) {
+        _cargarListaClientes(function() { _setSolicitoCliente(_ultimoClienteOrdenId); });
+      } else {
+        _setSolicitoCliente(_ultimoClienteOrdenId);
+      }
       var setVal = function(id, val) { var el = document.getElementById(id); if (el) el.value = val; };
       setVal('fac-receptor-nombre', 'PUBLICO EN GENERAL');
       setVal('fac-rfc', 'XAXX010101000');
@@ -991,13 +1007,20 @@ var ModFacturacion = (function() {
       document.getElementById('fac-uso-cfdi').disabled = true;
     } else {
       document.getElementById('fac-solicito-cli').value = '';
-      var setVal2 = function(id, val) { var el = document.getElementById(id); if (el) el.value = val; };
-      setVal2('fac-receptor-nombre', '');
-      setVal2('fac-rfc', '');
-      setVal2('fac-regimen', '');
-      setVal2('fac-uso-cfdi', '');
       _lockReceptor(false);
       document.getElementById('fac-uso-cfdi').disabled = false;
+
+      // Restaurar los datos reales del cliente si veníamos de una orden/selección previa,
+      // en vez de dejar el receptor en blanco
+      if (_ultimoClienteOrdenId && !_clienteslistaCargada) {
+        _cargarListaClientes(function() { _seleccionarClientePorId(_ultimoClienteOrdenId); });
+      } else if (!_ultimoClienteOrdenId || !_seleccionarClientePorId(_ultimoClienteOrdenId)) {
+        var setVal2 = function(id, val) { var el = document.getElementById(id); if (el) el.value = val; };
+        setVal2('fac-receptor-nombre', '');
+        setVal2('fac-rfc', '');
+        setVal2('fac-regimen', '');
+        setVal2('fac-uso-cfdi', '');
+      }
     }
   }
 
@@ -1082,7 +1105,16 @@ var ModFacturacion = (function() {
 
       var clienteOk = false;
       if (res.cliente) {
-        if (!_clienteslistaCargada) {
+        _ultimoClienteOrdenId = res.cliente.id;
+        var esPublicoGeneral = document.getElementById('fac-publico-general').checked;
+        if (esPublicoGeneral) {
+          // No tocar el receptor genérico — solo ligar quién lo solicitó
+          if (!_clienteslistaCargada) {
+            _cargarListaClientes(function() { _setSolicitoCliente(res.cliente.id); });
+          } else {
+            _setSolicitoCliente(res.cliente.id);
+          }
+        } else if (!_clienteslistaCargada) {
           _cargarListaClientes(function() { _seleccionarClientePorId(res.cliente.id); });
         } else {
           clienteOk = _seleccionarClientePorId(res.cliente.id);
