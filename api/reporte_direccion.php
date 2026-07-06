@@ -204,6 +204,29 @@ $stmt = $pdo->prepare("
 $stmt->execute($params4);
 $resumen = $stmt->fetch(PDO::FETCH_ASSOC);
 
+// "Retraso abierto"/"En proceso" son un estado VIGENTE (¿qué sigue abierto hoy?),
+// no un desempeño del período — una orden pedida en junio con entrega en julio
+// debe seguir contando como vencida al ver julio, no desaparecer por haberse
+// creado fuera del rango. Se recalculan sin el filtro de fecha_pedido, igual
+// que se hizo con el pipeline de cotizaciones en UPD-267.
+$stmtVigente = $pdo->query("
+    SELECT
+        SUM(o.fecha_entrega < CURDATE())                            AS retraso_abierto,
+        SUM(o.fecha_entrega IS NULL OR o.fecha_entrega >= CURDATE()) AS en_proceso
+    FROM ordenes o
+    LEFT JOIN (
+        SELECT orden_id,
+            CASE WHEN SUM(estatus NOT IN ('terminado','entregado')) = 0 THEN 1 ELSE 0 END AS todas_terminadas
+        FROM piezas
+        GROUP BY orden_id
+    ) pt ON pt.orden_id = o.id
+    WHERE o.estado = 'activa'
+      AND (pt.todas_terminadas IS NULL OR pt.todas_terminadas = 0)
+");
+$vigente = $stmtVigente->fetch(PDO::FETCH_ASSOC);
+$resumen['retraso_abierto'] = $vigente['retraso_abierto'];
+$resumen['en_proceso']      = $vigente['en_proceso'];
+
 // ���� Concentrado mensual ����
 $stmtM = $pdo->prepare("
     SELECT

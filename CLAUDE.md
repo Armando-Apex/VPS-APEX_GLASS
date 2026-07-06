@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 06 julio 2026 | Próximo UPD disponible: UPD-285
+# Última actualización: 06 julio 2026 | Próximo UPD disponible: UPD-286
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -412,7 +412,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-230**
+Próximo UPD disponible: **UPD-286**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -514,4 +514,5 @@ Al terminar cualquier sesión con cambios:
 | UPD-282 | 06-jul-2026 | Mando | Facturación: receptor bloqueado (readonly) al elegir cliente CRM con datos fiscales completos, con link "Editar de todos modos" para casos manuales. Se quitó el RFC de prueba `XAXX010101000` precargado por defecto. Archivo: app/modulos/facturacion.php |
 | UPD-283 | 06-jul-2026 | Mando | Facturación: soporte "Público en General". Checkbox en el modal autocompleta receptor genérico SAT (RFC XAXX010101000/616/S01) y obliga a ligar el cliente real del CRM que lo pidió (solo trazabilidad interna, no sale en el CFDI). BD: `ALTER TABLE facturas ADD COLUMN cliente_solicito_id INT UNSIGNED NULL` (permiso explícito de Armando). Lista muestra badge "PÚB. GRAL." + nombre del solicitante. Verificado con `php84 -l` y conteo de placeholders; falta verificación visual en navegador. Archivos: api/facturapi.php, app/modulos/facturacion.php |
 | UPD-284 | 06-jul-2026 | Mando | Fix bug real en Facturación: al traer conceptos de una orden (`buscar_orden`), tomaba `precio_m2_usado` bruto y le sumaba IVA sin restar el % de descuento de la cotización — facturaba de más en cualquier orden con descuento (verificado con 3 órdenes reales: S-001 y S-223 con 10% de descuento cobraban ~$57 y ~$229 de más; S-156 sin descuento no tenía diferencia). Fix: se resta `cotizaciones.descuento` a `precio_m2_usado`, redondeando a 6 decimales (no 4) para no perder precisión de `m2` (decimal(10,6)) — mismo criterio que el resto del sistema. Verificado: S-001/S-223 ya cuadran centavo a centavo con el total real de la cotización. Archivo: api/facturapi.php |
-**Próximo UPD disponible: UPD-285**
+| UPD-285 | 06-jul-2026 | Armando | Fix Reporte Dirección — "Retraso abierto"/"En proceso" (tarjetas KPI del resumen) estaban filtrados por `fecha_pedido` del período seleccionado, igual que el bug de pipeline corregido en UPD-267: una orden pedida en junio con entrega en julio desaparecía del reporte al ver "Este mes" (julio) porque se creó fuera del rango, aunque siguiera abierta y vencida. Detectado por Armando al revisar 3 órdenes de junio (S-148, S-151, S-149) que seguían vencidas pero no aparecían al ver julio. Fix: `retraso_abierto` y `en_proceso` ahora se calculan en una query separada sin filtro de `fecha_pedido` — son una foto del estado VIGENTE (todas las órdenes `activa` con piezas sin terminar, sin importar cuándo se pidieron), consistentes sin importar qué período esté seleccionado. `con_retraso`/`a_tiempo` (órdenes ya cerradas) se dejaron intencionalmente atados al período porque sí miden desempeño histórico de un lapso. Trade-off aceptado: la fila TOTAL de la tabla mensual por cohortes (agrupada por mes de `fecha_pedido`) puede no cuadrar exactamente contra la tarjeta superior — mismo trade-off ya aceptado en UPD-267. Verificado con `php84` CLI simulando sesión: retraso_abierto=3 y en_proceso=26 ahora se mantienen constantes en las 5 opciones de período (antes variaban de 0 a 26 según el filtro). Archivo: api/reporte_direccion.php |
+**Próximo UPD disponible: UPD-286**
