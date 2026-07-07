@@ -212,6 +212,9 @@ tbody td { padding: 11px 14px; font-size: 13px; }
             <option value="Papeler&iacute;a / Oficina">Papeler&iacute;a / Oficina</option>
             <option value="Flete y Log&iacute;stica">Flete y Log&iacute;stica</option>
             <option value="Mantenimiento">Mantenimiento</option>
+            <option value="Operaci&oacute;n mensual">Operaci&oacute;n mensual</option>
+            <option value="Renta">Renta</option>
+            <option value="Servicios contables">Servicios contables</option>
             <option value="Otro">Otro</option>
           </select>
         </div>
