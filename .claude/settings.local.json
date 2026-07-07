@@ -129,7 +129,9 @@
       "Bash(/root/.claude/plugins/cache/claude-plugins-official/superpowers/6.1.1/skills/subagent-driven-development/scripts/review-package 5d854dd *)",
       "Bash(awk '{print $1}')",
       "Bash(npm ls *)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(sudo mysql apexglass2025_prod -e \"ALTER TABLE whatsapp_mensajes MODIFY COLUMN tipo ENUM\\('template','texto','imagen','documento','audio','video','ubicacion','contacto'\\) NOT NULL;\")",
+      "Bash(sudo mysql apexglass2025_prod -e \"SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='apexglass2025_prod' AND TABLE_NAME='whatsapp_mensajes' AND COLUMN_NAME='tipo';\")"
     ]
   },
   "hooks": {
