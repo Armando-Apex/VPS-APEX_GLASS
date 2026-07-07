@@ -131,7 +131,12 @@
       "Bash(npm ls *)",
       "Bash(echo \"exit: $?\")",
       "Bash(sudo mysql apexglass2025_prod -e \"ALTER TABLE whatsapp_mensajes MODIFY COLUMN tipo ENUM\\('template','texto','imagen','documento','audio','video','ubicacion','contacto'\\) NOT NULL;\")",
-      "Bash(sudo mysql apexglass2025_prod -e \"SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='apexglass2025_prod' AND TABLE_NAME='whatsapp_mensajes' AND COLUMN_NAME='tipo';\")"
+      "Bash(sudo mysql apexglass2025_prod -e \"SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='apexglass2025_prod' AND TABLE_NAME='whatsapp_mensajes' AND COLUMN_NAME='tipo';\")",
+      "Bash(openssl rand *)",
+      "Bash(sudo mysql apexglass2025_prod -e \"SELECT id, numero_oc, notas FROM ordenes_compra WHERE id=19;\")",
+      "Bash(sudo mysql apexglass2025_prod -e \"DELETE FROM ordenes_compra WHERE id=19 AND notas='TEST UPLOAD - borrar';\")",
+      "Bash(sudo mysql apexglass2025_prod -e \"SELECT COUNT\\(*\\) AS quedan FROM ordenes_compra WHERE id=19;\")",
+      "Bash(rm -f /home/apexglass2025/tmp/sessions/sess_26d05f4be6f0befc29739077434f6f09)"
     ]
   },
   "hooks": {

@@ -196,6 +196,13 @@ if ($method === 'GET') {
         jsonResponse(['total_flete' => $total_flete, 'compras' => $sc->fetchAll()]);
     }
 
+    // Archivos / comprobantes de una OC
+    if ($accion === 'archivos' && $id) {
+        $stmt = $db->prepare("SELECT id, nombre, ruta, subido_por, created_at FROM oc_archivos WHERE oc_id = ? ORDER BY created_at DESC");
+        $stmt->execute([$id]);
+        jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+
     // Lista de OCs
     $estado_raw  = $_GET['estado'] ?? '';
     $tipo_raw    = $_GET['tipo']   ?? '';
@@ -638,6 +645,42 @@ if ($method === 'POST') {
         }
     }
 
+    // ── Subir archivo / comprobante ────────────────────────────
+    if ($accion === 'subir_archivo') {
+        global $ROLES_GESTIONAR_OC;
+        if (!in_array($user['rol'], $ROLES_GESTIONAR_OC))
+            jsonResponse(['error' => 'Sin permiso'], 403);
+
+        $oc_id = (int)($_POST['oc_id'] ?? 0);
+        if (!$oc_id) jsonResponse(['error' => 'oc_id requerido'], 400);
+
+        if (empty($_FILES['archivo']['tmp_name']))
+            jsonResponse(['error' => 'No se recibió archivo'], 400);
+
+        $ext_permitidas = ['pdf','jpg','jpeg','png','webp'];
+        $nombre_original = $_FILES['archivo']['name'];
+        $ext = strtolower(pathinfo($nombre_original, PATHINFO_EXTENSION));
+        if (!in_array($ext, $ext_permitidas))
+            jsonResponse(['error' => 'Tipo de archivo no permitido'], 400);
+
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime  = $finfo->file($_FILES['archivo']['tmp_name']);
+        $mimes_ok = ['application/pdf','image/jpeg','image/png','image/webp'];
+        if (!in_array($mime, $mimes_ok))
+            jsonResponse(['error' => 'Tipo de archivo no válido'], 400);
+
+        $nombre_unico = 'oc_' . $oc_id . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+        $destino = __DIR__ . '/../archivos_oc/' . $nombre_unico;
+
+        if (!move_uploaded_file($_FILES['archivo']['tmp_name'], $destino))
+            jsonResponse(['error' => 'Error al guardar el archivo'], 500);
+
+        $stmt = $db->prepare("INSERT INTO oc_archivos (oc_id, nombre, ruta, subido_por) VALUES (?,?,?,?)");
+        $stmt->execute([$oc_id, $nombre_original, $nombre_unico, $user['nombre']]);
+
+        jsonResponse(['ok' => true, 'id' => $db->lastInsertId(), 'nombre' => $nombre_original, 'ruta' => $nombre_unico]);
+    }
+
     jsonResponse(['error' => 'Acción no válida'], 400);
 }
 
@@ -686,8 +729,8 @@ if ($method === 'PUT') {
 if ($method === 'DELETE') {
     requirePermiso('gestionar_inventario');
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
-    $accion = $body['accion'] ?? 'eliminar_partida';
-    $id     = (int)($body['id'] ?? 0);
+    $accion = $body['accion'] ?? ($_GET['accion'] ?? 'eliminar_partida');
+    $id     = (int)($body['id'] ?? ($_GET['id'] ?? 0));
 
     if ($accion === 'eliminar_partida' && $id) {
         if (!partidaEsEditable($db, $id, $user['rol']))
@@ -697,66 +740,25 @@ if ($method === 'DELETE') {
         jsonResponse(['ok' => true]);
     }
 
+    // ── Eliminar archivo / comprobante ─────────────────────────
+    if ($accion === 'eliminar_archivo' && $id) {
+        global $ROLES_GESTIONAR_OC;
+        if (!in_array($user['rol'], $ROLES_GESTIONAR_OC))
+            jsonResponse(['error' => 'Sin permiso'], 403);
+
+        $stmt = $db->prepare("SELECT ruta FROM oc_archivos WHERE id = ?");
+        $stmt->execute([$id]);
+        $archivo = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$archivo) jsonResponse(['error' => 'Archivo no encontrado'], 404);
+
+        $ruta = __DIR__ . '/../archivos_oc/' . basename($archivo['ruta']);
+        if (file_exists($ruta)) unlink($ruta);
+
+        $db->prepare("DELETE FROM oc_archivos WHERE id = ?")->execute([$id]);
+        jsonResponse(['ok' => true]);
+    }
+
     jsonResponse(['error' => 'Acción no válida'], 400);
-}
-
-// ── Archivos / comprobantes ───────────────────────────────────
-if ($accion === 'archivos' && $id) {
-    $stmt = $db->prepare("SELECT id, nombre, ruta, subido_por, created_at FROM oc_archivos WHERE oc_id = ? ORDER BY created_at DESC");
-    $stmt->execute([$id]);
-    jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
-}
-
-if ($accion === 'subir_archivo' && $method === 'POST') {
-    global $ROLES_GESTIONAR_OC;
-    if (!in_array($user['rol'], $ROLES_GESTIONAR_OC))
-        jsonResponse(['error' => 'Sin permiso'], 403);
-
-    $oc_id = (int)($_POST['oc_id'] ?? 0);
-    if (!$oc_id) jsonResponse(['error' => 'oc_id requerido'], 400);
-
-    if (empty($_FILES['archivo']['tmp_name']))
-        jsonResponse(['error' => 'No se recibió archivo'], 400);
-
-    $ext_permitidas = ['pdf','jpg','jpeg','png','webp'];
-    $nombre_original = $_FILES['archivo']['name'];
-    $ext = strtolower(pathinfo($nombre_original, PATHINFO_EXTENSION));
-    if (!in_array($ext, $ext_permitidas))
-        jsonResponse(['error' => 'Tipo de archivo no permitido'], 400);
-
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $mime  = $finfo->file($_FILES['archivo']['tmp_name']);
-    $mimes_ok = ['application/pdf','image/jpeg','image/png','image/webp'];
-    if (!in_array($mime, $mimes_ok))
-        jsonResponse(['error' => 'Tipo de archivo no válido'], 400);
-
-    $nombre_unico = 'oc_' . $oc_id . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-    $destino = __DIR__ . '/../archivos_oc/' . $nombre_unico;
-
-    if (!move_uploaded_file($_FILES['archivo']['tmp_name'], $destino))
-        jsonResponse(['error' => 'Error al guardar el archivo'], 500);
-
-    $stmt = $db->prepare("INSERT INTO oc_archivos (oc_id, nombre, ruta, subido_por) VALUES (?,?,?,?)");
-    $stmt->execute([$oc_id, $nombre_original, $nombre_unico, $user['nombre']]);
-
-    jsonResponse(['ok' => true, 'id' => $db->lastInsertId(), 'nombre' => $nombre_original, 'ruta' => $nombre_unico]);
-}
-
-if ($accion === 'eliminar_archivo' && $method === 'DELETE' && $id) {
-    global $ROLES_GESTIONAR_OC;
-    if (!in_array($user['rol'], $ROLES_GESTIONAR_OC))
-        jsonResponse(['error' => 'Sin permiso'], 403);
-
-    $stmt = $db->prepare("SELECT ruta FROM oc_archivos WHERE id = ?");
-    $stmt->execute([$id]);
-    $archivo = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$archivo) jsonResponse(['error' => 'Archivo no encontrado'], 404);
-
-    $ruta = __DIR__ . '/../archivos_oc/' . basename($archivo['ruta']);
-    if (file_exists($ruta)) unlink($ruta);
-
-    $db->prepare("DELETE FROM oc_archivos WHERE id = ?")->execute([$id]);
-    jsonResponse(['ok' => true]);
 }
 
 jsonResponse(['error' => 'Método no soportado'], 405);
