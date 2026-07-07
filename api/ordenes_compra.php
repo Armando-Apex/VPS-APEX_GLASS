@@ -262,6 +262,7 @@ if ($method === 'POST') {
         $categoria    = trim($body['categoria'] ?? '') ?: null;
 
         if (!$proveedor_id) jsonResponse(['error' => 'Proveedor requerido'], 422);
+        if ($tipo === 'suministro' && !$categoria) jsonResponse(['error' => 'Categoría requerida'], 422);
 
         // Si no viene número, generar consecutivo
         if (!$numero_oc) {
@@ -701,6 +702,10 @@ if ($method === 'PUT') {
         if (!$proveedor_id || !$fecha_oc)
             jsonResponse(['error' => 'Faltan datos'], 422);
         $categoria = trim($body['categoria'] ?? '') ?: null;
+        $tipoActual = $db->prepare("SELECT tipo FROM ordenes_compra WHERE id = ?");
+        $tipoActual->execute([$id]);
+        if ($tipoActual->fetchColumn() === 'suministro' && !$categoria)
+            jsonResponse(['error' => 'Categoría requerida'], 422);
         $db->prepare("UPDATE ordenes_compra SET
             proveedor_id=?, fecha_oc=?, dias_credito=?, notas=?, categoria=?
             WHERE id=?")

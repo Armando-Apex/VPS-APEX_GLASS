@@ -203,9 +203,9 @@ tbody td { padding: 11px 14px; font-size: 13px; }
           <select id="ocProveedor" class="form-select"><option value="">Cargando&hellip;</option></select>
         </div>
         <div class="form-group" id="grpCategoria">
-          <label class="form-label">Categor&iacute;a</label>
+          <label class="form-label">Categor&iacute;a *</label>
           <select id="ocCategoria" class="form-select">
-            <option value="">Sin categor&iacute;a</option>
+            <option value="">Selecciona una categor&iacute;a&hellip;</option>
             <option value="Herramienta / Consumible">Herramienta / Consumible</option>
             <option value="Seguridad y EPP">Seguridad y EPP</option>
             <option value="Limpieza">Limpieza</option>
@@ -520,6 +520,7 @@ async function cmpGuardarOC() {
 
   if (!proveedor_id) { alert('Selecciona un proveedor'); return; }
   if (!fecha_oc)     { alert('Indica la fecha'); return; }
+  if (tipo === 'suministro' && !categoria) { alert('Selecciona una categoría'); return; }
 
   try {
     var r = await fetch('../api/ordenes_compra.php', {
