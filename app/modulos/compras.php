@@ -604,9 +604,13 @@ function cmpRenderDetalle() {
   // Footer con acciones
   var footer = '';
   var puedeEditar = (o.estado === 'borrador' || o.estado === 'abierta');
+  // Pagos: se permiten aunque la OC ya esté cerrada (recepción y pago suelen ir en momentos distintos, p.ej. días de crédito)
+  var puedePagar  = (o.estado === 'borrador' || o.estado === 'abierta' || o.estado === 'cerrada');
   if (PUEDE_GESTIONAR_CMP) {
     if (puedeEditar) {
       footer += '<button class="btn-sm btn-add" onclick="cmpAbrirModalPartida(' + o.id + ')">+ Partida</button> ';
+    }
+    if (puedePagar) {
       footer += '<button class="btn-sm btn-add" onclick="cmpAbrirModalPago(' + o.id + ')">+ Pago</button> ';
     }
     if (o.estado === 'borrador') {
