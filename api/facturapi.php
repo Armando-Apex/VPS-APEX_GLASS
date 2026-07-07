@@ -127,13 +127,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
 // ── GET lista ─────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'lista') {
     $rows = $pdo->query("
-        SELECT f.id, f.folio_interno, f.serie, f.folio_numero, f.tipo_cfdi, f.fecha,
+        SELECT f.id, f.folio_interno, f.serie, f.folio_numero, f.orden_folio, f.tipo_cfdi, f.fecha,
                f.receptor_nombre, f.receptor_rfc, f.receptor_cp, f.receptor_regimen,
                f.receptor_uso_cfdi, f.receptor_email, f.cliente_solicito_id,
                COALESCE(NULLIF(cs.razon_social,''), cs.nombre) AS cliente_solicito_nombre,
                f.forma_pago, f.metodo_pago,
                f.conceptos, f.subtotal, f.iva, f.total,
-               f.estatus, f.uuid, f.modo, f.pdf_url, f.created_at
+               f.estatus, f.uuid, f.modo, f.pdf_url, f.motivo_cancel, f.created_at
         FROM facturas f
         LEFT JOIN clientes cs ON cs.id = f.cliente_solicito_id
         ORDER BY f.id DESC
@@ -190,20 +190,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
     $iva   = round($iva, 2);
     $total = round($sub + $iva, 2);
 
+    $ordenFolio = trim($d['orden_folio'] ?? '') ?: null;
+
     $id = isset($d['id']) ? (int)$d['id'] : 0;
 
     if ($id) {
         // Actualizar borrador existente — verificar propiedad
         $stmt = $pdo->prepare("
             UPDATE facturas SET
-                tipo_cfdi=?, fecha=?, receptor_nombre=?, receptor_rfc=?,
+                tipo_cfdi=?, fecha=?, orden_folio=?, receptor_nombre=?, receptor_rfc=?,
                 receptor_cp=?, receptor_regimen=?, receptor_uso_cfdi=?,
                 receptor_email=?, cliente_solicito_id=?, forma_pago=?, metodo_pago=?,
                 conceptos=?, subtotal=?, iva=?, total=?, updated_at=NOW()
             WHERE id=? AND estatus='borrador' AND creado_por=?
         ");
         $stmt->execute([
-            $d['tipo_cfdi'] ?? 'I', $d['fecha'] ?? date('Y-m-d'),
+            $d['tipo_cfdi'] ?? 'I', $d['fecha'] ?? date('Y-m-d'), $ordenFolio,
             $d['receptor_nombre'], $d['receptor_rfc'], $d['receptor_cp'],
             $d['receptor_regimen'], $d['receptor_uso_cfdi'],
             $d['receptor_email'] ?? null, $clienteSolicitoId, $d['forma_pago'], $d['metodo_pago'],
@@ -214,14 +216,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
         // Nueva factura
         $stmt = $pdo->prepare("
             INSERT INTO facturas
-                (folio_interno, serie, folio_numero, tipo_cfdi, fecha,
+                (folio_interno, serie, folio_numero, orden_folio, tipo_cfdi, fecha,
                  receptor_nombre, receptor_rfc, receptor_cp, receptor_regimen,
                  receptor_uso_cfdi, receptor_email, cliente_solicito_id, forma_pago, metodo_pago,
                  conceptos, subtotal, iva, total, estatus, modo, creado_por)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'borrador',?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'borrador',?,?)
         ");
         $stmt->execute([
-            $folioInterno, $serie, $folioNum,
+            $folioInterno, $serie, $folioNum, $ordenFolio,
             $d['tipo_cfdi'] ?? 'I', $d['fecha'] ?? date('Y-m-d'),
             $d['receptor_nombre'], $d['receptor_rfc'], $d['receptor_cp'],
             $d['receptor_regimen'], $d['receptor_uso_cfdi'],
@@ -248,6 +250,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     if (!$fac) { jsonResponse(['ok'=>false,'error'=>'Factura no encontrada o ya timbrada']); exit; }
 
     $conceptos = json_decode($fac['conceptos'], true);
+
+    // Bloquear timbrado si algún concepto no trae una clave SAT real asignada —
+    // '01010101' es la clave de "no existe en catálogo", solo válida para pruebas sandbox
+    foreach ($conceptos as $i => $c) {
+        $clave = trim($c['clave'] ?? '');
+        if ($clave === '' || $clave === '01010101') {
+            jsonResponse(['ok'=>false,'error'=>'El concepto "'.($c['desc'] ?: ($i+1)).'" no tiene una clave SAT válida asignada. Asígnala antes de timbrar.']);
+            exit;
+        }
+    }
 
     // Construir items para FacturAPI
     $items = [];

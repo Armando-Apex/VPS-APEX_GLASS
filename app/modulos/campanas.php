@@ -1180,6 +1180,21 @@ var ModCampanas = (function() {
                     } else {
                         contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128205; Ubicaci&oacute;n</div>';
                     }
+                } else if (m.tipo === 'contacto') {
+                    var contactosHtml = '';
+                    try {
+                        var contactos = JSON.parse(m.contenido || '[]');
+                        contactos.forEach(function(c) {
+                            var tels = (c.telefonos || []).filter(function(t){ return t; }).map(function(t){ return esc(t); }).join('<br>');
+                            contactosHtml += '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin:2px 0;min-width:180px;">' +
+                                '<div style="font-weight:600;font-size:13px;color:#0f172a;">&#128100; ' + esc(c.nombre || 'Contacto') + '</div>' +
+                                (tels ? '<div style="font-size:12px;color:#2563eb;margin-top:2px;">' + tels + '</div>' : '') +
+                                '</div>';
+                        });
+                        contenidoHtml = contactosHtml || '<div style="font-size:11px;color:#94a3b8;">&#128100; Contacto</div>';
+                    } catch (e) {
+                        contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128100; Contacto</div>';
+                    }
                 } else if (m.tipo === 'documento') {
                     var docParts = (m.contenido || '').split('|');
                     if (docParts.length === 2 && docParts[0].indexOf('/produccion/') === 0) {

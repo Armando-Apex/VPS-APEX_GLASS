@@ -265,6 +265,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $lng = $msg['location']['longitude'] ?? '';
                     $contenido = $lat . ',' . $lng;
                     $tipo = 'ubicacion';
+                } elseif ($tipo === 'contacts') {
+                    $lista = [];
+                    foreach (($msg['contacts'] ?? []) as $c) {
+                        $telefonos = [];
+                        foreach (($c['phones'] ?? []) as $p) {
+                            $telefonos[] = $p['phone'] ?? ($p['wa_id'] ?? '');
+                        }
+                        $lista[] = [
+                            'nombre'     => $c['name']['formatted_name'] ?? 'Contacto',
+                            'telefonos'  => $telefonos,
+                        ];
+                    }
+                    $contenido = json_encode($lista, JSON_UNESCAPED_UNICODE);
+                    $tipo = 'contacto';
                 } elseif ($tipo === 'interactive') {
                     if (($msg['interactive']['type'] ?? '') === 'nfm_reply') {
                         // Respuesta de un WhatsApp Flow (ej. encuesta_clientes) —
