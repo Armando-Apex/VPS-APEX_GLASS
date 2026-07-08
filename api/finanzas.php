@@ -197,6 +197,15 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Forma de pago inválida']); exit;
         }
 
+        // Anti-doble-clic: mismo pago (cotización+monto+forma) registrado hace <8s = envío duplicado
+        $stmt_dup = $db->prepare("SELECT id FROM cotizacion_pagos
+            WHERE cotizacion_id = ? AND monto = ? AND forma_pago = ?
+              AND created_at >= (NOW() - INTERVAL 8 SECOND) LIMIT 1");
+        $stmt_dup->execute([$cot_id, $monto, $forma]);
+        if ($stmt_dup->fetch()) {
+            jsonResponse(['error' => 'Este pago ya se registró hace unos segundos (posible doble clic). Revisa el historial antes de reintentar.']); exit;
+        }
+
         $db->beginTransaction();
         try {
             // Calcular total y saldo pendiente ANTES de aplicar el pago

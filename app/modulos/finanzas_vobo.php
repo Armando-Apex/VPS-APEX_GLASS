@@ -285,7 +285,7 @@ function renderDetalle() {
   html += '</div>';
   html += '<div style="display:flex;gap:10px;align-items:center">';
   html += '<input type="text" id="pf-notas" placeholder="Notas (opcional)" style="flex:1;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px">';
-  html += '<button class="btn btn-blue btn-sm" onclick="ModFinanzasVobo._registrarPago(' + o.cot_id + ',' + o.id + ')">Registrar pago</button>';
+  html += '<button class="btn btn-blue btn-sm" id="pf-btn-pago" onclick="ModFinanzasVobo._registrarPago(' + o.cot_id + ',' + o.id + ',this)">Registrar pago</button>';
   html += '</div>';
   html += '</div>';
 
@@ -317,7 +317,9 @@ function onFormaChange(pendiente) {
 }
 
 // ── Registrar pago ────────────────────────────────────────────
-async function registrarPago(cot_id, orden_id) {
+async function registrarPago(cot_id, orden_id, btn) {
+  if (btn && btn.disabled) return; // ya se está procesando este mismo clic
+
   var fecha = document.getElementById('pf-fecha')?.value;
   var hora  = document.getElementById('pf-hora')?.value + ':00';
   var monto = parseFloat(document.getElementById('pf-monto')?.value || 0);
@@ -332,19 +334,30 @@ async function registrarPago(cot_id, orden_id) {
 
   var payload = { accion:'registrar_pago', cotizacion_id: cot_id, fecha_pago: fecha, hora_pago: hora, monto: monto, forma_pago: forma, notas: notas };
 
-  var res  = await fetch(API, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(payload)
-  });
-  var data = await res.json();
+  if (btn) { btn.disabled = true; btn.textContent = 'Registrando...'; }
+
+  var res, data;
+  try {
+    res  = await fetch(API, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    data = await res.json();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Registrar pago'; }
+    alert('Error de conexión al registrar el pago');
+    return;
+  }
+
   if (data.ok) {
-    // Recargar detalle para mostrar el nuevo pago
+    // Recargar detalle para mostrar el nuevo pago (re-renderiza con un botón nuevo ya habilitado)
     await abrirDetalle(orden_id);
     if (data.excedente) {
       alert('Pago registrado.\n\nEl excedente de $' + parseFloat(data.excedente).toLocaleString('es-MX',{minimumFractionDigits:2}) + ' fue abonado al saldo a favor del cliente.');
     }
   } else {
+    if (btn) { btn.disabled = false; btn.textContent = 'Registrar pago'; }
     alert(data.error || 'Error al registrar pago');
   }
 }

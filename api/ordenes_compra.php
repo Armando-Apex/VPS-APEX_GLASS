@@ -468,6 +468,15 @@ if ($method === 'POST') {
 
         if (!$oc_id || !$monto) jsonResponse(['error' => 'Faltan datos'], 422);
 
+        // Anti-doble-clic: mismo pago (OC+monto) registrado hace <8s = envío duplicado
+        $stmt_dup = $db->prepare("SELECT id FROM oc_pagos
+            WHERE orden_compra_id = ? AND monto = ?
+              AND created_at >= (NOW() - INTERVAL 8 SECOND) LIMIT 1");
+        $stmt_dup->execute([$oc_id, $monto]);
+        if ($stmt_dup->fetch()) {
+            jsonResponse(['error' => 'Este pago ya se registró hace unos segundos (posible doble clic). Revisa el historial antes de reintentar.'], 422);
+        }
+
         $db->prepare("INSERT INTO oc_pagos
             (orden_compra_id, fecha_pago, monto, incluye_iva, referencia, notas, created_by)
             VALUES (?,?,?,?,?,?,?)")

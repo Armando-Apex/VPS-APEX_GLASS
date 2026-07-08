@@ -341,7 +341,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
     </div>
     <div class="modal-footer">
       <button class="btn-sec" onclick="ModCompras._cerrarModal('modalPago')">Cancelar</button>
-      <button class="btn-prim" onclick="cmpGuardarPago()">Registrar pago</button>
+      <button class="btn-prim" id="btnGuardarPago" onclick="cmpGuardarPago()">Registrar pago</button>
     </div>
   </div>
 </div>
@@ -875,11 +875,16 @@ function cmpAbrirModalPago(oc_id) {
   document.getElementById('pagoMonto').value  = '';
   document.getElementById('pagoRef').value    = '';
   document.getElementById('pagoNotas').value  = '';
+  var btnPago = document.getElementById('btnGuardarPago');
+  if (btnPago) { btnPago.disabled = false; btnPago.textContent = 'Registrar pago'; }
   document.getElementById('modalPago').style.display = 'flex';
 }
 window.cmpAbrirModalPago = cmpAbrirModalPago;
 
 async function cmpGuardarPago() {
+  var btn = document.getElementById('btnGuardarPago');
+  if (btn && btn.disabled) return; // ya se está procesando este mismo clic
+
   var oc_id = parseInt(document.getElementById('pagoOcId').value);
   var fecha  = document.getElementById('pagoFecha').value;
   var monto  = parseFloat(document.getElementById('pagoMonto').value);
@@ -887,6 +892,8 @@ async function cmpGuardarPago() {
   var notas  = document.getElementById('pagoNotas').value.trim();
 
   if (!fecha || !monto) { alert('Fecha y monto son requeridos'); return; }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Registrando...'; }
 
   try {
     var r = await fetch('../api/ordenes_compra.php', {
@@ -902,8 +909,14 @@ async function cmpGuardarPago() {
       _detTab  = 'pagos';
       cmpRenderDetalle();
       await cmpCargar();
-    } else { alert(d.error || 'Error'); }
-  } catch(e) { alert('Error de conexion'); }
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = 'Registrar pago'; }
+      alert(d.error || 'Error');
+    }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Registrar pago'; }
+    alert('Error de conexion');
+  }
 }
 window.cmpGuardarPago = cmpGuardarPago;
 

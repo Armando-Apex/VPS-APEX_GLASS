@@ -620,7 +620,7 @@ function renderPanelPagos(o) {
     : 'Saldo a Favor';
   html += '<div class="pf"><label>Forma</label><select id="pf-forma-' + o.cot_id + '" onchange="ModFinanzasCobranza._onFormaChange(' + o.cot_id + ',' + pendP.toFixed(2) + ')"><option value="efectivo">Efectivo</option><option value="tarjeta">Tarjeta</option><option value="transferencia">Transferencia</option><option value="saldo_favor">' + escHtml(sfLabel) + '</option></select></div>';
   html += '<div class="pf" style="flex:1"><label>Notas</label><input type="text" id="pf-notas-' + o.cot_id + '" placeholder="Opcional..." style="min-width:180px"></div>';
-  html += '<button class="btn-reg" onclick="ModFinanzasCobranza._registrarPago(' + o.cot_id + ')">Registrar</button>';
+  html += '<button class="btn-reg" id="pf-btn-' + o.cot_id + '" onclick="ModFinanzasCobranza._registrarPago(' + o.cot_id + ',this)">Registrar</button>';
   html += '</div></div></div>';
 
   return html;
@@ -678,7 +678,9 @@ function onFormaChange(cot_id, pendiente) {
   }
 }
 
-async function registrarPago(cot_id) {
+async function registrarPago(cot_id, btn) {
+  if (btn && btn.disabled) return; // ya se está procesando este mismo clic
+
   var fecha = document.getElementById('pf-fecha-' + cot_id)?.value;
   var hora  = (document.getElementById('pf-hora-'  + cot_id)?.value || '00:00') + ':00';
   var monto = parseFloat(document.getElementById('pf-monto-' + cot_id)?.value || 0);
@@ -696,20 +698,31 @@ async function registrarPago(cot_id) {
     }
   }
 
-  var res  = await fetch(API, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({accion:'registrar_pago', cotizacion_id: cot_id, fecha_pago: fecha, hora_pago: hora, monto: monto, forma_pago: forma, notas: notas})
-  });
-  var data = await res.json();
+  if (btn) { btn.disabled = true; btn.textContent = 'Registrando...'; }
+
+  var res, data;
+  try {
+    res  = await fetch(API, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'registrar_pago', cotizacion_id: cot_id, fecha_pago: fecha, hora_pago: hora, monto: monto, forma_pago: forma, notas: notas})
+    });
+    data = await res.json();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Registrar'; }
+    alert('Error de conexión al registrar el pago');
+    return;
+  }
+
   if (data.ok) {
     _abiertos[cot_id] = true;
     delete _sfCache[clienteId]; // forzar re-fetch: el saldo a favor pudo cambiar (uso o excedente)
-    await cargar();
+    await cargar(); // re-renderiza el panel con un botón nuevo ya habilitado
     if (data.excedente) {
       alert('Pago registrado.\n\nEl excedente de $' + parseFloat(data.excedente).toLocaleString('es-MX',{minimumFractionDigits:2}) + ' fue abonado al saldo a favor del cliente.');
     }
   } else {
+    if (btn) { btn.disabled = false; btn.textContent = 'Registrar'; }
     alert(data.error || 'Error al registrar pago');
   }
 }
