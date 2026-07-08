@@ -339,6 +339,7 @@ tbody td { padding: 14px 20px; font-size: 13px; vertical-align: middle; }
   <div class="header-right">
     <span class="header-cliente"><?= htmlspecialchars($cliente_nombre) ?></span>
     <span class="header-codigo"><?= htmlspecialchars($cliente_codigo) ?></span>
+    <a class="btn-logout" href="tablero.php" style="text-decoration:none;display:inline-flex;align-items:center;">Sorteo</a>
     <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
   </div>
 </div>
