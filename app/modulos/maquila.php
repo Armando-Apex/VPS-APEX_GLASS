@@ -680,7 +680,7 @@ function render() {
 }
 
 async function convertir() {
-  if (!confirm('&#191;Convertir esta cotización de maquila en orden de producción?')) return;
+  if (!confirm('¿Convertir esta cotización de maquila en orden de producción?')) return;
   var res = await fetch('../api/cotizaciones.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -692,7 +692,7 @@ async function convertir() {
 }
 
 async function cancelar() {
-  if (!confirm('&#191;Cancelar esta cotización de maquila?')) return;
+  if (!confirm('¿Cancelar esta cotización de maquila?')) return;
   var res = await fetch(API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
