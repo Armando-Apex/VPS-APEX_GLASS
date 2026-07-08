@@ -472,7 +472,11 @@ if ($metodo === 'POST' && $accion === 'enviar') {
         foreach ($vars as $var) {
             $valor = $var;
             if ($var === '{{nombre_cliente}}') {
-                $valor = $envio['nombre_cliente'] ?? 'Cliente';
+                // Solo el primer nombre: el cuerpo de algunas plantillas (ej. 009_apex_san_juan)
+                // deja muy poco margen dentro del límite de 1024 chars de Meta antes de que
+                // Meta rechace el envío completo con error 132005 "Translated text too long"
+                $nombreCompleto = trim($envio['nombre_cliente'] ?? '');
+                $valor = $nombreCompleto !== '' ? explode(' ', $nombreCompleto)[0] : 'Cliente';
             } elseif ($var === '{{codigo_portal}}') {
                 $valor = $envio['codigo_cliente'] ?? '';
             } elseif ($var === '{{punto}}') {
