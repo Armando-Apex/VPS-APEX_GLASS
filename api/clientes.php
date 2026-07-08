@@ -120,6 +120,14 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_nombre') {
     $stmtOrd2->execute([$nuevoNombre, $nombreAnterior]);
     $filas2 = $stmtOrd2->rowCount();
 
+    // cotizaciones también guarda su propia copia de cliente_nombre (usada en impresión/listados)
+    // y se quedaba desincronizada al renombrar un cliente — mismo cascade que ordenes arriba.
+    $stmtCot1 = $pdo->prepare("UPDATE cotizaciones SET cliente_nombre = ? WHERE cliente_id = ?");
+    $stmtCot1->execute([$nuevoNombre, $id]);
+
+    $stmtCot2 = $pdo->prepare("UPDATE cotizaciones SET cliente_nombre = ? WHERE cliente_nombre = ? AND (cliente_id IS NULL OR cliente_id = 0)");
+    $stmtCot2->execute([$nuevoNombre, $nombreAnterior]);
+
     $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'Nombre', ?, ?, ?, ?)")
         ->execute([$id, $nombreAnterior, $nuevoNombre, $usuario_id, $usuario_nombre]);
     $pdo->commit();
