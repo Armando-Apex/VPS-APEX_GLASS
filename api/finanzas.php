@@ -132,7 +132,7 @@ if ($method === 'GET') {
         $stmt = $db->query("
             SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_pedido,
                    o.estado, c.localidad, c.ciudad_destino, c.tipo_entrega,
-                   c.id as cot_id,
+                   c.id as cot_id, c.cliente_id,
                    ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
                    GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                    c.saldo_pagado,

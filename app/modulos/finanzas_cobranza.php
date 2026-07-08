@@ -109,6 +109,7 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 .forma-efectivo      { background: #dcfce7; color: #15803d; }
 .forma-tarjeta       { background: #dbeafe; color: #1d4ed8; }
 .forma-transferencia { background: #f3e8ff; color: #7c3aed; }
+.forma-saldo-favor   { background: #fef9c3; color: #78350f; }
 .pago-monto { font-weight: 700; color: #1e293b; margin-left: auto; }
 .pago-por   { font-size: 11px; color: #94a3b8; }
 .sin-pagos  { font-size: 13px; color: #94a3b8; padding: 8px 0; }
@@ -421,10 +422,13 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 <script>
 var ModFinanzasCobranza = (function() {
 
-var API     = '../api/finanzas.php';
-var _data   = [];
-var _lista  = [];
-var _abiertos = {};
+var API        = '../api/finanzas.php';
+var API_SF_COB = '../api/saldo_favor.php';
+var _data      = [];
+var _lista     = [];
+var _abiertos  = {};
+var _sfCache      = {}; // cliente_id -> saldo a favor disponible
+var _clientePorCot = {}; // cot_id -> cliente_id
 
 async function cargar() {
   try {
@@ -530,6 +534,7 @@ function renderTabla() {
     var ordLabel= o.estado==='pendiente_vobo'?'Pend. VoBo':o.estado==='activa'?'Activa':o.estado==='entregada'?'Entregada':'Cancelada';
     var ordClass= 'ord-'+(o.estado==='pendiente_vobo'?'vobo':o.estado);
     var abierto = _abiertos[o.cot_id] ? 'open' : '';
+    _clientePorCot[o.cot_id] = o.cliente_id;
 
     var epActual = o.estatus_pago || 'pendiente';
     var selOpts  = epagoOpts.map(function(opt) {
@@ -566,18 +571,29 @@ function renderTabla() {
       + '</tr>';
   }
   tbody.innerHTML = rows;
+
+  // Refrescar saldo a favor de paneles ya abiertos (ej. tras registrar un pago)
+  _lista.forEach(function(o) {
+    if (_abiertos[o.cot_id] && o.cliente_id && _sfCache[o.cliente_id] === undefined) {
+      cargarSaldoFavor(o.cliente_id, o.cot_id);
+    }
+  });
 }
+
+var FORMA_LABELS = {efectivo:'Efectivo', tarjeta:'Tarjeta', transferencia:'Transferencia', saldo_favor:'Saldo a Favor'};
 
 function renderPanelPagos(o) {
   var pagos  = o.pagos || [];
   var fmt    = function(n) { return '$' + parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var totalP  = parseFloat(o.total||0);
+  var pendP   = Math.max(0, totalP - parseFloat(o.saldo_pagado||0));
   var html   = '<div class="pagos-inner">';
 
   html += '<div class="pagos-lista">';
   if (pagos.length) {
     pagos.forEach(function(p) {
-      var fc = 'forma-' + p.forma_pago;
-      var fl = p.forma_pago.charAt(0).toUpperCase() + p.forma_pago.slice(1);
+      var fc = 'forma-' + p.forma_pago.replace('_','-');
+      var fl = FORMA_LABELS[p.forma_pago] || (p.forma_pago.charAt(0).toUpperCase() + p.forma_pago.slice(1));
       html += '<div class="pago-row">'
         + '<div class="pago-fecha">' + p.fecha_pago + ' ' + (p.hora_pago||'').substring(0,5) + '</div>'
         + '<span class="pago-forma ' + fc + '">' + fl + '</span>'
@@ -598,7 +614,11 @@ function renderPanelPagos(o) {
   html += '<div class="pf"><label>Fecha</label><input type="date" id="pf-fecha-' + o.cot_id + '" value="' + new Date().toISOString().substring(0,10) + '"></div>';
   html += '<div class="pf"><label>Hora</label><input type="time" id="pf-hora-' + o.cot_id + '" value="' + new Date().toTimeString().substring(0,5) + '"></div>';
   html += '<div class="pf"><label>Monto $</label><input type="number" id="pf-monto-' + o.cot_id + '" min="0" step="0.01" placeholder="0.00" style="min-width:130px"></div>';
-  html += '<div class="pf"><label>Forma</label><select id="pf-forma-' + o.cot_id + '"><option value="efectivo">Efectivo</option><option value="tarjeta">Tarjeta</option><option value="transferencia">Transferencia</option></select></div>';
+  var sfSaldo = _sfCache[o.cliente_id];
+  var sfLabel = (typeof sfSaldo === 'number' && sfSaldo > 0)
+    ? 'Saldo a Favor (Disp: $' + sfSaldo.toLocaleString('es-MX',{minimumFractionDigits:2}) + ')'
+    : 'Saldo a Favor';
+  html += '<div class="pf"><label>Forma</label><select id="pf-forma-' + o.cot_id + '" onchange="ModFinanzasCobranza._onFormaChange(' + o.cot_id + ',' + pendP.toFixed(2) + ')"><option value="efectivo">Efectivo</option><option value="tarjeta">Tarjeta</option><option value="transferencia">Transferencia</option><option value="saldo_favor">' + escHtml(sfLabel) + '</option></select></div>';
   html += '<div class="pf" style="flex:1"><label>Notas</label><input type="text" id="pf-notas-' + o.cot_id + '" placeholder="Opcional..." style="min-width:180px"></div>';
   html += '<button class="btn-reg" onclick="ModFinanzasCobranza._registrarPago(' + o.cot_id + ')">Registrar</button>';
   html += '</div></div></div>';
@@ -619,6 +639,42 @@ function toggle(cot_id, idx) {
     panel.classList.add('open');
     var btn2 = panel.previousElementSibling?.querySelector('.btn-expand');
     if (btn2) btn2.textContent = 'Cerrar';
+    var o = _lista[idx];
+    if (o && o.cliente_id && _sfCache[o.cliente_id] === undefined) {
+      cargarSaldoFavor(o.cliente_id, cot_id);
+    }
+  }
+}
+
+// ── Saldo a Favor: carga perezosa + actualización del select ya renderizado ──
+async function cargarSaldoFavor(cliente_id, cot_id) {
+  try {
+    var res  = await fetch(API_SF_COB + '?accion=saldo&cliente_id=' + cliente_id);
+    var data = await res.json();
+    _sfCache[cliente_id] = parseFloat(data.saldo || 0);
+  } catch (e) {
+    _sfCache[cliente_id] = 0;
+  }
+  var sel = document.getElementById('pf-forma-' + cot_id);
+  if (!sel) return;
+  var saldo = _sfCache[cliente_id];
+  var opt = sel.querySelector('option[value="saldo_favor"]');
+  if (opt) {
+    opt.textContent = saldo > 0
+      ? 'Saldo a Favor (Disp: $' + saldo.toLocaleString('es-MX',{minimumFractionDigits:2}) + ')'
+      : 'Saldo a Favor';
+  }
+}
+
+// ── Auto-rellenar monto al elegir Saldo a Favor ───────────────
+function onFormaChange(cot_id, pendiente) {
+  var sel = document.getElementById('pf-forma-' + cot_id);
+  var forma = sel ? sel.value : '';
+  if (forma !== 'saldo_favor') return;
+  var saldo = _sfCache[_clientePorCot[cot_id]];
+  if (typeof saldo === 'number' && saldo > 0) {
+    var montoInput = document.getElementById('pf-monto-' + cot_id);
+    if (montoInput) montoInput.value = Math.min(saldo, pendiente).toFixed(2);
   }
 }
 
@@ -631,6 +687,15 @@ async function registrarPago(cot_id) {
 
   if (!monto || monto <= 0) { alert('Ingresa un monto válido'); return; }
 
+  var clienteId = _clientePorCot[cot_id];
+  if (forma === 'saldo_favor') {
+    var saldoDisp = _sfCache[clienteId];
+    if (typeof saldoDisp === 'number' && monto > saldoDisp) {
+      alert('El monto excede el Saldo a Favor disponible ($' + saldoDisp.toLocaleString('es-MX',{minimumFractionDigits:2}) + ')');
+      return;
+    }
+  }
+
   var res  = await fetch(API, {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
@@ -639,7 +704,11 @@ async function registrarPago(cot_id) {
   var data = await res.json();
   if (data.ok) {
     _abiertos[cot_id] = true;
+    delete _sfCache[clienteId]; // forzar re-fetch: el saldo a favor pudo cambiar (uso o excedente)
     await cargar();
+    if (data.excedente) {
+      alert('Pago registrado.\n\nEl excedente de $' + parseFloat(data.excedente).toLocaleString('es-MX',{minimumFractionDigits:2}) + ' fue abonado al saldo a favor del cliente.');
+    }
   } else {
     alert(data.error || 'Error al registrar pago');
   }
@@ -689,6 +758,7 @@ return {
   _toggle:        toggle,
   _registrarPago: registrarPago,
   _cambiarEpago:  cambiarEpago,
+  _onFormaChange: onFormaChange,
 };
 })();
 
