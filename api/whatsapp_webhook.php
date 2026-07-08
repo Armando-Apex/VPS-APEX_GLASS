@@ -392,8 +392,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $db->prepare("UPDATE campana_envios SET estado='enviado' WHERE id=?")
                        ->execute([$envio['id']]);
                 } elseif ($nuevoEstado === 'fallido') {
-                    $db->prepare("UPDATE campana_envios SET estado='fallido' WHERE id=?")
-                       ->execute([$envio['id']]);
+                    // Meta acepta el envío (200 + message id) y solo después, vía este webhook
+                    // asíncrono, avisa si la entrega real falló — guardamos el motivo real
+                    // (status.errors) en vez de dejar error_msg vacío como antes.
+                    $errDetalle = !empty($status['errors']) ? substr(json_encode($status['errors']), 0, 255) : null;
+                    $db->prepare("UPDATE campana_envios SET estado='fallido', error_msg=? WHERE id=?")
+                       ->execute([$errDetalle, $envio['id']]);
                 }
             }
         }
