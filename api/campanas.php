@@ -535,7 +535,10 @@ if ($metodo === 'POST' && $accion === 'enviar') {
 
         $res         = enviarMensajeWA($payload);
         $waId        = $res['data']['messages'][0]['id'] ?? null;
-        $error       = ($res['code'] !== 200) ? substr(json_encode($res['data']), 0, 255) : null;
+        // Guardar detalle del error siempre que falte el message id — no solo cuando el
+        // HTTP code no es 200, porque Meta puede responder 200 sin "messages" (rechazo
+        // silencioso/throttling) y antes eso dejaba error_msg vacío sin forma de diagnosticar.
+        $error       = $waId ? null : substr($res['curl_error'] ?? (json_encode($res['data']) ?: 'Sin respuesta de Meta'), 0, 255);
         $nuevoEstado = $waId ? 'enviado' : 'fallido';
 
         $stmtUpd->execute([$nuevoEstado, $waId, $error, $envio['id']]);

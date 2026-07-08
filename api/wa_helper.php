@@ -13,10 +13,12 @@ if (!function_exists('enviarMensajeWA')) {
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
         curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-        $resp = curl_exec($ch);
-        $code = curl_errno($ch) ? 0 : curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $resp   = curl_exec($ch);
+        $errno  = curl_errno($ch);
+        $code   = $errno ? 0 : curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr= $errno ? curl_error($ch) : null;
         curl_close($ch);
         $data = json_decode($resp, true);
-        return ['code' => $code, 'data' => $data];
+        return ['code' => $code, 'data' => $data, 'curl_error' => $curlErr];
     }
 }
