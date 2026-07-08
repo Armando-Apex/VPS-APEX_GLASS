@@ -239,9 +239,11 @@ function render(data) {
   const terminadas  = todasPiezas.filter(p => ['terminado','entregado'].includes(p.estatus)).length;
   const total       = todasPiezas.length;
 
-  const fechaRegistro = orden.fecha_pedido
-    ? new Date(orden.fecha_pedido + 'T12:00:00').toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
-    : '&#8212;';
+  const fechaRegistro = orden.vobo_at
+    ? new Date(orden.vobo_at.replace(' ', 'T')).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
+    : (orden.fecha_pedido
+      ? new Date(orden.fecha_pedido + 'T12:00:00').toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
+      : '&#8212;');
   const fechaEntrega = orden.fecha_entrega
     ? new Date(orden.fecha_entrega + 'T12:00:00').toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
     : '&#8212;';

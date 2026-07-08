@@ -27,7 +27,12 @@ if (!$folio) jsonResponse(['error' => 'Folio requerido'], 400);
 $db = getDB();
 
 // Datos de la orden
-$stmt = $db->prepare('SELECT * FROM ordenes WHERE folio = ?');
+$stmt = $db->prepare('
+    SELECT o.*, c.vobo_at, c.vobo_por
+    FROM ordenes o
+    LEFT JOIN cotizaciones c ON c.orden_id = o.id
+    WHERE o.folio = ?
+');
 $stmt->execute([$folio]);
 $orden = $stmt->fetch();
 if (!$orden) jsonResponse(['error' => 'Orden no encontrada'], 404);
