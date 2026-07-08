@@ -82,8 +82,8 @@ if ($method === 'GET') {
             SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_pedido,
                    c.localidad, c.ciudad_destino, c.tipo_entrega,
                    c.id as cot_id,
-                   ROUND((COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) AS total,
-                   GREATEST(0, ROUND((COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+                   ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
+                   GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                    c.saldo_pagado,
                    c.condicion_pago, c.folio as cot_folio
             FROM ordenes o
@@ -100,8 +100,8 @@ if ($method === 'GET') {
 
         $stmt = $db->prepare("
             SELECT o.*, c.localidad, c.id as cot_id,
-                   ROUND((COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) AS total,
-                   GREATEST(0, ROUND((COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+                   ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
+                   GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                    c.saldo_pagado,
                    c.condicion_pago, c.folio as cot_folio, c.vobo_por, c.vobo_at, c.cliente_id
             FROM ordenes o
@@ -133,8 +133,8 @@ if ($method === 'GET') {
             SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_pedido,
                    o.estado, c.localidad, c.ciudad_destino, c.tipo_entrega,
                    c.id as cot_id,
-                   ROUND((COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) AS total,
-                   GREATEST(0, ROUND((COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+                   ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
+                   GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                    c.saldo_pagado,
                    c.condicion_pago, c.folio as cot_folio, c.vobo_por, c.vobo_at,
                    COALESCE(c.estatus_pago, 'pendiente') as estatus_pago
@@ -200,7 +200,7 @@ if ($method === 'POST') {
         $db->beginTransaction();
         try {
             // Calcular total y saldo pendiente ANTES de aplicar el pago
-            $stmt_pre = $db->prepare("SELECT COALESCE(saldo_pagado,0) as saldo_pagado, descuento, servicios_subtotal,
+            $stmt_pre = $db->prepare("SELECT COALESCE(saldo_pagado,0) as saldo_pagado, descuento, servicios_subtotal, tipo, total,
                 COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id = c.id),0) AS bruto_partidas,
                 cliente_id
                 FROM cotizaciones c WHERE c.id = ?");
@@ -208,7 +208,9 @@ if ($method === 'POST') {
             $pre = $stmt_pre->fetch(PDO::FETCH_ASSOC);
             if (!$pre) throw new Exception('Cotización no encontrada');
 
-            $total_real      = round(((float)$pre['bruto_partidas'] * (1 - (float)$pre['descuento']/100) + (float)$pre['servicios_subtotal']) * 1.16, 2);
+            $total_real      = ($pre['tipo'] === 'maquila')
+                ? round((float)$pre['total'], 2)
+                : round(((float)$pre['bruto_partidas'] * (1 - (float)$pre['descuento']/100) + (float)$pre['servicios_subtotal']) * 1.16, 2);
             $saldo_pendiente = round(max(0, $total_real - (float)$pre['saldo_pagado']), 2);
             $excedente       = round($monto - $saldo_pendiente, 2);
 
@@ -272,12 +274,14 @@ if ($method === 'POST') {
             $db->commit();
 
             // Devolver saldo actualizado (bruto desde partidas para evitar inconsistencia en c.subtotal)
-            $stmt = $db->prepare("SELECT saldo_pagado, descuento, servicios_subtotal,
+            $stmt = $db->prepare("SELECT saldo_pagado, descuento, servicios_subtotal, tipo, total,
                 COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id = c.id),0) AS bruto_partidas
                 FROM cotizaciones c WHERE c.id = ?");
             $stmt->execute([$cot_id]);
             $cot = $stmt->fetch(PDO::FETCH_ASSOC);
-            $total_real = round(((float)$cot['bruto_partidas'] * (1 - (float)$cot['descuento']/100) + (float)$cot['servicios_subtotal']) * 1.16, 2);
+            $total_real = ($cot['tipo'] === 'maquila')
+                ? round((float)$cot['total'], 2)
+                : round(((float)$cot['bruto_partidas'] * (1 - (float)$cot['descuento']/100) + (float)$cot['servicios_subtotal']) * 1.16, 2);
 
             // Marcar como pagado automáticamente si el saldo cubre el total (tolerancia $0.99)
             if ($total_real > 0 && ($total_real - (float)$cot['saldo_pagado']) <= 0.99) {
