@@ -2,12 +2,16 @@
 // ============================================================
 //  APEX GLASS - Portal Clientes - Tablero Sorteo Julio 2026
 //  Ruta en servidor: /produccion/portal/tablero.php
-//  Acceso publico (Top 10 por CTN). Si el cliente ya tiene
-//  sesion activa del portal, se agrega su fila personal abajo.
+//  Acceso solo para clientes con sesion activa del portal.
 // ============================================================
 require_once __DIR__ . '/../api/config.php';
 
 if (session_status() === PHP_SESSION_NONE) session_start();
+
+if (empty($_SESSION['portal_cliente_id'])) {
+    header('Location: index.php');
+    exit;
+}
 
 $pdo = getDB();
 
@@ -275,11 +279,7 @@ tr.mi-fila-en-top10 { background: var(--gold-bg); }
 
 <div class="header">
   <span class="header-logo">APEX GLASS</span>
-  <?php if ($logueado): ?>
-    <a class="header-link" href="dashboard.php">Mi portal</a>
-  <?php else: ?>
-    <a class="header-link" href="index.php">Entrar</a>
-  <?php endif; ?>
+  <a class="header-link" href="dashboard.php">Mi portal</a>
 </div>
 
 <div class="main">
@@ -322,34 +322,30 @@ tr.mi-fila-en-top10 { background: var(--gold-bg); }
     </div>
   <?php endif; ?>
 
-  <?php if ($logueado): ?>
-    <?php if ($miFila && !$estoyEnTop10): ?>
-      <div class="mi-pos">
-        <div class="mi-pos-label">Tu posici&oacute;n &mdash; Lugar #<?= $miFila['lugar'] ?></div>
-        <div class="mi-pos-grid">
-          <div>
-            <div class="mi-pos-item-label">C&oacute;digo</div>
-            <div class="mi-pos-item-val"><?= htmlspecialchars($miFila['codigo']) ?></div>
-          </div>
-          <div>
-            <div class="mi-pos-item-label">Claro 6mm</div>
-            <div class="mi-pos-item-val"><?= fmtM2($miFila['m2_6mm']) ?></div>
-          </div>
-          <div>
-            <div class="mi-pos-item-label">Claro 9mm</div>
-            <div class="mi-pos-item-val"><?= fmtM2($miFila['m2_9mm']) ?></div>
-          </div>
-          <div>
-            <div class="mi-pos-item-label">Suma total</div>
-            <div class="mi-pos-item-val destacado"><?= fmtM2($miFila['m2_total']) ?></div>
-          </div>
+  <?php if ($miFila && !$estoyEnTop10): ?>
+    <div class="mi-pos">
+      <div class="mi-pos-label">Tu posici&oacute;n &mdash; Lugar #<?= $miFila['lugar'] ?></div>
+      <div class="mi-pos-grid">
+        <div>
+          <div class="mi-pos-item-label">C&oacute;digo</div>
+          <div class="mi-pos-item-val"><?= htmlspecialchars($miFila['codigo']) ?></div>
+        </div>
+        <div>
+          <div class="mi-pos-item-label">Claro 6mm</div>
+          <div class="mi-pos-item-val"><?= fmtM2($miFila['m2_6mm']) ?></div>
+        </div>
+        <div>
+          <div class="mi-pos-item-label">Claro 9mm</div>
+          <div class="mi-pos-item-val"><?= fmtM2($miFila['m2_9mm']) ?></div>
+        </div>
+        <div>
+          <div class="mi-pos-item-label">Suma total</div>
+          <div class="mi-pos-item-val destacado"><?= fmtM2($miFila['m2_total']) ?></div>
         </div>
       </div>
-    <?php elseif (!$miFila): ?>
-      <div class="login-cta">A&uacute;n no tienes compras registradas de Claro 6mm/9mm este mes.</div>
-    <?php endif; ?>
-  <?php else: ?>
-    <div class="login-cta">&iquest;Ya eres cliente? <a href="index.php">Inicia sesi&oacute;n</a> para ver tu posici&oacute;n y tu consumo de m&sup2;.</div>
+    </div>
+  <?php elseif (!$miFila): ?>
+    <div class="login-cta">A&uacute;n no tienes compras registradas de Claro 6mm/9mm este mes.</div>
   <?php endif; ?>
 
 </div>

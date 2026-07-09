@@ -358,7 +358,6 @@ body {
 
   <button class="btn-main" id="btnLogin" onclick="doLogin()">Entrar</button>
   <button class="btn-ghost" onclick="abrirOfertas()">Conoce nuestras ofertas</button>
-  <a class="btn-ghost" href="tablero.php" style="display:block;text-align:center;text-decoration:none;">Sorteo Julio &mdash; Ver tablero</a>
 
   <div class="footer-note">Acceso exclusivo para clientes</div>
 </div>
