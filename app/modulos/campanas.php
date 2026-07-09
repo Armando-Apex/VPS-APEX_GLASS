@@ -1003,11 +1003,17 @@ var ModCampanas = (function() {
         desconocido: '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;background:#f1f5f9;color:#64748b;margin-left:6px;vertical-align:middle;">Nuevo</span>'
     };
 
-    function cargarConversaciones() {
-        document.getElementById('cmpConvLista').innerHTML = '<p style="padding:14px;font-size:12px;color:#64748b;">Cargando...</p>';
+    function cargarConversaciones(silencioso) {
+        var lista = document.getElementById('cmpConvLista');
+        if (!lista) return;
+        if (!silencioso) {
+            lista.innerHTML = '<p style="padding:14px;font-size:12px;color:#64748b;">Cargando...</p>';
+        }
         fetch('/produccion/api/campanas.php?accion=conversaciones')
           .then(function(r) { return r.json(); })
           .then(function(data) {
+            var lista2 = document.getElementById('cmpConvLista');
+            if (!lista2) return;
             var html = '';
             var sinLeerTotal = 0;
             _convTipoMap = {};
@@ -1026,14 +1032,15 @@ var ModCampanas = (function() {
                 var cnombre = esc(c.nombre_cliente || c.telefono).replace(/'/g,"&#39;");
                 var nombreMostrar = c.nombre_cliente ? esc(c.nombre_cliente) : esc(fmtTel10(c.telefono));
                 var telChip = c.nombre_cliente ? ' <span style="font-size:11px;color:#94a3b8;font-weight:500;">' + esc(fmtTel10(c.telefono)) + '</span>' : '';
-                html += '<div class="conv-item" onclick="window.cmpAbrirConv(' + cid + ',\'' + cnombre + '\')" id="convItem' + cid + '">' +
+                var activaCls = (_convActiva === cid) ? ' active' : '';
+                html += '<div class="conv-item' + activaCls + '" onclick="window.cmpAbrirConv(' + cid + ',\'' + cnombre + '\')" id="convItem' + cid + '">' +
                     badgeSL +
                     '<div class="conv-item-nombre">' + nombreMostrar + telChip + badgeTipo + '</div>' +
                     '<div class="conv-item-preview">' + esc((c.ultimo_mensaje || 'Sin mensajes').substring(0, 60)) + '</div>' +
                     '<button class="conv-item-menu-btn" onclick="event.stopPropagation();window.cmpMenuConv(event,' + cid + ')" title="Más opciones">&#8942;</button>' +
                     '</div>';
             });
-            document.getElementById('cmpConvLista').innerHTML = html ||
+            lista2.innerHTML = html ||
                 '<p style="padding:14px;font-size:12px;color:#64748b;">Sin conversaciones a&uacute;n.</p>';
             var badge = document.getElementById('cmpBadgeTot');
             if (badge) {
@@ -1041,6 +1048,17 @@ var ModCampanas = (function() {
                 badge.style.display = sinLeerTotal > 0 ? '' : 'none';
             }
           });
+    }
+
+    // ── Auto-refresco silencioso del inbox (lista + chat abierto) ──
+    // Se auto-detiene solo cuando el módulo ya no está en pantalla (SPA
+    // reemplaza el contenido sin limpiar setInterval, ver UPD-312).
+    var _pollInboxTimer = null;
+    function pollInboxSilencioso() {
+        if (!document.getElementById('cmpConvLista')) { clearInterval(_pollInboxTimer); return; }
+        if (_tabActual !== 'conversaciones') return;
+        cargarConversaciones(true);
+        if (_convActiva) { cargarMensajes(_convActiva, true); }
     }
 
     function abrirConv(convId, nombre) {
@@ -1168,7 +1186,7 @@ var ModCampanas = (function() {
         });
     }
 
-    function cargarMensajes(convId) {
+    function cargarMensajes(convId, preservarScroll) {
         fetch('/produccion/api/campanas.php?accion=mensajes&conversacion_id=' + parseInt(convId))
           .then(function(r) { return r.json(); })
           .then(function(data) {
@@ -1271,12 +1289,16 @@ var ModCampanas = (function() {
             });
             var msgsEl = document.getElementById('cmpMsgs');
             if (msgsEl) {
+                var cercaAbajo = !preservarScroll || (msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight) < 80;
                 msgsEl.innerHTML = msgs || '<p style="color:#94a3b8;font-size:12px;text-align:center;">Sin mensajes a&uacute;n.</p>';
-                msgsEl.scrollTop = msgsEl.scrollHeight;
+                if (cercaAbajo) { msgsEl.scrollTop = msgsEl.scrollHeight; }
             }
-            // Mantener foco en el textarea después de recargar mensajes
-            var ta = document.getElementById('cmpMsgInput');
-            if (ta && document.activeElement !== ta) ta.focus();
+            // Mantener foco en el textarea después de recargar mensajes (no en refrescos silenciosos)
+            if (!preservarScroll) {
+                var ta = document.getElementById('cmpMsgInput');
+                if (ta && document.activeElement !== ta) ta.focus();
+            }
+            if (typeof window.actualizarBadgeWA === 'function') window.actualizarBadgeWA();
           });
     }
 
@@ -1706,6 +1728,7 @@ var ModCampanas = (function() {
     // ── Init ──────────────────────────────────────────────────
     function init() {
         tab('conversaciones', document.getElementById('cmpTabBtnConv'));
+        _pollInboxTimer = setInterval(pollInboxSilencioso, 15000);
     }
 
     // ── Exposición global (requerida por SPA) ─────────────────
