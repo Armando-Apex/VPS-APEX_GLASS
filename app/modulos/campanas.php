@@ -166,6 +166,37 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','adm
   </div>
 </div>
 
+<!-- Modal Contacto (editar y pasar prospecto a Cliente) -->
+<div id="cmpModalContacto" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1100;align-items:flex-start;justify-content:center;padding-top:60px;overflow-y:auto;">
+  <div style="background:#fff;border-radius:10px;width:420px;max-width:92vw;padding:22px;margin-bottom:40px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <h3 style="margin:0;font-size:15px;color:#1e293b;">Datos de contacto</h3>
+      <button onclick="window.cmpCerrarContacto()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;">&#10005;</button>
+    </div>
+    <div id="cmpContactoError" style="display:none;background:#fee2e2;color:#b91c1c;font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:12px;"></div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:5px;">Tel&eacute;fono (WhatsApp)</label>
+      <div id="cmpContactoTel" style="font-size:14px;color:#1e293b;font-weight:600;"></div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:5px;">Nombre <span style="color:#ef4444">*</span></label>
+      <input id="cmpContactoNombre" type="text" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;" placeholder="Nombre del contacto">
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:5px;">Email</label>
+      <input id="cmpContactoEmail" type="email" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;" placeholder="correo@ejemplo.com (opcional)">
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:5px;">Nota</label>
+      <textarea id="cmpContactoNota" rows="3" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;" placeholder="Opcional. Se guarda en la bit&aacute;cora del cliente."></textarea>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button onclick="window.cmpCerrarContacto()" style="background:none;border:1px solid #e2e8f0;padding:9px 16px;border-radius:8px;font-size:13px;cursor:pointer;color:#64748b;">Cancelar</button>
+      <button id="cmpContactoBtnGuardar" onclick="window.cmpGuardarContacto()" style="background:#2563eb;color:#fff;border:none;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Guardar y pasar a Cliente</button>
+    </div>
+  </div>
+</div>
+
 <script>
 var ModCampanas = (function() {
     var _step = 1;
@@ -182,6 +213,8 @@ var ModCampanas = (function() {
     var _convActivaNombre = '';
     var _pollTimer = null;
     var _tabActual = 'campanas';
+    var _convTelMap = {};
+    var _contactoConvId = null;
 
     // ── Escape XSS ────────────────────────────────────────────
     function esc(s) {
@@ -192,6 +225,13 @@ var ModCampanas = (function() {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    // ── Formatea a "XX XXXX XXXX" tomando los últimos 10 dígitos ──
+    function fmtTel10(tel) {
+        var d = String(tel || '').replace(/\D/g, '').substr(-10);
+        if (d.length !== 10) return tel || '';
+        return d.substr(0, 2) + ' ' + d.substr(2, 4) + ' ' + d.substr(6, 4);
     }
 
     function fmtFecha(s) {
@@ -972,19 +1012,23 @@ var ModCampanas = (function() {
             var sinLeerTotal = 0;
             _convTipoMap = {};
             _convActividadMap = {};
+            _convTelMap = {};
             (data.conversaciones || []).forEach(function(c) {
                 var sl   = parseInt(c.mensajes_sin_leer) || 0;
                 var tipo = c.tipo_contacto || 'desconocido';
                 _convTipoMap[c.id]      = tipo;
                 _convActividadMap[c.id] = c.ultima_actividad || null;
+                _convTelMap[c.id]       = c.telefono || '';
                 sinLeerTotal += sl;
                 var badgeSL   = sl > 0 ? '<span class="conv-badge">' + sl + '</span>' : '';
                 var badgeTipo = _tipoBadge[tipo] || '';
                 var cid = c.id;
                 var cnombre = esc(c.nombre_cliente || c.telefono).replace(/'/g,"&#39;");
+                var nombreMostrar = c.nombre_cliente ? esc(c.nombre_cliente) : esc(fmtTel10(c.telefono));
+                var telChip = c.nombre_cliente ? ' <span style="font-size:11px;color:#94a3b8;font-weight:500;">' + esc(fmtTel10(c.telefono)) + '</span>' : '';
                 html += '<div class="conv-item" onclick="window.cmpAbrirConv(' + cid + ',\'' + cnombre + '\')" id="convItem' + cid + '">' +
                     badgeSL +
-                    '<div class="conv-item-nombre">' + esc(c.nombre_cliente || c.telefono) + badgeTipo + '</div>' +
+                    '<div class="conv-item-nombre">' + nombreMostrar + telChip + badgeTipo + '</div>' +
                     '<div class="conv-item-preview">' + esc((c.ultimo_mensaje || 'Sin mensajes').substring(0, 60)) + '</div>' +
                     '<button class="conv-item-menu-btn" onclick="event.stopPropagation();window.cmpMenuConv(event,' + cid + ')" title="Más opciones">&#8942;</button>' +
                     '</div>';
@@ -1008,6 +1052,10 @@ var ModCampanas = (function() {
 
         var tipo      = _convTipoMap[convId] || 'desconocido';
         var badgeTipo = _tipoBadge[tipo] || '';
+        var telChip   = ' <span style="font-size:11px;color:#94a3b8;font-weight:500;">' + esc(fmtTel10(_convTelMap[convId])) + '</span>';
+        var nombreHeaderHtml = (tipo === 'prospecto' || tipo === 'desconocido')
+            ? '<span onclick="window.cmpAbrirContacto(' + convId + ')" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;" title="Ver / editar contacto">' + esc(_convActivaNombre) + '</span>'
+            : esc(_convActivaNombre);
 
         // Verificar ventana 24h
         var ultimaActividad = _convActividadMap[convId] || null;
@@ -1063,7 +1111,7 @@ var ModCampanas = (function() {
 
         var chat = document.getElementById('cmpConvChat');
         chat.innerHTML =
-            '<div class="conv-header">' + esc(_convActivaNombre) + badgeTipo + '</div>' +
+            '<div class="conv-header">' + nombreHeaderHtml + telChip + badgeTipo + '</div>' +
             '<div class="conv-mensajes" id="cmpMsgs"><p style="color:#94a3b8;font-size:12px;text-align:center;">Cargando mensajes...</p></div>' +
             inputHtml;
 
@@ -1587,6 +1635,74 @@ var ModCampanas = (function() {
         .catch(function() { alert('Error de red al enviar la ubicación'); });
     }
 
+    // ── Modal Contacto: editar prospecto/desconocido y pasar a Cliente ──
+    function abrirContacto(convId) {
+        _contactoConvId = convId;
+        var errBox = document.getElementById('cmpContactoError');
+        errBox.style.display = 'none';
+        errBox.textContent = '';
+        document.getElementById('cmpContactoTel').textContent = fmtTel10(_convTelMap[convId]) || '-';
+        document.getElementById('cmpContactoNombre').value = (_convActivaNombre || '').toUpperCase();
+        document.getElementById('cmpContactoEmail').value = '';
+        document.getElementById('cmpContactoNota').value = '';
+        var btn = document.getElementById('cmpContactoBtnGuardar');
+        btn.disabled = false;
+        btn.textContent = 'Guardar y pasar a Cliente';
+        document.getElementById('cmpModalContacto').style.display = 'flex';
+    }
+
+    function cerrarContacto() {
+        document.getElementById('cmpModalContacto').style.display = 'none';
+    }
+
+    function mostrarErrorContacto(msg) {
+        var errBox = document.getElementById('cmpContactoError');
+        errBox.textContent = msg;
+        errBox.style.display = 'block';
+    }
+
+    function guardarContacto() {
+        var convId  = _contactoConvId;
+        var nombre  = document.getElementById('cmpContactoNombre').value.trim();
+        var email   = document.getElementById('cmpContactoEmail').value.trim();
+        var nota    = document.getElementById('cmpContactoNota').value.trim();
+        if (!nombre) { mostrarErrorContacto('El nombre es obligatorio'); return; }
+
+        var tel10 = String(_convTelMap[convId] || '').replace(/\D/g, '').substr(-10);
+        var btn = document.getElementById('cmpContactoBtnGuardar');
+        btn.disabled = true;
+        btn.textContent = 'Guardando...';
+
+        fetch('/produccion/api/clientes.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({razon_social: nombre, contacto: nombre, telefono: tel10, email: email, localidad: 'local'})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { throw new Error(data.error); }
+            return fetch('/produccion/api/campanas.php?accion=vincular_cliente_conversacion', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({conversacion_id: convId, cliente_id: data.id, nota: nota})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(link) {
+                if (link.error) {
+                    alert('Cliente ' + data.codigo + ' creado, pero no se pudo vincular la conversación: ' + link.error + '. Vincúlalo manualmente desde Clientes.');
+                }
+                cerrarContacto();
+                cargarConversaciones();
+                abrirConv(convId, nombre);
+            });
+        })
+        .catch(function(err) {
+            mostrarErrorContacto(err.message || 'Error al guardar el contacto');
+            btn.disabled = false;
+            btn.textContent = 'Guardar y pasar a Cliente';
+        });
+    }
+
     // ── Init ──────────────────────────────────────────────────
     function init() {
         tab('conversaciones', document.getElementById('cmpTabBtnConv'));
@@ -1624,6 +1740,9 @@ var ModCampanas = (function() {
     window.cmpToggleEmojis        = toggleEmojis;
     window.cmpInsertarEmoji       = insertarEmoji;
     window.cmpEnviarUbicacion     = enviarUbicacion;
+    window.cmpAbrirContacto       = abrirContacto;
+    window.cmpCerrarContacto      = cerrarContacto;
+    window.cmpGuardarContacto     = guardarContacto;
 
     return { init: init };
 })();

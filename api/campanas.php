@@ -251,6 +251,44 @@ if ($metodo === 'GET' && $accion === 'mensajes') {
     exit;
 }
 
+// ── POST vincular cliente recién creado a una conversación (prospecto → cliente) ──
+if ($metodo === 'POST' && $accion === 'vincular_cliente_conversacion') {
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $convId    = (int)($body['conversacion_id'] ?? 0);
+    $clienteId = (int)($body['cliente_id'] ?? 0);
+    $nota      = trim($body['nota'] ?? '');
+
+    if (!$convId || !$clienteId) {
+        jsonResponse(['error' => 'Datos incompletos'], 400); exit;
+    }
+
+    $stmt = $db->prepare("SELECT telefono, cliente_id FROM whatsapp_conversaciones WHERE id = ?");
+    $stmt->execute([$convId]);
+    $conv = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$conv) { jsonResponse(['error' => 'Conversación no encontrada'], 404); exit; }
+    if ($conv['cliente_id']) { jsonResponse(['error' => 'La conversación ya está ligada a un cliente'], 400); exit; }
+
+    $db->beginTransaction();
+    $db->prepare("UPDATE whatsapp_conversaciones SET cliente_id = ? WHERE id = ?")
+       ->execute([$clienteId, $convId]);
+
+    // Si el teléfono hace match con un prospecto, marcarlo como ya convertido
+    // para que no vuelva a salir en futuras campañas segmentadas de prospectos.
+    $db->prepare("
+        UPDATE prospectos SET es_cliente = 1
+        WHERE RIGHT(REGEXP_REPLACE(telefono,'[^0-9]',''), 10) = RIGHT(REGEXP_REPLACE(?,'[^0-9]',''), 10)
+    ")->execute([$conv['telefono']]);
+
+    if ($nota !== '') {
+        $db->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'Nota (WhatsApp)', '', ?, ?, ?)")
+           ->execute([$clienteId, $nota, $user['id'], $user['nombre']]);
+    }
+    $db->commit();
+
+    jsonResponse(['ok' => true]);
+    exit;
+}
+
 // ── POST crear campaña ───────────────────────────────────────
 if ($metodo === 'POST' && $accion === 'crear') {
     if (!$puedeEnviar) {
