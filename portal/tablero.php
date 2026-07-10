@@ -20,7 +20,7 @@ $mesInicio   = '2026-07-01 00:00:00';
 $mesFin      = '2026-07-31 23:59:59';
 $mesLabel    = 'Julio 2026';
 $idsClaro6mm = [1, 16];       // Claro 6mm, Claro 6mm - Servicio Express
-$idsClaro9mm = [2, 15, 24];   // Claro 9mm, Claro 9mm - Servicio Express, Claro 9mm - Con Esmerilado
+$idsClaro9mm = [2, 15, 24, 12]; // Claro 9mm, Claro 9mm - Servicio Express, Claro 9mm - Con Esmerilado, Plantilla Claro 9mm
 $idsClaroAll = array_merge($idsClaro6mm, $idsClaro9mm);
 
 $sql = "
