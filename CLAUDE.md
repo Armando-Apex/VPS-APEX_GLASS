@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 10 julio 2026 | Próximo UPD disponible: UPD-318
+# Última actualización: 10 julio 2026 | Próximo UPD disponible: UPD-319
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -565,4 +565,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-317 | 10-jul-2026 | Armando | Tablero "Sorteo Julio 2026" (`portal/tablero.php`, UPD-299/304): a petición de Armando, "Plantilla Claro 9mm" (cristal id=12) ahora SÍ cuenta en el ranking de 9mm — reversa la exclusión explícita original de UPD-299. `$idsClaro9mm` pasó de `[2,15,24]` a `[2,15,24,12]`. Verificado contra la BD real: CTN-190 entra al top 10 (12.57 m², antes 0 m² contados porque toda su compra era Plantilla), desplazando al que estaba en 9°/10°; los primeros 6-7 lugares no cambian de posición pero suman más m² los que ya compraban Plantilla (ej. CTN-188 de 59.2→63.4 m², CTN-156 de 6.05→11.41 m²). Pendiente: confirmar con Armando si también se debe sumar "Plantilla Claro 6mm" (id=13, no tocado en este cambio) al lado de 6mm. Archivo: portal/tablero.php |
 
-**Próximo UPD disponible: UPD-318**
+| UPD-318 | 10-jul-2026 | Armando | Tablero "Sorteo Julio 2026" (`portal/tablero.php`): a petición de Armando, "Plantilla Claro 6mm" (cristal id=13) ahora también cuenta en el ranking de 6mm, por simetría con el fix de 9mm de UPD-317. `$idsClaro6mm` pasó de `[1,16]` a `[1,16,13]`. Verificado contra la BD real: sin impacto en julio (solo 2 partidas / 0.82 m² vendidos de Plantilla Claro 6mm en todo el histórico, ninguna con VoBo en julio), pero queda correcto para meses futuros. Archivo: portal/tablero.php |
+
+**Próximo UPD disponible: UPD-319**
