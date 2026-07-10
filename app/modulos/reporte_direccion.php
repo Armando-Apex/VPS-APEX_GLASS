@@ -542,35 +542,22 @@ function rdRenderAlmacen(inv) {
 }
 
 function rdRenderRentabilidad(inv) {
-  var porTipo   = (inv && inv.por_tipo)   ? inv.por_tipo   : [];
-  var cristales = (inv && inv.cristales)  ? inv.cristales  : [];
-  if (!porTipo.length || !cristales.length) return '';
-
-  var tipoLbl = {
-    claro:'Claro', claro_zafiro:'Claro Zafiro', filtrasol:'Filtrasol',
-    espejo:'Espejo', espejo_aluminio:'Espejo Aluminio', laminado_claro:'Laminado Claro',
-    reflecta:'Reflecta', satinado:'Satinado', tintex:'Tintex'
-  };
-
-  var cristalMap = {};
-  cristales.forEach(function(c) {
-    cristalMap[c.nombre.toLowerCase().replace(/\s+/g, '')] = c;
-  });
+  var porTipo = (inv && inv.por_tipo) ? inv.por_tipo : [];
+  if (!porTipo.length) return '';
+  var fechaDesde = (inv && inv.precio_real_desde) ? inv.precio_real_desde.substring(0, 10) : '';
 
   var rows = [];
   porTipo.forEach(function(g) {
     if (!g.costo_prom_m2) return;
-    var nombreNorm = ((tipoLbl[g.tipo] || g.tipo) + parseInt(g.espesor_mm) + 'mm').toLowerCase().replace(/\s+/g, '');
-    var cristal = cristalMap[nombreNorm];
-    var precio  = cristal && parseFloat(cristal.precio_m2) ? parseFloat(cristal.precio_m2) : null;
+    var precio = (g.precio_venta_real !== null && g.precio_venta_real !== undefined) ? parseFloat(g.precio_venta_real) : null;
+    var m2Vendidos  = parseFloat(g.m2_vendidos_real || 0);
     var costoSinIva = parseFloat(g.costo_prom_m2);
     var costoConIva = parseFloat((costoSinIva * 1.16).toFixed(4));
-    if (precio !== null) precio = parseFloat((precio * 0.90).toFixed(4));
     var utilidad    = precio !== null ? parseFloat((precio - costoConIva).toFixed(4)) : null;
     var markup      = (precio !== null && costoConIva > 0) ? (utilidad / costoConIva) * 100 : null;
     var utilidadPct = (precio !== null && precio > 0)      ? ((precio - costoSinIva) / precio) * 100 : null;
     var margen      = (precio !== null && precio > 0)      ? (utilidad / precio) * 100       : null;
-    rows.push({ tipo: g.tipo, espesor: g.espesor_mm, costoSinIva: costoSinIva, costoConIva: costoConIva, precio: precio, utilidad: utilidad, markup: markup, utilidadPct: utilidadPct, margen: margen });
+    rows.push({ tipo: g.tipo, espesor: g.espesor_mm, costoSinIva: costoSinIva, costoConIva: costoConIva, precio: precio, m2Vendidos: m2Vendidos, utilidad: utilidad, markup: markup, utilidadPct: utilidadPct, margen: margen });
   });
 
   if (!rows.length) return '';
@@ -585,13 +572,15 @@ function rdRenderRentabilidad(inv) {
   var clrMargen = function(m) { return m === null ? 'var(--muted-lt)' : m >= 55 ? 'var(--green)' : m >= 40 ? 'var(--amber)' : 'var(--red)'; };
 
   var html = '<div class="section-title">Rentabilidad por m&#178; de vidrio</div>';
+  html += '<div style="font-size:11px;color:var(--muted-lt);margin:-6px 0 10px">Precio real ponderado por m&#178; efectivamente vendido' + (fechaDesde ? ' desde ' + fechaDesde : '') + ' (neto de descuento, no precio de cat&#225;logo)</div>';
   html += '<div class="table-card"><table>' +
     '<thead><tr>' +
       '<th>Tipo</th>' +
       '<th>Espesor</th>' +
       '<th style="text-align:right">Costo s/IVA /m&#178;</th>' +
       '<th style="text-align:right">Costo c/IVA /m&#178;</th>' +
-      '<th style="text-align:right">Precio venta /m&#178;</th>' +
+      '<th style="text-align:right">m&#178; vendidos</th>' +
+      '<th style="text-align:right">Precio real /m&#178;</th>' +
       '<th style="text-align:right">Utilidad /m&#178;</th>' +
       '<th style="text-align:right">Markup</th>' +
       '<th style="text-align:right">% Utilidad</th>' +
@@ -608,13 +597,14 @@ function rdRenderRentabilidad(inv) {
           '</div>' +
           '<span style="font-weight:800;font-size:13px;color:' + clr + ';min-width:44px;text-align:right">' + fmtPct(r.margen) + '</span>' +
         '</div>'
-      : '<span style="color:var(--muted-lt);font-size:11px">Sin precio</span>';
+      : '<span style="color:var(--muted-lt);font-size:11px">Sin ventas</span>';
     html += '<tr>' +
       '<td><strong>' + esc(r.tipo) + '</strong></td>' +
       '<td>' + r.espesor + ' mm</td>' +
       '<td style="text-align:right;color:var(--muted)">' + fmt(r.costoSinIva) + '</td>' +
       '<td style="text-align:right;color:var(--purple)">' + fmt(r.costoConIva) + '</td>' +
-      '<td style="text-align:right">' + (r.precio !== null ? fmt(r.precio) : '<span style="color:var(--muted-lt);font-size:11px">Sin precio</span>') + '</td>' +
+      '<td style="text-align:right;color:var(--muted)">' + r.m2Vendidos.toFixed(1) + '</td>' +
+      '<td style="text-align:right">' + (r.precio !== null ? fmt(r.precio) : '<span style="color:var(--muted-lt);font-size:11px">Sin ventas</span>') + '</td>' +
       '<td style="text-align:right;color:var(--green);font-weight:700">' + fmt(r.utilidad) + '</td>' +
       '<td style="text-align:right;color:var(--muted)">' + fmtPct(r.markup) + '</td>' +
       '<td style="text-align:right;font-weight:700;color:var(--blue)">' + fmtPct(r.utilidadPct) + '</td>' +

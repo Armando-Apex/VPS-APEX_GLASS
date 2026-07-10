@@ -147,7 +147,59 @@ if ($method === 'GET') {
 
         $sc = $db->query("SELECT id, nombre, nombre_etiqueta, precio_m2 FROM cristales WHERE activo = 1 ORDER BY nombre ASC");
         $cristales = $sc->fetchAll();
-        jsonResponse(['por_lamina' => $por_lamina, 'por_tipo' => $por_tipo, 'cristales' => $cristales]);
+
+        // Precio real ponderado por m2 vendido (reemplaza el precio de catalogo x0.90 usado antes en
+        // Rentabilidad por m2 de vidrio). A peticion de Armando (10-jul-2026): los costos de cristal
+        // subieron fuerte en los ultimos dias, quiere ver el precio REAL cobrado, no una suposicion.
+        // Ventana fija desde que empezaron los cambios de precio, no un rango movil.
+        $FECHA_INICIO_PRECIO_REAL = '2026-07-01 00:00:00';
+        $tipoLbl = [
+            'claro' => 'Claro', 'claro_zafiro' => 'Claro Zafiro', 'filtrasol' => 'Filtrasol',
+            'espejo' => 'Espejo', 'espejo_aluminio' => 'Espejo Aluminio', 'laminado_claro' => 'Laminado Claro',
+            'reflecta' => 'Reflecta', 'satinado' => 'Satinado', 'tintex' => 'Tintex',
+        ];
+        $normalizar = function($s) { return preg_replace('/\s+/', '', mb_strtolower($s)); };
+
+        $sv = $db->prepare("
+            SELECT cp.cristal_id,
+                   SUM(cp.precio_m2_usado * cp.m2 * cp.cantidad * (1 - COALESCE(c.descuento,0)/100)) AS ingreso_neto,
+                   SUM(cp.m2 * cp.cantidad) AS m2_total
+            FROM cotizaciones_partidas cp
+            JOIN cotizaciones c ON c.id = cp.cotizacion_id
+            JOIN ordenes o ON o.id = c.orden_id
+            WHERE cp.cristal_id IS NOT NULL
+              AND o.estado IN ('activa','entregada')
+              AND c.vobo_at >= ? AND c.vobo_at <= NOW()
+            GROUP BY cp.cristal_id
+        ");
+        $sv->execute([$FECHA_INICIO_PRECIO_REAL]);
+        $ventasPorCristal = [];
+        foreach ($sv->fetchAll() as $v) {
+            $ventasPorCristal[(int)$v['cristal_id']] = ['ingreso' => (float)$v['ingreso_neto'], 'm2' => (float)$v['m2_total']];
+        }
+
+        // Agrupa variantes del mismo tipo+espesor (Express, Con Esmerilado, etc.) con el mismo
+        // criterio que el ranking del sorteo (UPD-299): mismo cristal base, distinto acabado/servicio.
+        // Excluye por diseno Plantilla/Zafiro/Ultra Claro (nombre no arranca con el mismo prefijo).
+        foreach ($por_tipo as &$g) {
+            $base = $normalizar(($tipoLbl[$g['tipo']] ?? $g['tipo']) . (int)$g['espesor_mm'] . 'mm');
+            $ingreso = 0.0; $m2v = 0.0;
+            foreach ($cristales as $c) {
+                $nombreNorm = $normalizar($c['nombre']);
+                $sufijo = substr($nombreNorm, strlen($base), 1);
+                if (strpos($nombreNorm, $base) !== 0 || ($sufijo !== '' && $sufijo !== '-')) continue;
+                $cid = (int)$c['id'];
+                if (isset($ventasPorCristal[$cid])) {
+                    $ingreso += $ventasPorCristal[$cid]['ingreso'];
+                    $m2v     += $ventasPorCristal[$cid]['m2'];
+                }
+            }
+            $g['precio_venta_real'] = $m2v > 0 ? round($ingreso / $m2v, 4) : null;
+            $g['m2_vendidos_real']  = round($m2v, 2);
+        }
+        unset($g);
+
+        jsonResponse(['por_lamina' => $por_lamina, 'por_tipo' => $por_tipo, 'cristales' => $cristales, 'precio_real_desde' => $FECHA_INICIO_PRECIO_REAL]);
     }
 
     jsonResponse(['error' => 'Accion no valida'], 400);
