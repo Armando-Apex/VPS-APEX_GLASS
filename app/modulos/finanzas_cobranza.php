@@ -748,13 +748,29 @@ async function cambiarEpago(cot_id, sel) {
   sel.dataset.prev = nuevo;
 }
 
+function primerYUltimoDiaMes() {
+  var hoy = new Date();
+  var y = hoy.getFullYear();
+  var m = hoy.getMonth();
+  var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+  var ultimoDia = new Date(y, m + 1, 0).getDate();
+  return { desde: y + '-' + pad(m + 1) + '-01', hasta: y + '-' + pad(m + 1) + '-' + pad(ultimoDia) };
+}
+
+function aplicarPeriodoDefault() {
+  var per = primerYUltimoDiaMes();
+  var elD = document.getElementById('f-desde');
+  var elH = document.getElementById('f-hasta');
+  if (elD) elD.value = per.desde;
+  if (elH) elH.value = per.hasta;
+}
+
 function limpiar() {
   document.getElementById('f-q').value      = '';
   document.getElementById('f-estado').value = '';
   document.getElementById('f-pago').value   = '';
   document.getElementById('f-asesor').value = '';
-  document.getElementById('f-desde').value  = '';
-  document.getElementById('f-hasta').value  = '';
+  aplicarPeriodoDefault();
   filtrar();
 }
 
@@ -762,6 +778,7 @@ function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+aplicarPeriodoDefault();
 cargar();
 
 return {
