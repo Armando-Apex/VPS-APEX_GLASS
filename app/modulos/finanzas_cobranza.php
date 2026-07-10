@@ -470,8 +470,12 @@ function filtrar() {
     if (q && !(o.folio||'').toLowerCase().includes(q) && !(o.cliente_nombre||'').toLowerCase().includes(q)) return false;
     if (estado && o.estado !== estado) return false;
     if (asesor && o.asesor !== asesor) return false;
-    if (desde  && o.fecha_pedido < desde) return false;
-    if (hasta  && o.fecha_pedido > hasta) return false;
+    // Una búsqueda por folio/cliente ignora el rango de fechas — si Lina busca S-097
+    // debe aparecer aunque sea de un mes anterior al periodo mostrado por default.
+    if (!q) {
+      if (desde && o.fecha_pedido < desde) return false;
+      if (hasta && o.fecha_pedido > hasta) return false;
+    }
     if (pago) {
       var total  = parseFloat(o.total||0);
       var pagado = parseFloat(o.saldo_pagado||0);
