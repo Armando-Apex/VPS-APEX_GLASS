@@ -503,7 +503,7 @@ const ESTACION_LABEL = {
   admin:'⬡ Admin', jefe_piso:'⬡ Jefe de Piso',
   director:'⬡ Director', dir_admin:'⬡ Dir. Admin',
   comercial:'💼 Comercial', administracion:'📋 Administración',
-  dueno:'👁 Dirección',
+  dueno:'👁 Dirección', chofer:'🚚 Chofer — Entregas',
 };
 const ESTACION_COLOR = {
   corte:'#d97706', canteado:'#0891b2',
@@ -512,7 +512,7 @@ const ESTACION_COLOR = {
   admin:'#f5a623', jefe_piso:'#f5a623',
   director:'#f5a623', dir_admin:'#f5a623',
   comercial:'#2563eb', administracion:'#2563eb',
-  dueno:'#6b7280',
+  dueno:'#6b7280', chofer:'#15803d',
 };
 
 // ── State ─────────────────────────────────────────────────
@@ -762,7 +762,21 @@ function extraerOrdenMasivo(raw) {
   return null;
 }
 
+// QR de la remisión (app/imprimir_salida.php) — escaneado por el chofer al cargar
+// o al pasar a la siguiente entrega. Ver api/salidas.php accion=scan_qr.
+function extraerSalida(raw) {
+  try {
+    const url = new URL(raw);
+    const param = url.searchParams.get('qr_salida') || url.searchParams.get('QR_SALIDA');
+    if (param) return parseInt(param, 10) || null;
+  } catch(_) {}
+  return null;
+}
+
 async function loadPieza(raw) {
+  const salidaOrdenId = extraerSalida(raw);
+  if (salidaOrdenId) { await loadSalida(salidaOrdenId); return; }
+
   const ordenId = extraerOrdenMasivo(raw);
   if (ordenId) { await loadOrdenMasiva(ordenId); return; }
 
@@ -1210,6 +1224,34 @@ function cancelarOrdenMasiva() {
   ordenMasivaActual = null;
   document.getElementById('ordenMasivaCard').classList.remove('show');
   document.getElementById('emptyState').style.display = 'block';
+}
+
+// ── QR de salida (chofer) ──────────────────────────────────
+// Escaneo dispara la acción de inmediato (sin paso de confirmación aparte),
+// igual que el escaneo de una pieza en estación.
+async function loadSalida(ordenId) {
+  try {
+    const r = await fetch(API + 'salidas.php?accion=scan_qr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orden_id: ordenId })
+    });
+    const d = await r.json();
+    if (d.error) { showFeedback('err', '❌', 'Error', d.error); return; }
+
+    if (d.ya_escaneado) {
+      showFeedback('ok', '⏱', 'Ya escaneado', 'A las ' + d.hora);
+      return;
+    }
+
+    if (d.tipo === 'en_ruta') {
+      showFeedback('ok', '🚚', 'En ruta — ' + d.folio, d.wa_cliente ? 'Cliente y asesor notificados' : 'Cliente sin WhatsApp registrado');
+    } else {
+      showFeedback('ok', '⏭️', 'Siguiente entrega — ' + d.folio, d.wa_cliente ? 'Cliente y asesor notificados' : 'Cliente sin WhatsApp registrado');
+    }
+  } catch(e) {
+    toast('Error de conexión', 'error');
+  }
 }
 
 // ── Manual ────────────────────────────────────────────────

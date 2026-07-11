@@ -326,6 +326,8 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .doc-tipo { font-size: 14px; font-weight: 700; margin-top: 2px; text-transform: uppercase; }
 .doc-sub  { font-size: 10px; color: #555; margin-top: 1px; }
 .header-right { width: 180px; min-width: 180px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+.salida-qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #ccc; }
+.salida-qr-wrap .qr-cap { font-size: 8px; font-weight: 700; color: #555; text-align: center; text-transform: uppercase; letter-spacing: .3px; }
 .hdr-field { font-size: 10px; }
 .hdr-field span { font-weight: 700; }
 
@@ -397,6 +399,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
     @page { margin: 12mm 10mm; size: letter portrait; }
 }
 </style>
+<script src="../lib/qrcode.min.js"></script>
 </head>
 <body>
 
@@ -501,6 +504,12 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
       </div>
       <div class="hdr-field"><span>Fecha:</span> <?= $fecha_hoy ?></div>
       <div class="hdr-field"><span>Entrega:</span> <span id="doc-fecha-entrega"><?= $fecha_ent ?></span></div>
+      <?php if ($tipo_ent === 'chofer' && $orden_id_php): ?>
+      <div class="salida-qr-wrap">
+        <div id="salidaQrWrap"></div>
+        <div class="qr-cap">Escanear al cargar</div>
+      </div>
+      <?php endif; ?>
     </div>
   </div>
 
@@ -597,6 +606,14 @@ function esc(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+
+// ── QR de salida (chofer) — estático, independiente del caso A/C/D/E ─────────
+(function renderQrSalida() {
+  var wrap = document.getElementById('salidaQrWrap');
+  if (!wrap || typeof QRCode === 'undefined') return;
+  var url = 'https://apex.glass/produccion/app/operador.php?qr_salida=<?= (int)$orden_id_php ?>';
+  new QRCode(wrap, { text: url, width: 64, height: 64, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+})();
 
 // ── INIT: detectar caso ───────────────────────────────────────────────────────
 (function init() {
