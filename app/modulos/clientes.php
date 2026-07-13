@@ -209,7 +209,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
       </div>
       <div class="cli-form-row">
         <label class="cli-form-label">Email</label>
-        <input class="cli-form-input" id="new-email" type="email" placeholder="correo@ejemplo.com">
+        <input class="cli-form-input" id="new-email" type="email" multiple placeholder="correo@ejemplo.com (separa varios con coma)">
       </div>
       <div class="cli-form-row">
         <label class="cli-form-label">Tipo</label>
@@ -331,8 +331,11 @@ window.cliAbrirPanel = function(id) {
       ${PUEDE_EDITAR_NOMBRE ? `<button class="cli-btn-sm" style="margin-top:4px" onclick="cliEditarContacto(${c.id})">&#9998; Editar contacto</button>` : ''}
     </div>
     <div class="cli-info-row">
-      <div class="cli-info-label">Correo</div>
-      <div class="cli-info-valor muted">${c.email || '—'}</div>
+      <div class="cli-info-label" style="display:flex;justify-content:space-between;align-items:center">
+        Correo
+        <button class="cli-btn-sm" style="font-size:10px;padding:2px 8px" onclick="cliEditarTelefono(${c.id},'email')">Editar</button>
+      </div>
+      <div class="cli-info-valor muted" id="panel-email-val">${c.email || '—'}</div>
     </div>
     <div class="cli-info-row">
       <div class="cli-info-label" style="display:flex;justify-content:space-between;align-items:center">
@@ -599,16 +602,22 @@ window.cliGuardarContacto = async function(id) {
   } catch(e) { alert('Error: ' + e.message); }
 };
 
+const CAMPOS_EDITABLES = {
+  telefono:          {elId: 'panel-telefono-val',          tipo: 'tel',   placeholder: '812 000 0000'},
+  telefono_alterno:  {elId: 'panel-telefono-alterno-val',  tipo: 'tel',   placeholder: '812 000 0000'},
+  email:             {elId: 'panel-email-val',             tipo: 'email', placeholder: 'correo@ejemplo.com (separa varios con coma)', multiple: true},
+};
+
 window.cliEditarTelefono = function(id, campo) {
   const c      = _cliData.find(x => x.id == id);
   if (!c) return;
-  var actual   = (campo === 'telefono' ? c.telefono : c.telefono_alterno) || '';
-  var elId     = campo === 'telefono' ? 'panel-telefono-val' : 'panel-telefono-alterno-val';
-  var etiqueta = campo === 'telefono' ? 'Teléfono' : 'Tel. Alterno WA';
-  var valEl    = document.getElementById(elId);
+  var conf     = CAMPOS_EDITABLES[campo];
+  if (!conf) return;
+  var actual   = c[campo] || '';
+  var valEl    = document.getElementById(conf.elId);
   if (!valEl) return;
 
-  valEl.innerHTML = '<input id="edit-tel-input" type="tel" class="cli-form-input" value="' + actual.replace(/"/g,'&quot;') + '" placeholder="812 000 0000" style="width:100%;margin-bottom:6px">'
+  valEl.innerHTML = '<input id="edit-tel-input" type="' + conf.tipo + '" ' + (conf.multiple ? 'multiple' : '') + ' class="cli-form-input" value="' + actual.replace(/"/g,'&quot;') + '" placeholder="' + conf.placeholder + '" style="width:100%;margin-bottom:6px">'
     + '<div style="display:flex;gap:6px">'
     + '<button class="cli-btn-sm cli-btn-gen" onclick="cliGuardarTelefono(' + id + ',\'' + campo + '\')">&#10003; Guardar</button>'
     + '<button class="cli-btn-sm" onclick="cliAbrirPanel(' + id + ')">Cancelar</button>'
@@ -623,7 +632,7 @@ window.cliGuardarTelefono = async function(id, campo) {
   var nuevoValor = input.value.trim();
 
   var c      = _cliData.find(x => x.id == id);
-  var actual = (campo === 'telefono' ? c.telefono : c.telefono_alterno) || '';
+  var actual = c[campo] || '';
   if (nuevoValor === actual) { cliAbrirPanel(id); return; }
 
   try {

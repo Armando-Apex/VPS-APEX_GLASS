@@ -25,9 +25,20 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 
 /* Badges */
 .fac-badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; }
-.fac-badge.pendiente { background: #fef3c7; color: #92400e; }
+.fac-badge.borrador  { background: #fef3c7; color: #92400e; }
 .fac-badge.timbrada  { background: #dcfce7; color: #166534; }
 .fac-badge.cancelada { background: #fee2e2; color: #991b1b; }
+
+/* Tabs por estatus */
+.fac-tabs { display: flex; gap: 2px; background: #f3f4f6; padding: 3px; border-radius: 10px; width: fit-content; margin-bottom: 16px; }
+.fac-tab { padding: 6px 16px; border-radius: 8px; border: none; font-size: 13px; cursor: pointer; font-weight: 500; background: none; color: #6b7280; }
+.fac-tab.active { background: #fff; color: #1a1a1a; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.fac-tab-cnt { font-size: 11px; color: #94a3b8; margin-left: 4px; }
+.fac-tab.active .fac-tab-cnt { color: #6b7280; }
+@media (max-width: 640px) {
+  .fac-tabs { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+  .fac-tab  { white-space: nowrap; padding: 6px 12px; font-size: 12px; }
+}
 
 /* Acciones */
 .fac-act-btn { background: none; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; margin-right: 4px; }
@@ -182,6 +193,12 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     <button class="fac-btn-new" onclick="ModFacturacion.abrirNueva()">+ Nueva Factura</button>
   </div>
 
+  <div class="fac-tabs">
+    <button class="fac-tab active" onclick="ModFacturacion._tab('borrador')" data-tab="borrador">Borradores <span class="fac-tab-cnt" id="fac-cnt-borrador">&#8212;</span></button>
+    <button class="fac-tab"        onclick="ModFacturacion._tab('timbrada')" data-tab="timbrada">Timbradas <span class="fac-tab-cnt" id="fac-cnt-timbrada">&#8212;</span></button>
+    <button class="fac-tab"        onclick="ModFacturacion._tab('cancelada')" data-tab="cancelada">Canceladas <span class="fac-tab-cnt" id="fac-cnt-cancelada">&#8212;</span></button>
+  </div>
+
   <div class="fac-field" style="margin-bottom:12px;max-width:420px">
     <input type="text" id="fac-buscar" placeholder="Buscar por folio de factura, folio de orden, cliente o RFC…" autocomplete="off"
       oninput="ModFacturacion.buscarFacturas()"
@@ -321,8 +338,8 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
         </div>
         <div class="fac-field">
           <label>Correo electrónico</label>
-          <input type="email" id="fac-email" placeholder="cliente@empresa.com">
-          <div class="fac-hint">Facturama / FacturAPI envía el XML+PDF a este correo al timbrar</div>
+          <input type="email" id="fac-email" multiple placeholder="cliente@empresa.com, contador@empresa.com">
+          <div class="fac-hint">Puedes poner varios separados por coma — el PDF+XML se envía a todos al timbrar</div>
         </div>
       </div>
       <div class="fac-row cols3">
@@ -458,13 +475,20 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 
       <div class="fac-motivo-wrap visible">
         <label>Motivo de cancelación (SAT)</label>
-        <select id="fac-motivo-cancel">
+        <select id="fac-motivo-cancel" onchange="ModFacturacion.cambiarMotivoCancel()">
           <option value="01">01 – Error en la factura, se sustituye por otra</option>
           <option value="02">02 – Error en la factura, sin sustitución</option>
           <option value="03">03 – No se realizó la operación</option>
           <option value="04">04 – Operación nominativa en factura global</option>
         </select>
         <div class="fac-hint" style="margin-top:4px;color:#dc2626">La cancelación >$1,000 MXN o después de 72 hrs requiere aceptación del cliente en su buzón SAT. Esta acción se envía directamente al PAC (FacturAPI) y no se puede deshacer.</div>
+      </div>
+
+      <div class="fac-motivo-wrap visible" id="fac-sustitucion-wrap" style="display:none">
+        <label>Factura que sustituye a esta (folio interno)</label>
+        <input type="text" id="fac-sustitucion-folio" placeholder="Ej. A-003" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:7px;font-size:13px;outline:none;font-family:inherit" oninput="ModFacturacion._buscarSustituta()">
+        <div id="fac-sustitucion-info" style="margin-top:6px;font-size:12px;color:#475569"></div>
+        <div class="fac-hint" style="margin-top:4px">El motivo 01 requiere el UUID de la factura ya timbrada que corrige/reemplaza a esta — el SAT exige facturar primero la sustituta y cancelar después con esa referencia.</div>
       </div>
     </div>
     <div class="fac-modal-foot">
@@ -532,11 +556,13 @@ var ModFacturacion = (function() {
     _apiFetch('../api/facturapi.php?accion=lista', {}, function(err, res) {
       if (err || !res.ok) return;
       _facturas = res.facturas || [];
+      _actualizarContadores();
       _renderTabla();
     });
   }
 
   var _filtroTexto = '';
+  var _tabActivo    = 'borrador';
 
   function buscarFacturas() {
     var el = document.getElementById('fac-buscar');
@@ -544,9 +570,32 @@ var ModFacturacion = (function() {
     _renderTabla();
   }
 
+  function _tab(nombre) {
+    _tabActivo = nombre;
+    var btns = document.querySelectorAll('.fac-tab');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', btns[i].getAttribute('data-tab') === nombre);
+    }
+    _renderTabla();
+  }
+
+  function _actualizarContadores() {
+    var cnt = {borrador:0, timbrada:0, cancelada:0};
+    for (var i = 0; i < _facturas.length; i++) {
+      if (cnt[_facturas[i].estatus] !== undefined) cnt[_facturas[i].estatus]++;
+    }
+    ['borrador','timbrada','cancelada'].forEach(function(k) {
+      var el = document.getElementById('fac-cnt-' + k);
+      if (el) el.textContent = cnt[k];
+    });
+  }
+
   function _facturasFiltradas() {
-    if (!_filtroTexto) return _facturas;
-    return _facturas.filter(function(f) {
+    // Con texto en el buscador se ignora el tab activo — igual que Cobranza (UPD-316),
+    // para poder encontrar una factura sin importar en qué pestaña de estatus esté.
+    var base = _filtroTexto ? _facturas : _facturas.filter(function(f) { return f.estatus === _tabActivo; });
+    if (!_filtroTexto) return base;
+    return base.filter(function(f) {
       var campos = [f.folio_interno, f.orden_folio, f.receptor_nombre, f.receptor_rfc, f.cliente_solicito_nombre];
       for (var i = 0; i < campos.length; i++) {
         if (campos[i] && String(campos[i]).toLowerCase().indexOf(_filtroTexto) !== -1) return true;
@@ -560,7 +609,7 @@ var ModFacturacion = (function() {
   }
 
   function _badgeHtml(est) {
-    var labels = {pendiente:'Pendiente', timbrada:'Timbrada', cancelada:'Cancelada'};
+    var labels = {borrador:'Borrador', timbrada:'Timbrada', cancelada:'Cancelada'};
     return '<span class="fac-badge ' + est + '">' + (labels[est] || est) + '</span>';
   }
 
@@ -630,6 +679,8 @@ var ModFacturacion = (function() {
       '</tr>';
   }
 
+  var labelsTab = {borrador:'Borradores', timbrada:'Timbradas', cancelada:'Canceladas'};
+
   function _renderTabla() {
     var tbody = document.getElementById('fac-tbody');
     if (!tbody) return;
@@ -639,7 +690,10 @@ var ModFacturacion = (function() {
     }
     var lista = _facturasFiltradas();
     if (!lista.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="fac-empty">Sin resultados para "' + _esc(_filtroTexto) + '".</td></tr>';
+      var msg = _filtroTexto
+        ? 'Sin resultados para "' + _esc(_filtroTexto) + '".'
+        : 'No hay facturas en ' + (labelsTab[_tabActivo] || _tabActivo) + '.';
+      tbody.innerHTML = '<tr><td colspan="7" class="fac-empty">' + msg + '</td></tr>';
       return;
     }
     var TIPOS = {I:'Factura',E:'Nota Cred.',P:'Comp. Pago',IG:'Global'};
@@ -664,6 +718,7 @@ var ModFacturacion = (function() {
       html += '<td style="font-weight:600">' + _fmt(f.total) + '</td>';
       html += '<td>' + _badgeHtml(f.estatus);
       if (esTimbrada && f.uuid) html += '<div style="font-size:10px;color:#22c55e;font-family:monospace;margin-top:2px">' + f.uuid.slice(0,8) + '…</div>';
+      if (esTimbrada && f.pac_cancel_status === 'pending') html += '<div style="font-size:10px;color:#92400e;font-weight:700;margin-top:2px">⏳ Cancelación pendiente de aceptación</div>';
       html += '</td>';
       html += '<td>';
       html += '<div class="fac-menu-wrap">';
@@ -679,7 +734,11 @@ var ModFacturacion = (function() {
         html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">Descargar PDF</a>';
         html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=xml&id=' + f.id + '" target="_blank">Descargar XML</a>';
         html += '<hr class="fac-menu-sep">';
-        html += '<button class="fac-menu-item danger" onclick="ModFacturacion.menuCerrar();ModFacturacion.abrirEstatus(' + f.id + ')">Cancelar factura (SAT)</button>';
+        if (f.pac_cancel_status === 'pending') {
+          html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.verificarCancelacion(' + f.id + ')">Verificar cancelación</button>';
+        } else {
+          html += '<button class="fac-menu-item danger" onclick="ModFacturacion.menuCerrar();ModFacturacion.abrirEstatus(' + f.id + ')">Cancelar factura (SAT)</button>';
+        }
         if (f.modo === 'test') {
           html += '<button class="fac-menu-item danger" onclick="ModFacturacion.menuCerrar();ModFacturacion.eliminar(' + f.id + ')">Eliminar (prueba)</button>';
         }
@@ -883,41 +942,99 @@ var ModFacturacion = (function() {
     });
   }
 
+  var _timbrandoIds = {};
+
   function timbrar(id) {
+    if (_timbrandoIds[id]) return; // ya en curso — evita doble clic/doble timbrado real ante FacturAPI
     if (!confirm('¿Timbrar esta factura en modo PRUEBA con FacturAPI sandbox?')) return;
-    var btn = document.querySelector('button[onclick*="timbrar(' + id + ')"]');
-    if (btn) { btn.disabled = true; btn.textContent = 'Timbrando…'; }
+    _timbrandoIds[id] = true;
 
     _apiFetch('../api/facturapi.php?accion=timbrar', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Timbrar'; }
+      delete _timbrandoIds[id];
       if (err || !res.ok) { alert('Error al timbrar: ' + (err || res.error)); return; }
       alert('✅ Timbrada en SANDBOX\nUUID: ' + res.uuid + '\n\nPuedes descargar el PDF desde la lista.');
       _cargarLista();
     });
   }
 
+  function verificarCancelacion(id) {
+    _apiFetch('../api/facturapi.php?accion=verificar_cancelacion&id=' + id, {}, function(err, res) {
+      if (err || !res.ok) { alert('Error al verificar: ' + (err || (res && res.error))); return; }
+      alert(res.firme ? '✅ La cancelación ya quedó firme ante el SAT.' : '⏳ Sigue pendiente de aceptación del receptor en su buzón SAT.');
+      _cargarLista();
+    });
+  }
+
+  var _sustitutaUuid = null;
+
   function abrirEstatus(id) {
     var f = null;
     for (var i = 0; i < _facturas.length; i++) { if (String(_facturas[i].id) === String(id)) { f = _facturas[i]; break; } }
     if (!f) return;
     _editingEstId = f.id;
+    _sustitutaUuid = null;
     document.getElementById('fac-est-folio').textContent = f.folio_interno;
     document.getElementById('fac-motivo-cancel').value = '01';
+    document.getElementById('fac-sustitucion-folio').value = '';
+    document.getElementById('fac-sustitucion-info').textContent = '';
+    document.getElementById('fac-sustitucion-wrap').style.display = 'block';
     document.getElementById('fac-est-overlay').classList.add('open');
+  }
+
+  function cambiarMotivoCancel() {
+    var motivo = document.getElementById('fac-motivo-cancel').value;
+    document.getElementById('fac-sustitucion-wrap').style.display = (motivo === '01') ? 'block' : 'none';
+  }
+
+  function _buscarSustituta() {
+    _sustitutaUuid = null;
+    var folio = document.getElementById('fac-sustitucion-folio').value.trim();
+    var info = document.getElementById('fac-sustitucion-info');
+    if (!folio) { info.textContent = ''; return; }
+    var f = null;
+    for (var i = 0; i < _facturas.length; i++) {
+      if (_facturas[i].folio_interno.toLowerCase() === folio.toLowerCase()) { f = _facturas[i]; break; }
+    }
+    if (!f) { info.textContent = 'No encontrada entre las facturas cargadas.'; info.style.color = '#dc2626'; return; }
+    if (f.estatus !== 'timbrada') { info.textContent = 'Esa factura no está timbrada (estatus: ' + f.estatus + ').'; info.style.color = '#dc2626'; return; }
+    if (!f.uuid) { info.textContent = 'Esa factura no tiene UUID registrado.'; info.style.color = '#dc2626'; return; }
+    _sustitutaUuid = f.uuid;
+    info.textContent = '✓ ' + f.receptor_nombre + ' — UUID ' + f.uuid;
+    info.style.color = '#16a34a';
   }
 
   function cerrarEstatus() {
     _editingEstId = null;
+    _sustitutaUuid = null;
     document.getElementById('fac-est-overlay').classList.remove('open');
   }
 
+  var _cancelando = false;
+
   function confirmarEstatus() {
+    if (_cancelando) return; // ya en curso — evita doble clic/doble cancelación real ante FacturAPI
     if (!_editingEstId) return;
     var motivo = document.getElementById('fac-motivo-cancel').value;
+    if (motivo === '01' && !_sustitutaUuid) {
+      alert('Motivo 01 requiere indicar la factura sustituta ya timbrada (busca su folio interno).');
+      return;
+    }
     if (!confirm('¿Cancelar esta factura ante el SAT? Esta acción no se puede deshacer.')) return;
     var id = _editingEstId;
-    _apiFetch('../api/facturapi.php?accion=cancelar', {method:'POST', body:JSON.stringify({id:id, motivo:motivo})}, function(err, res) {
+    var body = {id: id, motivo: motivo};
+    if (motivo === '01') body.substitution = _sustitutaUuid;
+
+    _cancelando = true;
+    var btn = document.querySelector('#fac-est-overlay .fac-btn-save');
+    if (btn) { btn.disabled = true; btn.textContent = 'Cancelando…'; }
+
+    _apiFetch('../api/facturapi.php?accion=cancelar', {method:'POST', body:JSON.stringify(body)}, function(err, res) {
+      _cancelando = false;
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirmar cancelación'; }
       if (err || !res.ok) { alert('Error al cancelar: ' + (err || res.error)); return; }
+      if (res.firme === false) {
+        alert('⏳ La solicitud se envió al SAT, pero queda pendiente de aceptación del receptor en su buzón (aplica cuando la factura supera $1,000 MXN o pasaron 72hrs). La factura sigue como "Timbrada" con un aviso hasta que se confirme.');
+      }
       cerrarEstatus();
       _cargarLista();
     });
@@ -999,6 +1116,9 @@ var ModFacturacion = (function() {
     } else if (f.estatus === 'cancelada') {
       html += '<div class="fac-section-title">Cancelación</div>';
       html += '<div class="fac-field"><label>Motivo SAT</label><div>' + _esc(f.motivo_cancel || '—') + '</div></div>';
+      if (f.sustituye_uuid) {
+        html += '<div class="fac-field" style="margin-top:10px"><label>UUID factura sustituta</label><div>' + _esc(f.sustituye_uuid) + '</div></div>';
+      }
     }
 
     document.getElementById('fac-vista-body').innerHTML = html;
@@ -1580,6 +1700,9 @@ var ModFacturacion = (function() {
     abrirEstatus:    abrirEstatus,
     cerrarEstatus:   cerrarEstatus,
     confirmarEstatus: confirmarEstatus,
+    cambiarMotivoCancel: cambiarMotivoCancel,
+    _buscarSustituta: _buscarSustituta,
+    _tab:            _tab,
     agregarConcepto: agregarConcepto,
     recalc:          recalc,
     _csatToggle:     _csatToggle,
@@ -1591,6 +1714,7 @@ var ModFacturacion = (function() {
     cstDescartar:    cstDescartar,
     tipoChange:      tipoChange,
     timbrar:              timbrar,
+    verificarCancelacion: verificarCancelacion,
     menuToggle:           menuToggle,
     menuCerrar:           menuCerrar,
     seleccionarClienteSelect: seleccionarClienteSelect,

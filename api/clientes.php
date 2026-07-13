@@ -150,11 +150,20 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_telefono') {
     $valor   = trim($_POST['valor']   ?? '');
 
     if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
-    if (!in_array($campo, ['telefono', 'telefono_alterno'])) {
+    if (!in_array($campo, ['telefono', 'telefono_alterno', 'email'])) {
         jsonResponse(['error' => 'Campo inválido']); exit;
     }
+    if ($campo === 'email' && $valor !== '') {
+        // Un cliente puede tener varios correos para facturación (ej. contador + comprador) — separados por coma
+        foreach (explode(',', $valor) as $correo) {
+            $correo = trim($correo);
+            if ($correo !== '' && !filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+                jsonResponse(['error' => 'Correo inválido: ' . $correo]); exit;
+            }
+        }
+    }
 
-    $stmt = $pdo->prepare("SELECT telefono, telefono_alterno FROM clientes WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT telefono, telefono_alterno, email FROM clientes WHERE id = ?");
     $stmt->execute([$id]);
     $actual = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$actual) { jsonResponse(['error' => 'Cliente no encontrado']); exit; }
@@ -165,7 +174,8 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_telefono') {
     $pdo->beginTransaction();
     $pdo->prepare("UPDATE clientes SET $campo = ? WHERE id = ?")
         ->execute([$nuevoValor, $id]);
-    $etiqueta = $campo === 'telefono' ? 'Teléfono' : 'Teléfono Alterno WA';
+    $etiquetas = ['telefono' => 'Teléfono', 'telefono_alterno' => 'Teléfono Alterno WA', 'email' => 'Correo'];
+    $etiqueta  = $etiquetas[$campo];
     $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, ?, ?, ?, ?, ?)")
         ->execute([$id, $etiqueta, $valorAnterior, $nuevoValor ?? '', $usuario_id, $usuario_nombre]);
     $pdo->commit();
@@ -220,6 +230,12 @@ if ($method === 'POST') {
 
     if (!$razon_social) { jsonResponse(['error' => 'La razón social es obligatoria']); exit; }
     if ($localidad === 'foraneo' && !$ciudad) { jsonResponse(['error' => 'La ciudad es obligatoria para foráneos']); exit; }
+    foreach (explode(',', $email) as $correo) {
+        $correo = trim($correo);
+        if ($correo !== '' && !filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+            jsonResponse(['error' => 'Correo inválido: ' . $correo]); exit;
+        }
+    }
 
     $stmt  = $pdo->query("SELECT MAX(CAST(SUBSTRING(codigo, 5) AS UNSIGNED)) as max_num FROM clientes WHERE codigo LIKE 'CTN-%'");
     $row   = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -264,6 +280,13 @@ if ($method === 'PUT') {
         'regimen_fiscal'   => trim($body['regimen_fiscal']  ?? $actual['regimen_fiscal'] ?? '') ?: null,
     ];
     if (isset($body['activo']) && $es_admin) $campos['activo'] = (int)$body['activo'];
+
+    foreach (explode(',', $campos['email']) as $correo) {
+        $correo = trim($correo);
+        if ($correo !== '' && !filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+            jsonResponse(['error' => 'Correo inválido: ' . $correo]); exit;
+        }
+    }
 
     $etiquetas = ['razon_social'=>'Razón Social','contacto'=>'Contacto','telefono'=>'Teléfono','telefono_alterno'=>'Teléfono Alterno WA','email'=>'Email','localidad'=>'Localidad','ciudad'=>'Ciudad','activo'=>'Estatus','rfc'=>'RFC','cp_fiscal'=>'CP Fiscal','regimen_fiscal'=>'Régimen Fiscal'];
     $stmt_log  = $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?,?,?,?,?,?)");
