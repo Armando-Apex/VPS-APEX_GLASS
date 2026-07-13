@@ -733,6 +733,7 @@ var ModFacturacion = (function() {
       } else if (esTimbrada) {
         html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">Descargar PDF</a>';
         html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=xml&id=' + f.id + '" target="_blank">Descargar XML</a>';
+        html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.reenviarCorreo(' + f.id + ')">Reenviar correo</button>';
         html += '<hr class="fac-menu-sep">';
         if (f.pac_cancel_status === 'pending') {
           html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.verificarCancelacion(' + f.id + ')">Verificar cancelación</button>';
@@ -885,6 +886,16 @@ var ModFacturacion = (function() {
 
   function guardar() {
     var esPublicoGeneral = document.getElementById('fac-publico-general').checked;
+    var rfcVal = document.getElementById('fac-rfc').value.trim().toUpperCase();
+
+    // Trampa común: el placeholder del campo RFC muestra "XAXX010101000 (público en general)" como ejemplo,
+    // y es fácil escribirlo directo ahí en vez de usar la casilla — pero el backend trata ESE RFC exacto
+    // como Público en General sin importar la casilla, y pide un "Cliente que lo solicitó" que en ese flujo
+    // nunca se llenó. Se detecta aquí para dar un mensaje claro en vez del error genérico del servidor.
+    if (rfcVal === 'XAXX010101000' && !esPublicoGeneral) {
+      alert('El RFC XAXX010101000 es el genérico de "Público en General".\n\nSi el cliente no tiene RFC, no lo escribas directo en el campo — activa la casilla "Facturar a Público en General" arriba y selecciona ahí quién lo solicitó.');
+      return;
+    }
 
     var errores = [];
     if (!document.getElementById('fac-receptor-nombre').value.trim()) errores.push('Nombre / Razón Social');
@@ -954,6 +965,28 @@ var ModFacturacion = (function() {
       if (err || !res.ok) { alert('Error al timbrar: ' + (err || res.error)); return; }
       alert('✅ Timbrada en SANDBOX\nUUID: ' + res.uuid + '\n\nPuedes descargar el PDF desde la lista.');
       _cargarLista();
+    });
+  }
+
+  var _reenviandoIds = {};
+
+  function reenviarCorreo(id) {
+    if (_reenviandoIds[id]) return;
+    var f = null;
+    for (var i = 0; i < _facturas.length; i++) { if (String(_facturas[i].id) === String(id)) { f = _facturas[i]; break; } }
+    if (!f) return;
+
+    var actual = f.receptor_email || '';
+    var input = prompt('¿A qué correo(s) reenviar el PDF+XML? Separa varios con coma.', actual);
+    if (input === null) return; // canceló
+    input = input.trim();
+    if (!input) { alert('Captura al menos un correo.'); return; }
+
+    _reenviandoIds[id] = true;
+    _apiFetch('../api/facturapi.php?accion=reenviar_correo', {method:'POST', body:JSON.stringify({id:id, correos:input})}, function(err, res) {
+      delete _reenviandoIds[id];
+      if (err || !res.ok) { alert('Error al reenviar: ' + (err || (res && res.error))); return; }
+      alert('✅ Correo reenviado a: ' + res.correos.join(', '));
     });
   }
 
@@ -1715,6 +1748,7 @@ var ModFacturacion = (function() {
     tipoChange:      tipoChange,
     timbrar:              timbrar,
     verificarCancelacion: verificarCancelacion,
+    reenviarCorreo:       reenviarCorreo,
     menuToggle:           menuToggle,
     menuCerrar:           menuCerrar,
     seleccionarClienteSelect: seleccionarClienteSelect,

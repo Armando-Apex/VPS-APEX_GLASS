@@ -13,6 +13,16 @@ function _correosValidos($raw) {
     return $out;
 }
 
+// Descarga un archivo (PDF/XML) de FacturAPI autenticado; regresa el binario o null si falla
+function _descargarArchivoFacturapi($url) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_HTTPHEADER=>['Authorization: Bearer '.FACTURAPI_KEY], CURLOPT_TIMEOUT=>20]);
+    $bin = curl_exec($ch);
+    if (curl_getinfo($ch, CURLINFO_HTTP_CODE) !== 200) $bin = null;
+    unset($ch);
+    return $bin;
+}
+
 header('Content-Type: application/json');
 
 $user = requirePermisoApi('ver_wip');
@@ -206,7 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
     if (strtoupper(trim($d['receptor_rfc'])) === 'XAXX010101000') {
         $clienteSolicitoId = (int)($d['cliente_solicito_id'] ?? 0);
         if (!$clienteSolicitoId) {
-            jsonResponse(['ok'=>false,'error'=>'Facturas a Público en General requieren ligar al cliente real que lo solicitó']); exit;
+            jsonResponse(['ok'=>false,'error'=>'Facturas a Público en General (RFC XAXX010101000) requieren ligar al cliente real que lo solicitó — activa la casilla "Facturar a Público en General" en el modal y selecciónalo ahí, en vez de escribir ese RFC directo en el campo.']); exit;
         }
         $stmt = $pdo->prepare("SELECT id FROM clientes WHERE id=?");
         $stmt->execute([$clienteSolicitoId]);
@@ -419,17 +429,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     // timbrado (la factura ya quedó timbrada ante el SAT independientemente de si el correo se logra enviar).
     $correoEnviado = false;
     if ($correosFactura) {
-        $chp = curl_init($pdfUrl);
-        curl_setopt_array($chp, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_HTTPHEADER=>['Authorization: Bearer '.FACTURAPI_KEY], CURLOPT_TIMEOUT=>20]);
-        $pdfBin = curl_exec($chp);
-        if (curl_getinfo($chp, CURLINFO_HTTP_CODE) !== 200) $pdfBin = null;
-        unset($chp);
-
-        $chx = curl_init($xmlUrl);
-        curl_setopt_array($chx, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_HTTPHEADER=>['Authorization: Bearer '.FACTURAPI_KEY], CURLOPT_TIMEOUT=>20]);
-        $xmlBin = curl_exec($chx);
-        if (curl_getinfo($chx, CURLINFO_HTTP_CODE) !== 200) $xmlBin = null;
-        unset($chx);
+        $pdfBin = _descargarArchivoFacturapi($pdfUrl);
+        $xmlBin = _descargarArchivoFacturapi($xmlUrl);
 
         $facParaCorreo = ['folio_interno'=>$fac['folio_interno'], 'receptor_nombre'=>$fac['receptor_nombre'], 'total'=>$fac['total']];
         $resCorreo = enviarCorreoFactura($facParaCorreo, $correosFactura, $pdfBin, $xmlBin);
@@ -446,6 +447,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
         'modo'           => FACTURAPI_MODE,
         'correo_enviado' => $correoEnviado,
     ]);
+    exit;
+}
+
+// ── POST reenviar_correo (timbrada → reenvía PDF+XML a los correos capturados o a una lista puntual) ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'reenviar_correo') {
+    $d  = json_decode(file_get_contents('php://input'), true);
+    $id = (int)($d['id'] ?? 0);
+    if (!$id) { jsonResponse(['ok'=>false,'error'=>'ID requerido']); exit; }
+
+    $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=? AND estatus='timbrada' AND creado_por=?");
+    $stmt->execute([$id, $user['nombre']]);
+    $fac = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$fac) { jsonResponse(['ok'=>false,'error'=>'Factura no encontrada o no está timbrada']); exit; }
+
+    // Por default reenvía a los correos ya guardados en la factura; si mandan "correos" en el body
+    // (ej. el usuario quiere agregar uno puntual sin editar el registro), se usan esos en su lugar.
+    $listaRaw  = trim($d['correos'] ?? '') !== '' ? $d['correos'] : ($fac['receptor_email'] ?? '');
+    $correos   = _correosValidos($listaRaw);
+    if (!$correos) { jsonResponse(['ok'=>false,'error'=>'No hay correos válidos para reenviar']); exit; }
+
+    if (!$fac['facturapi_id']) { jsonResponse(['ok'=>false,'error'=>'Esta factura no tiene PDF/XML en FacturAPI']); exit; }
+
+    $pdfBin = _descargarArchivoFacturapi($fac['pdf_url']);
+    $xmlBin = _descargarArchivoFacturapi($fac['xml_url']);
+    if (!$pdfBin && !$xmlBin) { jsonResponse(['ok'=>false,'error'=>'No se pudo descargar el PDF ni el XML de FacturAPI']); exit; }
+
+    $facParaCorreo = ['folio_interno'=>$fac['folio_interno'], 'receptor_nombre'=>$fac['receptor_nombre'], 'total'=>$fac['total']];
+    $resCorreo = enviarCorreoFactura($facParaCorreo, $correos, $pdfBin, $xmlBin);
+    if (!$resCorreo['ok']) { jsonResponse(['ok'=>false,'error'=>$resCorreo['error'] ?? 'Error al enviar el correo']); exit; }
+
+    jsonResponse(['ok'=>true, 'correos'=>$correos]);
     exit;
 }
 
