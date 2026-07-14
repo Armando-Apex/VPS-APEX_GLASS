@@ -14,7 +14,7 @@
     Header always set X-XSS-Protection "0"
 
     # Content Security Policy
-    Header always set Content-Security-Policy "default-src 'self' https://apex.glass; script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://graph.facebook.com https://maps.googleapis.com; frame-ancestors 'self';"
+    Header always set Content-Security-Policy "default-src 'self' https://apex.glass; script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://graph.facebook.com https://maps.googleapis.com https://places.googleapis.com; frame-ancestors 'self';"
 
     # HSTS - forzar HTTPS por 1 año
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"

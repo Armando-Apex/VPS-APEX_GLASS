@@ -69,6 +69,8 @@ $maps_key = defined('GOOGLE_MAPS_KEY') ? GOOGLE_MAPS_KEY : '';
 .ue-en_ruta     { background:#fef3c7; color:#b45309; }
 .ue-completada  { background:#dcfce7; color:#16a34a; }
 .btn-iniciar { background:#f59e0b; color:#000; border:none; border-radius:8px; padding:6px 14px; font-size:12px; font-weight:700; cursor:pointer; }
+.btn-borrar-ruta { background:none; border:1px solid #fca5a5; color:#dc2626; border-radius:8px; padding:5px 10px; font-size:13px; cursor:pointer; margin-left:auto; }
+.btn-borrar-ruta:hover { background:#fee2e2; }
 .btn-iniciar:hover { background:#d97706; }
 .no-rutas { color:#94a3b8; font-size:13px; text-align:center; padding:20px; }
 
@@ -109,6 +111,7 @@ table.lr-tbl { width:100%; border-collapse:collapse; font-size:13px; }
 .btn-planificar:disabled { background:#c4b5fd; cursor:not-allowed; }
 .plan-tiempo { font-size:11px; color:#7c3aed; font-weight:600; margin-left:4px; }
 .unit-mapa { width:100%; height:260px; border-radius:0; border-top:1px solid #f1f5f9; display:none; }
+.gps-timer { font-size:11px; color:#64748b; padding:6px 14px; border-top:1px solid #f1f5f9; background:#f8fafc; }
 .unit-mapa.visible { display:block; }
 .lr-map-label { background:#1e40af; color:#fff; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:700; white-space:nowrap; }
 /* Autocomplete nuevo — forzar estilo claro */
@@ -346,11 +349,20 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
 <script>
 var LR = (function() {
   var API_RUTAS    = '../api/rutas.php';
+  var API_GPS      = '../api/gps_proxy.php';
   var _fecha       = new Date().toISOString().slice(0,10);
   var _rutas       = [];
   var _pendientes  = [];
   var CAP          = { gris: 1250, blanca: 700 };
   var UNIDAD_LABEL = { gris: '🚛 Gris', blanca: '🚛 Blanca' };
+  // Planta — C. de la Industria 214, Marfer, 66367 Cdad. Santa Catarina, N.L. (mismas coords que UPD-266, WA ubicación)
+  var PLANTA_LATLNG = { lat: 25.6930336, lng: -100.4807059 };
+  var _iconoFabrica = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24">'
+    + '<circle cx="12" cy="12" r="11" fill="#1e40af" stroke="#fff" stroke-width="2"/>'
+    + '<text x="12" y="16" text-anchor="middle" font-size="12">🏭</text>'
+    + '</svg>'
+  );
 
   function fmt(d) {
     return new Date(d + 'T12:00:00').toLocaleDateString('es-MX',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
@@ -422,6 +434,8 @@ var LR = (function() {
         _rutas.forEach(function(r) {
           if (r.entregas && r.entregas.length) dibujarPines(r.id);
         });
+        tickGpsPolling();
+        tickGpsTimerDisplay();
       }, 100);
     }
   }
@@ -479,10 +493,12 @@ var LR = (function() {
       + '</div>'
       + '<div class="unit-entregas" id="entregas-ruta-'+ruta.id+'">'+rows+'</div>'
       + '<div id="mapa-ruta-'+ruta.id+'" class="unit-mapa'+(tieneEntregas ? ' visible' : '')+'"></div>'
+      + (ruta.estado === 'en_ruta' ? '<div class="gps-timer" id="gps-timer-'+ruta.id+'">📡 Ubicación en vivo</div>' : '')
       + '<div class="unit-footer">'
       +   '<span class="unit-estado '+eClass+'">'+(ruta.estado==='planificada'?'Planificada':ruta.estado==='en_ruta'?'En ruta':'Completada')+'</span>'
       +   btnPlanificar
       +   btnIniciar
+      +   '<button class="btn-borrar-ruta" title="Borrar ruta" onclick="LR.eliminarRuta('+ruta.id+')">🗑️</button>'
       + '</div>'
       + '</div>';
   }
@@ -770,6 +786,17 @@ var LR = (function() {
     else toast(d.error||'Error', true);
   }
 
+  async function eliminarRuta(ruta_id) {
+    if (!confirm('¿Borrar esta ruta por completo? Esta acción no se puede deshacer.')) return;
+    var r = await fetch(API_RUTAS, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'eliminar_ruta', ruta_id:ruta_id})
+    });
+    var d = await r.json();
+    if (d.ok) { toast('Ruta borrada'); await cargar(); }
+    else toast(d.error||'Error', true);
+  }
+
   async function planificar(ruta_id) {
     var btn = document.getElementById('btn-plan-' + ruta_id);
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Optimizando...'; }
@@ -804,7 +831,7 @@ var LR = (function() {
     var mapEl = document.getElementById('mapa-ruta-' + ruta_id);
     if (!mapEl) return;
 
-    var origenLatLng = { lat: 25.6752, lng: -100.4573 };
+    var origenLatLng = PLANTA_LATLNG;
 
     // Crear o reusar mapa
     var inst = _mapas[ruta_id];
@@ -829,15 +856,8 @@ var LR = (function() {
     var pinOrigen = new google.maps.Marker({
       position: origenLatLng,
       map: inst.map,
-      title: 'Planta — Santa Catarina',
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 10,
-        fillColor: '#1e40af',
-        fillOpacity: 1,
-        strokeColor: '#fff',
-        strokeWeight: 2,
-      },
+      title: 'Planta — C. de la Industria 214, Marfer, Santa Catarina',
+      icon: { url: _iconoFabrica, scaledSize: new google.maps.Size(30, 30), anchor: new google.maps.Point(15, 15) },
       zIndex: 999,
     });
     inst.markers.push(pinOrigen);
@@ -894,6 +914,74 @@ var LR = (function() {
     });
   }
 
+  // ── Ubicación en vivo de las unidades (ProTrack365, ver api/gps_proxy.php) ──
+  var _iconoCamion = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24">'
+    + '<circle cx="12" cy="12" r="11" fill="#0f172a" stroke="#fff" stroke-width="2"/>'
+    + '<text x="12" y="17" text-anchor="middle" font-size="13">🚚</text>'
+    + '</svg>'
+  );
+
+  var GPS_INTERVALO_MS = 15000;
+  var _proximaActualizacionGPS = Date.now() + GPS_INTERVALO_MS;
+
+  function tickGpsPolling() {
+    actualizarUbicacionesUnidades();
+    _proximaActualizacionGPS = Date.now() + GPS_INTERVALO_MS;
+  }
+
+  function tickGpsTimerDisplay() {
+    var restante = Math.max(0, Math.round((_proximaActualizacionGPS - Date.now()) / 1000));
+    _rutas.forEach(function(r) {
+      if (r.estado !== 'en_ruta') return;
+      var el = document.getElementById('gps-timer-' + r.id);
+      if (el) el.textContent = '📡 Actualiza cada 15s · próxima en ' + restante + 's';
+    });
+  }
+
+  async function actualizarUbicacionesUnidades() {
+    // Solo hay algo que actualizar si hay al menos una ruta "en_ruta" con su mapa ya dibujado
+    var rutasActivas = _rutas.filter(function(r) { return r.estado === 'en_ruta' && _mapas[r.id]; });
+    if (!rutasActivas.length) return;
+
+    var r;
+    try {
+      r = await fetch(API_GPS + '?accion=ubicacion&unidad=ambas');
+    } catch (e) { return; }
+    if (!r.ok) return;
+    var data = await r.json();
+    if (!data.ok) return;
+
+    rutasActivas.forEach(function(ruta) {
+      var u = data.unidades[ruta.unidad];
+      var inst = _mapas[ruta.id];
+      if (!inst) return;
+      if (!u || !u.valido) return;
+
+      var pos = { lat: u.lat, lng: u.lng };
+      if (!inst.truckMarker) {
+        inst.truckMarker = new google.maps.Marker({
+          position: pos,
+          map: inst.map,
+          icon: { url: _iconoCamion, scaledSize: new google.maps.Size(34, 34), anchor: new google.maps.Point(17, 17) },
+          zIndex: 1000,
+        });
+        inst.truckMarker.addListener('click', function() {
+          var mins = u.tiempo ? Math.max(0, Math.round((Date.now() - u.tiempo) / 60000)) : null;
+          var content = '<div style="font-family:-apple-system,sans-serif;font-size:12px">'
+            + '<div style="font-weight:700">' + escH(UNIDAD_LABEL[ruta.unidad] || ruta.unidad) + '</div>'
+            + '<div>' + (u.velocidad > 0 ? u.velocidad + ' km/h' : 'Detenido') + '</div>'
+            + (mins !== null ? '<div style="color:#64748b">Hace ' + mins + ' min</div>' : '')
+            + '</div>';
+          inst.infoWindow.setContent(content);
+          inst.infoWindow.open(inst.map, inst.truckMarker);
+        });
+      } else {
+        inst.truckMarker.setPosition(pos);
+      }
+    });
+  }
+
   function dibujarMapa(ruta_id) {
     if (!window.google || !window.google.maps) return;
     var ruta = null;
@@ -905,7 +993,7 @@ var LR = (function() {
     var mapEl = document.getElementById('mapa-ruta-' + ruta_id);
     if (!mapEl) return;
 
-    var origenLatLng = { lat: 25.6752, lng: -100.4573 };
+    var origenLatLng = PLANTA_LATLNG;
     var inst = _mapas[ruta_id];
     if (!inst) {
       var map = new google.maps.Map(mapEl, {
@@ -971,17 +1059,30 @@ var LR = (function() {
 
       // Al seleccionar una predicción
       ac.addEventListener('gmp-select', function(e) {
-        var place = e.oh.toPlace();
+        // e.placePrediction es el nombre documentado por Google; e.oh (usado antes aquí) es un alias
+        // interno minificado de una build específica que puede dejar de existir de una versión a otra.
+        var prediction = e.placePrediction || e.oh;
+        if (!prediction || !prediction.toPlace) return;
+        var place = prediction.toPlace();
         place.fetchFields({ fields: ['formattedAddress', 'addressComponents'] }).then(function() {
-          var colonia = '', ciudad = '', calle = '', numero = '';
+          var numero = '', calle = '';
+          // Google no siempre regresa la colonia como 'sublocality_level_1' — en México suele venir
+          // como 'sublocality' o 'neighborhood' según la zona; se prueban en orden de preferencia.
+          var coloniaPorTipo = {};
+          var ciudadPorTipo   = {};
           var comps = place.addressComponents || [];
           comps.forEach(function(c) {
             var types = c.types || [];
             if (types.indexOf('street_number') >= 0) numero = c.longText;
             if (types.indexOf('route') >= 0) calle = c.longText;
-            if (types.indexOf('sublocality_level_1') >= 0) colonia = c.longText;
-            if (types.indexOf('locality') >= 0) ciudad = c.longText;
+            types.forEach(function(t) {
+              if (['sublocality_level_1','sublocality','neighborhood'].indexOf(t) >= 0) coloniaPorTipo[t] = c.longText;
+              if (['locality','administrative_area_level_2'].indexOf(t) >= 0) ciudadPorTipo[t] = c.longText;
+            });
           });
+          var colonia = coloniaPorTipo.sublocality_level_1 || coloniaPorTipo.sublocality || coloniaPorTipo.neighborhood || '';
+          var ciudad  = ciudadPorTipo.locality || ciudadPorTipo.administrative_area_level_2 || '';
+
           var dirCompleta = calle + (numero ? ' ' + numero : '');
           input.value = dirCompleta || place.formattedAddress || '';
           if (colonia) document.getElementById(cfg.prefix + '-col').value = colonia;
@@ -993,13 +1094,16 @@ var LR = (function() {
 
   // Init
   setFecha(new Date().toISOString().slice(0,10));
+  // Refresco de ubicación en vivo — cada 15s, en línea con el cache de ~12s del backend (api/gps_lib.php)
+  setInterval(tickGpsPolling, GPS_INTERVALO_MS);
+  setInterval(tickGpsTimerDisplay, 1000);
 
   return {
     setFecha:setFecha, irHoy:irHoy, cambiarDia:cambiarDia,
     abrirModalRuta:abrirModalRuta, cerrarModalRuta:cerrarModalRuta, guardarRuta:guardarRuta,
     abrirModalAsignar:abrirModalAsignar, cerrarModalAsignar:cerrarModalAsignar, guardarAsignacion:guardarAsignacion,
     abrirEditDir:abrirEditDir, cerrarEditDir:cerrarEditDir, guardarEditDir:guardarEditDir,
-    mover:mover, quitar:quitar, iniciarRuta:iniciarRuta, planificar:planificar,
+    mover:mover, quitar:quitar, iniciarRuta:iniciarRuta, eliminarRuta:eliminarRuta, planificar:planificar,
     dibujarPines:dibujarPines,
     initAutocomplete:initAutocomplete,
     actualizarContPiezas:actualizarContPiezas, toggleTodasPiezas:toggleTodasPiezas,

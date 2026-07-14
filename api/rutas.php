@@ -467,6 +467,33 @@ if ($method === 'POST') {
         jsonResponse(['ok' => true]); exit;
     }
 
+    if ($accion === 'eliminar_ruta') {
+        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
+        $ruta_id = (int)($body['ruta_id'] ?? 0);
+        if (!$ruta_id) { jsonResponse(['error' => 'ID requerido']); exit; }
+
+        // No borrar si ya hay entregas reales marcadas — se perdería el histórico de la entrega
+        $stmt = $db->prepare("SELECT COUNT(*) FROM ruta_entregas WHERE ruta_id=? AND estado IN ('entregado','no_entregado')");
+        $stmt->execute([$ruta_id]);
+        if ((int)$stmt->fetchColumn() > 0) {
+            jsonResponse(['error' => 'No se puede borrar: esta ruta ya tiene entregas registradas']); exit;
+        }
+
+        $stmt = $db->prepare("SELECT id FROM ruta_entregas WHERE ruta_id=?");
+        $stmt->execute([$ruta_id]);
+        $entregaIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        if ($entregaIds) {
+            $in = implode(',', array_fill(0, count($entregaIds), '?'));
+            $db->prepare("DELETE FROM ruta_entrega_piezas WHERE ruta_entrega_id IN ($in)")->execute($entregaIds);
+            $db->prepare("DELETE FROM ruta_entregas WHERE ruta_id=?")->execute([$ruta_id]);
+        }
+        $stmt = $db->prepare("DELETE FROM rutas WHERE id=?");
+        $stmt->execute([$ruta_id]);
+        if ($stmt->rowCount() === 0) { jsonResponse(['error' => 'Ruta no encontrada']); exit; }
+
+        jsonResponse(['ok' => true]); exit;
+    }
+
     if ($accion === 'optimizar') {
         if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $ruta_id = (int)($body['ruta_id'] ?? 0);

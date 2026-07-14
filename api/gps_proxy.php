@@ -1,11 +1,13 @@
 <?php
 // ============================================================
-//  APEX GLASS - Proxy GPS ProTrack365
+//  APEX GLASS - Proxy GPS ProTrack365 (interno)
 //  Archivo: api/gps_proxy.php
-//  Obtiene posicion en tiempo real de las unidades via Open API
+//  Obtiene posicion en tiempo real de las unidades — ver api/gps_lib.php
+//  para el detalle del flujo (Open API oficial + fallback web).
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
+require_once 'gps_lib.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -27,122 +29,26 @@ if (!$ACCOUNT || !$PASSWORD) {
     jsonResponse(['error' => 'Credenciales ProTrack365 no configuradas']); exit;
 }
 
-// ── Cache de token en sesion (valido 110 min para no acercarse al limite de 2h) ──
-function getToken($base, $account, $password) {
-    if (!empty($_SESSION['protrack_token']) && !empty($_SESSION['protrack_token_exp'])
-        && time() < $_SESSION['protrack_token_exp']) {
-        return $_SESSION['protrack_token'];
-    }
-
-    $time = time();
-    $sig  = md5(md5($password) . $time);
-    $url  = $base . '/api/authorization?time=' . $time . '&account=' . urlencode($account) . '&signature=' . $sig;
-
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 8,
-        CURLOPT_SSL_VERIFYPEER => true,
-    ]);
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($code !== 200) return null;
-    $data = json_decode($resp, true);
-    if (($data['code'] ?? -1) !== 0) return null;
-
-    $token = $data['record']['access_token'] ?? null;
-    if (!$token) return null;
-
-    $_SESSION['protrack_token']     = $token;
-    $_SESSION['protrack_token_exp'] = time() + 6600; // 110 min
-    return $token;
-}
-
 // ── Obtener posicion de una o varias unidades ──
 $accion = $_GET['accion'] ?? 'ubicacion';
 
 if ($accion === 'ubicacion') {
     $unidad = $_GET['unidad'] ?? 'ambas'; // gris | blanca | ambas
-
-    if ($unidad === 'ambas') {
-        $imeis = array_filter(array_values($IMEI_MAP));
-    } elseif (isset($IMEI_MAP[$unidad])) {
-        $imeis = array_filter([$IMEI_MAP[$unidad]]);
-    } else {
+    if ($unidad !== 'ambas' && !isset($IMEI_MAP[$unidad])) {
         jsonResponse(['error' => 'Unidad no reconocida']); exit;
     }
 
-    if (empty($imeis)) {
-        jsonResponse(['error' => 'IMEI no configurado']); exit;
+    $res = gpsObtenerUbicaciones($IMEI_MAP, $ACCOUNT, $PASSWORD, $BASE_URL);
+    if ($res === null) {
+        jsonResponse(['error' => 'No se pudo obtener ubicación de ProTrack365 (Open API y respaldo web fallaron)']); exit;
     }
 
-    $token = getToken($BASE_URL, $ACCOUNT, $PASSWORD);
-    if (!$token) {
-        jsonResponse(['error' => 'No se pudo autenticar con ProTrack365']); exit;
+    $unidades = $res['unidades'];
+    if ($unidad !== 'ambas') {
+        $unidades = isset($unidades[$unidad]) ? [$unidad => $unidades[$unidad]] : [];
     }
 
-    $url = $BASE_URL . '/api/track?access_token=' . urlencode($token) . '&imeis=' . implode(',', $imeis);
-    $ch  = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 8,
-        CURLOPT_SSL_VERIFYPEER => true,
-    ]);
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($code !== 200) {
-        jsonResponse(['error' => 'Error al contactar ProTrack365', 'http' => $code]); exit;
-    }
-
-    $data = json_decode($resp, true);
-    if (($data['code'] ?? -1) !== 0) {
-        // Token expirado — limpiar cache y reintentar una vez
-        unset($_SESSION['protrack_token'], $_SESSION['protrack_token_exp']);
-        $token = getToken($BASE_URL, $ACCOUNT, $PASSWORD);
-        if ($token) {
-            $url  = $BASE_URL . '/api/track?access_token=' . urlencode($token) . '&imeis=' . implode(',', $imeis);
-            $ch   = curl_init($url);
-            curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8]);
-            $resp = curl_exec($ch);
-            curl_close($ch);
-            $data = json_decode($resp, true);
-        }
-    }
-
-    if (($data['code'] ?? -1) !== 0) {
-        jsonResponse(['error' => 'ProTrack365: ' . ($data['message'] ?? 'Error desconocido')]); exit;
-    }
-
-    // Mapear IMEI -> nombre de unidad para respuesta
-    $imei_to_unidad = array_flip($IMEI_MAP);
-    $resultado = [];
-    foreach (($data['record'] ?? []) as $item) {
-        $imei    = $item['imei'] ?? '';
-        $nombre  = $imei_to_unidad[$imei] ?? $imei;
-        $lat     = (float)($item['lat'] ?? 0);
-        $lng     = (float)($item['lng'] ?? 0);
-        $valido  = $lat != 0 && $lng != 0;
-
-        $resultado[$nombre] = [
-            'imei'      => $imei,
-            'unidad'    => $nombre,
-            'lat'       => $lat,
-            'lng'       => $lng,
-            'valido'    => $valido,
-            'velocidad' => (int)($item['speed']   ?? 0),
-            'curso'     => (int)($item['course']  ?? 0),
-            'acc'       => (int)($item['acc']     ?? 0), // 1=encendido
-            'bateria'   => (int)($item['battery'] ?? 0),
-            'tiempo'    => $item['positionTime']  ?? $item['time'] ?? null,
-            'estado'    => ($item['acc'] ?? 0) ? 'en_movimiento' : 'detenido',
-        ];
-    }
-
-    jsonResponse(['ok' => true, 'unidades' => $resultado]);
+    jsonResponse(['ok' => true, 'unidades' => $unidades, 'fuente' => $res['fuente']]);
     exit;
 }
 
