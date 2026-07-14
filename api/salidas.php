@@ -101,6 +101,28 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
                ->execute([$fecha_chofer, $orden_id]);
         }
 
+        // Si esta orden ya estaba asignada a una ruta (módulo Rutas de Entrega) y esa parada
+        // seguía "pendiente", se cierra aquí — si no, se queda pegada ahí para siempre y la
+        // orden nunca vuelve a aparecer en "Pendientes de asignar" para las piezas que faltan
+        // (en salidas parciales) ni se puede re-planificar. Se marca 'entregado' porque lo que
+        // SÍ estaba asignado a esa parada ya salió, aunque haya sido parcial.
+        $stmtRE = $db->prepare("SELECT id, ruta_id FROM ruta_entregas WHERE orden_id = ? AND estado = 'pendiente'");
+        $stmtRE->execute([$orden_id]);
+        foreach ($stmtRE->fetchAll(PDO::FETCH_ASSOC) as $re) {
+            $notaRE = $es_parcial ? "Salida parcial ($piezas_count/$total_piezas) impresa desde Cobranza" : 'Salida completa impresa desde Cobranza';
+            $db->prepare("UPDATE ruta_entregas SET estado='entregado', entregado_at=NOW(), notas_entrega=? WHERE id=?")
+               ->execute([$notaRE, $re['id']]);
+
+            // Si ya no quedan paradas pendientes en esa ruta, se marca completada (mismo
+            // criterio que api/rutas.php, accion=marcar_estado)
+            $pendRuta = $db->prepare("SELECT COUNT(*) FROM ruta_entregas WHERE ruta_id=? AND estado='pendiente'");
+            $pendRuta->execute([$re['ruta_id']]);
+            if ((int)$pendRuta->fetchColumn() === 0) {
+                $db->prepare("UPDATE rutas SET estado='completada', updated_at=NOW() WHERE id=?")
+                   ->execute([$re['ruta_id']]);
+            }
+        }
+
         // Registrar evento de salida
         $db->prepare('
             INSERT INTO orden_salidas

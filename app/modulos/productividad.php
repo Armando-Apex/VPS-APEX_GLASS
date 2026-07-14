@@ -157,6 +157,14 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, 'H
 
 .franjas-table tr.baja-row  { background: rgba(239,68,68,.05); }
 
+/* Tabla de trazabilidad de rutas — clase propia para no heredar el @media que oculta
+   columnas de .franjas-table en pantallas angostas (aquí todas las columnas importan). */
+.traza-table-wrap { overflow-x: auto; }
+.traza-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+.traza-table th { padding: 9px 12px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); text-align: left; border-bottom: 1px solid var(--border); background: var(--surface); white-space: nowrap; }
+.traza-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.traza-table tr:last-child td { border-bottom: none; }
+
 .franja-label { font-size: 12px; font-weight: 700; }
 
 .tipo-badge { font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 4px; margin-left: 6px; }
@@ -294,6 +302,12 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, 'H
 
   <button class="tab"        onclick="cambiarVista('mes')"    id="tab-mes">&#128467; Por Mes</button>
 
+  <button class="tab"        onclick="cambiarVista('rutas')"  id="tab-rutas">&#128666; Rutas de Entrega</button>
+
+</div>
+
+<div id="rutas-fecha-wrap" style="display:none;padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--border)">
+  <input type="date" id="rutas-fecha" onchange="cargar()" style="font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:6px">
 </div>
 
 
@@ -346,6 +360,12 @@ function cambiarVista(v) {
 
   document.getElementById('tab-'+v).classList.add('active');
 
+  document.getElementById('rutas-fecha-wrap').style.display = (v === 'rutas') ? 'block' : 'none';
+
+  if (v === 'rutas' && !document.getElementById('rutas-fecha').value) {
+    document.getElementById('rutas-fecha').value = new Date().toISOString().slice(0,10);
+  }
+
   cargar();
 
 }
@@ -358,7 +378,9 @@ async function cargar() {
 
   try {
 
-    const res  = await fetch(API + '?vista=' + vista + '&t=' + Date.now());
+    const vistaApi = (vista === 'rutas') ? 'trazabilidad_rutas' : vista;
+    const fechaQs  = (vista === 'rutas') ? '&fecha=' + document.getElementById('rutas-fecha').value : '';
+    const res  = await fetch(API + '?vista=' + vistaApi + fechaQs + '&t=' + Date.now());
 
     const data = await res.json();
 
@@ -377,6 +399,8 @@ async function cargar() {
     else if (vista==='semana') renderComp(data.semanas, 'label','desde','hrs_prod','Semanas');
 
     else if (vista==='mes')    renderComp(data.meses,   'label','mes',  'hrs_prod','Meses');
+
+    else if (vista==='rutas')  renderTrazabilidadRutas(data);
 
     document.getElementById('tsLabel').textContent =
 
@@ -862,8 +886,56 @@ async function toggleExtraDetalle(td, fecha) {
   }
 }
 
+function esc(s) {
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtHora(dt) {
+  if (!dt) return '&#8212;';
+  return new Date(dt.replace(' ','T')).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+}
+
+const UNIDAD_LBL = { gris: '&#128667; Gris', blanca: '&#128667; Blanca' };
+
+function renderTrazabilidadRutas(data) {
+  const filas = data.trazabilidad || [];
+  if (!filas.length) {
+    document.getElementById('main').innerHTML = '<div class="loading-wrap"><div class="loading-txt">Sin rutas para esta fecha</div></div>';
+    return;
+  }
+
+  let html = `<div style="padding:16px 20px">
+    <div class="traza-table-wrap">
+    <table class="traza-table">
+      <thead><tr>
+        <th>Orden</th><th>Cliente</th><th>Unidad</th><th>Chofer</th>
+        <th>Salida (QR)</th><th>Llegada (GPS)</th><th>Tiempo muerto</th><th>Entregado</th>
+      </tr></thead>
+      <tbody>`;
+
+  filas.forEach(f => {
+    const muerto = (f.tiempo_muerto_min == null) ? '&#8212;'
+      : (f.tiempo_muerto_min <= 0 ? '0 min' : f.tiempo_muerto_min + ' min');
+    const muertoColor = (f.tiempo_muerto_min != null && f.tiempo_muerto_min > 10) ? 'color:#dc2626;font-weight:700' : '';
+    html += `<tr>
+      <td style="font-weight:700;color:#2563eb">${esc(f.folio)}</td>
+      <td>${esc(f.cliente)}</td>
+      <td>${UNIDAD_LBL[f.unidad] || esc(f.unidad)}</td>
+      <td>${esc(f.chofer) || '&#8212;'}</td>
+      <td>${fmtHora(f.salida_qr_at)}</td>
+      <td>${fmtHora(f.llegada_gps_at)}</td>
+      <td style="${muertoColor}">${muerto}</td>
+      <td>${fmtHora(f.entregado_at)}</td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div></div>`;
+  document.getElementById('main').innerHTML = html;
+}
+
 window.cambiarVista      = cambiarVista;
 window.toggleExtraDetalle = toggleExtraDetalle;
+window.cargar             = cargar;
 
 cargar();
 

@@ -49,6 +49,8 @@ $maps_key = defined('GOOGLE_MAPS_KEY') ? GOOGLE_MAPS_KEY : '';
 .entrega-num  { width:22px; height:22px; background:#2563eb; color:#fff; border-radius:50%; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .entrega-info { flex:1; min-width:0; }
 .entrega-folio  { font-size:11px; font-weight:700; color:#2563eb; }
+.badge-parcial-ruta { font-size:10px; font-weight:700; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; padding:1px 6px; border-radius:4px; margin-left:4px; }
+.badge-eta-ruta { font-size:10px; font-weight:700; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:1px 6px; border-radius:4px; margin-left:4px; }
 .entrega-cliente{ font-size:12px; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .entrega-dir    { font-size:10px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .entrega-peso   { font-size:10px; color:#64748b; white-space:nowrap; }
@@ -107,12 +109,22 @@ table.lr-tbl { width:100%; border-collapse:collapse; font-size:13px; }
 .btn-cancel:hover { background:#e2e8f0; }
 
 .btn-planificar { background:#7c3aed; color:#fff; border:none; border-radius:8px; padding:6px 14px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:5px; }
+.btn-ghost-eta { background:#fff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:8px; padding:6px 14px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:5px; }
 .btn-planificar:hover { background:#6d28d9; }
 .btn-planificar:disabled { background:#c4b5fd; cursor:not-allowed; }
 .plan-tiempo { font-size:11px; color:#7c3aed; font-weight:600; margin-left:4px; }
 .unit-mapa { width:100%; height:260px; border-radius:0; border-top:1px solid #f1f5f9; display:none; }
 .gps-timer { font-size:11px; color:#64748b; padding:6px 14px; border-top:1px solid #f1f5f9; background:#f8fafc; }
 .unit-mapa.visible { display:block; }
+.unit-tramos { padding:8px 14px; border-top:1px solid #f1f5f9; }
+.tramos-title { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:6px; }
+.tramo-row { display:flex; align-items:center; gap:6px; font-size:12px; color:#334155; padding:3px 0; flex-wrap:wrap; }
+.tramo-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.tramo-desde, .tramo-hasta { max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tramo-flecha { color:#94a3b8; }
+.tramo-min { margin-left:auto; color:#0f172a; font-weight:600; white-space:nowrap; }
+.tramo-espera { color:#d97706; font-weight:600; }
+.tramo-nota { font-size:11px; color:#94a3b8; margin-top:6px; font-style:italic; }
 .lr-map-label { background:#1e40af; color:#fff; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:700; white-space:nowrap; }
 /* Autocomplete nuevo — forzar estilo claro */
 .pac-container { z-index:99999 !important; font-family:-apple-system,sans-serif; font-size:13px; }
@@ -357,6 +369,15 @@ var LR = (function() {
   var UNIDAD_LABEL = { gris: '🚛 Gris', blanca: '🚛 Blanca' };
   // Planta — C. de la Industria 214, Marfer, 66367 Cdad. Santa Catarina, N.L. (mismas coords que UPD-266, WA ubicación)
   var PLANTA_LATLNG = { lat: 25.6930336, lng: -100.4807059 };
+  // Paleta para colorear cada tramo (planta→parada1, parada1→parada2, ...) de una ruta con un
+  // color distinto, para diferenciar los puntos de un vistazo. Hasta 20 tramos con color propio;
+  // si una ruta tiene más paradas, se repiten desde el principio.
+  var PALETA_TRAMOS = [
+    '#2563eb', '#dc2626', '#16a34a', '#f59e0b', '#7c3aed',
+    '#0891b2', '#db2777', '#65a30d', '#ea580c', '#4f46e5',
+    '#059669', '#c026d3', '#0284c7', '#ca8a04', '#e11d48',
+    '#0d9488', '#9333ea', '#65758d', '#84cc16', '#f43f5e',
+  ];
   var _iconoFabrica = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24">'
     + '<circle cx="12" cy="12" r="11" fill="#1e40af" stroke="#fff" stroke-width="2"/>'
@@ -453,10 +474,17 @@ var LR = (function() {
         var bCls = 'eb-' + e.entrega_estado;
         var dir  = [e.direccion, e.colonia, e.ciudad].filter(Boolean).map(escH).join(', ')
                    || '<span style="color:#94a3b8">Sin direcci&oacute;n</span>';
+        var badgeParcial = e.es_parcial == 1
+          ? ' <span class="badge-parcial-ruta" title="Ya sali&oacute; parte de esta orden (remisi&oacute;n impresa)">Parcial '+e.salida_piezas_count+'/'+e.salida_piezas_total+'</span>'
+          : '';
+        var eta = _ultimasEtas[e.id] || e.eta_min;
+        var badgeEta = (eta && e.entrega_estado === 'pendiente')
+          ? ' <span class="badge-eta-ruta" title="Tiempo estimado de llegada (calculado al iniciar la ruta)">ETA '+fmtEta(eta)+'</span>'
+          : '';
         rows += '<div class="entrega-row" id="erow-'+e.id+'">'
           + '<div class="entrega-num">'+(i+1)+'</div>'
           + '<div class="entrega-info">'
-          +   '<div class="entrega-folio">'+escH(e.folio)+'</div>'
+          +   '<div class="entrega-folio">'+escH(e.folio)+badgeParcial+badgeEta+'</div>'
           +   '<div class="entrega-cliente">'+escH(e.cliente_nombre)+'</div>'
           +   '<div class="entrega-dir">'+dir+'</div>'
           + '</div>'
@@ -474,9 +502,13 @@ var LR = (function() {
 
     var btnIniciar = '';
     var btnPlanificar = '';
+    var btnRecalcEta = '';
     if (ruta.estado === 'planificada' && ruta.entregas && ruta.entregas.length) {
       btnPlanificar = '<button class="btn-planificar" id="btn-plan-'+ruta.id+'" onclick="LR.planificar('+ruta.id+')">🗺️ Ruta óptima</button>';
       btnIniciar    = '<button class="btn-iniciar" onclick="LR.iniciarRuta('+ruta.id+')">🚛 Iniciar Ruta</button>';
+    }
+    if (ruta.estado === 'en_ruta' && ruta.entregas && ruta.entregas.some(function(e){ return e.entrega_estado === 'pendiente'; })) {
+      btnRecalcEta = '<button class="btn-ghost-eta" onclick="LR.recalcularEta('+ruta.id+')">⏱️ Recalcular ETA</button>';
     }
 
     var tieneEntregas = ruta.entregas && ruta.entregas.length > 0;
@@ -493,10 +525,12 @@ var LR = (function() {
       + '</div>'
       + '<div class="unit-entregas" id="entregas-ruta-'+ruta.id+'">'+rows+'</div>'
       + '<div id="mapa-ruta-'+ruta.id+'" class="unit-mapa'+(tieneEntregas ? ' visible' : '')+'"></div>'
+      + '<div id="tramos-ruta-'+ruta.id+'" class="unit-tramos"></div>'
       + (ruta.estado === 'en_ruta' ? '<div class="gps-timer" id="gps-timer-'+ruta.id+'">📡 Ubicación en vivo</div>' : '')
       + '<div class="unit-footer">'
       +   '<span class="unit-estado '+eClass+'">'+(ruta.estado==='planificada'?'Planificada':ruta.estado==='en_ruta'?'En ruta':'Completada')+'</span>'
       +   btnPlanificar
+      +   btnRecalcEta
       +   btnIniciar
       +   '<button class="btn-borrar-ruta" title="Borrar ruta" onclick="LR.eliminarRuta('+ruta.id+')">🗑️</button>'
       + '</div>'
@@ -674,8 +708,19 @@ var LR = (function() {
 
   function cerrarModalAsignar() {
     document.getElementById('modal-asignar').classList.remove('open');
-    var input = document.getElementById('as-dir');
-    if (input) input._acInit = false;
+    destruirAutocomplete('as-dir');
+  }
+
+  // Quita el elemento de autocomplete insertado por initAutocomplete() y deja el input
+  // listo para reinicializarse limpio la próxima vez que se abra el modal. Sin esto, cada
+  // apertura del modal apilaba una caja de búsqueda de Google nueva encima de la anterior.
+  function destruirAutocomplete(inputId) {
+    var input = document.getElementById(inputId);
+    if (!input) return;
+    if (input._acEl && input._acEl.parentNode) input._acEl.parentNode.removeChild(input._acEl);
+    input._acEl = null;
+    input._acInit = false;
+    input.style.display = '';
   }
 
   async function guardarAsignacion() {
@@ -775,6 +820,11 @@ var LR = (function() {
     else toast(d.error||'Error', true);
   }
 
+  // ETA por parada calculada al iniciar la ruta (una sola vez, no se recalcula con tráfico
+  // en vivo) — { entrega_id: 'HH:MM' }, igual patrón que _ultimosTramos: se guarda aparte
+  // porque cargarRutas() re-genera todo el HTML de la tarjeta.
+  var _ultimasEtas = {};
+
   async function iniciarRuta(ruta_id) {
     if (!confirm('¿Iniciar esta ruta? El chofer saldrá en camino.')) return;
     var r = await fetch(API_RUTAS, {
@@ -782,8 +832,32 @@ var LR = (function() {
       body: JSON.stringify({accion:'iniciar_ruta', ruta_id:ruta_id})
     });
     var d = await r.json();
-    if (d.ok) { toast('Ruta iniciada'); await cargarRutas(); }
+    if (d.ok) {
+      (d.etas || []).forEach(function(e) { _ultimasEtas[e.entrega_id] = e.eta_min; });
+      toast('Ruta iniciada');
+      await cargarRutas();
+    }
     else toast(d.error||'Error', true);
+  }
+
+  // Formatea minutos totales como "30 min" / "1 h" / "1 h 15 min"
+  function fmtEta(min) {
+    if (min < 60) return min + ' min';
+    var h = Math.floor(min / 60), m = min % 60;
+    return h + ' h' + (m > 0 ? ' ' + m + ' min' : '');
+  }
+
+  async function recalcularEta(ruta_id) {
+    var r = await fetch(API_RUTAS, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'recalcular_eta', ruta_id:ruta_id})
+    });
+    var d = await r.json();
+    if (d.ok) {
+      (d.etas || []).forEach(function(e) { _ultimasEtas[e.entrega_id] = e.eta_min; });
+      toast('ETA actualizado');
+      await cargarRutas();
+    } else toast(d.error||'Error', true);
   }
 
   async function eliminarRuta(ruta_id) {
@@ -797,6 +871,36 @@ var LR = (function() {
     else toast(d.error||'Error', true);
   }
 
+  // Último desglose de tramos (A→B, B→C, ...) devuelto por el optimizador, por ruta_id —
+  // se guarda aparte porque cargarRutas() re-genera todo el HTML de la tarjeta y borraría
+  // el contenedor si no se vuelve a pintar después.
+  var _ultimosTramos = {};
+
+  function renderTramos(ruta_id) {
+    var cont = document.getElementById('tramos-ruta-' + ruta_id);
+    if (!cont) return;
+    var tramos = _ultimosTramos[ruta_id];
+    if (!tramos || !tramos.length) { cont.innerHTML = ''; return; }
+    var html = '<div class="tramos-title">Tiempos por tramo</div>';
+    tramos.forEach(function(t, idx) {
+      var color = PALETA_TRAMOS[idx % PALETA_TRAMOS.length];
+      html += '<div class="tramo-row">'
+        + '<span class="tramo-dot" style="background:' + color + '"></span>'
+        + '<span class="tramo-desde">' + escH(t.desde) + '</span>'
+        + '<span class="tramo-flecha">&rarr;</span>'
+        + '<span class="tramo-hasta">' + escH(t.hasta) + '</span>'
+        + '<span class="tramo-min">' + t.min + ' min &middot; ' + t.km + ' km'
+        +   (t.espera_min ? ' <span class="tramo-espera">+' + t.espera_min + ' min descarga</span>' : '')
+        + '</span>'
+        + '</div>';
+    });
+    var totalEspera = tramos.reduce(function(s,t){ return s + (t.espera_min||0); }, 0);
+    if (totalEspera > 0) {
+      html += '<div class="tramo-nota">Incluye ' + totalEspera + ' min de tolerancia para bajar el vidrio (15 min por parada)</div>';
+    }
+    cont.innerHTML = html;
+  }
+
   async function planificar(ruta_id) {
     var btn = document.getElementById('btn-plan-' + ruta_id);
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Optimizando...'; }
@@ -808,10 +912,18 @@ var LR = (function() {
     if (btn) { btn.disabled = false; btn.innerHTML = '🗺️ Planificar'; }
     if (d.ok) {
       var msg = 'Ruta optimizada';
-      if (d.tiempo_min) msg += ' — ' + d.tiempo_min + ' min estimados';
+      if (d.tiempo_min) {
+        msg += ' — ' + d.tiempo_min + ' min estimados';
+        if (typeof d.antes_min === 'number') {
+          msg += d.ahorro_min > 0
+            ? ' (antes ' + d.antes_min + ' min, ahorras ' + d.ahorro_min + ' min)'
+            : ' (el orden actual ya era el más rápido)';
+        }
+      }
       toast(msg);
+      _ultimosTramos[ruta_id] = d.tramos || null;
       await cargarRutas();
-      setTimeout(function(){ dibujarMapa(ruta_id); }, 400);
+      setTimeout(function(){ dibujarMapa(ruta_id); renderTramos(ruta_id); }, 400);
     } else {
       toast(d.error || 'Error al optimizar', true);
     }
@@ -878,6 +990,10 @@ var LR = (function() {
         if (status !== 'OK' || !results[0]) return;
         var pos = results[0].geometry.location;
         bounds.extend(pos);
+        // Guardar posición por id de entrega — la usa actualizarLineaSiguiente() para trazar
+        // la línea al siguiente destino sin tener que volver a geocodificar.
+        if (!inst.pinPos) inst.pinPos = {};
+        inst.pinPos[e.id] = { lat: pos.lat(), lng: pos.lng() };
 
         // Pin numerado con SVG
         var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">'
@@ -903,6 +1019,7 @@ var LR = (function() {
             + '<div style="font-size:11px;color:#64748b">' + escH(addr) + '</div>'
             + (e.referencias ? '<div style="font-size:11px;color:#64748b;margin-top:2px">Ref: ' + escH(e.referencias) + '</div>' : '')
             + '<div style="margin-top:6px;font-size:11px;font-weight:600;color:' + color + '">' + estado + '</div>'
+            + (e.es_parcial == 1 ? '<div style="font-size:11px;font-weight:700;color:#c2410c">Parcial ' + e.salida_piezas_count + '/' + e.salida_piezas_total + '</div>' : '')
             + '<div style="font-size:11px;color:#64748b">' + fmtKg(e.peso_kg) + '</div>'
             + '</div>';
           inst.infoWindow.setContent(content);
@@ -979,6 +1096,70 @@ var LR = (function() {
       } else {
         inst.truckMarker.setPosition(pos);
       }
+
+      actualizarLineaSiguiente(ruta, inst, pos);
+    });
+  }
+
+  // Distancia en metros entre 2 puntos lat/lng (fórmula haversine)
+  function distMetros(a, b) {
+    var R = 6371000;
+    var dLat = (b.lat - a.lat) * Math.PI / 180;
+    var dLng = (b.lng - a.lng) * Math.PI / 180;
+    var s = Math.sin(dLat/2)*Math.sin(dLat/2)
+      + Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+    return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+  }
+
+  var RADIO_LLEGADA_M = 300; // qué tan cerca debe estar el camión de una parada para considerarla "llegada"
+
+  // Con la ruta ya iniciada (en_ruta), en vez de pintar los ~20 tramos de un jalón, se traza
+  // solo la línea del camión (posición GPS en vivo) hacia la SIGUIENTE parada pendiente. Cuando
+  // el camión entra al radio de la parada actual, se avanza sola a la línea de la siguiente —
+  // así nunca hay más de 1 línea encima del mapa mientras la ruta está en curso.
+  function actualizarLineaSiguiente(ruta, inst, truckPos) {
+    if (ruta.estado !== 'en_ruta' || !inst.pinPos) return;
+
+    var pendientes = ruta.entregas.filter(function(e) { return e.entrega_estado === 'pendiente'; });
+    if (!pendientes.length) {
+      if (inst.lineaSiguiente) { inst.lineaSiguiente.setMap(null); inst.lineaSiguiente = null; }
+      return;
+    }
+
+    if (inst.destinoIdx == null) inst.destinoIdx = 0;
+    if (inst.destinoIdx >= pendientes.length) inst.destinoIdx = pendientes.length - 1;
+
+    // ¿Ya llegó a la parada actual? Avanza a la siguiente (puede saltar varias si el GPS
+    // solo actualiza cada 15s y el camión ya pasó de largo por más de una).
+    var destino = pendientes[inst.destinoIdx];
+    while (destino && inst.pinPos[destino.id] && distMetros(truckPos, inst.pinPos[destino.id]) <= RADIO_LLEGADA_M
+           && inst.destinoIdx < pendientes.length - 1) {
+      inst.destinoIdx++;
+      destino = pendientes[inst.destinoIdx];
+    }
+
+    var destinoPos = destino && inst.pinPos[destino.id];
+    if (!destinoPos) return; // aún no se geocodificó ese punto
+
+    if (inst._trazandoLinea) return; // evitar pedir 2 rutas encimadas si el poll anterior sigue en vuelo
+    inst._trazandoLinea = true;
+
+    var svc = new google.maps.DirectionsService();
+    svc.route({
+      origin: truckPos, destination: destinoPos,
+      travelMode: google.maps.TravelMode.DRIVING,
+    }, function(result, status) {
+      inst._trazandoLinea = false;
+      if (status !== 'OK') return;
+      if (inst.lineaSiguiente) inst.lineaSiguiente.setMap(null);
+      var path = [];
+      (result.routes[0].legs[0].steps || []).forEach(function(step) {
+        path = path.concat(step.path || []);
+      });
+      inst.lineaSiguiente = new google.maps.Polyline({
+        path: path, map: inst.map,
+        strokeColor: '#2563eb', strokeOpacity: 0.95, strokeWeight: 5,
+      });
     });
   }
 
@@ -1000,7 +1181,7 @@ var LR = (function() {
         zoom: 11, center: origenLatLng,
         disableDefaultUI: true, zoomControl: true,
       });
-      inst = { map: map, markers: [], infoWindow: new google.maps.InfoWindow(), renderer: null };
+      inst = { map: map, markers: [], infoWindow: new google.maps.InfoWindow(), renderer: null, tramos: [] };
       _mapas[ruta_id] = inst;
     }
 
@@ -1012,12 +1193,11 @@ var LR = (function() {
       return { location: addr || 'Monterrey, Nuevo León', stopover: true };
     });
 
-    // Limpiar ruta anterior si existe
-    if (inst.renderer) { inst.renderer.setMap(null); inst.renderer = null; }
+    // Limpiar tramos anteriores si existen
+    (inst.tramos || []).forEach(function(p) { p.setMap(null); });
+    inst.tramos = [];
 
-    var svc      = new google.maps.DirectionsService();
-    var renderer = new google.maps.DirectionsRenderer({ map: inst.map, suppressMarkers: true });
-    inst.renderer = renderer;
+    var svc = new google.maps.DirectionsService();
 
     svc.route({
       origin: origenLatLng,
@@ -1025,12 +1205,40 @@ var LR = (function() {
       waypoints: waypoints,
       travelMode: google.maps.TravelMode.DRIVING,
     }, function(result, status) {
-      if (status === 'OK') renderer.setDirections(result);
-      else toast('No se pudo trazar la ruta en el mapa', true);
+      if (status !== 'OK') { toast('No se pudo trazar la ruta en el mapa', true); return; }
+      // Un Polyline por tramo (planta→parada1, parada1→parada2, ...) en vez de una sola línea
+      // de un color con DirectionsRenderer, para diferenciar cada punto de la ruta.
+      var legs = result.routes[0].legs || [];
+      legs.forEach(function(leg, idx) {
+        var path = [];
+        (leg.steps || []).forEach(function(step) {
+          path = path.concat(step.path || []);
+        });
+        var color = PALETA_TRAMOS[idx % PALETA_TRAMOS.length];
+        var poly = new google.maps.Polyline({
+          path: path, map: inst.map,
+          strokeColor: color, strokeOpacity: 0.9, strokeWeight: 4,
+        });
+        inst.tramos.push(poly);
+      });
     });
   }
 
-  // Inicializar Places Autocomplete — API Nueva (PlaceAutocompleteElement)
+  // Inicializar Places Autocomplete — API Nueva (PlaceAutocompleteElement). Se probó la API
+  // clásica (google.maps.places.Autocomplete) como alternativa para el bug de teclado en Brave,
+  // pero el proyecto solo tiene activada "Places API (New)" en Google Cloud (la clásica ya no
+  // está disponible para proyectos nuevos desde marzo 2025), así que se revirtió. El elemento
+  // se destruye al cerrar el modal (ver cerrarModalAsignar) para no apilar cajas de búsqueda
+  // duplicadas al reabrir.
+  //
+  // Restricción geográfica a NL/Tamaulipas/Coahuila: Google no permite filtrar por lista de
+  // estados directamente, así que se usa locationRestriction con un rectángulo que cubre los
+  // 3 estados (más estricto que locationBias, que solo prioriza sin excluir). El rectángulo
+  // roza ligeramente estados vecinos (Zacatecas, San Luis Potosí, Veracruz), así que se valida
+  // también el estado real de la selección y se rechaza si cae fuera de los 3.
+  var ESTADOS_PERMITIDOS = ['Nuevo León', 'Tamaulipas', 'Coahuila', 'Coahuila de Zaragoza'];
+  var BOUNDS_NL_TAMPS_COAH = { south: 22.0, west: -103.9, north: 29.9, east: -97.0 };
+
   function initAutocomplete() {
     if (!window.google || !window.google.maps || !window.google.maps.places) return;
     var configs = [
@@ -1042,32 +1250,32 @@ var LR = (function() {
       if (!input || input._acInit) return;
       input._acInit = true;
 
-      // Crear el elemento nuevo de autocomplete
       var ac = new google.maps.places.PlaceAutocompleteElement({
-        componentRestrictions: { country: 'mx' },
+        // PlaceAutocompleteElement (API nueva) usa includedRegionCodes, no componentRestrictions
+        // (eso es de la API clásica google.maps.places.Autocomplete) — con el nombre equivocado
+        // Google lo ignoraba en silencio y por eso seguían saliendo direcciones de EE.UU.
+        includedRegionCodes: ['mx'],
+        locationRestriction: new google.maps.LatLngBounds(
+          { lat: BOUNDS_NL_TAMPS_COAH.south, lng: BOUNDS_NL_TAMPS_COAH.west },
+          { lat: BOUNDS_NL_TAMPS_COAH.north, lng: BOUNDS_NL_TAMPS_COAH.east }
+        ),
       });
       ac.setAttribute('color-scheme', 'light');
       ac.style.colorScheme = 'light';
 
-      // Insertar el elemento justo después del input original y ocultar el input
       input.style.display = 'none';
       input.parentNode.insertBefore(ac, input.nextSibling);
+      input._acEl = ac;
 
-      // Copiar estilos del input al elemento de autocomplete
       ac.style.width = '100%';
       ac.style.fontSize = '14px';
 
-      // Al seleccionar una predicción
       ac.addEventListener('gmp-select', function(e) {
-        // e.placePrediction es el nombre documentado por Google; e.oh (usado antes aquí) es un alias
-        // interno minificado de una build específica que puede dejar de existir de una versión a otra.
         var prediction = e.placePrediction || e.oh;
         if (!prediction || !prediction.toPlace) return;
         var place = prediction.toPlace();
         place.fetchFields({ fields: ['formattedAddress', 'addressComponents'] }).then(function() {
-          var numero = '', calle = '';
-          // Google no siempre regresa la colonia como 'sublocality_level_1' — en México suele venir
-          // como 'sublocality' o 'neighborhood' según la zona; se prueban en orden de preferencia.
+          var numero = '', calle = '', estado = '';
           var coloniaPorTipo = {};
           var ciudadPorTipo   = {};
           var comps = place.addressComponents || [];
@@ -1075,11 +1283,19 @@ var LR = (function() {
             var types = c.types || [];
             if (types.indexOf('street_number') >= 0) numero = c.longText;
             if (types.indexOf('route') >= 0) calle = c.longText;
+            if (types.indexOf('administrative_area_level_1') >= 0) estado = c.longText;
             types.forEach(function(t) {
               if (['sublocality_level_1','sublocality','neighborhood'].indexOf(t) >= 0) coloniaPorTipo[t] = c.longText;
               if (['locality','administrative_area_level_2'].indexOf(t) >= 0) ciudadPorTipo[t] = c.longText;
             });
           });
+
+          if (estado && ESTADOS_PERMITIDOS.indexOf(estado) < 0) {
+            toast('Esa dirección está en ' + estado + ' — solo se aceptan Nuevo León, Tamaulipas y Coahuila', true);
+            input.value = '';
+            return;
+          }
+
           var colonia = coloniaPorTipo.sublocality_level_1 || coloniaPorTipo.sublocality || coloniaPorTipo.neighborhood || '';
           var ciudad  = ciudadPorTipo.locality || ciudadPorTipo.administrative_area_level_2 || '';
 
@@ -1104,8 +1320,9 @@ var LR = (function() {
     abrirModalAsignar:abrirModalAsignar, cerrarModalAsignar:cerrarModalAsignar, guardarAsignacion:guardarAsignacion,
     abrirEditDir:abrirEditDir, cerrarEditDir:cerrarEditDir, guardarEditDir:guardarEditDir,
     mover:mover, quitar:quitar, iniciarRuta:iniciarRuta, eliminarRuta:eliminarRuta, planificar:planificar,
+    recalcularEta:recalcularEta,
     dibujarPines:dibujarPines,
-    initAutocomplete:initAutocomplete,
+    initAutocomplete:initAutocomplete, renderTramos:renderTramos,
     actualizarContPiezas:actualizarContPiezas, toggleTodasPiezas:toggleTodasPiezas,
     togglePartidaExpand:togglePartidaExpand, togglePartida:togglePartida, onPiezaCb:onPiezaCb,
   };
@@ -1114,11 +1331,7 @@ var LR = (function() {
 <?php if ($maps_key): ?>
 <script>
 (function() {
-  var script = document.createElement('script');
-  script.src = 'https://maps.googleapis.com/maps/api/js?key=<?= htmlspecialchars($maps_key) ?>&libraries=places&v=beta&loading=async';
-  script.async = true;
-  script.defer = true;
-  script.onload = function() {
+  function despuesDeCargar() {
     if (window.LR) {
       LR.initAutocomplete();
       // Dibujar pins si ya hay rutas cargadas
@@ -1130,6 +1343,28 @@ var LR = (function() {
         }
       }, 300);
     }
+  }
+  // El SPA no limpia scripts entre navegaciones: si el módulo se vuelve a abrir sin recargar
+  // la página, cargar el script de Maps otra vez duplica el registro de sus custom elements
+  // (PlaceAutocompleteElement) y rompe el autocomplete de forma intermitente. Si la API ya
+  // está cargada (o se está cargando), no se vuelve a inyectar el script.
+  if (window.google && window.google.maps && window.google.maps.places) {
+    despuesDeCargar();
+    return;
+  }
+  if (window._lrMapsLoading) {
+    window._lrMapsLoading.push(despuesDeCargar);
+    return;
+  }
+  window._lrMapsLoading = [despuesDeCargar];
+  var script = document.createElement('script');
+  script.src = 'https://maps.googleapis.com/maps/api/js?key=<?= htmlspecialchars($maps_key) ?>&libraries=places&v=beta&loading=async';
+  script.async = true;
+  script.defer = true;
+  script.onload = function() {
+    var callbacks = window._lrMapsLoading || [];
+    window._lrMapsLoading = null;
+    callbacks.forEach(function(cb) { cb(); });
   };
   document.head.appendChild(script);
 })();

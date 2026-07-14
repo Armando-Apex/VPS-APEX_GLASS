@@ -290,7 +290,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 <div class="mq-wrap">
   <div class="top-row">
     <div>
-      <div class="page-title">Nueva Maquila</div>
+      <div class="page-title" id="mn_titulo"><?= $idMaquila ? 'Editar Maquila' : 'Nueva Maquila' ?></div>
       <div class="page-sub">Servicio de maquila sobre vidrio del cliente</div>
     </div>
     <button class="btn btn-ghost" onclick="ModMaquilaNueva._volver()">&larr; Volver</button>
@@ -325,7 +325,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   </div>
 
   <div class="acciones">
-    <button class="btn btn-primary" onclick="ModMaquilaNueva._guardar()">Guardar cotizaci&oacute;n</button>
+    <button class="btn btn-primary" onclick="ModMaquilaNueva._guardar()"><?= $idMaquila ? 'Guardar cambios' : 'Guardar cotizaci&oacute;n' ?></button>
   </div>
   <div id="mn_error" style="color:#dc2626;margin-top:8px;font-size:13px;font-weight:600"></div>
 </div>
@@ -334,6 +334,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 var ModMaquilaNueva = (function(){
 var API     = '../api/maquila.php';
 var API_CLI = '../api/clientes.php';
+var editId  = <?= $idMaquila ?>;
 var tiposVidrio = [];
 var precios = [];
 var partidas = [];
@@ -353,7 +354,34 @@ async function cargarCatalogos() {
   tiposVidrio = await r1.json();
   var r2 = await fetch(API + '?recurso=precios');
   precios = await r2.json();
-  agregarPartida();
+
+  if (editId) {
+    var r3 = await fetch(API + '?recurso=cotizacion&id=' + editId);
+    var cot = await r3.json();
+    if (cot.error) { document.getElementById('mn_error').textContent = cot.error; return; }
+    clienteId = parseInt(cot.cliente_id, 10) || 0;
+    document.getElementById('mn_cliente_busqueda').value = cot.cliente_nombre || '';
+    document.getElementById('mn_cliente_busqueda').disabled = true;
+    document.getElementById('mn_localidad').value = cot.localidad || 'local';
+    partidas = (cot.partidas || []).map(function(p) {
+      return {
+        ancho: parseInt(p.ancho, 10) || 0,
+        alto: parseInt(p.alto, 10) || 0,
+        cantidad: parseInt(p.cantidad, 10) || 1,
+        espesor_mm: parseFloat(p.espesor_mm) || 6,
+        cristal_tipo_id: parseInt(p.cristal_tipo_id, 10) || 0,
+        corte: parseInt(p.corte, 10) || 0,
+        canteado: parseInt(p.canteado, 10) || 0,
+        cpb: p.cpb || 'No',
+        taladros_pasados: parseInt(p.taladros_pasados, 10) || 0,
+        taladros_avellanados: parseInt(p.taladros_avellanados, 10) || 0,
+        templado: parseInt(p.templado, 10) || 0
+      };
+    });
+    render();
+  } else {
+    agregarPartida();
+  }
 }
 
 function buscarCliente() {
@@ -511,14 +539,17 @@ async function guardar() {
   var localidad = document.getElementById('mn_localidad').value;
 
   try {
+    var body = editId
+      ? { recurso: 'cotizacion', accion: 'actualizar', id: editId, partidas: partidas }
+      : { recurso: 'cotizacion', accion: 'crear', cliente_id: clienteId, localidad: localidad, partidas: partidas };
     var res = await fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recurso: 'cotizacion', accion: 'crear', cliente_id: clienteId, localidad: localidad, partidas: partidas })
+      body: JSON.stringify(body)
     });
     var data = await res.json();
     if (data.error) { document.getElementById('mn_error').textContent = data.error; return; }
-    window.irA('maquila_detalle', { id: data.id });
+    window.irA('maquila_detalle', { id: editId || data.id });
   } catch(e) {
     document.getElementById('mn_error').textContent = 'Error de red al guardar';
   }
@@ -601,6 +632,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
   </div>
 
   <div class="acciones">
+    <button class="btn btn-ghost" id="md_btnEditar" onclick="ModMaquilaDetalle._editar()" style="display:none">Editar</button>
     <button class="btn btn-primary" id="md_btnConvertir" onclick="ModMaquilaDetalle._convertir()" style="display:none">Convertir a Orden</button>
     <button class="btn btn-danger" id="md_btnCancelar" onclick="ModMaquilaDetalle._cancelar()" style="display:none">Cancelar</button>
     <span id="md_acciones_imprimir" style="display:contents"></span>
@@ -661,6 +693,7 @@ function render() {
   document.getElementById('md_partidas').innerHTML = html;
 
   if (cot.estatus === 'cotizacion' && window._puedeEditarMaquila) {
+    document.getElementById('md_btnEditar').style.display = 'inline-block';
     document.getElementById('md_btnConvertir').style.display = 'inline-block';
     document.getElementById('md_btnCancelar').style.display = 'inline-block';
   }
@@ -677,6 +710,10 @@ function render() {
     }
   }
   document.getElementById('md_acciones_imprimir').innerHTML = htmlImp;
+}
+
+function editar() {
+  window.irA('maquila_nueva', { id: cotId });
 }
 
 async function convertir() {
@@ -709,7 +746,7 @@ function volver() {
 
 cargar();
 
-return { init: cargar, _convertir: convertir, _cancelar: cancelar, _volver: volver };
+return { init: cargar, _editar: editar, _convertir: convertir, _cancelar: cancelar, _volver: volver };
 })();
 </script>
 <?php endif; ?>

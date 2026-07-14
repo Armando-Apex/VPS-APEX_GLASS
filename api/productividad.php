@@ -573,4 +573,46 @@ if ($vista === 'detalle_extra') {
     jsonResponse(['detalle' => $resultado, 'fecha' => $fecha, 'total' => count($resultado)]);
 }
 
+// ── Trazabilidad de rutas de entrega: Orden, chofer, salida (QR), tiempo muerto, llegada (GPS) ──
+if ($vista === 'trazabilidad_rutas') {
+    $fecha = $_GET['fecha'] ?? $now->format('Y-m-d');
+
+    $stmt = $db->prepare("
+        SELECT
+            o.folio, o.cliente_nombre,
+            r.unidad, r.chofer,
+            re.id AS entrega_id, re.secuencia,
+            re.movimiento_iniciado_at, re.llegada_gps_at, re.entregado_at,
+            (SELECT MAX(created_at) FROM orden_salida_escaneos
+              WHERE orden_id = re.orden_id AND DATE(created_at) = r.fecha) AS salida_qr_at
+        FROM ruta_entregas re
+        JOIN rutas r   ON r.id = re.ruta_id
+        JOIN ordenes o ON o.id = re.orden_id
+        WHERE r.fecha = ?
+        ORDER BY r.unidad ASC, re.secuencia ASC
+    ");
+    $stmt->execute([$fecha]);
+    $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $resultado = array_map(function($f) {
+        $tiempoMuertoMin = null;
+        if ($f['salida_qr_at'] && $f['movimiento_iniciado_at']) {
+            $tiempoMuertoMin = round((strtotime($f['movimiento_iniciado_at']) - strtotime($f['salida_qr_at'])) / 60);
+        }
+        return [
+            'folio'             => $f['folio'],
+            'cliente'           => $f['cliente_nombre'],
+            'unidad'            => $f['unidad'],
+            'chofer'            => $f['chofer'],
+            'salida_qr_at'      => $f['salida_qr_at'],
+            'movimiento_iniciado_at' => $f['movimiento_iniciado_at'],
+            'tiempo_muerto_min' => $tiempoMuertoMin,
+            'llegada_gps_at'    => $f['llegada_gps_at'],
+            'entregado_at'      => $f['entregado_at'],
+        ];
+    }, $filas);
+
+    jsonResponse(['trazabilidad' => $resultado, 'fecha' => $fecha, 'total' => count($resultado)]);
+}
+
 jsonResponse(['error' => 'Vista no válida: hora|dia|semana|mes'], 400);

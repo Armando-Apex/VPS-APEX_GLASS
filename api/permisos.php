@@ -51,6 +51,7 @@ define('PERMISOS', [
         'ver_inventario',
         'gestionar_inventario',
         'gestionar_maquila_precios',
+        'ver_wip',
     ],
     'administracion' => [
         'ver_dashboard',

@@ -23,6 +23,73 @@ if (!$esLogistica && !$esChofer) {
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
+// ── Helper: llamar a Google Routes API (computeRoutes) ────────
+// Regresa el array decodificado de la respuesta, o null si falló la petición HTTP.
+function computeRouteGoogle($mapsKey, $origen, $intermediates, $optimizar) {
+    $payload = [
+        'origin'        => ['address' => $origen],
+        'destination'   => ['address' => $origen],
+        'intermediates' => $intermediates,
+        'travelMode'    => 'DRIVE',
+        'routingPreference' => 'TRAFFIC_AWARE',
+        'optimizeWaypointOrder' => $optimizar,
+    ];
+    $ch = curl_init('https://routes.googleapis.com/directions/v2:computeRoutes');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'X-Goog-Api-Key: ' . $mapsKey,
+            'X-Goog-FieldMask: routes.optimizedIntermediateWaypointIndex,routes.legs.duration,routes.legs.distanceMeters',
+        ],
+    ]);
+    $resp   = curl_exec($ch);
+    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    unset($ch);
+    if ($status !== 200) return null;
+    return json_decode($resp, true);
+}
+
+// ── Helper: ETA por parada (min acumulados desde ahora) sobre el orden ya definido de la
+// ruta — se guarda en ruta_entregas.eta_min. No recalcula con tráfico en vivo después.
+function calcularYGuardarEtas($db, $ruta_id) {
+    $etas = [];
+    $MAPS_KEY = defined('GOOGLE_MAPS_SERVER_KEY') && GOOGLE_MAPS_SERVER_KEY ? GOOGLE_MAPS_SERVER_KEY : (defined('GOOGLE_MAPS_KEY') ? GOOGLE_MAPS_KEY : '');
+    if (!$MAPS_KEY) return $etas;
+
+    $stmt = $db->prepare("
+        SELECT re.id, re.direccion, re.colonia, re.ciudad
+        FROM ruta_entregas re
+        WHERE re.ruta_id = ? AND re.estado = 'pendiente'
+        ORDER BY re.secuencia ASC
+    ");
+    $stmt->execute([$ruta_id]);
+    $entregasEta = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (!$entregasEta) return $etas;
+
+    $origen = 'Avenida de la Industria 214, Parque Industrial Marfer, Santa Catarina, Nuevo León';
+    $intermediates = array_map(function($e) {
+        $addr = implode(', ', array_filter([$e['direccion'], $e['colonia'], $e['ciudad']]));
+        return ['address' => $addr ?: 'Monterrey, Nuevo León'];
+    }, $entregasEta);
+
+    $TOLERANCIA_MIN = 15;
+    $data = computeRouteGoogle($MAPS_KEY, $origen, $intermediates, false);
+    $legs = $data['routes'][0]['legs'] ?? null;
+    if (!$legs) return $etas;
+
+    $acumMin = 0;
+    $updEta = $db->prepare("UPDATE ruta_entregas SET eta_min=? WHERE id=?");
+    foreach ($entregasEta as $i => $e) {
+        $acumMin += round((int)($legs[$i]['duration'] ?? 0) / 60) + $TOLERANCIA_MIN;
+        $updEta->execute([(int)$acumMin, $e['id']]);
+        $etas[] = ['entrega_id' => (int)$e['id'], 'eta_min' => (int)$acumMin];
+    }
+    return $etas;
+}
+
 // ── Helper: peso estimado de una orden ───────────────────────
 function calcularPesoOrden($db, $orden_id) {
     $stmt = $db->prepare("SELECT ancho_mm, alto_mm, cristal FROM piezas WHERE orden_id = ?");
@@ -88,10 +155,21 @@ if ($method === 'GET') {
         $rutas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($rutas as &$ruta) {
+            // Entregas parciales: ya se registran hoy desde la remisión impresa (orden_salidas,
+            // ver api/salidas.php + app/imprimir_salida.php) — se jala ese dato existente en vez
+            // de duplicar el seguimiento con ruta_entrega_piezas, que es un mecanismo aparte.
             $stmt2 = $db->prepare("
-                SELECT re.*, re.estado as entrega_estado, o.folio, o.cliente_nombre, o.estado as orden_estado
+                SELECT re.*, re.estado as entrega_estado, o.folio, o.cliente_nombre, o.estado as orden_estado,
+                       os.es_parcial, os.piezas_count as salida_piezas_count, os.piezas_total as salida_piezas_total
                 FROM ruta_entregas re
                 JOIN ordenes o ON o.id = re.orden_id
+                LEFT JOIN (
+                    SELECT os1.orden_id, os1.es_parcial, os1.piezas_count, os1.piezas_total
+                    FROM orden_salidas os1
+                    INNER JOIN (
+                        SELECT orden_id, MAX(id) as max_id FROM orden_salidas GROUP BY orden_id
+                    ) ult ON ult.orden_id = os1.orden_id AND ult.max_id = os1.id
+                ) os ON os.orden_id = re.orden_id
                 WHERE re.ruta_id = ?
                 ORDER BY re.secuencia ASC, re.id ASC
             ");
@@ -298,7 +376,17 @@ if ($method === 'POST') {
         $id = (int)($body['ruta_id'] ?? 0);
         if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
         $db->prepare("UPDATE rutas SET estado='en_ruta', updated_at=NOW() WHERE id=?")->execute([$id]);
-        jsonResponse(['ok' => true]); exit;
+
+        $etas = calcularYGuardarEtas($db, $id);
+        jsonResponse(['ok' => true, 'etas' => $etas]); exit;
+    }
+
+    if ($accion === 'recalcular_eta') {
+        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
+        $id = (int)($body['ruta_id'] ?? 0);
+        if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
+        $etas = calcularYGuardarEtas($db, $id);
+        jsonResponse(['ok' => true, 'etas' => $etas]); exit;
     }
 
     if ($accion === 'marcar_estado') {
@@ -501,8 +589,9 @@ if ($method === 'POST') {
 
         // Obtener entregas pendientes de esta ruta
         $stmt = $db->prepare("
-            SELECT re.id, re.direccion, re.colonia, re.ciudad
+            SELECT re.id, re.direccion, re.colonia, re.ciudad, o.folio, o.cliente_nombre
             FROM ruta_entregas re
+            JOIN ordenes o ON o.id = re.orden_id
             WHERE re.ruta_id = ? AND re.estado = 'pendiente'
             ORDER BY re.secuencia ASC
         ");
@@ -527,35 +616,27 @@ if ($method === 'POST') {
             return ['address' => $addr ?: 'Monterrey, Nuevo León'];
         }, $entregas);
 
-        $payload = [
-            'origin'        => ['address' => $origen],
-            'destination'   => ['address' => $origen],
-            'intermediates' => $intermediates,
-            'travelMode'    => 'DRIVE',
-            'routingPreference' => 'TRAFFIC_AWARE',
-            'optimizeWaypointOrder' => true,
-        ];
+        // Tolerancia por parada: tiempo que se tarda el chofer en bajar el vidrio y entregar,
+        // aparte del tiempo de manejo — Google solo calcula tiempo de traslado, no de descarga.
+        $TOLERANCIA_MIN = 15;
+        $toleranciaTotal = $TOLERANCIA_MIN * count($entregas);
 
-        $ch = curl_init('https://routes.googleapis.com/directions/v2:computeRoutes');
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($payload),
-            CURLOPT_HTTPHEADER     => [
-                'Content-Type: application/json',
-                'X-Goog-Api-Key: ' . $MAPS_KEY,
-                'X-Goog-FieldMask: routes.optimizedIntermediateWaypointIndex,routes.legs.duration,routes.legs.distanceMeters',
-            ],
-        ]);
-        $resp   = curl_exec($ch);
-        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        // Baseline: cuánto tardaría la ruta tal como está ordenada HOY (sin optimizar), para
+        // poder comparar contra el resultado optimizado y comprobar que sí mejora algo real —
+        // en vez de aplicar el reorden a ciegas confiando en que Google lo hizo bien.
+        $baseline = computeRouteGoogle($MAPS_KEY, $origen, $intermediates, false);
+        if ($baseline === null) {
+            jsonResponse(['error' => 'Error al contactar Google Maps (baseline)']); exit;
+        }
+        $baselineMin = round(array_sum(array_map(function($l) {
+            return (int)($l['duration'] ?? 0);
+        }, $baseline['routes'][0]['legs'] ?? [])) / 60) + $toleranciaTotal;
 
-        if ($status !== 200) {
-            jsonResponse(['error' => 'Error al contactar Google Maps', 'detalle' => $resp]); exit;
+        $data  = computeRouteGoogle($MAPS_KEY, $origen, $intermediates, true);
+        if ($data === null) {
+            jsonResponse(['error' => 'Error al contactar Google Maps']); exit;
         }
 
-        $data = json_decode($resp, true);
         $order = $data['routes'][0]['optimizedIntermediateWaypointIndex'] ?? null;
 
         if (!$order) {
@@ -569,18 +650,48 @@ if ($method === 'POST') {
                ->execute([$nuevaPos + 1, $entrega_id]);
         }
 
-        // Calcular tiempo total estimado
+        // Calcular tiempo total estimado (traslado + tolerancia de descarga por parada)
         $legs     = $data['routes'][0]['legs'] ?? [];
         $totalSeg = array_sum(array_map(function($l) {
             return (int)($l['duration'] ?? 0);
         }, $legs));
-        $totalMin = round($totalSeg / 60);
+        $totalMin = round($totalSeg / 60) + $toleranciaTotal;
+
+        // Desglose tramo por tramo (Planta→parada1, parada1→parada2, ...) con el nombre de
+        // cada punto, en el orden YA optimizado, para poder ver cuánto tarda cada segmento.
+        // Cada tramo que TERMINA en una parada de entrega (todos menos el último, que regresa
+        // a planta) suma los 15 min de tolerancia de descarga.
+        $ordenEntregas = array_map(function($idxOriginal) use ($entregas) {
+            return $entregas[$idxOriginal];
+        }, $order);
+        $puntos = array_merge(
+            [['label' => 'Planta']],
+            array_map(function($e) {
+                return ['label' => $e['folio'] . ' — ' . $e['cliente_nombre']];
+            }, $ordenEntregas),
+            [['label' => 'Planta']]
+        );
+        $numLegs = count($legs);
+        $tramos = [];
+        foreach ($legs as $i => $leg) {
+            $esParada = $i < $numLegs - 1;
+            $tramos[] = [
+                'desde'       => $puntos[$i]['label'],
+                'hasta'       => $puntos[$i + 1]['label'],
+                'min'         => round((int)($leg['duration'] ?? 0) / 60),
+                'km'          => round((float)($leg['distanceMeters'] ?? 0) / 1000, 1),
+                'espera_min'  => $esParada ? $TOLERANCIA_MIN : 0,
+            ];
+        }
 
         jsonResponse([
-            'ok'        => true,
-            'orden'     => $order,
-            'tiempo_min'=> $totalMin,
-            'paradas'   => count($entregas),
+            'ok'          => true,
+            'orden'       => $order,
+            'tiempo_min'  => $totalMin,
+            'antes_min'   => $baselineMin,
+            'ahorro_min'  => max(0, $baselineMin - $totalMin),
+            'paradas'     => count($entregas),
+            'tramos'      => $tramos,
         ]);
         exit;
     }

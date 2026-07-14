@@ -333,7 +333,7 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       <button class="sidebar-link" data-modulo="finanzas_cobranza" onclick="cargarModulo('finanzas_cobranza')">
         <span class="sidebar-icon"><?= icono('credit-card') ?></span>Cobranza
       </button>
-      <?php if ($esDesarrollo): ?>
+      <?php if ($esDesarrollo || $esAdmin): ?>
       <button class="sidebar-link" data-modulo="facturacion" onclick="cargarModulo('facturacion')">
         <span class="sidebar-icon"><?= icono('file-text') ?></span>Facturación <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px">WIP</span>
       </button>
@@ -343,7 +343,7 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
     <?php if ($esLogistica): ?>
     <div class="sidebar-section">
       <div class="sidebar-label">Log&iacute;stica</div>
-      <?php if ($esDesarrollo): ?>
+      <?php if ($esDesarrollo || $esAdmin): ?>
       <button class="sidebar-link" data-modulo="logistica_rutas" onclick="cargarModulo('logistica_rutas')">
         <span class="sidebar-icon"><?= icono('truck') ?></span>Rutas de Entrega <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px">WIP</span>
       </button>
