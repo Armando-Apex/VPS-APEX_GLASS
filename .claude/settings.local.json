@@ -137,7 +137,8 @@
       "Bash(sudo mysql apexglass2025_prod -e \"DELETE FROM ordenes_compra WHERE id=19 AND notas='TEST UPLOAD - borrar';\")",
       "Bash(sudo mysql apexglass2025_prod -e \"SELECT COUNT\\(*\\) AS quedan FROM ordenes_compra WHERE id=19;\")",
       "Bash(rm -f /home/apexglass2025/tmp/sessions/sess_26d05f4be6f0befc29739077434f6f09)",
-      "Bash(echo \"exit code: $?\")"
+      "Bash(echo \"exit code: $?\")",
+      "Bash(awk \"/<script>/{flag=1;next}/<\\\\/script>/{flag=0}flag\" app/modulos/campanas.php)"
     ]
   },
   "hooks": {

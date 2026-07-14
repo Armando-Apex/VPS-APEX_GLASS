@@ -510,7 +510,7 @@ var ModCampanas = (function() {
                 filas += '<tr>' +
                     '<td style="padding:6px 10px;font-size:12px;">' + esc(c.nombre) + '</td>' +
                     '<td style="padding:6px 10px;font-size:12px;">' + esc(c.telefono) + '</td>' +
-                    '<td style="padding:6px 10px;font-size:11px;color:#64748b;">' + esc(construirPreview(c.nombre)) + '</td>' +
+                    '<td style="padding:6px 10px;font-size:11px;color:#64748b;">' + esc(construirPreview(nombreEnvioPreview(c))) + '</td>' +
                     '</tr>';
             });
             if (_clientesSeleccionados.length > 50) {
@@ -698,7 +698,7 @@ var ModCampanas = (function() {
     function actualizarPreview() {
         var area = document.getElementById('cmpPreviewArea');
         if (!area || !_templateNombre) return;
-        var nombre = (_clientesSeleccionados[0] || {nombre: 'Ramón'}).nombre;
+        var nombre = nombreEnvioPreview(_clientesSeleccionados[0] || {nombre: 'Ramón'});
         area.innerHTML =
             '<label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Vista previa (primer cliente):</label>' +
             '<div class="cmp-preview" style="white-space:pre-wrap;">' + esc(construirPreview(nombre)) + '</div>';
@@ -829,7 +829,7 @@ var ModCampanas = (function() {
             var filas = '';
             clientes.forEach(function(c) {
                 // Guardar objeto completo en mapa — nunca interpolar en JS inline
-                _clientesMap[c.id] = {id: c.id, nombre: c.nombre, telefono: normTel(c.telefono || '')};
+                _clientesMap[c.id] = {id: c.id, nombre: c.nombre, telefono: normTel(c.telefono || ''), contacto: c.contacto || ''};
                 var seleccionado = _clientesSeleccionados.some(function(x) { return x.id === c.id; });
                 // data-id es entero seguro; no hay datos de usuario en atributos JS
                 filas += '<tr>' +
@@ -847,7 +847,7 @@ var ModCampanas = (function() {
                     if (e.target.type === 'checkbox' && e.target.dataset.id) {
                         var id  = parseInt(e.target.dataset.id);
                         var obj = _clientesMap[id];
-                        if (obj) { toggleCliente(id, obj.nombre, obj.telefono, e.target.checked); }
+                        if (obj) { toggleCliente(id, obj.nombre, obj.telefono, e.target.checked, obj.contacto); }
                     }
                 });
             }
@@ -856,16 +856,30 @@ var ModCampanas = (function() {
           });
     }
 
-    function toggleCliente(id, nombre, tel, checked) {
+    function toggleCliente(id, nombre, tel, checked, contacto) {
         if (checked) {
             if (!_clientesSeleccionados.some(function(x) { return x.id === id; })) {
-                _clientesSeleccionados.push({id: id, nombre: nombre, telefono: tel});
+                _clientesSeleccionados.push({id: id, nombre: nombre, telefono: tel, contacto: contacto || ''});
             }
         } else {
             _clientesSeleccionados = _clientesSeleccionados.filter(function(x) { return x.id !== id; });
         }
         var cnt = document.getElementById('cmpContador');
         if (cnt) { cnt.textContent = _clientesSeleccionados.length + ' seleccionados'; }
+    }
+
+    // Aproxima en el navegador el mismo criterio que api/campanas.php::nombreCampanaCorto()
+    // usa al crear la campaña: prioriza el nombre del contacto (persona) sobre la razón
+    // social, primeras 2 palabras, Title Case. Solo para la vista previa del wizard —
+    // el valor real que se envía siempre se calcula server-side al crear la campaña.
+    function nombreEnvioPreview(c) {
+        var base = (c && c.contacto && c.contacto.trim()) ? c.contacto : ((c && c.nombre) || '');
+        base = base.trim();
+        if (!base) { return 'Cliente'; }
+        var palabras = base.split(/\s+/).slice(0, 2);
+        return palabras.map(function(w) {
+            return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+        }).join(' ');
     }
 
     function toggleTodos() {
