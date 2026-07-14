@@ -1072,8 +1072,14 @@ async function cargarOC() {
       var pct     = o.total_ordenado > 0 ? Math.round(o.total_recibido / o.total_ordenado * 100) : 0;
       var barCls  = pct >= 100 ? 'ok' : (pct > 0 ? 'warn' : 'alerta');
       var diasPago = parseInt(o.dias_para_pago);
-      var pagoClr  = o.fecha_pago_programada ? (diasPago < 0 ? '#dc2626' : diasPago <= 7 ? '#f59e0b' : '#16a34a') : '#94a3b8';
-      var pagoTxt  = o.fecha_pago_programada ? (diasPago < 0 ? Math.abs(diasPago)+' d&#237;as vencida' : diasPago === 0 ? 'Hoy' : diasPago+' d&#237;as') : '&#8212;';
+      var pagoClr, pagoTxt;
+      if (o.estado === 'pagada') {
+        pagoClr = '#16a34a';
+        pagoTxt = 'Pagado &#10003;';
+      } else {
+        pagoClr = o.fecha_pago_programada ? (diasPago < 0 ? '#dc2626' : diasPago <= 7 ? '#f59e0b' : '#16a34a') : '#94a3b8';
+        pagoTxt = o.fecha_pago_programada ? (diasPago < 0 ? Math.abs(diasPago)+' d&#237;as vencida' : diasPago === 0 ? 'Hoy' : diasPago+' d&#237;as') : '&#8212;';
+      }
       return '<tr>'+
         '<td><strong style="color:#2563eb;cursor:pointer" onclick="ocVerDetalle('+o.id+')">'+o.numero_oc+'</strong></td>'+
         '<td>'+fmtFecha(o.fecha_oc)+'</td>'+
