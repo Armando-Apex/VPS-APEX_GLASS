@@ -5,6 +5,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
+require_once 'rutas_lib.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -14,7 +15,7 @@ $nombre  = $user['nombre'];
 $db      = getDB();
 $method  = $_SERVER['REQUEST_METHOD'];
 
-$esLogistica = in_array($rol, ['administracion', 'dir_admin', 'dueno', 'desarrollo']);
+$esLogistica = in_array($rol, ['administracion', 'dir_admin', 'dueno', 'desarrollo', 'comercial']);
 $esChofer    = $rol === 'chofer';
 
 if (!$esLogistica && !$esChofer) {
@@ -22,73 +23,6 @@ if (!$esLogistica && !$esChofer) {
 }
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
-
-// ── Helper: llamar a Google Routes API (computeRoutes) ────────
-// Regresa el array decodificado de la respuesta, o null si falló la petición HTTP.
-function computeRouteGoogle($mapsKey, $origen, $intermediates, $optimizar) {
-    $payload = [
-        'origin'        => ['address' => $origen],
-        'destination'   => ['address' => $origen],
-        'intermediates' => $intermediates,
-        'travelMode'    => 'DRIVE',
-        'routingPreference' => 'TRAFFIC_AWARE',
-        'optimizeWaypointOrder' => $optimizar,
-    ];
-    $ch = curl_init('https://routes.googleapis.com/directions/v2:computeRoutes');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => json_encode($payload),
-        CURLOPT_HTTPHEADER     => [
-            'Content-Type: application/json',
-            'X-Goog-Api-Key: ' . $mapsKey,
-            'X-Goog-FieldMask: routes.optimizedIntermediateWaypointIndex,routes.legs.duration,routes.legs.distanceMeters',
-        ],
-    ]);
-    $resp   = curl_exec($ch);
-    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    unset($ch);
-    if ($status !== 200) return null;
-    return json_decode($resp, true);
-}
-
-// ── Helper: ETA por parada (min acumulados desde ahora) sobre el orden ya definido de la
-// ruta — se guarda en ruta_entregas.eta_min. No recalcula con tráfico en vivo después.
-function calcularYGuardarEtas($db, $ruta_id) {
-    $etas = [];
-    $MAPS_KEY = defined('GOOGLE_MAPS_SERVER_KEY') && GOOGLE_MAPS_SERVER_KEY ? GOOGLE_MAPS_SERVER_KEY : (defined('GOOGLE_MAPS_KEY') ? GOOGLE_MAPS_KEY : '');
-    if (!$MAPS_KEY) return $etas;
-
-    $stmt = $db->prepare("
-        SELECT re.id, re.direccion, re.colonia, re.ciudad
-        FROM ruta_entregas re
-        WHERE re.ruta_id = ? AND re.estado = 'pendiente'
-        ORDER BY re.secuencia ASC
-    ");
-    $stmt->execute([$ruta_id]);
-    $entregasEta = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    if (!$entregasEta) return $etas;
-
-    $origen = 'Avenida de la Industria 214, Parque Industrial Marfer, Santa Catarina, Nuevo León';
-    $intermediates = array_map(function($e) {
-        $addr = implode(', ', array_filter([$e['direccion'], $e['colonia'], $e['ciudad']]));
-        return ['address' => $addr ?: 'Monterrey, Nuevo León'];
-    }, $entregasEta);
-
-    $TOLERANCIA_MIN = 15;
-    $data = computeRouteGoogle($MAPS_KEY, $origen, $intermediates, false);
-    $legs = $data['routes'][0]['legs'] ?? null;
-    if (!$legs) return $etas;
-
-    $acumMin = 0;
-    $updEta = $db->prepare("UPDATE ruta_entregas SET eta_min=? WHERE id=?");
-    foreach ($entregasEta as $i => $e) {
-        $acumMin += round((int)($legs[$i]['duration'] ?? 0) / 60) + $TOLERANCIA_MIN;
-        $updEta->execute([(int)$acumMin, $e['id']]);
-        $etas[] = ['entrega_id' => (int)$e['id'], 'eta_min' => (int)$acumMin];
-    }
-    return $etas;
-}
 
 // ── Helper: peso estimado de una orden ───────────────────────
 function calcularPesoOrden($db, $orden_id) {
@@ -113,25 +47,20 @@ if ($method === 'GET') {
     $fecha  = $_GET['fecha']  ?? date('Y-m-d');
 
     if ($accion === 'pendientes') {
+        // requiere_ruta=1: Cobranza ya cerró la orden (salida tipo 'chofer'/domicilio) pero le
+        // falta el trayecto físico. No se filtra por fecha de ruta (a diferencia de antes) porque
+        // la orden ya no está en estado 'activa' y debe seguir apareciendo hasta que se asigne,
+        // sin importar cuántos días lleve esperando.
         $stmt = $db->prepare("
             SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_entrega,
                    o.estado, c.localidad, c.ciudad_destino
             FROM ordenes o
             LEFT JOIN cotizaciones c ON c.orden_id = o.id
-            WHERE o.estado = 'activa'
-              AND NOT EXISTS (
-                  SELECT 1 FROM piezas p
-                  WHERE p.orden_id = o.id
-                    AND p.estatus NOT IN ('terminado','entregado')
-              )
-              AND o.id NOT IN (
-                  SELECT re.orden_id FROM ruta_entregas re
-                  JOIN rutas r ON r.id = re.ruta_id
-                  WHERE r.fecha = ?
-              )
+            WHERE o.requiere_ruta = 1
+              AND o.id NOT IN (SELECT re.orden_id FROM ruta_entregas re)
             ORDER BY o.fecha_entrega ASC, o.id ASC
         ");
-        $stmt->execute([$fecha]);
+        $stmt->execute();
         $ordenes = $stmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($ordenes as &$o) {
             $o['peso_kg'] = calcularPesoOrden($db, $o['id']);
@@ -147,7 +76,7 @@ if ($method === 'GET') {
                    COALESCE(SUM(re.estado = 'entregado'),0) as entregadas
             FROM rutas r
             LEFT JOIN ruta_entregas re ON re.ruta_id = r.id
-            WHERE r.fecha = ?
+            WHERE r.fecha = ? AND r.archivada = 0
             GROUP BY r.id
             ORDER BY r.unidad ASC, r.id ASC
         ");
@@ -240,14 +169,36 @@ if ($method === 'GET') {
         if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $orden_id = (int)($_GET['orden_id'] ?? 0);
         if (!$orden_id) { jsonResponse(['error' => 'orden_id requerido']); exit; }
+        // Con el flujo de requiere_ruta, la orden ya cerró en Cobranza y sus piezas ya quedaron
+        // en 'entregado' (no 'terminado') — se incluyen ambos estatus para no romper la
+        // asignación de piezas a la ruta.
         $stmt = $db->prepare("
             SELECT p.id, p.partida, p.pieza_num, p.pieza_total,
                    p.qr_code, p.cristal_corto, p.ancho_mm, p.alto_mm, p.estatus
             FROM piezas p
-            WHERE p.orden_id = ? AND p.estatus = 'terminado'
+            WHERE p.orden_id = ? AND p.estatus IN ('terminado','entregado')
             ORDER BY p.partida ASC, p.pieza_num ASC
         ");
         $stmt->execute([$orden_id]);
+        jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
+    }
+
+    if ($accion === 'piezas_carga') {
+        // Checklist de carga en planta: piezas asignadas a la ruta (paradas pendientes) y si
+        // ya se escanearon como cargadas, agrupadas por parada/orden.
+        $ruta_id = (int)($_GET['ruta_id'] ?? 0);
+        if (!$ruta_id) { jsonResponse(['error' => 'ruta_id requerido']); exit; }
+        $stmt = $db->prepare("
+            SELECT re.id as entrega_id, re.orden_id, o.folio, o.cliente_nombre,
+                   rep.id as rep_id, rep.cargado_at, p.qr_code, p.partida, p.pieza_num, p.pieza_total, p.cristal_corto
+            FROM ruta_entregas re
+            JOIN ordenes o ON o.id = re.orden_id
+            JOIN ruta_entrega_piezas rep ON rep.ruta_entrega_id = re.id
+            JOIN piezas p ON p.id = rep.pieza_id
+            WHERE re.ruta_id = ? AND re.estado = 'pendiente'
+            ORDER BY re.secuencia ASC, p.partida ASC, p.pieza_num ASC
+        ");
+        $stmt->execute([$ruta_id]);
         jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
     }
 
@@ -375,6 +326,19 @@ if ($method === 'POST') {
         if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $id = (int)($body['ruta_id'] ?? 0);
         if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
+
+        // Bloqueo: no se puede iniciar si falta escanear alguna pieza como cargada en planta
+        $chk = $db->prepare("
+            SELECT COUNT(*) FROM ruta_entrega_piezas rep
+            JOIN ruta_entregas re ON re.id = rep.ruta_entrega_id
+            WHERE re.ruta_id = ? AND re.estado = 'pendiente' AND rep.cargado_at IS NULL
+        ");
+        $chk->execute([$id]);
+        $faltan = (int)$chk->fetchColumn();
+        if ($faltan > 0) {
+            jsonResponse(['error' => "Faltan $faltan pieza(s) por escanear como cargadas antes de iniciar la ruta"]); exit;
+        }
+
         $db->prepare("UPDATE rutas SET estado='en_ruta', updated_at=NOW() WHERE id=?")->execute([$id]);
 
         $etas = calcularYGuardarEtas($db, $id);
@@ -421,7 +385,10 @@ if ($method === 'POST') {
             }
         }
 
-        // Marcar ruta como completada si no quedan pendientes
+        // Marcar ruta como completada si no quedan pendientes; si sigue en_ruta con paradas
+        // pendientes, recalcular el tiempo estimado (la parada que se acaba de entregar ya
+        // no debe seguir sumando a la cuenta de la siguiente).
+        $etas = [];
         $chk = $db->prepare("SELECT ruta_id, SUM(estado='pendiente') as pend FROM ruta_entregas WHERE id=?");
         $chk->execute([$entrega_id]);
         $chk = $chk->fetch(PDO::FETCH_ASSOC);
@@ -432,9 +399,11 @@ if ($method === 'POST') {
             if ((int)($pend2['p'] ?? 1) === 0) {
                 $db->prepare("UPDATE rutas SET estado='completada', updated_at=NOW() WHERE id=?")
                    ->execute([$chk['ruta_id']]);
+            } elseif ($estado === 'entregado') {
+                $etas = calcularYGuardarEtas($db, $chk['ruta_id']);
             }
         }
-        jsonResponse(['ok' => true]); exit;
+        jsonResponse(['ok' => true, 'etas' => $etas]); exit;
     }
 
     if ($accion === 'marcar_pieza') {
@@ -556,7 +525,9 @@ if ($method === 'POST') {
     }
 
     if ($accion === 'eliminar_ruta') {
-        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
+        // Borrar ruta por completo (irreversible) — solo dir_admin/desarrollo, a diferencia
+        // del resto de acciones de logística que sí puede usar comercial (asesoras).
+        if (!in_array($rol, ['dir_admin', 'desarrollo'])) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $ruta_id = (int)($body['ruta_id'] ?? 0);
         if (!$ruta_id) { jsonResponse(['error' => 'ID requerido']); exit; }
 
@@ -579,6 +550,23 @@ if ($method === 'POST') {
         $stmt->execute([$ruta_id]);
         if ($stmt->rowCount() === 0) { jsonResponse(['error' => 'Ruta no encontrada']); exit; }
 
+        jsonResponse(['ok' => true]); exit;
+    }
+
+    if ($accion === 'archivar_ruta') {
+        // Solo oculta la ruta del tablero del día (r.archivada=1) — los datos siguen intactos
+        // en BD para consulta posterior (ej. Productividad). Solo aplica a rutas 'completada'.
+        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
+        $ruta_id = (int)($body['ruta_id'] ?? 0);
+        if (!$ruta_id) { jsonResponse(['error' => 'ID requerido']); exit; }
+
+        $stmt = $db->prepare("SELECT estado FROM rutas WHERE id=?");
+        $stmt->execute([$ruta_id]);
+        $estadoActual = $stmt->fetchColumn();
+        if ($estadoActual === false) { jsonResponse(['error' => 'Ruta no encontrada']); exit; }
+        if ($estadoActual !== 'completada') { jsonResponse(['error' => 'Solo se puede finalizar una ruta ya completada']); exit; }
+
+        $db->prepare("UPDATE rutas SET archivada=1 WHERE id=?")->execute([$ruta_id]);
         jsonResponse(['ok' => true]); exit;
     }
 

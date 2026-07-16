@@ -240,7 +240,27 @@ foreach ($elementos as $idxEl => $e) {
         $svg .= '<rect x="'.($lx-1).'" y="'.($ly-$fz).'" width="76" height="'.($fz+3).'" fill="white" rx="2"/>';
         $svg .= '<text x="'.$lx.'" y="'.$ly.'" font-size="'.$fzSm.'" font-weight="700" fill="#333333" font-family="monospace">TA  &#216;'.$e['de'].'/'.$e['di'].' mm</text>';
     }
-    if ($e['tipo'] === 'rs') {
+    if ($e['tipo'] === 'rs' && ($e['rs_variant'] ?? '') === 'cerradura') {
+        $rw = max(8, (float)$e['h']*$sc);
+        $rh = max(4, (float)$e['w']*$sc);
+        $exD = min($ex, $ox+$gw-$rw);
+        $rySVG = max($ey - $rh, $oy);
+        $rsD = (float)($e['rs_d'] ?? ((float)$e['h']*1.6));
+        $cRad = max($rw*0.6, ($rsD/2)*$sc);
+        $cCx = $exD + $rw*0.5; $cCy = $rySVG;
+        $colRS = '#333333';
+        $tipHalf = $rw * 0.12; $tipX1 = $cCx - $tipHalf; $tipX2 = $cCx + $tipHalf; $tipY = $cCy + $rh;
+        $svg .= '<polygon points="'.$tipX1.','.$tipY.' '.$tipX2.','.$tipY.' '.($exD+$rw).','.$cCy.' '.$exD.','.$cCy.'" fill="#e8e8e8" fill-opacity="1" stroke="none"/>';
+        $svg .= '<circle cx="'.$cCx.'" cy="'.$cCy.'" r="'.$cRad.'" fill="#e8e8e8" fill-opacity="1" stroke="none"/>';
+        $svg .= '<path d="M '.$tipX1.' '.$tipY.' L '.$exD.' '.$cCy.'" fill="none" stroke="'.$colRS.'" stroke-width="1.2" stroke-dasharray="3,2"/>';
+        $svg .= '<path d="M '.$tipX2.' '.$tipY.' L '.($exD+$rw).' '.$cCy.'" fill="none" stroke="'.$colRS.'" stroke-width="1.2" stroke-dasharray="3,2"/>';
+        $svg .= '<line x1="'.$tipX1.'" y1="'.$tipY.'" x2="'.$tipX2.'" y2="'.$tipY.'" stroke="'.$colRS.'" stroke-width="1.2" stroke-dasharray="3,2"/>';
+        $svg .= '<circle cx="'.$cCx.'" cy="'.$cCy.'" r="'.$cRad.'" fill="none" stroke="'.$colRS.'" stroke-width="1.2" stroke-dasharray="3,2"/>';
+        $lxRS=$exD; $lyRS2=$cCy-$cRad-8;
+        $svg .= '<rect x="'.($lxRS-1).'" y="'.($lyRS2-$fz).'" width="90" height="'.($fz+3).'" fill="white" rx="2"/>';
+        $svg .= '<text x="'.$lxRS.'" y="'.$lyRS2.'" font-size="'.$fzSm.'" font-weight="700" fill="'.$colRS.'" font-family="monospace">RS cerradura &#216;'.$rsD.' mm</text>';
+    }
+    if ($e['tipo'] === 'rs' && ($e['rs_variant'] ?? '') !== 'cerradura') {
         $rw = max(8, (float)$e['h']*$sc);
         $rh = max(4, (float)$e['w']*$sc);
         $exD = min($ex, $ox+$gw-$rw);
@@ -315,7 +335,7 @@ if ($hasEl) {
         $det = '';
         if ($el['tipo']==='tp') $det = '&#216;'.$el['d'].'mm';
         if ($el['tipo']==='ta') $det = '&#216;'.$el['de'].'/'.$el['di'];
-        if ($el['tipo']==='rs') $det = $el['w'].'&#215;'.$el['h'].'mm';
+        if ($el['tipo']==='rs') $det = $el['w'].'&#215;'.$el['h'].'mm'.((($el['rs_variant']??'')==='cerradura')?' &#216;'.($el['rs_d']??round((float)$el['h']*1.6)).'mm':'');
         if ($el['tipo']==='bi') $det = $el['w'].'&#215;'.$el['h'].'mm'.((!empty($el['bi_ref'])&&$el['bi_ref']!=='inicio')?' ['.$el['bi_ref'].']':'');
         $svg .= '<text x="'.($tblX+$tblW-2).'" y="'.($ry+18).'" text-anchor="end" font-size="14" fill="'.$ec.'" font-family="monospace">'.$det.'</text>';
         $svg .= '<text x="'.($tblX+12).'" y="'.($ry+$cardH-6).'" font-size="12" fill="#333333" font-family="monospace">X: '.$el['x'].'  Y: '.$el['y'].'</text>';

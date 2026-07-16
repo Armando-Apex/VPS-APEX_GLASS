@@ -5,6 +5,7 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/permisos.php';
 require_once __DIR__ . '/wa_helper.php';
+require_once __DIR__ . '/rutas_lib.php';
 
 requireSessionApi();
 requirePermisoApi('registrar_entrega');
@@ -94,8 +95,13 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
 
         // Cerrar orden si todas están entregadas
         if ($orden_completa) {
-            $db->prepare("UPDATE ordenes SET estado='entregada', fecha_cierre=NOW(), fecha_entrega_chofer=? WHERE id=?")
-               ->execute([$fecha_chofer, $orden_id]);
+            // tipo='chofer' (domicilio): aunque la orden ya cierra aquí para efectos de
+            // reportes/dinero, todavía le falta el trayecto físico — se marca requiere_ruta
+            // para que aparezca en "Pendientes de asignar" del módulo Rutas de Entrega.
+            // tipo='recoleccion' (local, cliente pasa a la planta): no requiere ruta.
+            $reqRuta = ($tipo === 'chofer') ? 1 : 0;
+            $db->prepare("UPDATE ordenes SET estado='entregada', fecha_cierre=NOW(), fecha_entrega_chofer=?, requiere_ruta=? WHERE id=?")
+               ->execute([$fecha_chofer, $reqRuta, $orden_id]);
         } elseif ($fecha_chofer && $tipo === 'chofer') {
             $db->prepare("UPDATE ordenes SET fecha_entrega_chofer=? WHERE id=?")
                ->execute([$fecha_chofer, $orden_id]);
@@ -242,8 +248,67 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
     ]);
 }
 
-// ── POST: escaneo QR de salida por el chofer (seguimiento en_ruta / siguiente_entrega) ──
+// ── POST: escaneo QR de la remisión (imprimir_salida.php) por el chofer al CARGAR el
+// camión en planta. Marca las piezas de esa orden (ya asignadas a una ruta) como cargadas.
+// El aviso "ya voy en camino" / "eres el siguiente" ahora lo dispara un QR distinto — el de
+// la hoja de ruta impresa desde Logística Rutas — ver accion=scan_qr_ruta más abajo.
 if ($metodo === 'POST' && $accion === 'scan_qr') {
+    $body     = json_decode(file_get_contents('php://input'), true) ?? [];
+    $orden_id = (int)($body['orden_id'] ?? 0);
+    if (!$orden_id) jsonResponse(['error' => 'orden_id requerido'], 400);
+
+    $stmt = $db->prepare("
+        SELECT re.id as entrega_id, re.ruta_id, r.estado as ruta_estado
+        FROM ruta_entregas re JOIN rutas r ON r.id = re.ruta_id
+        WHERE re.orden_id = ? AND re.estado = 'pendiente'
+        ORDER BY re.id DESC LIMIT 1
+    ");
+    $stmt->execute([$orden_id]);
+    $re = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$re) {
+        jsonResponse(['error' => 'Esta orden no está asignada a ninguna ruta todavía']); exit;
+    }
+
+    $db->prepare("
+        UPDATE ruta_entrega_piezas
+        SET cargado_at = NOW()
+        WHERE ruta_entrega_id = ? AND cargado_at IS NULL
+    ")->execute([$re['entrega_id']]);
+
+    $prog = $db->prepare("SELECT COUNT(*) as total, SUM(cargado_at IS NOT NULL) as cargadas FROM ruta_entrega_piezas WHERE ruta_entrega_id = ?");
+    $prog->execute([$re['entrega_id']]);
+    $prog = $prog->fetch(PDO::FETCH_ASSOC);
+
+    // Arranque automático: si con este escaneo ya quedaron cargadas TODAS las piezas de
+    // TODAS las paradas pendientes de la ruta, ya no hace falta el botón "Iniciar Ruta" —
+    // se marca en_ruta y se calcula el tiempo estimado aquí mismo.
+    $rutaIniciada = false;
+    if ($re['ruta_estado'] === 'planificada') {
+        $chkFalta = $db->prepare("
+            SELECT COUNT(*) FROM ruta_entrega_piezas rep
+            JOIN ruta_entregas re2 ON re2.id = rep.ruta_entrega_id
+            WHERE re2.ruta_id = ? AND re2.estado = 'pendiente' AND rep.cargado_at IS NULL
+        ");
+        $chkFalta->execute([$re['ruta_id']]);
+        if ((int)$chkFalta->fetchColumn() === 0) {
+            $db->prepare("UPDATE rutas SET estado='en_ruta', updated_at=NOW() WHERE id=?")->execute([$re['ruta_id']]);
+            calcularYGuardarEtas($db, $re['ruta_id']);
+            $rutaIniciada = true;
+        }
+    }
+
+    jsonResponse([
+        'ok'            => true,
+        'tipo'          => 'cargado',
+        'cargadas'      => (int)$prog['cargadas'],
+        'total'         => (int)$prog['total'],
+        'ruta_iniciada' => $rutaIniciada,
+    ]);
+}
+
+// ── POST: escaneo QR de la hoja de ruta (app/imprimir_ruta.php) al salir hacia el cliente
+// (seguimiento en_ruta / siguiente_entrega) ────────────────────────────────────────────
+if ($metodo === 'POST' && $accion === 'scan_qr_ruta') {
     $body     = json_decode(file_get_contents('php://input'), true) ?? [];
     $orden_id = (int)($body['orden_id'] ?? 0);
     if (!$orden_id) jsonResponse(['error' => 'orden_id requerido'], 400);

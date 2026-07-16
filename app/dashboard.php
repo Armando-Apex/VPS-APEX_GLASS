@@ -11,7 +11,7 @@ $esComercial  = in_array($_rol, ['dueno','dir_admin','comercial','administracion
 $esAdmin      = in_array($_rol, ['dir_admin','desarrollo']);
 $esInventario = in_array($_rol, ['dir_admin','administracion','desarrollo']);
 $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno','desarrollo']);
-$esLogistica  = in_array($_rol, ['dir_admin','administracion','dueno','chofer','desarrollo']);
+$esLogistica  = in_array($_rol, ['dir_admin','administracion','dueno','chofer','desarrollo','comercial']);
 $esJefe       = in_array($_rol, ['jefe_piso','dir_admin','dueno','director','desarrollo']);
 $esArchivos   = in_array($_rol, ['dir_admin','administracion','comercial','desarrollo']);
 
@@ -343,11 +343,9 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
     <?php if ($esLogistica): ?>
     <div class="sidebar-section">
       <div class="sidebar-label">Log&iacute;stica</div>
-      <?php if ($esDesarrollo || $esAdmin): ?>
       <button class="sidebar-link" data-modulo="logistica_rutas" onclick="cargarModulo('logistica_rutas')">
-        <span class="sidebar-icon"><?= icono('truck') ?></span>Rutas de Entrega <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px">WIP</span>
+        <span class="sidebar-icon"><?= icono('truck') ?></span>Rutas de Entrega
       </button>
-      <?php endif; ?>
       <?php if ($_rol === 'chofer'): ?>
       <button class="sidebar-link" data-modulo="chofer_ruta" onclick="cargarModulo('chofer_ruta')">
         <span class="sidebar-icon"><?= icono('map-pin') ?></span>Mi Ruta

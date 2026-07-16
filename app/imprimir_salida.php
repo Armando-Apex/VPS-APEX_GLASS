@@ -57,7 +57,19 @@ $fecha_hoy   = date('d/m/Y');
 $fecha_ent   = $orden && $orden['fecha_entrega'] ? date('d/m/Y', strtotime($orden['fecha_entrega'])) : '—';
 $asesor      = $c['asesor_nombre'] ?? '—';
 $proyecto    = $c['proyecto'] ?: '—';
-$tipo_ent    = ($c['tipo_entrega'] ?? $orden['tipo_entrega'] ?? '') === 'domicilio' ? 'chofer' : 'recoleccion';
+// Si la orden ya tiene al menos una salida registrada, usar el tipo REAL que se eligió en
+// ese momento (orden_salidas.tipo) en vez de la preferencia original de la cotización —
+// de lo contrario, al reabrir esta página después de confirmar, se mostraba el tipo con el
+// que se cotizó en vez de lo que realmente se registró al momento de la salida.
+$tipoSalidaReal = null;
+if ($orden_id_php_pre = (int)($orden['id'] ?? 0)) {
+    $stSal = $db->prepare('SELECT tipo FROM orden_salidas WHERE orden_id = ? ORDER BY id DESC LIMIT 1');
+    $stSal->execute([$orden_id_php_pre]);
+    $tipoSalidaReal = $stSal->fetchColumn() ?: null;
+}
+$tipo_ent    = $tipoSalidaReal !== null
+    ? $tipoSalidaReal
+    : ((($c['tipo_entrega'] ?? $orden['tipo_entrega'] ?? '') === 'domicilio') ? 'chofer' : 'recoleccion');
 $tipo_label  = $tipo_ent === 'chofer' ? 'Domicilio / Ruta' : 'Recolección en planta';
 $localidad   = strtolower($c['localidad'] ?? '') === 'foraneo' ? 'Foráneo — ' . ($c['ciudad_destino'] ?? '') : 'Local';
 $cond_pago   = $c['condicion_pago'] ?? '—';

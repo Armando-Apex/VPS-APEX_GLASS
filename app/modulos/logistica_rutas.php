@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
 $user = requireSessionApi();
-if (!in_array($user['rol'], ['administracion','dir_admin','dueno','desarrollo'])) {
+if (!in_array($user['rol'], ['administracion','dir_admin','dueno','desarrollo','comercial'])) {
     header('Location: ../dashboard.php'); exit;
 }
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
@@ -50,7 +50,7 @@ $maps_key = defined('GOOGLE_MAPS_KEY') ? GOOGLE_MAPS_KEY : '';
 .entrega-info { flex:1; min-width:0; }
 .entrega-folio  { font-size:11px; font-weight:700; color:#2563eb; }
 .badge-parcial-ruta { font-size:10px; font-weight:700; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; padding:1px 6px; border-radius:4px; margin-left:4px; }
-.badge-eta-ruta { font-size:10px; font-weight:700; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:1px 6px; border-radius:4px; margin-left:4px; }
+.tiempo-estimado-box { font-size:12px; font-weight:700; color:#1d4ed8; background:#eff6ff; border-top:1px solid #bfdbfe; padding:8px 14px; }
 .entrega-cliente{ font-size:12px; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .entrega-dir    { font-size:10px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .entrega-peso   { font-size:10px; color:#64748b; white-space:nowrap; }
@@ -356,12 +356,28 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
   </div>
 </div>
 
+<div id="modal-carga" class="lr-modal-bg">
+  <div class="lr-modal">
+    <h3>Carga en planta</h3>
+    <div style="font-size:12px;color:#64748b;margin-bottom:10px">
+      El chofer escanea el QR de la remisión de cada orden (impresa desde Cotización/Cobranza) con la cámara en su celular. Esta pantalla solo muestra el avance — se actualiza sola.
+    </div>
+    <input type="hidden" id="carga-ruta-id">
+    <div id="carga-progreso" style="margin:8px 0;font-size:13px;font-weight:700;color:#374151"></div>
+    <div id="carga-lista" style="max-height:320px;overflow-y:auto"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="LR.cerrarModalCarga()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div id="lr-toast" class="lr-toast"></div>
 
 <script>
 var LR = (function() {
   var API_RUTAS    = '../api/rutas.php';
   var API_GPS      = '../api/gps_proxy.php';
+  var PUEDE_BORRAR_RUTA = <?= in_array($user['rol'], ['dir_admin','desarrollo']) ? 'true' : 'false' ?>;
   var _fecha       = new Date().toISOString().slice(0,10);
   var _rutas       = [];
   var _pendientes  = [];
@@ -477,14 +493,10 @@ var LR = (function() {
         var badgeParcial = e.es_parcial == 1
           ? ' <span class="badge-parcial-ruta" title="Ya sali&oacute; parte de esta orden (remisi&oacute;n impresa)">Parcial '+e.salida_piezas_count+'/'+e.salida_piezas_total+'</span>'
           : '';
-        var eta = _ultimasEtas[e.id] || e.eta_min;
-        var badgeEta = (eta && e.entrega_estado === 'pendiente')
-          ? ' <span class="badge-eta-ruta" title="Tiempo estimado de llegada (calculado al iniciar la ruta)">ETA '+fmtEta(eta)+'</span>'
-          : '';
         rows += '<div class="entrega-row" id="erow-'+e.id+'">'
           + '<div class="entrega-num">'+(i+1)+'</div>'
           + '<div class="entrega-info">'
-          +   '<div class="entrega-folio">'+escH(e.folio)+badgeParcial+badgeEta+'</div>'
+          +   '<div class="entrega-folio">'+escH(e.folio)+badgeParcial+'</div>'
           +   '<div class="entrega-cliente">'+escH(e.cliente_nombre)+'</div>'
           +   '<div class="entrega-dir">'+dir+'</div>'
           + '</div>'
@@ -500,18 +512,32 @@ var LR = (function() {
       rows = '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:14px">Sin entregas asignadas</div>';
     }
 
-    var btnIniciar = '';
     var btnPlanificar = '';
+    var btnCarga = '';
     var btnRecalcEta = '';
+    var tiempoEstimadoHtml = '';
+    // Ya no hay botón "Iniciar Ruta" — arranca sola en cuanto el chofer escanea como cargada
+    // la última pieza pendiente de la ruta (ver api/salidas.php accion=scan_qr).
     if (ruta.estado === 'planificada' && ruta.entregas && ruta.entregas.length) {
       btnPlanificar = '<button class="btn-planificar" id="btn-plan-'+ruta.id+'" onclick="LR.planificar('+ruta.id+')">🗺️ Ruta óptima</button>';
-      btnIniciar    = '<button class="btn-iniciar" onclick="LR.iniciarRuta('+ruta.id+')">🚛 Iniciar Ruta</button>';
+      btnCarga      = '<button class="btn-planificar" onclick="LR.abrirModalCarga('+ruta.id+')">📦 Ver avance de carga</button>';
     }
     if (ruta.estado === 'en_ruta' && ruta.entregas && ruta.entregas.some(function(e){ return e.entrega_estado === 'pendiente'; })) {
-      btnRecalcEta = '<button class="btn-ghost-eta" onclick="LR.recalcularEta('+ruta.id+')">⏱️ Recalcular ETA</button>';
+      btnRecalcEta = '<button class="btn-ghost-eta" onclick="LR.recalcularEta('+ruta.id+')">⏱️ Recalcular tiempo estimado</button>';
+      var proxima = ruta.entregas.filter(function(e){ return e.entrega_estado === 'pendiente'; })[0];
+      var etaProxima = proxima ? (_ultimasEtas[proxima.id] || proxima.eta_min) : null;
+      if (etaProxima) {
+        tiempoEstimadoHtml = '<div class="tiempo-estimado-box">Tiempo Estimado: '+fmtEta(etaProxima)+'</div>';
+      }
     }
 
     var tieneEntregas = ruta.entregas && ruta.entregas.length > 0;
+    var btnImprimirRuta = tieneEntregas
+      ? '<button class="btn-planificar" onclick="window.open(\'imprimir_ruta.php?id='+ruta.id+'\',\'_blank\')">🖨️ Hoja de ruta</button>'
+      : '';
+    var btnFinalizar = (ruta.estado === 'completada')
+      ? '<button class="btn-iniciar" onclick="LR.finalizarRuta('+ruta.id+')">✅ Finalizar</button>'
+      : '';
 
     return '<div class="unit-card">'
       + '<div class="unit-card-head">'
@@ -530,10 +556,13 @@ var LR = (function() {
       + '<div class="unit-footer">'
       +   '<span class="unit-estado '+eClass+'">'+(ruta.estado==='planificada'?'Planificada':ruta.estado==='en_ruta'?'En ruta':'Completada')+'</span>'
       +   btnPlanificar
+      +   btnImprimirRuta
+      +   btnCarga
       +   btnRecalcEta
-      +   btnIniciar
-      +   '<button class="btn-borrar-ruta" title="Borrar ruta" onclick="LR.eliminarRuta('+ruta.id+')">🗑️</button>'
+      +   btnFinalizar
+      +   (PUEDE_BORRAR_RUTA ? '<button class="btn-borrar-ruta" title="Borrar ruta" onclick="LR.eliminarRuta('+ruta.id+')">🗑️</button>' : '')
       + '</div>'
+      + tiempoEstimadoHtml
       + '</div>';
   }
 
@@ -825,19 +854,50 @@ var LR = (function() {
   // porque cargarRutas() re-genera todo el HTML de la tarjeta.
   var _ultimasEtas = {};
 
-  async function iniciarRuta(ruta_id) {
-    if (!confirm('¿Iniciar esta ruta? El chofer saldrá en camino.')) return;
-    var r = await fetch(API_RUTAS, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({accion:'iniciar_ruta', ruta_id:ruta_id})
+  // ── Avance de carga en planta (antes de Iniciar Ruta) ─────────
+  // El escaneo real lo hace el chofer con la cámara en app/operador.php (QR de la remisión
+  // impresa desde Cotización/Cobranza) — esta pantalla es de solo lectura, se refresca sola.
+  var _cargaPollTimer = null;
+
+  async function abrirModalCarga(ruta_id) {
+    document.getElementById('carga-ruta-id').value = ruta_id;
+    await cargarListaCarga(ruta_id);
+    document.getElementById('modal-carga').classList.add('open');
+    if (_cargaPollTimer) clearInterval(_cargaPollTimer);
+    _cargaPollTimer = setInterval(function(){ cargarListaCarga(ruta_id); }, 5000);
+  }
+
+  function cerrarModalCarga() {
+    document.getElementById('modal-carga').classList.remove('open');
+    if (_cargaPollTimer) { clearInterval(_cargaPollTimer); _cargaPollTimer = null; }
+    cargarRutas();
+  }
+
+  async function cargarListaCarga(ruta_id) {
+    var r = await fetch(API_RUTAS + '?accion=piezas_carga&ruta_id=' + ruta_id);
+    var piezas = await r.json();
+    var cargadas = piezas.filter(function(p){ return !!p.cargado_at; }).length;
+    document.getElementById('carga-progreso').textContent = cargadas + ' / ' + piezas.length + ' piezas cargadas';
+    var porOrden = {};
+    piezas.forEach(function(p) {
+      if (!porOrden[p.orden_id]) porOrden[p.orden_id] = {folio:p.folio, cliente:p.cliente_nombre, items:[]};
+      porOrden[p.orden_id].items.push(p);
     });
-    var d = await r.json();
-    if (d.ok) {
-      (d.etas || []).forEach(function(e) { _ultimasEtas[e.entrega_id] = e.eta_min; });
-      toast('Ruta iniciada');
-      await cargarRutas();
-    }
-    else toast(d.error||'Error', true);
+    var html = '';
+    Object.keys(porOrden).forEach(function(oid) {
+      var g = porOrden[oid];
+      var todasOk = g.items.every(function(p){ return !!p.cargado_at; });
+      html += '<div style="margin-bottom:10px"><div style="font-weight:700;font-size:12px;color:'+(todasOk?'#16a34a':'#2563eb')+'">'+(todasOk?'✅ ':'')+escH(g.folio)+' — '+escH(g.cliente||'')+'</div>';
+      g.items.forEach(function(p) {
+        var ok = !!p.cargado_at;
+        html += '<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;color:'+(ok?'#16a34a':'#64748b')+'">'
+              + '<span>'+(ok?'✅':'⬜')+'</span>'
+              + '<span>'+escH(p.cristal_corto||'')+' — Partida '+p.partida+' / Pieza '+p.pieza_num+' de '+p.pieza_total+'</span>'
+              + '</div>';
+      });
+      html += '</div>';
+    });
+    document.getElementById('carga-lista').innerHTML = html || '<div style="color:#94a3b8;font-size:12px">Sin piezas asignadas</div>';
   }
 
   // Formatea minutos totales como "30 min" / "1 h" / "1 h 15 min"
@@ -855,7 +915,7 @@ var LR = (function() {
     var d = await r.json();
     if (d.ok) {
       (d.etas || []).forEach(function(e) { _ultimasEtas[e.entrega_id] = e.eta_min; });
-      toast('ETA actualizado');
+      toast('Tiempo estimado actualizado');
       await cargarRutas();
     } else toast(d.error||'Error', true);
   }
@@ -868,6 +928,18 @@ var LR = (function() {
     });
     var d = await r.json();
     if (d.ok) { toast('Ruta borrada'); await cargar(); }
+    else toast(d.error||'Error', true);
+  }
+
+  // Oculta la ruta ya completada del tablero del día — los datos siguen en BD (no se borran).
+  async function finalizarRuta(ruta_id) {
+    if (!confirm('¿Finalizar esta ruta? Ya no se mostrará en el tablero de hoy.')) return;
+    var r = await fetch(API_RUTAS, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'archivar_ruta', ruta_id:ruta_id})
+    });
+    var d = await r.json();
+    if (d.ok) { toast('Ruta finalizada'); await cargar(); }
     else toast(d.error||'Error', true);
   }
 
@@ -1319,12 +1391,13 @@ var LR = (function() {
     abrirModalRuta:abrirModalRuta, cerrarModalRuta:cerrarModalRuta, guardarRuta:guardarRuta,
     abrirModalAsignar:abrirModalAsignar, cerrarModalAsignar:cerrarModalAsignar, guardarAsignacion:guardarAsignacion,
     abrirEditDir:abrirEditDir, cerrarEditDir:cerrarEditDir, guardarEditDir:guardarEditDir,
-    mover:mover, quitar:quitar, iniciarRuta:iniciarRuta, eliminarRuta:eliminarRuta, planificar:planificar,
+    mover:mover, quitar:quitar, eliminarRuta:eliminarRuta, finalizarRuta:finalizarRuta, planificar:planificar,
     recalcularEta:recalcularEta,
     dibujarPines:dibujarPines,
     initAutocomplete:initAutocomplete, renderTramos:renderTramos,
     actualizarContPiezas:actualizarContPiezas, toggleTodasPiezas:toggleTodasPiezas,
     togglePartidaExpand:togglePartidaExpand, togglePartida:togglePartida, onPiezaCb:onPiezaCb,
+    abrirModalCarga:abrirModalCarga, cerrarModalCarga:cerrarModalCarga,
   };
 })();
 </script>

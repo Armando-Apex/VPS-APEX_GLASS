@@ -26,6 +26,9 @@ require_once 'gps_lib.php';
 
 const RADIO_LLEGADA_M   = 300;
 const VELOCIDAD_MOVIMIENTO_KMH = 5;
+// Coordenadas de la planta (misma ubicación del pin de fábrica en Logística Rutas, UPD-332)
+const PLANTA_LAT = 25.693151;
+const PLANTA_LNG = -100.480343;
 
 function distMetros($lat1, $lng1, $lat2, $lng2) {
     $R = 6371000;
@@ -101,7 +104,21 @@ foreach ($rutasActivas as $ruta) {
     ");
     $stmt->execute([$ruta['id']]);
     $destino = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$destino) continue;
+    if (!$destino) {
+        // Ya no quedan paradas pendientes — detectar regreso a planta para cerrar la ruta.
+        $ru = $db->prepare("SELECT regreso_planta_at, estado FROM rutas WHERE id=?");
+        $ru->execute([$ruta['id']]);
+        $ru = $ru->fetch(PDO::FETCH_ASSOC);
+        if ($ru && $ru['regreso_planta_at'] === null) {
+            $dist = distMetros($pos['lat'], $pos['lng'], PLANTA_LAT, PLANTA_LNG);
+            if ($dist <= RADIO_LLEGADA_M) {
+                $db->prepare("UPDATE rutas SET regreso_planta_at=NOW(), estado='completada', updated_at=NOW() WHERE id=?")
+                   ->execute([$ruta['id']]);
+                echo "Ruta {$ruta['id']} ({$ruta['unidad']}): regreso a planta detectado, ruta cerrada\n";
+            }
+        }
+        continue;
+    }
 
     // Geocodificar y cachear si es la primera vez que se procesa esta parada
     if ($destino['lat'] === null || $destino['lng'] === null) {

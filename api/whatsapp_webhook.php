@@ -370,7 +370,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtEnv = $db->prepare("SELECT id, campana_id, estado FROM campana_envios WHERE wa_message_id = ?");
                 $stmtEnv->execute([$waId]);
                 $envio = $stmtEnv->fetch(PDO::FETCH_ASSOC);
-                if (!$envio) continue;
+                if (!$envio) {
+                    // No es un envío de campaña (ej. avisos de scan_qr/salida) — whatsapp_mensajes
+                    // no tiene columna de estado de entrega, así que no hay dónde guardarlo, pero
+                    // al menos se deja rastro en el log para poder diagnosticar fallos reportados
+                    // por Meta en mensajes fuera del sistema de campañas (ver conversación con Mando).
+                    if ($nuevoEstado === 'fallido') {
+                        $errDetalle = !empty($status['errors']) ? json_encode($status['errors']) : 'sin detalle';
+                        error_log('APEX WA fallo (mensaje individual, no-campaña): wa_message_id=' . $waId . ' errores=' . $errDetalle);
+                    }
+                    continue;
+                }
 
                 $orden = ['pendiente'=>0,'enviado'=>1,'entregado'=>2,'leido'=>3,'fallido'=>4];
                 $actualIdx = $orden[$envio['estado']] ?? 0;

@@ -931,10 +931,11 @@ function _openEditModal(id) {
   var f = _mField('Pos X (mm)','ced-x',el.x) + _mField('Pos Y (mm)','ced-y',el.y);
   if (el.tipo==='tp') f += _mSelectTP('ced-d', el.d);
   if (el.tipo==='ta') f += _mSelectTA('ced-de', el.de, 'Ø ext (mm)') + _mSelectTA('ced-di', el.di, 'Ø int (mm)');
-  if (el.tipo==='rs') f += _mResaqueFields(el.w, el.h);
+  if (el.tipo==='rs') f += _mResaqueFields(el.w, el.h, el.rs_variant, el.rs_d);
   if (el.tipo==='bi') f += _mField('Ancho (mm)','ced-w',el.w) + _mField('Alto (mm)','ced-h',el.h) + _mBiRefFields(el.bi_ref);
   document.getElementById('cq-modal-fields').innerHTML = f;
   document.getElementById('cq-edit-modal').classList.add('open');
+  if (el.tipo==='rs') window.cqRsFormaChange(el.rs_variant || 'rect');
 }
 
 function _mField(label, id, val) {
@@ -960,7 +961,7 @@ var RS_PREDEFINIDOS = [
   { label: 'Personalizado', w: null, h: null }
 ];
 
-function _mResaqueFields(w, h) {
+function _mResaqueFields(w, h, variant, d) {
   // detectar si w/h coinciden con algún predefinido
   var selIdx = 0;
   for (var i = 1; i < RS_PREDEFINIDOS.length; i++) {
@@ -970,12 +971,20 @@ function _mResaqueFields(w, h) {
     return '<option value="'+i+'"'+(i===selIdx?' selected':'')+'>'+p.label+'</option>';
   }).join('');
   var disabled = selIdx > 0 ? ' disabled' : '';
+  var v = variant || 'rect';
   var html = '<div class="cq-field-row" style="margin-bottom:8px">';
   html += '<span class="cq-field-label" style="min-width:80px;font-size:11px">Tipo</span>';
   html += '<select class="cq-fi" id="ced-rs-tipo" onchange="window.cqRsTipoChange(this.value)">'+opts+'</select>';
   html += '</div>';
+  html += '<div class="cq-field-row" style="margin-bottom:8px">';
+  html += '<span class="cq-field-label" style="min-width:80px;font-size:11px">Forma</span>';
+  html += '<select class="cq-fi" id="ced-rs-forma" onchange="window.cqRsFormaChange(this.value)">';
+  html += '<option value="rect"'+(v==='rect'?' selected':'')+'>Rectangular</option>';
+  html += '<option value="cerradura"'+(v==='cerradura'?' selected':'')+'>Cerradura (rect + circulo)</option>';
+  html += '</select></div>';
   html += '<div class="cq-field-row" style="margin-bottom:8px"><span class="cq-field-label" style="min-width:80px;font-size:11px">Ancho (mm)</span><input class="cq-fi" type="number" id="ced-w" value="'+w+'"'+disabled+'></div>';
   html += '<div class="cq-field-row" style="margin-bottom:8px"><span class="cq-field-label" style="min-width:80px;font-size:11px">Alto (mm)</span><input class="cq-fi" type="number" id="ced-h" value="'+h+'"'+disabled+'></div>';
+  html += '<div class="cq-field-row" style="margin-bottom:8px" id="cq-rs-diam-row"><span class="cq-field-label" style="min-width:80px;font-size:11px">Diám. círculo (mm)</span><input class="cq-fi" type="number" id="ced-rs-d" value="'+(d||Math.round(h*1.6))+'"></div>';
   return html;
 }
 
@@ -997,6 +1006,11 @@ window.cqBiRefSel = function(v) {
     if (k===v) { b.style.background='#0f766e'; b.style.color='white'; }
     else        { b.style.background='#f1f5f9'; b.style.color='#374151'; }
   });
+};
+
+window.cqRsFormaChange = function(v) {
+  var row = document.getElementById('cq-rs-diam-row');
+  if (row) row.style.display = (v==='cerradura') ? '' : 'none';
 };
 
 window.cqRsTipoChange = function(idx) {
@@ -1027,7 +1041,18 @@ function _saveEditing() {
   el.y = +document.getElementById('ced-y').value || 0;
   if (el.tipo==='tp') el.d  = +document.getElementById('ced-d').value  || 12;
   if (el.tipo==='ta') { el.de = +document.getElementById('ced-de').value || 20; el.di = +document.getElementById('ced-di').value || 10; }
-  if (el.tipo==='rs') { el.rs_preset = +document.getElementById('ced-rs-tipo').value || 0; el.w = +document.getElementById('ced-w').value || 120; el.h = +document.getElementById('ced-h').value || 40; }
+  if (el.tipo==='rs') {
+    el.rs_preset  = +document.getElementById('ced-rs-tipo').value || 0;
+    el.w          = +document.getElementById('ced-w').value || 120;
+    el.h          = +document.getElementById('ced-h').value || 40;
+    var formaSel  = document.getElementById('ced-rs-forma');
+    el.rs_variant = formaSel ? formaSel.value : 'rect';
+    if (el.rs_variant === 'cerradura') {
+      el.rs_d = +document.getElementById('ced-rs-d').value || Math.round(el.h*1.6);
+    } else {
+      delete el.rs_d;
+    }
+  }
   if (el.tipo==='bi') {
     el.w = +document.getElementById('ced-w').value || 58;
     el.h = +document.getElementById('ced-h').value || 37.5;
@@ -1392,7 +1417,7 @@ function _redraw() {
       out += '<text x="'+nbCxTA+'" y="'+(nbCyTA+3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }
-    if (e.tipo==='rs') {
+    if (e.tipo==='rs' && e.rs_variant!=='cerradura') {
       var rw=Math.max(8,e.h*sc), rh=Math.max(4,e.w*sc);
       var exD = Math.min(ex, ox+gw-rw);
       var rySVG = Math.max(ey - rh, oy);
@@ -1400,6 +1425,30 @@ function _redraw() {
       out += '<rect x="'+(exD-3)+'" y="'+(rySVG-3)+'" width="'+(rw+6)+'" height="'+(rh+6)+'" fill="transparent"/>';
       out += '<rect x="'+exD+'" y="'+rySVG+'" width="'+rw+'" height="'+rh+'" fill="#fef9c3" fill-opacity="0.85" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
       var nbCxRS = Math.min(exD+rw-7, ox+gw-6); var nbCyRS = Math.max(rySVG+6, oy+6);
+      out += '<circle cx="'+nbCxRS+'" cy="'+nbCyRS+'" r="5" fill="#854d0e"/>';
+      out += '<text x="'+nbCxRS+'" y="'+(nbCyRS+3.5)+'" text-anchor="middle" font-size="6" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
+      out += '</g>';
+    }
+    if (e.tipo==='rs' && e.rs_variant==='cerradura') {
+      // Resaque tipo "cerradura": cuña/tallo triangular (angosto en la punta, ancho junto al
+      // circulo, como la letra A) que remata en un circulo completo (la O) — foto de referencia
+      // de Mando, 15-jul-2026.
+      var rw=Math.max(8,e.h*sc), rh=Math.max(4,e.w*sc);
+      var exD = Math.min(ex, ox+gw-rw);
+      var rySVG = Math.max(ey - rh, oy);
+      var cRad = Math.max(rw*0.6, (e.rs_d||e.h*1.6)/2*sc);
+      var cCx = exD + rw*0.5, cCy = rySVG;
+      var tipHalf = rw * 0.12; // ancho pequeño en la punta (no cierra en un punto perfecto)
+      var tipX1 = cCx - tipHalf, tipX2 = cCx + tipHalf, tipY = cCy + rh;
+      out += '<g style="cursor:'+cur+'"'+evts+'>';
+      out += '<rect x="'+(exD-3)+'" y="'+(cCy-cRad-3)+'" width="'+(rw+6)+'" height="'+(rh+cRad+6)+'" fill="transparent"/>';
+      out += '<polygon points="'+tipX1+','+tipY+' '+tipX2+','+tipY+' '+(exD+rw)+','+cCy+' '+exD+','+cCy+'" fill="#fef9c3" fill-opacity="0.85" stroke="none"/>';
+      out += '<circle cx="'+cCx+'" cy="'+cCy+'" r="'+cRad+'" fill="#fef9c3" fill-opacity="0.85" stroke="none"/>';
+      out += '<path d="M '+tipX1+' '+tipY+' L '+exD+' '+cCy+'" fill="none" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+      out += '<path d="M '+tipX2+' '+tipY+' L '+(exD+rw)+' '+cCy+'" fill="none" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+      out += '<line x1="'+tipX1+'" y1="'+tipY+'" x2="'+tipX2+'" y2="'+tipY+'" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+      out += '<circle cx="'+cCx+'" cy="'+cCy+'" r="'+cRad+'" fill="none" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+      var nbCxRS = Math.min(cCx+cRad-7, ox+gw-6); var nbCyRS = Math.max(cCy-cRad+6, oy+6);
       out += '<circle cx="'+nbCxRS+'" cy="'+nbCyRS+'" r="5" fill="#854d0e"/>';
       out += '<text x="'+nbCxRS+'" y="'+(nbCyRS+3.5)+'" text-anchor="middle" font-size="6" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
@@ -1459,7 +1508,7 @@ function _redraw() {
       var det = '';
       if (el.tipo==='tp') det = 'Ø'+el.d+'mm';
       if (el.tipo==='ta') det = 'Ø'+el.de+'/'+el.di;
-      if (el.tipo==='rs') det = el.w+'×'+el.h+'mm';
+      if (el.tipo==='rs') det = el.w+'×'+el.h+'mm'+(el.rs_variant==='cerradura'?' Ø'+(el.rs_d||Math.round(el.h*1.6))+'mm':'');
       if (el.tipo==='bi') det = el.w+'×'+el.h+'mm'+(el.bi_ref&&el.bi_ref!=='inicio'?' ['+el.bi_ref+']':'');
       out += '<text x="'+(tblX+tblW-2)+'" y="'+(ry+10)+'" text-anchor="end" font-size="7" fill="'+ec+'" font-family="monospace">'+det+'</text>';
       var dH = el.x <= ancho/2 ? el.x : (ancho - el.x);

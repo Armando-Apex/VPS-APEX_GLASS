@@ -762,8 +762,8 @@ function extraerOrdenMasivo(raw) {
   return null;
 }
 
-// QR de la remisión (app/imprimir_salida.php) — escaneado por el chofer al cargar
-// o al pasar a la siguiente entrega. Ver api/salidas.php accion=scan_qr.
+// QR de la remisión (app/imprimir_salida.php) — escaneado por el chofer al CARGAR el
+// camión en planta. Ver api/salidas.php accion=scan_qr.
 function extraerSalida(raw) {
   try {
     const url = new URL(raw);
@@ -773,7 +773,21 @@ function extraerSalida(raw) {
   return null;
 }
 
+// QR de la hoja de ruta (app/imprimir_ruta.php) — escaneado por el chofer al SALIR hacia
+// cada cliente. Ver api/salidas.php accion=scan_qr_ruta.
+function extraerRuta(raw) {
+  try {
+    const url = new URL(raw);
+    const param = url.searchParams.get('qr_ruta') || url.searchParams.get('QR_RUTA');
+    if (param) return parseInt(param, 10) || null;
+  } catch(_) {}
+  return null;
+}
+
 async function loadPieza(raw) {
+  const rutaOrdenId = extraerRuta(raw);
+  if (rutaOrdenId) { await loadSalidaRuta(rutaOrdenId); return; }
+
   const salidaOrdenId = extraerSalida(raw);
   if (salidaOrdenId) { await loadSalida(salidaOrdenId); return; }
 
@@ -1226,12 +1240,34 @@ function cancelarOrdenMasiva() {
   document.getElementById('emptyState').style.display = 'block';
 }
 
-// ── QR de salida (chofer) ──────────────────────────────────
-// Escaneo dispara la acción de inmediato (sin paso de confirmación aparte),
-// igual que el escaneo de una pieza en estación.
+// ── QR de la remisión / orden de salida (chofer, CARGA en planta) ──────────
+// El chofer escanea el QR que ya trae impresa la remisión (imprimir_salida.php) mientras
+// sube las órdenes al camión, antes de Iniciar Ruta. Escaneo dispara la acción de inmediato.
 async function loadSalida(ordenId) {
   try {
     const r = await fetch(API + 'salidas.php?accion=scan_qr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orden_id: ordenId })
+    });
+    const d = await r.json();
+    if (d.error) { showFeedback('err', '❌', 'Error', d.error); return; }
+    if (d.ruta_iniciada) {
+      showFeedback('ok', '🚛', '¡Ruta iniciada!', 'Última pieza cargada — ya puedes salir');
+    } else {
+      showFeedback('ok', '📦', 'Cargada al camión', d.cargadas + ' / ' + d.total + ' piezas cargadas');
+    }
+  } catch(e) {
+    toast('Error de conexión', 'error');
+  }
+}
+
+// ── QR de la hoja de ruta (chofer, salida hacia el cliente) ────────────────
+// El chofer escanea el QR de la hoja de ruta (imprimir_ruta.php, una sección por parada)
+// al salir de la planta hacia el punto A, y de nuevo al salir del punto A hacia el punto B.
+async function loadSalidaRuta(ordenId) {
+  try {
+    const r = await fetch(API + 'salidas.php?accion=scan_qr_ruta', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orden_id: ordenId })
