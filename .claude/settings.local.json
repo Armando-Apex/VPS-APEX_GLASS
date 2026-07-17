@@ -163,7 +163,12 @@
       "Bash(time npx remotion render ApexGlassPromo out/apex-glass-promo.mp4)",
       "Bash(base64 -w0 /home/apexglass2025/herramientas/video-marketing/out/apex-glass-promo.mp4)",
       "Skill(artifact-design)",
-      "Artifact"
+      "Artifact",
+      "Bash(export NODE_PATH=/root/.nvm/versions/node/v20.20.2/lib/node_modules)",
+      "Bash(rm -f out/pd-*.png)",
+      "Bash(time npx remotion render PortalDemo out/portal-demo.mp4)",
+      "Bash(chown -R apexglass2025:apexglass2025 /home/apexglass2025/herramientas/video-marketing)",
+      "Bash(base64 -w0 /home/apexglass2025/herramientas/video-marketing/out/portal-demo.mp4)"
     ]
   },
   "hooks": {
