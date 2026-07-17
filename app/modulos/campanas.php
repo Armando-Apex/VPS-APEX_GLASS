@@ -876,10 +876,27 @@ var ModCampanas = (function() {
         var base = (c && c.contacto && c.contacto.trim()) ? c.contacto : ((c && c.nombre) || '');
         base = base.trim();
         if (!base) { return 'Cliente'; }
-        var palabras = base.split(/\s+/).slice(0, 2);
-        return palabras.map(function(w) {
+        var particulas = ['de', 'del', 'la', 'los', 'las'];
+        var palabras = base.split(/\s+/);
+        var resultado = [palabras[0]];
+        if (palabras.length > 1) {
+            if (particulas.indexOf(palabras[1].toLowerCase()) !== -1) {
+                var i = 1;
+                while (palabras[i] && particulas.indexOf(palabras[i].toLowerCase()) !== -1) {
+                    resultado.push(palabras[i]);
+                    i++;
+                }
+                if (palabras[i]) { resultado.push(palabras[i]); }
+            } else {
+                resultado.push(palabras[1]);
+            }
+        }
+        var nombre = resultado.map(function(w) {
             return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
         }).join(' ');
+        return nombre.replace(/\b(De|Del|La|Los|Las)\b/g, function(m) {
+            return m.toLowerCase();
+        });
     }
 
     function toggleTodos() {

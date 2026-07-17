@@ -33,9 +33,16 @@ function normalizarTelefono($tel) {
     return '52' . substr($tel, -10);
 }
 
-// ── Función: nombre corto para campañas (primeras 2 palabras del contacto) ──
+// ── Función: nombre corto para campañas ──────────────────────
 // Overrides manuales confirmados por Armando (30-jun-2026) para contactos
 // con formato "fulano / sutano" o nombres comerciales que no son personas.
+//
+// Regla (17-jul-2026): nombre + siguiente palabra, PERO si la 2a palabra es
+// una partícula española (de/del/la/los/las) se sigue tomando palabras
+// mientras sean partículas hasta llegar a la primera palabra "real" después
+// de ellas — así "Maria del Pilar" o "Jose de la Garza" no se cortan a medias
+// ("Maria del", "Jose de"). Si la 2a palabra NO es partícula, se toman solo
+// las primeras 2 palabras (nombre compuesto simple, ej. "Jose Guadalupe").
 function nombreCampanaCorto($clienteId, $contacto) {
     $overrides = [
         44 => 'Veronica Guajardo',
@@ -50,9 +57,28 @@ function nombreCampanaCorto($clienteId, $contacto) {
     if ($contacto === '') {
         return 'Cliente';
     }
-    $palabras = preg_split('/\s+/', $contacto);
-    $palabras = array_slice($palabras, 0, 2);
-    return mb_convert_case(implode(' ', $palabras), MB_CASE_TITLE, 'UTF-8');
+    $particulas = ['de', 'del', 'la', 'los', 'las'];
+    $palabras   = preg_split('/\s+/', $contacto);
+    $resultado  = [$palabras[0]];
+    if (isset($palabras[1])) {
+        if (in_array(mb_strtolower($palabras[1], 'UTF-8'), $particulas, true)) {
+            $i = 1;
+            while (isset($palabras[$i]) && in_array(mb_strtolower($palabras[$i], 'UTF-8'), $particulas, true)) {
+                $resultado[] = $palabras[$i];
+                $i++;
+            }
+            if (isset($palabras[$i])) {
+                $resultado[] = $palabras[$i];
+            }
+        } else {
+            $resultado[] = $palabras[1];
+        }
+    }
+    $nombre = mb_convert_case(implode(' ', $resultado), MB_CASE_TITLE, 'UTF-8');
+    // Las partículas quedan en minúscula dentro del nombre (ej. "Juan de la Rosa").
+    return preg_replace_callback('/\b(De|Del|La|Los|Las)\b/u', function ($m) {
+        return mb_strtolower($m[1], 'UTF-8');
+    }, $nombre);
 }
 
 // ── Función: enviar mensaje a Meta Cloud API ─────────────────
@@ -510,11 +536,16 @@ if ($metodo === 'POST' && $accion === 'enviar') {
         foreach ($vars as $var) {
             $valor = $var;
             if ($var === '{{nombre_cliente}}') {
-                // Solo el primer nombre: el cuerpo de algunas plantillas (ej. 009_apex_san_juan)
-                // deja muy poco margen dentro del límite de 1024 chars de Meta antes de que
-                // Meta rechace el envío completo con error 132005 "Translated text too long"
+                // nombre_cliente = COALESCE(nombre_override, c.nombre). nombre_override ya
+                // viene acotado (máx. ~4 palabras) desde nombreCampanaCorto() — se manda
+                // completo para no perder apellidos/partículas (ej. "Maria del Pilar").
+                // Se limita aquí a 4 palabras solo como red de seguridad para el fallback a
+                // c.nombre (razón social larga, cuando no hay nombre_override), evitando el
+                // error 132005 "Translated text too long" de Meta en plantillas con poco
+                // margen dentro del límite de 1024 chars (ej. 009_apex_san_juan).
                 $nombreCompleto = trim($envio['nombre_cliente'] ?? '');
-                $valor = $nombreCompleto !== '' ? explode(' ', $nombreCompleto)[0] : 'Cliente';
+                $palabrasNombre = preg_split('/\s+/', $nombreCompleto);
+                $valor = $nombreCompleto !== '' ? implode(' ', array_slice($palabrasNombre, 0, 4)) : 'Cliente';
             } elseif ($var === '{{codigo_portal}}') {
                 $valor = $envio['codigo_cliente'] ?? '';
             } elseif ($var === '{{punto}}') {
