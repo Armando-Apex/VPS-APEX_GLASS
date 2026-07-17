@@ -139,7 +139,9 @@
       "Bash(rm -f /home/apexglass2025/tmp/sessions/sess_26d05f4be6f0befc29739077434f6f09)",
       "Bash(echo \"exit code: $?\")",
       "Bash(awk \"/<script>/{flag=1;next}/<\\\\/script>/{flag=0}flag\" app/modulos/campanas.php)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(npm -v)",
+      "Bash(ffmpeg -version)"
     ]
   },
   "hooks": {
