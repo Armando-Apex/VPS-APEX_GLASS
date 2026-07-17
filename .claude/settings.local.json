@@ -141,7 +141,11 @@
       "Bash(awk \"/<script>/{flag=1;next}/<\\\\/script>/{flag=0}flag\" app/modulos/campanas.php)",
       "WebSearch",
       "Bash(npm -v)",
-      "Bash(ffmpeg -version)"
+      "Bash(ffmpeg -version)",
+      "Bash(dnf repolist *)",
+      "Bash(dnf list *)",
+      "Bash(rpm -q --whatrequires libswresample-free)",
+      "Bash(rpm -q libswresample-free)"
     ]
   },
   "hooks": {
