@@ -145,7 +145,16 @@
       "Bash(dnf repolist *)",
       "Bash(dnf list *)",
       "Bash(rpm -q --whatrequires libswresample-free)",
-      "Bash(rpm -q libswresample-free)"
+      "Bash(rpm -q libswresample-free)",
+      "Bash(su - apexglass2025 -c \"which node npm npx\")",
+      "Bash(mkdir -p /home/apexglass2025/herramientas)",
+      "Bash(npx --yes create-video@latest --help)",
+      "Bash(npx --yes create-video@latest --yes --hello-world video-marketing)",
+      "Bash(npm install *)",
+      "Bash(npx --yes skills add remotion-dev/skills)",
+      "Bash(chown -R apexglass2025:apexglass2025 /home/apexglass2025/herramientas)",
+      "Bash(time npx remotion render HelloWorld out/test-5s.mp4)",
+      "Bash(time npx remotion render HelloWorld out/test-5s-v2.mp4)"
     ]
   },
   "hooks": {

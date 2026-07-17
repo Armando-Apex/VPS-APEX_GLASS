@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 17 julio 2026 | Próximo UPD disponible: UPD-351
+# Última actualización: 17 julio 2026 | Próximo UPD disponible: UPD-352
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -137,6 +137,10 @@ El SPA loader del dashboard agrega scripts al head sin limpiarlos entre navegaci
 - BD: `a3026051_apexglass_prod`
 - PHP: 8.3 | MySQL: 5.7.44 (Percona)
 - cPanel user: `a3026051` | IP dedicada: 192.185.70.129
+
+**Herramientas (fuera del webroot, no forman parte de la app):**
+- `ffmpeg` 5.1.10 instalado vía RPM Fusion Free (repo agregado 17-jul-2026; EPEL no trae ffmpeg completo por licenciamiento)
+- `/home/apexglass2025/herramientas/video-marketing/` — proyecto Remotion (generación de video con React) para clips cortos de marketing (WA/campañas), dueño `apexglass2025`. Ver UPD-351 (sección 13) para detalle de instalación y benchmark de render.
 
 **Lecciones aprendidas VPS:**
 - AdminBolt guarda vhosts en `/etc/httpd/vhosts.d/` (NO en conf.d/)
@@ -616,4 +620,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-350 | 17-jul-2026 | Armando | Campañas WA — buscador de conversaciones: caja de búsqueda fija arriba de la lista en la pestaña Conversaciones (`?m=campanas`), a petición de Armando porque la lista se corre hacia abajo con mucha actividad y cuesta ubicar a un cliente. Filtra en vivo (sin recargar del servidor) por nombre del cliente o por teléfono (cualquier fragmento de dígitos, ignora espacios/formato). `.conv-lista` pasó de bloque con scroll único a columna flex (barra de búsqueda fija + `.conv-lista-items` con su propio scroll). JS: se cachea la respuesta de `accion=conversaciones` en `_convDataAll` y se separó el render en `renderConvLista()` (antes iba inline dentro del `.then()` del fetch) para poder re-filtrar sin pegarle al servidor; el polling silencioso de 15s (UPD-312) sigue actualizando `_convDataAll` y respeta el texto de búsqueda ya escrito. El badge de "sin leer" del tab sigue contando el total real, no lo filtrado. Verificado con `php84 -l` + `node --check` del bloque `<script>` extraído (tags PHP stubeados). Archivo: app/modulos/campanas.php |
 
-**Próximo UPD disponible: UPD-351**
+| UPD-351 | 17-jul-2026 | Armando | Herramienta de video para marketing (Remotion) — instalación exploratoria a petición de Armando, sin integrar todavía a ninguna campaña real: quiere probar video corto (15seg) en vez de imagen estática en Campañas WhatsApp, porque convierte mejor. Infra: (1) `ffmpeg` no estaba instalado en el VPS y EPEL no lo trae completo por licenciamiento — se agregó el repo RPM Fusion Free y se instaló `ffmpeg` 5.1.10 con `--allowerasing` (reemplazó 4 libs `-free` de EPEL — `libavcodec/avformat/avutil/swresample-free` — instaladas 16-jun-2026 sin nada que las requiriera hoy, confirmado con `rpm -q --whatrequires` antes de tocarlas). (2) Proyecto Remotion nuevo en `/home/apexglass2025/herramientas/video-marketing/` (`npx create-video@latest --hello-world`), **fuera del webroot** a propósito — no es parte de la app PHP, no se sirve ni se toca desde `produccion/`. (3) Se instalaron los 9 Agent Skills oficiales de `remotion-dev/skills` (`npx skills add remotion-dev/skills`) para que Claude sepa las buenas prácticas de Remotion al armar videos ahí. Benchmark real (motivo: este VPS es de producción, 2 vCPU compartidos con Apache/PHP-FPM/MariaDB — se midió antes de decidir si convenía): video 1920x1080 de 5s (150 frames) tardó 57s la primera vez (incluye descarga única del Chrome headless propio de Remotion, ~200MB) y 27s la segunda (estado estable) — proyección lineal ~80-90s para un clip de 15s. Apache/PHP-FPM/MariaDB confirmados `active` sin interrupción durante ambos renders. Carpeta final 679MB (case casi todo `node_modules`), dueño `apexglass2025:apexglass2025` (no root), archivos de prueba (`out/`) borrados al terminar. **Nada de esto está conectado a Campañas WhatsApp todavía** — falta: (a) definir/diseñar el primer video real de marketing con Armando, (b) revisar si `app/modulos/campanas.php` necesita soporte para plantillas Meta con header tipo VIDEO (hoy el wizard solo maneja `header_image_url`, ver UPD-289/313 — los videos de WA Business también van como plantilla con media de ejemplo subida a Meta, mismo patrón que las imágenes pero sin probar aún). Archivos: ninguno de la app tocado — solo infraestructura del VPS (`dnf`) y carpeta nueva fuera de `produccion/`. |
+
+**Próximo UPD disponible: UPD-352**
