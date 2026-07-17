@@ -6,6 +6,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=productividad'); exit;
 }
 header('Content-Type: text/html; charset=utf-8');
+$maps_key = defined('GOOGLE_MAPS_KEY') ? GOOGLE_MAPS_KEY : '';
 ?>
 <style>
 
@@ -316,6 +317,30 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, 'H
 
   <div class="loading-wrap"><div class="spin"></div><div class="loading-txt">Cargando&#8230;</div></div>
 
+</div>
+
+<div id="modalReplay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--surface,#13131e);border:1px solid var(--border,#252535);border-radius:12px;width:100%;max-width:900px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border,#252535)">
+      <div>
+        <div style="font-weight:800;font-size:15px" id="replayTitulo">Recorrido de ruta</div>
+        <div style="font-size:11px;color:var(--muted,#5a5a7a)" id="replaySub">&#8212;</div>
+      </div>
+      <button onclick="cerrarReplay()" style="background:none;border:none;color:var(--muted,#5a5a7a);font-size:22px;cursor:pointer;line-height:1">&times;</button>
+    </div>
+    <div id="mapaReplay" style="flex:1;min-height:380px;background:#1a1a28"></div>
+    <div style="padding:10px 16px;border-top:1px solid var(--border,#252535);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button id="btnPlayReplay" onclick="togglePlayReplay()" style="background:#f5a623;color:#000;border:none;width:34px;height:34px;border-radius:50%;font-size:14px;font-weight:800;cursor:pointer">&#9654;</button>
+      <input type="range" id="sliderReplay" min="0" max="0" value="0" style="flex:1;min-width:140px" oninput="scrubReplay(this.value)">
+      <span id="replayTiempo" style="font-size:11px;color:var(--muted,#5a5a7a);min-width:52px;text-align:right">&#8212;</span>
+      <select id="velReplay" onchange="cambiarVelocidadReplay(this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid var(--border,#252535);background:var(--card,#1a1a28);color:var(--text,#eeeeff)">
+        <option value="1">1x</option>
+        <option value="4" selected>4x</option>
+        <option value="10">10x</option>
+        <option value="30">30x</option>
+      </select>
+    </div>
+  </div>
 </div>
 
 
@@ -904,7 +929,25 @@ function renderTrazabilidadRutas(data) {
     return;
   }
 
-  let html = `<div style="padding:16px 20px">
+  // Agrupar por ruta_id (las filas ya vienen ordenadas por unidad/secuencia, así que
+  // los ruta_id salen naturalmente en bloques consecutivos).
+  const grupos = [];
+  let actual = null;
+  filas.forEach(f => {
+    if (!actual || actual.ruta_id !== f.ruta_id) {
+      actual = { ruta_id: f.ruta_id, unidad: f.unidad, chofer: f.chofer, estado: f.ruta_estado, filas: [] };
+      grupos.push(actual);
+    }
+    actual.filas.push(f);
+  });
+
+  let html = `<div style="padding:16px 20px">`;
+
+  grupos.forEach(g => {
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin:14px 0 6px">
+      <div style="font-size:13px;font-weight:700">${UNIDAD_LBL[g.unidad] || esc(g.unidad)} &#8212; ${esc(g.chofer) || 'Sin chofer'}</div>
+      <button onclick="abrirReplay(${g.ruta_id})" style="background:#3b82f6;color:#fff;border:none;padding:5px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">&#128205; Ver recorrido</button>
+    </div>
     <div class="traza-table-wrap">
     <table class="traza-table">
       <thead><tr>
@@ -913,29 +956,185 @@ function renderTrazabilidadRutas(data) {
       </tr></thead>
       <tbody>`;
 
-  filas.forEach(f => {
-    const muerto = (f.tiempo_muerto_min == null) ? '&#8212;'
-      : (f.tiempo_muerto_min <= 0 ? '0 min' : f.tiempo_muerto_min + ' min');
-    const muertoColor = (f.tiempo_muerto_min != null && f.tiempo_muerto_min > 10) ? 'color:#dc2626;font-weight:700' : '';
-    html += `<tr>
-      <td style="font-weight:700;color:#2563eb">${esc(f.folio)}</td>
-      <td>${esc(f.cliente)}</td>
-      <td>${UNIDAD_LBL[f.unidad] || esc(f.unidad)}</td>
-      <td>${esc(f.chofer) || '&#8212;'}</td>
-      <td>${fmtHora(f.salida_qr_at)}</td>
-      <td>${fmtHora(f.llegada_gps_at)}</td>
-      <td style="${muertoColor}">${muerto}</td>
-      <td>${fmtHora(f.entregado_at)}</td>
-    </tr>`;
+    g.filas.forEach(f => {
+      const muerto = (f.tiempo_muerto_min == null) ? '&#8212;'
+        : (f.tiempo_muerto_min <= 0 ? '0 min' : f.tiempo_muerto_min + ' min');
+      const muertoColor = (f.tiempo_muerto_min != null && f.tiempo_muerto_min > 10) ? 'color:#dc2626;font-weight:700' : '';
+      html += `<tr>
+        <td style="font-weight:700;color:#2563eb">${esc(f.folio)}</td>
+        <td>${esc(f.cliente)}</td>
+        <td>${UNIDAD_LBL[f.unidad] || esc(f.unidad)}</td>
+        <td>${esc(f.chofer) || '&#8212;'}</td>
+        <td>${fmtHora(f.salida_qr_at)}</td>
+        <td>${fmtHora(f.llegada_gps_at)}</td>
+        <td style="${muertoColor}">${muerto}</td>
+        <td>${fmtHora(f.entregado_at)}</td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
   });
 
-  html += `</tbody></table></div></div>`;
+  html += `</div>`;
   document.getElementById('main').innerHTML = html;
+}
+
+// ── Replay de ruta: mapa con paradas numeradas + track GPS real animado ──────
+let _replay = { track: [], idx: 0, playing: false, timer: null, speed: 4, map: null, marker: null, poly: null };
+
+function cerrarReplay() {
+  document.getElementById('modalReplay').style.display = 'none';
+  pausarReplay();
+}
+
+async function abrirReplay(ruta_id) {
+  document.getElementById('modalReplay').style.display = 'flex';
+  document.getElementById('replayTitulo').textContent = 'Cargando recorrido…';
+  document.getElementById('replaySub').textContent = '—';
+  pausarReplay();
+
+  try {
+    const res = await fetch(API + '?vista=ruta_replay&ruta_id=' + ruta_id + '&t=' + Date.now());
+    const data = await res.json();
+    if (data.error) { document.getElementById('replayTitulo').textContent = '⚠️ ' + data.error; return; }
+
+    document.getElementById('replayTitulo').textContent = (UNIDAD_LBL[data.ruta.unidad] || data.ruta.unidad).replace(/&#\d+;/g,'') + ' — ' + (data.ruta.chofer || 'Sin chofer');
+    document.getElementById('replaySub').textContent = data.ruta.fecha + ' · ' + data.paradas.length + ' paradas · ' + data.track.length + ' puntos GPS';
+
+    esperarGoogleMaps(function() { dibujarReplay(data); });
+  } catch (e) {
+    document.getElementById('replayTitulo').textContent = '❌ Error de conexión';
+  }
+}
+
+function dibujarReplay(data) {
+  const el = document.getElementById('mapaReplay');
+  const paradas = (data.paradas || []).filter(p => p.lat && p.lng);
+  const track   = data.track || [];
+
+  const center = track.length ? { lat: +track[0].lat, lng: +track[0].lng }
+    : (paradas.length ? { lat: +paradas[0].lat, lng: +paradas[0].lng } : { lat: 25.6931, lng: -100.4807 });
+
+  const map = new google.maps.Map(el, { zoom: 12, center, disableDefaultUI: true, zoomControl: true, mapTypeControl: false, streetViewControl: false });
+  const bounds = new google.maps.LatLngBounds();
+
+  // Pin planta
+  const planta = { lat: 25.6931510, lng: -100.4803430 };
+  new google.maps.Marker({ position: planta, map, label: { text: '🏭', fontSize: '18px' }, title: 'Planta' });
+  bounds.extend(planta);
+
+  // Paradas numeradas (orden ya optimizado)
+  paradas.forEach((p, i) => {
+    const pos = { lat: +p.lat, lng: +p.lng };
+    bounds.extend(pos);
+    const color = p.estado === 'entregado' ? '#16a34a' : (p.estado === 'no_entregado' ? '#dc2626' : '#f59e0b');
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 32 42">'
+      + '<path d="M16 0C7.16 0 0 7.16 0 16c0 11.65 16 26 16 26S32 27.65 32 16C32 7.16 24.84 0 16 0z" fill="' + color + '"/>'
+      + '<circle cx="16" cy="16" r="10" fill="white"/>'
+      + '<text x="16" y="21" text-anchor="middle" font-size="12" font-weight="bold" fill="' + color + '">' + (i + 1) + '</text></svg>';
+    const marker = new google.maps.Marker({
+      position: pos, map,
+      icon: { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg), scaledSize: new google.maps.Size(26, 34), anchor: new google.maps.Point(13, 34) },
+      title: p.folio + ' — ' + p.cliente_nombre,
+    });
+    const iw = new google.maps.InfoWindow({ content: '<div style="font-size:12px"><b>' + esc(p.folio) + '</b><br>' + esc(p.cliente_nombre) + '</div>' });
+    marker.addListener('click', () => iw.open(map, marker));
+  });
+
+  // Trazo real del recorrido (track GPS ya guardado en gps_posiciones — no llama a Google)
+  const path = track.map(t => ({ lat: +t.lat, lng: +t.lng }));
+  path.forEach(p => bounds.extend(p));
+  const poly = new google.maps.Polyline({ path, map, strokeColor: '#3b82f6', strokeOpacity: 0.8, strokeWeight: 3 });
+
+  const truckMarker = new google.maps.Marker({
+    map, position: path[0] || center,
+    icon: { url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><text x="14" y="22" font-size="22" text-anchor="middle">🚚</text></svg>'), scaledSize: new google.maps.Size(28, 28), anchor: new google.maps.Point(14, 14) },
+    zIndex: 999,
+  });
+
+  if (bounds.isEmpty() === false) map.fitBounds(bounds, 40);
+
+  _replay = { track, idx: 0, playing: false, timer: null, speed: parseInt(document.getElementById('velReplay').value, 10) || 4, map, marker: truckMarker, poly };
+
+  document.getElementById('sliderReplay').max = Math.max(0, track.length - 1);
+  document.getElementById('sliderReplay').value = 0;
+  actualizarReplayUI();
+}
+
+function actualizarReplayUI() {
+  const t = _replay.track[_replay.idx];
+  document.getElementById('sliderReplay').value = _replay.idx;
+  document.getElementById('replayTiempo').textContent = t ? fmtHora(t.capturado_at) : '—';
+  document.getElementById('btnPlayReplay').innerHTML = _replay.playing ? '&#10074;&#10074;' : '&#9654;';
+}
+
+function moverCamionA(idx) {
+  if (!_replay.track.length) return;
+  idx = Math.max(0, Math.min(_replay.track.length - 1, idx));
+  _replay.idx = idx;
+  const t = _replay.track[idx];
+  if (t && _replay.marker) _replay.marker.setPosition({ lat: +t.lat, lng: +t.lng });
+  actualizarReplayUI();
+}
+
+function scrubReplay(v) {
+  pausarReplay();
+  moverCamionA(parseInt(v, 10));
+}
+
+function togglePlayReplay() {
+  if (_replay.playing) { pausarReplay(); return; }
+  if (!_replay.track.length) return;
+  if (_replay.idx >= _replay.track.length - 1) _replay.idx = 0;
+  _replay.playing = true;
+  actualizarReplayUI();
+  tickReplay();
+}
+
+function tickReplay() {
+  if (!_replay.playing) return;
+  moverCamionA(_replay.idx + 1);
+  if (_replay.idx >= _replay.track.length - 1) { pausarReplay(); return; }
+  const intervaloBaseMs = 500;
+  _replay.timer = setTimeout(tickReplay, Math.max(30, intervaloBaseMs / _replay.speed));
+}
+
+function pausarReplay() {
+  _replay.playing = false;
+  if (_replay.timer) { clearTimeout(_replay.timer); _replay.timer = null; }
+  actualizarReplayUI();
+}
+
+function cambiarVelocidadReplay(v) {
+  _replay.speed = parseInt(v, 10) || 1;
+}
+
+// El SPA no limpia scripts entre navegaciones (mismo patrón de Logística Rutas, UPD-335) —
+// si Maps JS ya está cargado o cargándose, no se vuelve a inyectar el script.
+function esperarGoogleMaps(cb) {
+  if (window.google && window.google.maps) { cb(); return; }
+  if (window._prodMapsLoading) { window._prodMapsLoading.push(cb); return; }
+  window._prodMapsLoading = [cb];
+  const script = document.createElement('script');
+  script.src = 'https://maps.googleapis.com/maps/api/js?key=<?= htmlspecialchars($maps_key) ?>&v=beta&loading=async';
+  script.async = true;
+  script.defer = true;
+  script.onload = function() {
+    const cbs = window._prodMapsLoading || [];
+    window._prodMapsLoading = null;
+    cbs.forEach(f => f());
+  };
+  document.head.appendChild(script);
 }
 
 window.cambiarVista      = cambiarVista;
 window.toggleExtraDetalle = toggleExtraDetalle;
 window.cargar             = cargar;
+window.abrirReplay        = abrirReplay;
+window.cerrarReplay       = cerrarReplay;
+window.togglePlayReplay   = togglePlayReplay;
+window.scrubReplay        = scrubReplay;
+window.cambiarVelocidadReplay = cambiarVelocidadReplay;
 
 cargar();
 

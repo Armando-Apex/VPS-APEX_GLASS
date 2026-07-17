@@ -580,7 +580,7 @@ if ($vista === 'trazabilidad_rutas') {
     $stmt = $db->prepare("
         SELECT
             o.folio, o.cliente_nombre,
-            r.unidad, r.chofer,
+            r.id AS ruta_id, r.unidad, r.chofer, r.estado AS ruta_estado,
             re.id AS entrega_id, re.secuencia,
             re.movimiento_iniciado_at, re.llegada_gps_at, re.entregado_at,
             (SELECT MAX(created_at) FROM orden_salida_escaneos
@@ -600,6 +600,8 @@ if ($vista === 'trazabilidad_rutas') {
             $tiempoMuertoMin = round((strtotime($f['movimiento_iniciado_at']) - strtotime($f['salida_qr_at'])) / 60);
         }
         return [
+            'ruta_id'           => (int)$f['ruta_id'],
+            'ruta_estado'       => $f['ruta_estado'],
             'folio'             => $f['folio'],
             'cliente'           => $f['cliente_nombre'],
             'unidad'            => $f['unidad'],
@@ -613,6 +615,48 @@ if ($vista === 'trazabilidad_rutas') {
     }, $filas);
 
     jsonResponse(['trazabilidad' => $resultado, 'fecha' => $fecha, 'total' => count($resultado)]);
+}
+
+// ── Replay de una ruta: paradas en orden optimizado (con su lat/lng ya cacheado por el
+// cron, sin re-geocodificar) + track GPS real del día, para animar el recorrido del chofer
+// en un mapa. Ver app/modulos/productividad.php, modal "Ver recorrido". ──
+if ($vista === 'ruta_replay') {
+    $ruta_id = (int)($_GET['ruta_id'] ?? 0);
+    if (!$ruta_id) jsonResponse(['error' => 'ruta_id requerido'], 400);
+
+    $stmt = $db->prepare("SELECT id, fecha, unidad, chofer, estado, regreso_planta_at FROM rutas WHERE id = ?");
+    $stmt->execute([$ruta_id]);
+    $ruta = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$ruta) jsonResponse(['error' => 'Ruta no encontrada'], 404);
+
+    $stmt = $db->prepare("
+        SELECT re.secuencia, re.direccion, re.colonia, re.ciudad, re.lat, re.lng,
+               re.estado, re.llegada_gps_at, re.entregado_at, o.folio, o.cliente_nombre
+        FROM ruta_entregas re
+        JOIN ordenes o ON o.id = re.orden_id
+        WHERE re.ruta_id = ?
+        ORDER BY re.secuencia ASC
+    ");
+    $stmt->execute([$ruta_id]);
+    $paradas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Track real: solo la propia BD (gps_posiciones, llenada por scripts/gps_tracker.php) —
+    // no se llama a ninguna API de Google para armar el recorrido.
+    $fin = $ruta['regreso_planta_at'] ?: date('Y-m-d H:i:s');
+    $stmt = $db->prepare("
+        SELECT lat, lng, velocidad, capturado_at
+        FROM gps_posiciones
+        WHERE unidad = ? AND DATE(capturado_at) = ? AND capturado_at <= ?
+        ORDER BY capturado_at ASC
+    ");
+    $stmt->execute([$ruta['unidad'], $ruta['fecha'], $fin]);
+    $track = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    jsonResponse([
+        'ruta'    => $ruta,
+        'paradas' => $paradas,
+        'track'   => $track,
+    ]);
 }
 
 jsonResponse(['error' => 'Vista no válida: hora|dia|semana|mes'], 400);
