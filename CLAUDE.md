@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 17 julio 2026 | Próximo UPD disponible: UPD-350
+# Última actualización: 17 julio 2026 | Próximo UPD disponible: UPD-351
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -614,4 +614,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-349 | 17-jul-2026 | Mando | Productividad → "Rutas de Entrega": botón "📍 Ver recorrido" por ruta abre modal con mapa — pines numerados de las paradas en el orden ya optimizado + polyline animada con el trazo GPS real del chofer (play/pause, slider, velocidad 1x/4x/10x/30x). Reusa `ruta_entregas.lat/lng` ya cacheado y lee el track de `gps_posiciones` (propia BD) — sin geocoding ni Routes API nuevos, solo 1 Dynamic Maps load por apertura del modal (mismo costo que ya paga Logística Rutas). Nuevo `vista=ruta_replay` en `api/productividad.php`. Verificado con `php84 -l` + balance de llaves del bloque `<script>` (sin `node` disponible en esta sesión); falta verificación visual en navegador real. Archivos: api/productividad.php, app/modulos/productividad.php |
 
-**Próximo UPD disponible: UPD-350**
+| UPD-350 | 17-jul-2026 | Armando | Campañas WA — buscador de conversaciones: caja de búsqueda fija arriba de la lista en la pestaña Conversaciones (`?m=campanas`), a petición de Armando porque la lista se corre hacia abajo con mucha actividad y cuesta ubicar a un cliente. Filtra en vivo (sin recargar del servidor) por nombre del cliente o por teléfono (cualquier fragmento de dígitos, ignora espacios/formato). `.conv-lista` pasó de bloque con scroll único a columna flex (barra de búsqueda fija + `.conv-lista-items` con su propio scroll). JS: se cachea la respuesta de `accion=conversaciones` en `_convDataAll` y se separó el render en `renderConvLista()` (antes iba inline dentro del `.then()` del fetch) para poder re-filtrar sin pegarle al servidor; el polling silencioso de 15s (UPD-312) sigue actualizando `_convDataAll` y respeta el texto de búsqueda ya escrito. El badge de "sin leer" del tab sigue contando el total real, no lo filtrado. Verificado con `php84 -l` + `node --check` del bloque `<script>` extraído (tags PHP stubeados). Archivo: app/modulos/campanas.php |
+
+**Próximo UPD disponible: UPD-351**
