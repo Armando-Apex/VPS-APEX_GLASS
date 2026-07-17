@@ -628,6 +628,7 @@ function cmpRenderDetalle() {
       }
     }
   }
+  footer += '<button class="btn-sec" onclick="window.open(\'imprimir_orden_compra.php?id=' + o.id + '\',\'_blank\')">&#128424;&#65039; Imprimir OC</button> ';
   footer += '<button class="btn-sec" onclick="ModCompras._cerrarModal(\'modalDetalle\')">Cerrar</button>';
   document.getElementById('detFooter').innerHTML = footer;
 }
