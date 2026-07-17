@@ -154,7 +154,16 @@
       "Bash(npx --yes skills add remotion-dev/skills)",
       "Bash(chown -R apexglass2025:apexglass2025 /home/apexglass2025/herramientas)",
       "Bash(time npx remotion render HelloWorld out/test-5s.mp4)",
-      "Bash(time npx remotion render HelloWorld out/test-5s-v2.mp4)"
+      "Bash(time npx remotion render HelloWorld out/test-5s-v2.mp4)",
+      "Bash(npx --yes remotion add @remotion/google-fonts)",
+      "Bash(pip3 install *)",
+      "Bash(pip install *)",
+      "Bash(pip3 --version)",
+      "Bash(rm -f out/preview-*.png)",
+      "Bash(time npx remotion render ApexGlassPromo out/apex-glass-promo.mp4)",
+      "Bash(base64 -w0 /home/apexglass2025/herramientas/video-marketing/out/apex-glass-promo.mp4)",
+      "Skill(artifact-design)",
+      "Artifact"
     ]
   },
   "hooks": {
