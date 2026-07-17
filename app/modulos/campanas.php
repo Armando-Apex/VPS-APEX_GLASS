@@ -34,7 +34,11 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','adm
 .cmp-progreso{background:#e2e8f0;border-radius:99px;height:8px;margin:12px 0;}
 .cmp-progreso-bar{background:#2563eb;border-radius:99px;height:8px;transition:width .3s;}
 .conv-panel{display:flex;gap:0;height:520px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;}
-.conv-lista{width:300px;border-right:1px solid #e2e8f0;overflow-y:auto;flex-shrink:0;background:#fff;}
+.conv-lista{width:300px;border-right:1px solid #e2e8f0;flex-shrink:0;background:#fff;display:flex;flex-direction:column;}
+.conv-lista-search{padding:10px;border-bottom:1px solid #e2e8f0;flex-shrink:0;}
+.conv-lista-search input{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;}
+.conv-lista-search input:focus{outline:none;border-color:#2563eb;}
+.conv-lista-items{flex:1;overflow-y:auto;}
 .conv-item{padding:12px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background .1s;position:relative;}
 .conv-item:hover,.conv-item.active{background:var(--c-blue-light);}
 .conv-item-nombre{font-size:13px;font-weight:600;color:#1e293b;}
@@ -127,7 +131,12 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','adm
 
   <div id="cmpPanelConversaciones" style="display:none;">
     <div class="conv-panel">
-      <div class="conv-lista" id="cmpConvLista"><p style="padding:14px;font-size:12px;color:#64748b;">Cargando...</p></div>
+      <div class="conv-lista">
+        <div class="conv-lista-search">
+          <input type="text" id="cmpConvBuscar" placeholder="Buscar cliente o tel&eacute;fono&hellip;" oninput="window.cmpFiltrarConv()" autocomplete="off">
+        </div>
+        <div class="conv-lista-items" id="cmpConvLista"><p style="padding:14px;font-size:12px;color:#64748b;">Cargando...</p></div>
+      </div>
       <div class="conv-chat" id="cmpConvChat">
         <div class="conv-vacio">
           <span style="font-size:32px;">&#128172;</span>
@@ -215,6 +224,7 @@ var ModCampanas = (function() {
     var _tabActual = 'campanas';
     var _convTelMap = {};
     var _contactoConvId = null;
+    var _convDataAll = [];
 
     // ── Escape XSS ────────────────────────────────────────────
     function esc(s) {
@@ -1043,42 +1053,64 @@ var ModCampanas = (function() {
         fetch('/produccion/api/campanas.php?accion=conversaciones')
           .then(function(r) { return r.json(); })
           .then(function(data) {
-            var lista2 = document.getElementById('cmpConvLista');
-            if (!lista2) return;
-            var html = '';
-            var sinLeerTotal = 0;
-            _convTipoMap = {};
-            _convActividadMap = {};
-            _convTelMap = {};
-            (data.conversaciones || []).forEach(function(c) {
-                var sl   = parseInt(c.mensajes_sin_leer) || 0;
-                var tipo = c.tipo_contacto || 'desconocido';
-                _convTipoMap[c.id]      = tipo;
-                _convActividadMap[c.id] = c.ultima_actividad || null;
-                _convTelMap[c.id]       = c.telefono || '';
-                sinLeerTotal += sl;
-                var badgeSL   = sl > 0 ? '<span class="conv-badge">' + sl + '</span>' : '';
-                var badgeTipo = _tipoBadge[tipo] || '';
-                var cid = c.id;
-                var cnombre = esc(c.nombre_cliente || c.telefono).replace(/'/g,"&#39;");
-                var nombreMostrar = c.nombre_cliente ? esc(c.nombre_cliente) : esc(fmtTel10(c.telefono));
-                var telChip = c.nombre_cliente ? ' <span style="font-size:11px;color:#94a3b8;font-weight:500;">' + esc(fmtTel10(c.telefono)) + '</span>' : '';
-                var activaCls = (_convActiva === cid) ? ' active' : '';
-                html += '<div class="conv-item' + activaCls + '" onclick="window.cmpAbrirConv(' + cid + ',\'' + cnombre + '\')" id="convItem' + cid + '">' +
-                    badgeSL +
-                    '<div class="conv-item-nombre">' + nombreMostrar + telChip + badgeTipo + '</div>' +
-                    '<div class="conv-item-preview">' + esc((c.ultimo_mensaje || 'Sin mensajes').substring(0, 60)) + '</div>' +
-                    '<button class="conv-item-menu-btn" onclick="event.stopPropagation();window.cmpMenuConv(event,' + cid + ')" title="Más opciones">&#8942;</button>' +
-                    '</div>';
-            });
-            lista2.innerHTML = html ||
-                '<p style="padding:14px;font-size:12px;color:#64748b;">Sin conversaciones a&uacute;n.</p>';
-            var badge = document.getElementById('cmpBadgeTot');
-            if (badge) {
-                badge.textContent  = sinLeerTotal;
-                badge.style.display = sinLeerTotal > 0 ? '' : 'none';
-            }
+            _convDataAll = data.conversaciones || [];
+            renderConvLista();
           });
+    }
+
+    // ── Filtro de búsqueda (nombre o teléfono) sobre la lista ya cargada ──
+    function renderConvLista() {
+        var lista2 = document.getElementById('cmpConvLista');
+        if (!lista2) return;
+        var buscarEl = document.getElementById('cmpConvBuscar');
+        var q = buscarEl ? buscarEl.value.toLowerCase().trim() : '';
+        var qDigits = q.replace(/\D/g, '');
+        var html = '';
+        var sinLeerTotal = 0;
+        _convTipoMap = {};
+        _convActividadMap = {};
+        _convTelMap = {};
+        _convDataAll.forEach(function(c) {
+            var sl   = parseInt(c.mensajes_sin_leer) || 0;
+            var tipo = c.tipo_contacto || 'desconocido';
+            _convTipoMap[c.id]      = tipo;
+            _convActividadMap[c.id] = c.ultima_actividad || null;
+            _convTelMap[c.id]       = c.telefono || '';
+            sinLeerTotal += sl;
+
+            if (q) {
+                var nombreBusq  = String(c.nombre_cliente || '').toLowerCase();
+                var matchNombre = nombreBusq.indexOf(q) !== -1;
+                var matchTel    = qDigits.length > 0 && String(c.telefono || '').replace(/\D/g,'').indexOf(qDigits) !== -1;
+                if (!matchNombre && !matchTel) return;
+            }
+
+            var badgeSL   = sl > 0 ? '<span class="conv-badge">' + sl + '</span>' : '';
+            var badgeTipo = _tipoBadge[tipo] || '';
+            var cid = c.id;
+            var cnombre = esc(c.nombre_cliente || c.telefono).replace(/'/g,"&#39;");
+            var nombreMostrar = c.nombre_cliente ? esc(c.nombre_cliente) : esc(fmtTel10(c.telefono));
+            var telChip = c.nombre_cliente ? ' <span style="font-size:11px;color:#94a3b8;font-weight:500;">' + esc(fmtTel10(c.telefono)) + '</span>' : '';
+            var activaCls = (_convActiva === cid) ? ' active' : '';
+            html += '<div class="conv-item' + activaCls + '" onclick="window.cmpAbrirConv(' + cid + ',\'' + cnombre + '\')" id="convItem' + cid + '">' +
+                badgeSL +
+                '<div class="conv-item-nombre">' + nombreMostrar + telChip + badgeTipo + '</div>' +
+                '<div class="conv-item-preview">' + esc((c.ultimo_mensaje || 'Sin mensajes').substring(0, 60)) + '</div>' +
+                '<button class="conv-item-menu-btn" onclick="event.stopPropagation();window.cmpMenuConv(event,' + cid + ')" title="Más opciones">&#8942;</button>' +
+                '</div>';
+        });
+        lista2.innerHTML = html ||
+            (q ? '<p style="padding:14px;font-size:12px;color:#64748b;">Sin resultados para "' + esc(q) + '".</p>'
+                : '<p style="padding:14px;font-size:12px;color:#64748b;">Sin conversaciones a&uacute;n.</p>');
+        var badge = document.getElementById('cmpBadgeTot');
+        if (badge) {
+            badge.textContent  = sinLeerTotal;
+            badge.style.display = sinLeerTotal > 0 ? '' : 'none';
+        }
+    }
+
+    function filtrarConv() {
+        renderConvLista();
     }
 
     // ── Auto-refresco silencioso del inbox (lista + chat abierto) ──
@@ -1780,6 +1812,7 @@ var ModCampanas = (function() {
     window.cmpActualizarVar      = actualizarVar;
     window.cmpEliminarVar        = eliminarVar;
     window.cmpAbrirConv           = abrirConv;
+    window.cmpFiltrarConv         = filtrarConv;
     window.cmpEnviarMensaje       = enviarMensaje;
     window.cmpSeleccionarTemplate = seleccionarTemplate;
     window.cmpQuitarMedia         = quitarMedia;
