@@ -293,6 +293,7 @@ if ($metodo === 'POST' && $accion === 'scan_qr') {
         if ((int)$chkFalta->fetchColumn() === 0) {
             $db->prepare("UPDATE rutas SET estado='en_ruta', updated_at=NOW() WHERE id=?")->execute([$re['ruta_id']]);
             calcularYGuardarEtas($db, $re['ruta_id']);
+            enviarAvisosInicioRuta($db, $re['ruta_id']);
             $rutaIniciada = true;
         }
     }
@@ -306,8 +307,11 @@ if ($metodo === 'POST' && $accion === 'scan_qr') {
     ]);
 }
 
-// ── POST: escaneo QR de la hoja de ruta (app/imprimir_ruta.php) al salir hacia el cliente
-// (seguimiento en_ruta / siguiente_entrega) ────────────────────────────────────────────
+// ── POST: escaneo QR de la hoja de ruta (app/imprimir_ruta.php) al CONFIRMAR LA ENTREGA en
+// casa del cliente (ya no al salir hacia allá — cambio de flujo). Mismo efecto que el botón
+// manual "Entregado" del chofer en Logística Rutas (api/rutas.php, accion=marcar_estado):
+// cierra la parada/orden/piezas y avisa a la parada que queda de primera en la fila (ver
+// marcarEntregaComoEntregada en rutas_lib.php, compartida entre ambos caminos).
 if ($metodo === 'POST' && $accion === 'scan_qr_ruta') {
     $body     = json_decode(file_get_contents('php://input'), true) ?? [];
     $orden_id = (int)($body['orden_id'] ?? 0);
@@ -316,145 +320,38 @@ if ($metodo === 'POST' && $accion === 'scan_qr_ruta') {
     $chofer_id     = (int)($_SESSION['user_id'] ?? 0);
     $chofer_nombre = trim($_SESSION['user_name'] ?? 'Chofer');
 
-    // Idempotencia: cada orden solo se escanea una vez (evita reenvíos por doble escaneo)
-    $chk = $db->prepare('SELECT tipo, created_at FROM orden_salida_escaneos WHERE orden_id = ?');
-    $chk->execute([$orden_id]);
-    if ($prev = $chk->fetch(PDO::FETCH_ASSOC)) {
-        jsonResponse([
-            'ok'           => true,
-            'ya_escaneado' => true,
-            'tipo'         => $prev['tipo'],
-            'hora'         => date('H:i', strtotime($prev['created_at'])),
-        ]);
+    $stmt = $db->prepare("
+        SELECT re.id as entrega_id, o.folio
+        FROM ruta_entregas re
+        JOIN ordenes o ON o.id = re.orden_id
+        WHERE re.orden_id = ? AND re.estado = 'pendiente'
+        ORDER BY re.id DESC LIMIT 1
+    ");
+    $stmt->execute([$orden_id]);
+    $re = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$re) {
+        // Ya no hay parada pendiente para esta orden: o ya se marcó entregada antes (doble
+        // escaneo, o ya se marcó desde el botón manual en Logística Rutas) o nunca se asignó
+        // a una ruta — cualquiera de los dos casos se reporta igual, sin bloquear al chofer.
+        jsonResponse(['ok' => true, 'ya_escaneado' => true]); exit;
     }
 
-    $stmt = $db->prepare('
-        SELECT o.folio, o.cliente_id, o.asesor,
-               COALESCE(cl.nombre, o.cliente_nombre) AS cliente_nombre,
-               cl.telefono, cl.telefono_alterno
-        FROM ordenes o
-        LEFT JOIN clientes cl ON cl.id = o.cliente_id
-        WHERE o.id = ?
-    ');
-    $stmt->execute([$orden_id]);
-    $dw = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$dw) jsonResponse(['error' => 'Orden no encontrada'], 404);
+    $r = marcarEntregaComoEntregada($db, $re['entrega_id'], 'Entrega confirmada por QR — ' . $chofer_nombre);
 
-    // Primer escaneo del chofer en su viaje actual (sin escaneos suyos en las últimas 4h) => en_ruta
-    // Escaneo posterior dentro de la misma ventana => siguiente_entrega (avisa al que sigue)
-    $ultimo = $db->prepare("
-        SELECT created_at FROM orden_salida_escaneos
-        WHERE chofer_usuario_id = ? AND created_at >= (NOW() - INTERVAL 4 HOUR)
-        ORDER BY created_at DESC LIMIT 1
-    ");
-    $ultimo->execute([$chofer_id]);
-    $tipo = $ultimo->fetch(PDO::FETCH_ASSOC) ? 'siguiente_entrega' : 'en_ruta';
-
+    // ON DUPLICATE KEY UPDATE en vez de INSERT simple: orden_id es UNIQUE (un registro por
+    // orden), pero una parada se puede regresar a "pendiente" para corregir y volver a
+    // escanearse — sin esto, el segundo escaneo truena con error de llave duplicada aunque
+    // marcarEntregaComoEntregada() de arriba ya haya corrido bien.
     $db->prepare('
         INSERT INTO orden_salida_escaneos (orden_id, chofer_usuario_id, tipo, created_at)
         VALUES (?, ?, ?, NOW())
-    ')->execute([$orden_id, $chofer_id, $tipo]);
-    $escaneo_id = (int)$db->lastInsertId();
-
-    $wa_cliente = false;
-    $wa_asesor  = false;
-    $folio      = substr(strip_tags($dw['folio'] ?? ''), 0, 20);
-
-    // ── WA al cliente ────────────────────────────────────────────────────────
-    try {
-        $telRaw = preg_replace('/\D/', '', $dw['telefono_alterno'] ?: $dw['telefono'] ?? '');
-        if ($telRaw && strlen($telRaw) >= 10) {
-            if (strlen($telRaw) === 10) $telRaw = '52' . $telRaw;
-            $nombreCliente = substr(strip_tags($dw['cliente_nombre'] ?? 'Cliente'), 0, 60);
-            $tplCliente    = $tipo === 'en_ruta' ? 'chofer_en_ruta_cliente' : 'siguiente_entrega_cliente';
-
-            $resWa = enviarMensajeWA([
-                'messaging_product' => 'whatsapp',
-                'to'                => $telRaw,
-                'type'              => 'template',
-                'template'          => [
-                    'name'       => $tplCliente,
-                    'language'   => ['code' => 'es_MX'],
-                    'components' => [['type' => 'body', 'parameters' => [
-                        ['type' => 'text', 'text' => $nombreCliente],
-                        ['type' => 'text', 'text' => $folio],
-                        ['type' => 'text', 'text' => $chofer_nombre],
-                    ]]],
-                ],
-            ]);
-
-            $waId = $resWa['data']['messages'][0]['id'] ?? null;
-            if ($resWa['code'] === 200 && $waId) {
-                $wa_cliente = true;
-                $tel10  = substr($telRaw, -10);
-                $stmtCv = $db->prepare("SELECT id, cliente_id FROM whatsapp_conversaciones WHERE RIGHT(REGEXP_REPLACE(telefono,'[^0-9]',''),10)=?");
-                $stmtCv->execute([$tel10]);
-                $convRow = $stmtCv->fetch(PDO::FETCH_ASSOC);
-                if (!$convRow) {
-                    $db->prepare("INSERT INTO whatsapp_conversaciones (cliente_id,telefono,ultima_actividad) VALUES (?,?,NOW())")
-                       ->execute([$dw['cliente_id'] ?? null, $telRaw]);
-                    $convId = (int)$db->lastInsertId();
-                } else {
-                    $convId = (int)$convRow['id'];
-                }
-                $logTxt = '[Plantilla ' . $tplCliente . '] ' . $folio . ' — chofer ' . $chofer_nombre;
-                $db->prepare("INSERT INTO whatsapp_mensajes (conversacion_id,direccion,contenido,tipo,wa_message_id,enviado_por) VALUES (?,'outbound',?,'texto',?,'sistema')")
-                   ->execute([$convId, $logTxt, $waId]);
-                $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")->execute([$convId]);
-            } else {
-                error_log('APEX WA scan_qr cliente fallo: orden=' . $folio . ' tpl=' . $tplCliente . ' resp=' . json_encode($resWa['data'] ?? []));
-            }
-        }
-    } catch (Exception $eWa) {
-        error_log('APEX WA scan_qr cliente error: orden_id=' . $orden_id . ' ' . $eWa->getMessage());
-    }
-
-    // ── WA al asesor (solo si tiene teléfono capturado en usuarios.telefono) ──
-    try {
-        if (!empty($dw['asesor'])) {
-            $stmtA = $db->prepare("SELECT telefono FROM usuarios WHERE ? LIKE CONCAT('%', nombre, '%') AND rol = 'comercial' AND telefono IS NOT NULL AND telefono != '' LIMIT 1");
-            $stmtA->execute([$dw['asesor']]);
-            $telAsesor = $stmtA->fetchColumn();
-            if ($telAsesor) {
-                $telA = preg_replace('/\D/', '', $telAsesor);
-                if (strlen($telA) === 10) $telA = '52' . $telA;
-                if (strlen($telA) >= 12) {
-                    $tplAsesor = $tipo === 'en_ruta' ? 'chofer_en_ruta_asesor' : 'siguiente_entrega_asesor';
-                    $resWaA = enviarMensajeWA([
-                        'messaging_product' => 'whatsapp',
-                        'to'                => $telA,
-                        'type'              => 'template',
-                        'template'          => [
-                            'name'       => $tplAsesor,
-                            'language'   => ['code' => 'es_MX'],
-                            'components' => [['type' => 'body', 'parameters' => [
-                                ['type' => 'text', 'text' => $dw['asesor']],
-                                ['type' => 'text', 'text' => $chofer_nombre],
-                                ['type' => 'text', 'text' => $folio],
-                            ]]],
-                        ],
-                    ]);
-                    $wa_asesor = ($resWaA['code'] === 200 && !empty($resWaA['data']['messages'][0]['id']));
-                    if (!$wa_asesor) {
-                        error_log('APEX WA scan_qr asesor fallo: orden=' . $folio . ' tpl=' . $tplAsesor . ' resp=' . json_encode($resWaA['data'] ?? []));
-                    }
-                }
-            }
-        }
-    } catch (Exception $eWa2) {
-        error_log('APEX WA scan_qr asesor error: orden_id=' . $orden_id . ' ' . $eWa2->getMessage());
-    }
-
-    $db->prepare('UPDATE orden_salida_escaneos SET wa_cliente_enviado=?, wa_asesor_enviado=? WHERE id=?')
-       ->execute([$wa_cliente ? 1 : 0, $wa_asesor ? 1 : 0, $escaneo_id]);
+        ON DUPLICATE KEY UPDATE chofer_usuario_id = VALUES(chofer_usuario_id), tipo = VALUES(tipo), created_at = NOW()
+    ')->execute([$orden_id, $chofer_id, 'entregado']);
 
     jsonResponse([
-        'ok'         => true,
-        'tipo'       => $tipo,
-        'folio'      => $folio,
-        'cliente'    => $dw['cliente_nombre'],
-        'wa_cliente' => $wa_cliente,
-        'wa_asesor'  => $wa_asesor,
+        'ok'              => (bool)($r['ok'] ?? false),
+        'folio'           => $re['folio'],
+        'ruta_completada' => (bool)($r['ruta_completada'] ?? false),
     ]);
 }
 

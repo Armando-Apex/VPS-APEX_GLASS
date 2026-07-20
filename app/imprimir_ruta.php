@@ -4,7 +4,8 @@
 //  Archivo: app/imprimir_ruta.php?id=<ruta_id>
 //  Una sección por parada, en el orden de visita ya optimizado, con datos del
 //  cliente (nombre/teléfono/dirección) y su propio QR — ese QR es el que el
-//  chofer escanea al SALIR hacia cada cliente (ver api/salidas.php accion=scan_qr_ruta).
+//  chofer escanea al ENTREGAR en casa de cada cliente, no al salir hacia allá
+//  (ver api/salidas.php accion=scan_qr_ruta).
 // ============================================================
 require_once __DIR__ . '/../api/config.php';
 require_once __DIR__ . '/../api/permisos.php';
@@ -116,7 +117,7 @@ else              { $qrPx = 64;  $fFolio = 15; $fCliente = 14; $fDato = 12; $fNu
       </div>
       <div class="parada-qr">
         <div id="qr-<?= (int)$p['id'] ?>"></div>
-        <div class="lbl">Escanear al salir</div>
+        <div class="lbl">Escanear al ENTREGAR</div>
       </div>
     </div>
   <?php endforeach; ?>

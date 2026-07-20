@@ -342,6 +342,7 @@ if ($method === 'POST') {
         $db->prepare("UPDATE rutas SET estado='en_ruta', updated_at=NOW() WHERE id=?")->execute([$id]);
 
         $etas = calcularYGuardarEtas($db, $id);
+        enviarAvisosInicioRuta($db, $id);
         jsonResponse(['ok' => true, 'etas' => $etas]); exit;
     }
 
@@ -369,41 +370,19 @@ if ($method === 'POST') {
                 jsonResponse(['error' => 'Sin permiso sobre esta entrega'], 403);
             }
         }
-        $ts = ($estado === 'entregado') ? date('Y-m-d H:i:s') : null;
-        $db->prepare("UPDATE ruta_entregas SET estado=?, entregado_at=?, notas_entrega=? WHERE id=?")
-           ->execute([$estado, $ts, $notas, $entrega_id]);
-
+        // 'entregado' cierra orden/piezas, avanza el mapa y avisa a la siguiente parada — misma
+        // lógica que dispara el escaneo del QR de hoja de ruta (ver marcarEntregaComoEntregada
+        // en rutas_lib.php, compartida entre ambos caminos).
         if ($estado === 'entregado') {
-            $re = $db->prepare("SELECT orden_id FROM ruta_entregas WHERE id=?");
-            $re->execute([$entrega_id]);
-            $re = $re->fetch(PDO::FETCH_ASSOC);
-            if ($re) {
-                $db->prepare("UPDATE ordenes SET estado='entregada', updated_at=NOW() WHERE id=?")
-                   ->execute([$re['orden_id']]);
-                $db->prepare("UPDATE piezas SET estatus='entregado', updated_at=NOW() WHERE orden_id=? AND estatus='terminado'")
-                   ->execute([$re['orden_id']]);
-            }
+            $r = marcarEntregaComoEntregada($db, $entrega_id, $notas);
+            jsonResponse(['ok' => (bool)($r['ok'] ?? false), 'etas' => $r['etas'] ?? []]); exit;
         }
 
-        // Marcar ruta como completada si no quedan pendientes; si sigue en_ruta con paradas
-        // pendientes, recalcular el tiempo estimado (la parada que se acaba de entregar ya
-        // no debe seguir sumando a la cuenta de la siguiente).
-        $etas = [];
-        $chk = $db->prepare("SELECT ruta_id, SUM(estado='pendiente') as pend FROM ruta_entregas WHERE id=?");
-        $chk->execute([$entrega_id]);
-        $chk = $chk->fetch(PDO::FETCH_ASSOC);
-        if ($chk && (int)$chk['pend'] === 0) {
-            $pend2 = $db->prepare("SELECT SUM(estado='pendiente') as p FROM ruta_entregas WHERE ruta_id=?");
-            $pend2->execute([$chk['ruta_id']]);
-            $pend2 = $pend2->fetch(PDO::FETCH_ASSOC);
-            if ((int)($pend2['p'] ?? 1) === 0) {
-                $db->prepare("UPDATE rutas SET estado='completada', updated_at=NOW() WHERE id=?")
-                   ->execute([$chk['ruta_id']]);
-            } elseif ($estado === 'entregado') {
-                $etas = calcularYGuardarEtas($db, $chk['ruta_id']);
-            }
-        }
-        jsonResponse(['ok' => true, 'etas' => $etas]); exit;
+        // no_entregado / pendiente: solo cambia el estado de la parada, sin cerrar orden ni
+        // recalcular ETA/avisos (no aplica — la parada sigue pendiente).
+        $db->prepare("UPDATE ruta_entregas SET estado=?, entregado_at=NULL, notas_entrega=? WHERE id=?")
+           ->execute([$estado, $notas, $entrega_id]);
+        jsonResponse(['ok' => true, 'etas' => []]); exit;
     }
 
     if ($accion === 'marcar_pieza') {

@@ -109,7 +109,6 @@ table.lr-tbl { width:100%; border-collapse:collapse; font-size:13px; }
 .btn-cancel:hover { background:#e2e8f0; }
 
 .btn-planificar { background:#7c3aed; color:#fff; border:none; border-radius:8px; padding:6px 14px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:5px; }
-.btn-ghost-eta { background:#fff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:8px; padding:6px 14px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:5px; }
 .btn-planificar:hover { background:#6d28d9; }
 .btn-planificar:disabled { background:#c4b5fd; cursor:not-allowed; }
 .plan-tiempo { font-size:11px; color:#7c3aed; font-weight:600; margin-left:4px; }
@@ -514,20 +513,20 @@ var LR = (function() {
 
     var btnPlanificar = '';
     var btnCarga = '';
-    var btnRecalcEta = '';
     var tiempoEstimadoHtml = '';
     // Ya no hay botón "Iniciar Ruta" — arranca sola en cuanto el chofer escanea como cargada
-    // la última pieza pendiente de la ruta (ver api/salidas.php accion=scan_qr).
+    // la última pieza pendiente de la ruta (ver api/salidas.php accion=scan_qr). Tampoco hay ya
+    // botón "Recalcular tiempo estimado" — se recalcula solo cada 4 min mientras la ruta esté
+    // en_ruta con paradas pendientes (ver ETA_INTERVALO_MS / recalcularEtaSilencioso).
     if (ruta.estado === 'planificada' && ruta.entregas && ruta.entregas.length) {
       btnPlanificar = '<button class="btn-planificar" id="btn-plan-'+ruta.id+'" onclick="LR.planificar('+ruta.id+')">🗺️ Ruta óptima</button>';
       btnCarga      = '<button class="btn-planificar" onclick="LR.abrirModalCarga('+ruta.id+')">📦 Ver avance de carga</button>';
     }
     if (ruta.estado === 'en_ruta' && ruta.entregas && ruta.entregas.some(function(e){ return e.entrega_estado === 'pendiente'; })) {
-      btnRecalcEta = '<button class="btn-ghost-eta" onclick="LR.recalcularEta('+ruta.id+')">⏱️ Recalcular tiempo estimado</button>';
       var proxima = ruta.entregas.filter(function(e){ return e.entrega_estado === 'pendiente'; })[0];
       var etaProxima = proxima ? (_ultimasEtas[proxima.id] || proxima.eta_min) : null;
       if (etaProxima) {
-        tiempoEstimadoHtml = '<div class="tiempo-estimado-box">Tiempo Estimado: '+fmtEta(etaProxima)+'</div>';
+        tiempoEstimadoHtml = '<div class="tiempo-estimado-box" id="eta-box-'+ruta.id+'">Tiempo Estimado: '+fmtEta(etaProxima)+'</div>';
       }
     }
 
@@ -558,12 +557,25 @@ var LR = (function() {
       +   btnPlanificar
       +   btnImprimirRuta
       +   btnCarga
-      +   btnRecalcEta
       +   btnFinalizar
       +   (PUEDE_BORRAR_RUTA ? '<button class="btn-borrar-ruta" title="Borrar ruta" onclick="LR.eliminarRuta('+ruta.id+')">🗑️</button>' : '')
       + '</div>'
       + tiempoEstimadoHtml
       + '</div>';
+  }
+
+  // Actualiza solo el badge "Pend./OK/No ent." de una parada dentro de la tarjeta de su unidad
+  // (id="erow-<entrega_id>"), sin tocar el mapa ni redibujar toda la tarjeta — llamado desde el
+  // refresco silencioso de 15s (refrescarEstadosEntregas) cuando otro dispositivo (QR del
+  // chofer) confirma una entrega.
+  var ENTREGA_BADGE_LABEL = { pendiente: 'Pend.', entregado: 'OK', no_entregado: 'No ent.' };
+  function actualizarBadgeEntrega(entrega_id, entrega_estado) {
+    var row = document.getElementById('erow-' + entrega_id);
+    if (!row) return;
+    var badge = row.querySelector('.entrega-badge');
+    if (!badge) return;
+    badge.className   = 'entrega-badge eb-' + entrega_estado;
+    badge.textContent = ENTREGA_BADGE_LABEL[entrega_estado] || entrega_estado;
   }
 
   function renderPendientes() {
@@ -907,17 +919,45 @@ var LR = (function() {
     return h + ' h' + (m > 0 ? ' ' + m + ' min' : '');
   }
 
-  async function recalcularEta(ruta_id) {
-    var r = await fetch(API_RUTAS, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({accion:'recalcular_eta', ruta_id:ruta_id})
+  // Recalcula el tiempo estimado de una ruta sin recargar toda la tarjeta (evita el parpadeo
+  // de mapa/pines que causaría cargarRutas()) — solo actualiza _ultimasEtas y el texto del
+  // cuadro "Tiempo Estimado" de esa unidad. Llamado en automático cada 4 min (ver
+  // ETA_INTERVALO_MS más abajo) para las rutas en_ruta con paradas pendientes; ya no hay botón
+  // manual.
+  async function recalcularEtaSilencioso(ruta_id) {
+    try {
+      var r = await fetch(API_RUTAS, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({accion:'recalcular_eta', ruta_id:ruta_id})
+      });
+      var d = await r.json();
+      if (!d.ok) return;
+
+      var ruta = _rutas.find(function(x) { return x.id === ruta_id; });
+      (d.etas || []).forEach(function(e) {
+        _ultimasEtas[e.entrega_id] = e.eta_min;
+        if (ruta) {
+          var le = (ruta.entregas || []).find(function(x) { return x.id === e.entrega_id; });
+          if (le) le.eta_min = e.eta_min;
+        }
+      });
+
+      var box = document.getElementById('eta-box-' + ruta_id);
+      if (box && ruta) {
+        var proxima = (ruta.entregas || []).filter(function(e) { return e.entrega_estado === 'pendiente'; })[0];
+        var etaProxima = proxima ? (_ultimasEtas[proxima.id] || proxima.eta_min) : null;
+        if (etaProxima) box.textContent = 'Tiempo Estimado: ' + fmtEta(etaProxima);
+      }
+    } catch (e) {}
+  }
+
+  var ETA_INTERVALO_MS = 4 * 60 * 1000; // 4 minutos
+  function tickEtaAutomatico() {
+    _rutas.forEach(function(r) {
+      if (r.estado === 'en_ruta' && r.entregas && r.entregas.some(function(e) { return e.entrega_estado === 'pendiente'; })) {
+        recalcularEtaSilencioso(r.id);
+      }
     });
-    var d = await r.json();
-    if (d.ok) {
-      (d.etas || []).forEach(function(e) { _ultimasEtas[e.entrega_id] = e.eta_min; });
-      toast('Tiempo estimado actualizado');
-      await cargarRutas();
-    } else toast(d.error||'Error', true);
   }
 
   async function eliminarRuta(ruta_id) {
@@ -1128,8 +1168,46 @@ var LR = (function() {
     });
   }
 
+  // Refresca solo entrega_estado/estado (sin redibujar mapas/pines) para que el avance de la
+  // línea "hacia la siguiente parada" (actualizarLineaSiguiente) vea entregas confirmadas desde
+  // otro dispositivo (QR del chofer, o el botón manual en su vista) sin esperar a que alguien
+  // cambie de fecha o haga una acción manual en esta pantalla. De paso refresca el tag/tabla de
+  // "Pendientes de asignar" (cargarPendientes, KPIs) en el mismo ciclo — silencioso, salvo que
+  // el modal de asignar esté abierto (no se pisa la selección de piezas a medio hacer).
+  async function refrescarEstadosEntregas() {
+    try {
+      var r = await fetch(API_RUTAS + '?accion=rutas_fecha&fecha=' + _fecha);
+      if (!r.ok) return;
+      var fresco = await r.json();
+      fresco.forEach(function(fr) {
+        var local = _rutas.find(function(x) { return x.id === fr.id; });
+        if (!local) return;
+        local.estado = fr.estado;
+        (fr.entregas || []).forEach(function(fe) {
+          var le = (local.entregas || []).find(function(x) { return x.id === fe.id; });
+          if (le && le.entrega_estado !== fe.entrega_estado) {
+            le.entrega_estado = fe.entrega_estado;
+            actualizarBadgeEntrega(fe.id, fe.entrega_estado);
+          }
+        });
+      });
+    } catch (e) {}
+
+    var modalAsignar = document.getElementById('modal-asignar');
+    if (!modalAsignar || !modalAsignar.classList.contains('open')) {
+      await cargarPendientes();
+      renderKpis();
+    }
+  }
+
   async function actualizarUbicacionesUnidades() {
-    // Solo hay algo que actualizar si hay al menos una ruta "en_ruta" con su mapa ya dibujado
+    // La lista/tag de pendientes se refresca siempre que corre el ciclo de 15s, sin importar si
+    // hay una ruta en_ruta con mapa dibujado (a diferencia de la ubicación GPS, que sí depende
+    // de eso) — por eso va antes del filtro de rutasActivas.
+    await refrescarEstadosEntregas();
+
+    // Solo hay algo más que actualizar (GPS/línea) si hay al menos una ruta "en_ruta" con su
+    // mapa ya dibujado
     var rutasActivas = _rutas.filter(function(r) { return r.estado === 'en_ruta' && _mapas[r.id]; });
     if (!rutasActivas.length) return;
 
@@ -1173,22 +1251,13 @@ var LR = (function() {
     });
   }
 
-  // Distancia en metros entre 2 puntos lat/lng (fórmula haversine)
-  function distMetros(a, b) {
-    var R = 6371000;
-    var dLat = (b.lat - a.lat) * Math.PI / 180;
-    var dLng = (b.lng - a.lng) * Math.PI / 180;
-    var s = Math.sin(dLat/2)*Math.sin(dLat/2)
-      + Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
-    return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
-  }
-
-  var RADIO_LLEGADA_M = 300; // qué tan cerca debe estar el camión de una parada para considerarla "llegada"
-
   // Con la ruta ya iniciada (en_ruta), en vez de pintar los ~20 tramos de un jalón, se traza
-  // solo la línea del camión (posición GPS en vivo) hacia la SIGUIENTE parada pendiente. Cuando
-  // el camión entra al radio de la parada actual, se avanza sola a la línea de la siguiente —
-  // así nunca hay más de 1 línea encima del mapa mientras la ruta está en curso.
+  // solo la línea del camión (posición GPS en vivo) hacia la SIGUIENTE parada pendiente. El
+  // destino es siempre la primera parada pendiente en orden de secuencia — avanza sola cuando
+  // el backend marca la anterior como 'entregado' (QR post-entrega o botón manual del chofer,
+  // ver marcarEntregaComoEntregada en api/rutas_lib.php), no por cercanía GPS (antes usaba un
+  // radio de 300m — quitado porque el chofer ahora escanea AL ENTREGAR, no al salir, así que
+  // la llegada real ya la reporta el propio backend en vez de inferirla por proximidad).
   function actualizarLineaSiguiente(ruta, inst, truckPos) {
     if (ruta.estado !== 'en_ruta' || !inst.pinPos) return;
 
@@ -1198,18 +1267,7 @@ var LR = (function() {
       return;
     }
 
-    if (inst.destinoIdx == null) inst.destinoIdx = 0;
-    if (inst.destinoIdx >= pendientes.length) inst.destinoIdx = pendientes.length - 1;
-
-    // ¿Ya llegó a la parada actual? Avanza a la siguiente (puede saltar varias si el GPS
-    // solo actualiza cada 15s y el camión ya pasó de largo por más de una).
-    var destino = pendientes[inst.destinoIdx];
-    while (destino && inst.pinPos[destino.id] && distMetros(truckPos, inst.pinPos[destino.id]) <= RADIO_LLEGADA_M
-           && inst.destinoIdx < pendientes.length - 1) {
-      inst.destinoIdx++;
-      destino = pendientes[inst.destinoIdx];
-    }
-
+    var destino = pendientes[0];
     var destinoPos = destino && inst.pinPos[destino.id];
     if (!destinoPos) return; // aún no se geocodificó ese punto
 
@@ -1385,6 +1443,8 @@ var LR = (function() {
   // Refresco de ubicación en vivo — cada 15s, en línea con el cache de ~12s del backend (api/gps_lib.php)
   setInterval(tickGpsPolling, GPS_INTERVALO_MS);
   setInterval(tickGpsTimerDisplay, 1000);
+  // Recalculo automático de tiempo estimado — cada 4 min, ya no hay botón manual
+  setInterval(tickEtaAutomatico, ETA_INTERVALO_MS);
 
   return {
     setFecha:setFecha, irHoy:irHoy, cambiarDia:cambiarDia,
@@ -1392,7 +1452,6 @@ var LR = (function() {
     abrirModalAsignar:abrirModalAsignar, cerrarModalAsignar:cerrarModalAsignar, guardarAsignacion:guardarAsignacion,
     abrirEditDir:abrirEditDir, cerrarEditDir:cerrarEditDir, guardarEditDir:guardarEditDir,
     mover:mover, quitar:quitar, eliminarRuta:eliminarRuta, finalizarRuta:finalizarRuta, planificar:planificar,
-    recalcularEta:recalcularEta,
     dibujarPines:dibujarPines,
     initAutocomplete:initAutocomplete, renderTramos:renderTramos,
     actualizarContPiezas:actualizarContPiezas, toggleTodasPiezas:toggleTodasPiezas,

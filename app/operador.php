@@ -773,8 +773,8 @@ function extraerSalida(raw) {
   return null;
 }
 
-// QR de la hoja de ruta (app/imprimir_ruta.php) — escaneado por el chofer al SALIR hacia
-// cada cliente. Ver api/salidas.php accion=scan_qr_ruta.
+// QR de la hoja de ruta (app/imprimir_ruta.php) — escaneado por el chofer al ENTREGAR en casa
+// de cada cliente (ya no al salir hacia allá). Ver api/salidas.php accion=scan_qr_ruta.
 function extraerRuta(raw) {
   try {
     const url = new URL(raw);
@@ -1262,9 +1262,10 @@ async function loadSalida(ordenId) {
   }
 }
 
-// ── QR de la hoja de ruta (chofer, salida hacia el cliente) ────────────────
+// ── QR de la hoja de ruta (chofer, confirmación de entrega) ────────────────
 // El chofer escanea el QR de la hoja de ruta (imprimir_ruta.php, una sección por parada)
-// al salir de la planta hacia el punto A, y de nuevo al salir del punto A hacia el punto B.
+// al ENTREGAR el pedido en casa del cliente — ya no al salir hacia allá. Mismo efecto que el
+// botón manual "Entregado" del chofer en Logística Rutas.
 async function loadSalidaRuta(ordenId) {
   try {
     const r = await fetch(API + 'salidas.php?accion=scan_qr_ruta', {
@@ -1276,14 +1277,14 @@ async function loadSalidaRuta(ordenId) {
     if (d.error) { showFeedback('err', '❌', 'Error', d.error); return; }
 
     if (d.ya_escaneado) {
-      showFeedback('ok', '⏱', 'Ya escaneado', 'A las ' + d.hora);
+      showFeedback('ok', '⏱', 'Ya registrada', 'Esta orden ya estaba marcada como entregada');
       return;
     }
 
-    if (d.tipo === 'en_ruta') {
-      showFeedback('ok', '🚚', 'En ruta — ' + d.folio, d.wa_cliente ? 'Cliente y asesor notificados' : 'Cliente sin WhatsApp registrado');
+    if (d.ruta_completada) {
+      showFeedback('ok', '🏁', '¡Ruta completada! — ' + d.folio, 'Última entrega de la ruta');
     } else {
-      showFeedback('ok', '⏭️', 'Siguiente entrega — ' + d.folio, d.wa_cliente ? 'Cliente y asesor notificados' : 'Cliente sin WhatsApp registrado');
+      showFeedback('ok', '✅', 'Entrega confirmada — ' + d.folio, 'Siguiente parada notificada');
     }
   } catch(e) {
     toast('Error de conexión', 'error');
