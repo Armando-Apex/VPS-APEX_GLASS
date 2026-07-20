@@ -365,12 +365,12 @@ $stmtF = $pdo->prepare("
     SELECT
         COALESCE(SUM(c.total), 0)                                              AS ventas,
         COALESCE(SUM(c.saldo_pagado), 0)                                       AS cobrado,
-        COALESCE(SUM(COALESCE(c.total,0) - COALESCE(c.saldo_pagado,0)), 0)     AS por_cobrar,
+        COALESCE(SUM(GREATEST(COALESCE(c.total,0) - COALESCE(c.saldo_pagado,0), 0)), 0) AS por_cobrar,
         AVG(CASE WHEN COALESCE(c.total,0) > 0 THEN c.total ELSE NULL END)      AS ticket_promedio
     FROM ordenes o
     JOIN cotizaciones c ON c.orden_id = o.id
-    WHERE o.estado != 'cancelada'
-      AND c.estatus != 'cancelada'
+    WHERE o.estado NOT IN ('cancelada', 'rechazada')
+      AND c.estatus NOT IN ('cancelada', 'rechazada')
       AND LEFT(o.folio, 1) >= 'S'
       AND (o.fecha_pedido BETWEEN ? AND ?
            OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))

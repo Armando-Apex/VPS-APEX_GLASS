@@ -5,6 +5,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
+require_once __DIR__ . '/helpers/totales.php'; // A-2
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -141,8 +142,8 @@ if ($method === 'GET') {
             FROM cotizaciones c
             JOIN ordenes o ON o.id = c.orden_id
             WHERE c.orden_id IS NOT NULL
-              AND o.estado != 'cancelada'
-              AND c.estatus != 'cancelada'
+              AND o.estado NOT IN ('cancelada', 'rechazada')
+              AND c.estatus NOT IN ('cancelada', 'rechazada')
             ORDER BY
                 CASE COALESCE(c.estatus_pago,'pendiente')
                     WHEN 'pendiente' THEN 0
@@ -173,12 +174,59 @@ if ($method === 'POST') {
     if ($accion === 'actualizar_estatus_pago') {
         $cot_id       = (int)($body['cotizacion_id'] ?? 0);
         $estatus_pago = $body['estatus_pago'] ?? '';
+        $nota         = trim($body['nota'] ?? '');
         $validos      = ['pendiente', 'en_proceso', 'pago_entrega', 'pagado'];
         if (!$cot_id || !in_array($estatus_pago, $validos)) {
             jsonResponse(['error' => 'Datos inválidos']); exit;
         }
-        $db->prepare("UPDATE cotizaciones SET estatus_pago = ?, updated_at = NOW() WHERE id = ?")
-           ->execute([$estatus_pago, $cot_id]);
+
+        // C-11: evidencia de pagos (recalculada en servidor) o override de dir_admin;
+        // TODO cambio queda en bitácora (quién/cuándo/valor anterior).
+        $stmtC = $db->prepare("SELECT folio, estatus_pago, COALESCE(saldo_pagado,0) AS saldo_pagado
+                               FROM cotizaciones WHERE id = ?");
+        $stmtC->execute([$cot_id]);
+        $cotPago = $stmtC->fetch(PDO::FETCH_ASSOC);
+        if (!$cotPago) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
+
+        $totales   = apexTotalesCotizacion($db, $cot_id);
+        $pagado    = (float)$cotPago['saldo_pagado'];
+        $cubierto  = $totales['total'] > 0 && $pagado >= $totales['total'] - 0.99;
+        $es_dir    = in_array($rol, ['dir_admin', 'desarrollo']);
+
+        // 'pagado' manual exige que los pagos registrados cubran el total canónico…
+        if ($estatus_pago === 'pagado' && !$cubierto) {
+            if (!$es_dir) {
+                jsonResponse(['error' => 'No se puede marcar Pagado: hay $' . number_format($pagado, 2)
+                    . ' cobrados de $' . number_format($totales['total'], 2)
+                    . '. Registra el pago faltante primero.']); exit;
+            }
+            // …salvo override de dir_admin, que exige motivo y queda en bitácora.
+            if (!$nota) {
+                jsonResponse(['error' => 'Para marcar Pagado sin cubrir el total debes indicar el motivo (override dir_admin).']); exit;
+            }
+        }
+
+        $db->beginTransaction();
+        try {
+            $db->prepare("UPDATE cotizaciones SET estatus_pago = ?, updated_at = NOW() WHERE id = ?")
+               ->execute([$estatus_pago, $cot_id]);
+
+            // Bitácora — misma tabla que correcciones: quién autorizó la salida sin cobrar
+            $db->prepare("INSERT INTO correcciones_log
+                (tipo, referencia_id, folio, campo, valor_anterior, valor_nuevo, motivo, usuario)
+                VALUES ('cotizacion', ?, ?, 'estatus_pago', ?, ?, ?, ?)")
+               ->execute([
+                   $cot_id, $cotPago['folio'], $cotPago['estatus_pago'], $estatus_pago,
+                   $nota !== '' ? $nota
+                                : 'Cobrado $' . number_format($pagado, 2) . ' de $' . number_format($totales['total'], 2),
+                   $usuario_nombre
+               ]);
+
+            $db->commit();
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => $e->getMessage()]);
+        }
         jsonResponse(['ok' => true, 'estatus_pago' => $estatus_pago]); exit;
     }
 
@@ -197,6 +245,20 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Forma de pago inválida']); exit;
         }
 
+        // A-10: fecha_pago validada en servidor — sin backdating que altere
+        // cortes ya cerrados ni fechas futuras que descuadren "cobrado".
+        $dtFecha = DateTime::createFromFormat('Y-m-d', $fecha);
+        if (!$dtFecha || $dtFecha->format('Y-m-d') !== $fecha) {
+            jsonResponse(['error' => 'fecha_pago inválida (formato AAAA-MM-DD)']); exit;
+        }
+        if ($fecha > date('Y-m-d')) {
+            jsonResponse(['error' => 'fecha_pago no puede ser futura']); exit;
+        }
+        $minFecha = date('Y-m-d', strtotime('first day of last month'));
+        if ($fecha < $minFecha) {
+            jsonResponse(['error' => 'fecha_pago demasiado antigua (mínimo ' . $minFecha . '): alteraría cortes ya cerrados. Registra con fecha actual y anota la fecha real en notas.']); exit;
+        }
+
         // Anti-doble-clic: mismo pago (cotización+monto+forma) registrado hace <8s = envío duplicado
         $stmt_dup = $db->prepare("SELECT id FROM cotizacion_pagos
             WHERE cotizacion_id = ? AND monto = ? AND forma_pago = ?
@@ -208,25 +270,35 @@ if ($method === 'POST') {
 
         $db->beginTransaction();
         try {
-            // Calcular total y saldo pendiente ANTES de aplicar el pago
-            $stmt_pre = $db->prepare("SELECT COALESCE(saldo_pagado,0) as saldo_pagado, descuento, servicios_subtotal, tipo, total,
+            // Calcular total y saldo pendiente ANTES de aplicar el pago.
+            // A-10: FOR UPDATE — dos pagos concurrentes no pueden leer el mismo saldo;
+            // y no se aceptan pagos sobre cotizaciones canceladas/rechazadas.
+            $stmt_pre = $db->prepare("SELECT COALESCE(saldo_pagado,0) as saldo_pagado, descuento, servicios_subtotal, tipo, total, estatus,
                 COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id = c.id),0) AS bruto_partidas,
                 cliente_id
-                FROM cotizaciones c WHERE c.id = ?");
+                FROM cotizaciones c WHERE c.id = ? FOR UPDATE");
             $stmt_pre->execute([$cot_id]);
             $pre = $stmt_pre->fetch(PDO::FETCH_ASSOC);
             if (!$pre) throw new Exception('Cotización no encontrada');
+            if (in_array($pre['estatus'], ['cancelada', 'rechazada'])) {
+                throw new Exception('No se pueden registrar pagos en una cotización ' . $pre['estatus']);
+            }
 
+            // A-2: fórmula canónica única (maquila: c.total ya es canónico tras C-5)
             $total_real      = ($pre['tipo'] === 'maquila')
                 ? round((float)$pre['total'], 2)
-                : round(((float)$pre['bruto_partidas'] * (1 - (float)$pre['descuento']/100) + (float)$pre['servicios_subtotal']) * 1.16, 2);
+                : apexTotales((float)$pre['bruto_partidas'], (float)$pre['descuento'], (float)$pre['servicios_subtotal'])['total'];
             $saldo_pendiente = round(max(0, $total_real - (float)$pre['saldo_pagado']), 2);
+            if ($saldo_pendiente <= 0.01) {
+                throw new Exception('La cotización ya está liquidada — registra el excedente como depósito en Saldo a Favor');
+            }
             $excedente       = round($monto - $saldo_pendiente, 2);
 
-            // Si hay excedente > $5 solo registramos lo necesario para saldar; el resto va a saldo a favor
-            // Si excedente <= $5 se absorbe (redondeo / diferencia de centavos)
-            $monto_aplicar = ($excedente > 5.00) ? $saldo_pendiente : $monto;
-            $depositar_favor = ($excedente > 5.00) ? $excedente : 0.0;
+            // A-10: TODO excedente real (> $0.01 de tolerancia de redondeo) va a una
+            // cuenta explícita (saldo a favor). Nada se "absorbe": saldo_pagado
+            // nunca queda por encima del total y por_cobrar nunca se subestima.
+            $monto_aplicar = ($excedente > 0.01) ? $saldo_pendiente : $monto;
+            $depositar_favor = ($excedente > 0.01) ? $excedente : 0.0;
 
             // Insertar pago (por el monto que realmente se aplica a la orden)
             $db->prepare("INSERT INTO cotizacion_pagos
@@ -288,9 +360,10 @@ if ($method === 'POST') {
                 FROM cotizaciones c WHERE c.id = ?");
             $stmt->execute([$cot_id]);
             $cot = $stmt->fetch(PDO::FETCH_ASSOC);
+            // A-2: fórmula canónica única (maquila: c.total ya es canónico tras C-5)
             $total_real = ($cot['tipo'] === 'maquila')
                 ? round((float)$cot['total'], 2)
-                : round(((float)$cot['bruto_partidas'] * (1 - (float)$cot['descuento']/100) + (float)$cot['servicios_subtotal']) * 1.16, 2);
+                : apexTotales((float)$cot['bruto_partidas'], (float)$cot['descuento'], (float)$cot['servicios_subtotal'])['total'];
 
             // Marcar como pagado automáticamente si el saldo cubre el total (tolerancia $0.99)
             if ($total_real > 0 && ($total_real - (float)$cot['saldo_pagado']) <= 0.99) {
@@ -336,6 +409,49 @@ if ($method === 'PUT') {
             $fecha_entrega = calcularFechaVobo($db, $orden['localidad'] ?? 'LOCAL', $orden['ciudad_destino'] ?? '');
         }
 
+        // C-12: fecha de entrega válida y no pasada
+        $dtFecha = DateTime::createFromFormat('Y-m-d', $fecha_entrega);
+        if (!$dtFecha || $dtFecha->format('Y-m-d') !== $fecha_entrega) {
+            jsonResponse(['error' => 'Fecha de entrega inválida']); exit;
+        }
+        if ($fecha_entrega < date('Y-m-d')) {
+            jsonResponse(['error' => 'La fecha de entrega no puede ser anterior a hoy']); exit;
+        }
+
+        // C-12: condiciones de pago — sin anticipo no hay producción.
+        // condicion_pago: 'anticipo' = 50% del total; 'pago_total' = 100%.
+        $vobo_override = false;
+        if ($orden['cot_id']) {
+            $stmtCP = $db->prepare("SELECT condicion_pago, COALESCE(saldo_pagado,0) AS saldo_pagado, folio
+                                    FROM cotizaciones WHERE id = ?");
+            $stmtCP->execute([$orden['cot_id']]);
+            $cp = $stmtCP->fetch(PDO::FETCH_ASSOC);
+
+            $totalesCot    = apexTotalesCotizacion($db, $orden['cot_id']);
+            $totalCot      = $totalesCot['total'];
+            $anticipo_req  = ($cp['condicion_pago'] === 'pago_total')
+                ? $totalCot
+                : round($totalCot * 0.5, 2);
+            $pagado        = (float)$cp['saldo_pagado'];
+
+            if ($pagado + 0.99 < $anticipo_req) {
+                // Override auditado: solo dir_admin, con forzar_vobo=1 y nota_vobo obligatoria
+                $forzar   = !empty($body['forzar_vobo']) && in_array($rol, ['dir_admin', 'desarrollo']);
+                $notaOv   = trim($body['nota_vobo'] ?? '');
+                $pctTxt   = ($cp['condicion_pago'] === 'pago_total') ? '100%' : '50%';
+                if (!$forzar) {
+                    jsonResponse(['error' => 'Anticipo insuficiente para VoBo: la condición es ' . $pctTxt
+                        . ' ($' . number_format($anticipo_req, 2) . ' de $' . number_format($totalCot, 2)
+                        . ') y solo hay $' . number_format($pagado, 2)
+                        . ' cobrados. Registra el pago o pide a dir_admin el override.']); exit;
+                }
+                if (!$notaOv) {
+                    jsonResponse(['error' => 'El override de VoBo requiere nota_vobo con el motivo.']); exit;
+                }
+                $vobo_override = true;
+            }
+        }
+
         $db->beginTransaction();
         try {
             // Activar orden y fijar fecha de entrega real
@@ -354,6 +470,18 @@ if ($method === 'PUT') {
                     updated_at = NOW()
                     WHERE id = ?
                 ")->execute([$usuario_nombre, $orden['cot_id']]);
+
+                // C-12: override de anticipo — bitácora con quién y por qué
+                if ($vobo_override) {
+                    $db->prepare("INSERT INTO correcciones_log
+                        (tipo, referencia_id, folio, campo, valor_anterior, valor_nuevo, motivo, usuario)
+                        VALUES ('cotizacion', ?, ?, 'vobo_sin_anticipo', ?, 'OVERRIDE', ?, ?)")
+                       ->execute([
+                           $orden['cot_id'], $cp['folio'],
+                           'Cobrado $' . number_format($pagado, 2) . ' de anticipo requerido $' . number_format($anticipo_req, 2),
+                           $notaOv, $usuario_nombre
+                       ]);
+                }
             }
 
             $db->commit();

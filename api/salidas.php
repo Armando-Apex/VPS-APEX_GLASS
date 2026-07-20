@@ -6,6 +6,7 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/permisos.php';
 require_once __DIR__ . '/wa_helper.php';
 require_once __DIR__ . '/rutas_lib.php';
+require_once __DIR__ . '/helpers/totales.php'; // A-2/A-8
 
 requireSessionApi();
 requirePermisoApi('registrar_entrega');
@@ -60,6 +61,27 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
     $stmtCv->execute([$cotizacion_id, $orden_id]);
     if (!$stmtCv->fetchColumn()) {
         jsonResponse(['error' => 'Cotización no corresponde a esta orden'], 400);
+    }
+
+    // A-8: barrera de cobro EN SERVIDOR (antes solo existía en el frontend).
+    // Sale la mercancía si: pago completo (total canónico), o Finanzas autorizó
+    // el estatus de pago (bitácora C-11), o dir_admin autorizó la entrega con adeudo.
+    $stmtPago = $db->prepare("SELECT estatus_pago, COALESCE(saldo_pagado,0) AS saldo_pagado,
+                                     entrega_bloqueada, entrega_autorizada_por
+                              FROM cotizaciones WHERE id = ?");
+    $stmtPago->execute([$cotizacion_id]);
+    $cotPago     = $stmtPago->fetch(PDO::FETCH_ASSOC);
+    $totalesCot  = apexTotalesCotizacion($db, $cotizacion_id);
+    $totalCot    = $totalesCot ? $totalesCot['total'] : 0.0;
+    $pagadoCot   = (float)$cotPago['saldo_pagado'];
+
+    $pagoCompleto = $totalCot > 0 && $pagadoCot >= $totalCot - 0.99;
+    $autorizada   = in_array($cotPago['estatus_pago'], ['en_proceso', 'pago_entrega', 'pagado'], true)
+                    || ((int)$cotPago['entrega_bloqueada'] === 0 && !empty($cotPago['entrega_autorizada_por']));
+    if (!$pagoCompleto && !$autorizada) {
+        jsonResponse(['error' => 'Salida bloqueada: faltan $' . number_format(max(0, $totalCot - $pagadoCot), 2)
+            . ' por cobrar. Finanzas debe registrar el pago o autorizar el estatus de pago.'], 422);
+        exit;
     }
 
     // Validar que las piezas sean terminadas y de esta orden

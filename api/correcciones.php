@@ -7,6 +7,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
+require_once __DIR__ . '/helpers/totales.php'; // A-2/C-5: fórmula canónica, ramifica maquila
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: https://apex.glass');
@@ -333,26 +334,25 @@ if ($method === 'POST') {
             }
         }
 
-        // ── Recalcular totales de la cotización ───────────────────────────────
+        // ── Recalcular totales de la cotización (fórmula canónica A-2) ────────
         if ($cambios > 0 || $cambio_descuento !== null) {
-            $st = $db->prepare("
-                SELECT SUM(subtotal) AS sub, SUM(iva) AS iva_sum, SUM(total) AS tot
-                FROM cotizaciones_partidas WHERE cotizacion_id = ?
-            ");
-            $st->execute([$cot_id]);
-            $tots = $st->fetch(PDO::FETCH_ASSOC);
+            // C-5: ramificar por tipo — la maquila guarda sus partidas en
+            // cotizaciones_maquila_partidas (cotizaciones_partidas está VACÍA para
+            // ella y el SUM anterior dejaba el total en $0.00, anulando la deuda).
+            // El helper también incluye servicios_subtotal en el total.
+            $tots = apexTotalesCotizacion($db, $cot_id);
 
-            $nuevo_total     = round((float)$tots['tot'], 2);
+            $nuevo_total     = $tots['total'];
             $saldo_pagado    = (float)$cot['saldo_pagado'];
-            $nuevo_pendiente = max(0, $nuevo_total - $saldo_pagado);
+            $nuevo_pendiente = max(0, round($nuevo_total - $saldo_pagado, 2));
 
             $db->prepare("
                 UPDATE cotizaciones
                 SET subtotal = ?, iva = ?, total = ?, saldo_pendiente = ?, updated_at = NOW()
                 WHERE id = ?
             ")->execute([
-                round((float)$tots['sub'], 2),
-                round((float)$tots['iva_sum'], 2),
+                $tots['subtotal'],
+                $tots['iva'],
                 $nuevo_total, $nuevo_pendiente, $cot_id,
             ]);
         }

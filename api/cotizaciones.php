@@ -19,6 +19,7 @@ $puede_editar = in_array($rol, ['dir_admin', 'dueno', 'comercial', 'desarrollo']
 $es_admin     = in_array($rol, ['dir_admin', 'dueno', 'desarrollo']);
 
 require_once 'cotizacion_helpers.php';
+require_once __DIR__ . '/helpers/totales.php'; // A-2: fórmula canónica de totales
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
 if ($method === 'GET') {
@@ -41,13 +42,12 @@ if ($method === 'GET') {
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { jsonResponse(['error' => 'No encontrada']); exit; }
 
-        // Recalcular total desde partidas (c.subtotal puede ser bruto o neto según antigüedad del registro)
-        $stBruto = $db->prepare("SELECT COALESCE(SUM(precio_m2_usado*m2*cantidad),0) FROM cotizaciones_partidas WHERE cotizacion_id=?");
-        $stBruto->execute([$id]);
-        $bruto_partidas = (float)$stBruto->fetchColumn();
-        $subtotal_neto = round($bruto_partidas * (1 - (float)$cot['descuento']/100), 2);
-        $cot['total'] = round(($subtotal_neto + (float)$cot['servicios_subtotal']) * 1.16, 2);
-        $cot['saldo_pendiente'] = max(0, round($cot['total'] - (float)$cot['saldo_pagado'], 2));
+        // Recalcular total con la fórmula canónica (A-2) — ramifica suministro/maquila
+        $tots = apexTotalesCotizacion($db, $id);
+        if ($tots) {
+            $cot['total'] = $tots['total'];
+            $cot['saldo_pendiente'] = max(0, round($tots['total'] - (float)$cot['saldo_pagado'], 2));
+        }
 
         $stmt2 = $db->prepare("
             SELECT cp.*, cr.nombre as cristal_nombre_actual
@@ -160,13 +160,21 @@ if ($method === 'POST') {
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { jsonResponse(['error' => 'No encontrada']); exit; }
         if ($cot['estatus'] !== 'cotizacion') { jsonResponse(['error' => 'Solo se pueden convertir cotizaciones']); exit; }
+        // A-7: un asesor comercial solo convierte SUS cotizaciones
+        if ($rol === 'comercial' && (int)$cot['asesor_id'] !== (int)$usuario_id) {
+            jsonResponse(['error' => 'Solo el asesor dueño puede convertir esta cotización'], 403); exit;
+        }
 
         // Bloquear conversión si descuento > 10% sin autorización aprobada (excepto dir_admin)
         if ((float)$cot['descuento'] > 10 && !in_array($rol, ['dir_admin', 'desarrollo'])) {
-            $authStmt = $db->prepare("SELECT id FROM autorizaciones_descuento WHERE cotizacion_id = ? AND estatus = 'aprobado' LIMIT 1");
-            $authStmt->execute([$id]);
+            // C-2: la aprobación debe CUBRIR el % actual — una aprobación vieja de
+            // menor % ya no ampara el descuento editado después.
+            $authStmt = $db->prepare("SELECT id FROM autorizaciones_descuento
+                WHERE cotizacion_id = ? AND estatus = 'aprobado' AND descuento >= ?
+                LIMIT 1");
+            $authStmt->execute([$id, (float)$cot['descuento']]);
             if (!$authStmt->fetch()) {
-                jsonResponse(['error' => 'El descuento del ' . $cot['descuento'] . '% requiere autorización de Dirección. Solicita la autorización antes de convertir a orden.']); exit;
+                jsonResponse(['error' => 'El descuento del ' . $cot['descuento'] . '% requiere una autorización de Dirección de ' . $cot['descuento'] . '% o más. Solicita la autorización antes de convertir a orden.']); exit;
             }
         }
 
@@ -352,6 +360,11 @@ if ($method === 'POST') {
             $db->prepare("UPDATE cotizaciones SET servicios_subtotal = ?, updated_at = NOW() WHERE id = ?")
                ->execute([$srv_total, $cot_id]);
 
+            // A-2: c.total incluye servicios — recalcular con la fórmula canónica
+            $tots = apexTotalesCotizacion($db, $cot_id);
+            $db->prepare("UPDATE cotizaciones SET subtotal = ?, iva = ?, total = ? WHERE id = ?")
+               ->execute([$tots['subtotal'], $tots['iva'], $tots['total'], $cot_id]);
+
             $db->commit();
             jsonResponse(['ok' => true, 'servicios_subtotal' => $srv_total, 'nuevo_servicio' => [
                 'id' => (int)$db->lastInsertId(), 'descripcion' => $srv['nombre'],
@@ -381,6 +394,11 @@ if ($method === 'POST') {
             $srv_total = (float)$st->fetchColumn();
             $db->prepare("UPDATE cotizaciones SET servicios_subtotal = ?, updated_at = NOW() WHERE id = ?")
                ->execute([$srv_total, $cot_id]);
+
+            // A-2: c.total incluye servicios — recalcular con la fórmula canónica
+            $tots = apexTotalesCotizacion($db, $cot_id);
+            $db->prepare("UPDATE cotizaciones SET subtotal = ?, iva = ?, total = ? WHERE id = ?")
+               ->execute([$tots['subtotal'], $tots['iva'], $tots['total'], $cot_id]);
 
             $db->commit();
             jsonResponse(['ok' => true, 'servicios_subtotal' => $srv_total]);
@@ -422,6 +440,7 @@ if ($method === 'POST') {
 
     // Calcular totales
     $subtotal_total = 0;
+    $bruto_total    = 0; // A-2: bruto SIN descuento para la fórmula canónica
     $partidas_data  = [];
 
     foreach ($partidas as $p) {
@@ -444,6 +463,7 @@ if ($method === 'POST') {
         $iva            = round($subtotal * 0.16, 2);
         $total_p        = round($subtotal + $iva, 2);
         $subtotal_total += $subtotal;
+        $bruto_total    += $m2 * $precio_m2 * $cantidad; // A-2: mismo bruto que recalcula la BD
 
         $partidas_data[] = [
             'cristal_id'           => $cristal_id,
@@ -470,9 +490,13 @@ if ($method === 'POST') {
 
     if (empty($partidas_data)) { jsonResponse(['error' => 'Ninguna partida válida']); exit; }
 
-    $iva_total   = round($subtotal_total * 0.16, 2);
-    $total_final = round($subtotal_total + $iva_total, 2);
-    $saldo       = ($condicion === 'anticipo') ? round($total_final * 0.5, 2) : $total_final;
+    // A-2: totales de encabezado con la fórmula canónica
+    // (los subtotales por renglón se conservan solo para despliegue)
+    $tots          = apexTotales($bruto_total, $descuento, 0); // al crear aún no hay servicios
+    $subtotal_neto = $tots['subtotal'];
+    $iva_total     = $tots['iva'];
+    $total_final   = $tots['total'];
+    $saldo         = ($condicion === 'anticipo') ? round($total_final * 0.5, 2) : $total_final;
 
     // Generar folio ANTES de la transacción (LOCK TABLES no es compatible con transacciones)
     $folio = generarFolio($db);
@@ -491,7 +515,7 @@ if ($method === 'POST') {
             $usuario_id, $usuario_nombre,
             $proyecto, $descuento, $credito, $condicion, $tipo_entrega,
             $localidad, $ciudad, $factura_tipo, $fecha_entrega, $es_manual,
-            $alerta, $subtotal_total, $iva_total, $total_final,
+            $alerta, $subtotal_neto, $iva_total, $total_final,
             $saldo,
             0,
             'cotizacion'
@@ -549,11 +573,15 @@ if ($method === 'PUT') {
         if (!$puede_editar) { jsonResponse(['error' => 'Sin permiso']); exit; }
 
         // Verificar que existe y está en estatus cotizacion
-        $stmt = $db->prepare("SELECT estatus FROM cotizaciones WHERE id = ?");
+        $stmt = $db->prepare("SELECT estatus, asesor_id FROM cotizaciones WHERE id = ?");
         $stmt->execute([$id]);
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
         if ($cot['estatus'] !== 'cotizacion') { jsonResponse(['error' => 'Solo se pueden editar cotizaciones (no órdenes)']); exit; }
+        // A-7: un asesor comercial solo edita SUS cotizaciones (admin roles exentos)
+        if ($rol === 'comercial' && (int)$cot['asesor_id'] !== (int)$usuario_id) {
+            jsonResponse(['error' => 'Solo el asesor dueño puede editar esta cotización'], 403); exit;
+        }
 
         $cliente_id   = (int)($body['cliente_id']    ?? 0);
         $proyecto     = trim($body['proyecto']        ?? '');
@@ -582,8 +610,19 @@ if ($method === 'PUT') {
         $fecha_entrega = $fecha_entrega_manual ?: calcularFechaEntrega($db, date('Y-m-d'), $localidad, $ciudad);
         $es_manual     = $fecha_entrega_manual ? 1 : 0;
 
+        // C-3: precios vigentes leídos de BD — NUNCA del body.
+        // Mapa "num_partida|cristal_id" → precio_m2_usado actual de la cotización.
+        $stmtPrev = $db->prepare("SELECT num_partida, cristal_id, precio_m2_usado
+                                  FROM cotizaciones_partidas WHERE cotizacion_id = ?");
+        $stmtPrev->execute([$id]);
+        $preciosVigentes = [];
+        foreach ($stmtPrev->fetchAll(PDO::FETCH_ASSOC) as $pv) {
+            $preciosVigentes[$pv['num_partida'] . '|' . $pv['cristal_id']] = (float)$pv['precio_m2_usado'];
+        }
+
         // Calcular totales y validar partidas
         $subtotal_total = 0;
+        $bruto_total    = 0; // A-2
         $partidas_data  = [];
 
         foreach ($partidas as $p) {
@@ -600,17 +639,19 @@ if ($method === 'PUT') {
 
             $m2 = round(($ancho / 1000) * ($alto / 1000), 6);
 
-            // Respetar el precio original de la cotización; solo usar catálogo si es partida nueva (sin precio previo)
-            $precio_m2_enviado = isset($p['precio_m2_usado']) && (float)$p['precio_m2_usado'] > 0
-                ? (float)$p['precio_m2_usado']
-                : null;
-            $precio_m2    = $precio_m2_enviado ?? (float)$cristal['precio_m2'];
+            // C-3: el precio lo decide el servidor. Se conserva el precio vigente en BD
+            // si el renglón ya existía (misma posición y mismo cristal — protege precios
+            // históricos cuando el catálogo sube); partida nueva o cristal distinto → catálogo.
+            // Los cambios de precio solo se hacen vía api/correcciones.php (auditado, dir_admin).
+            $precio_m2 = $preciosVigentes[(count($partidas_data) + 1) . '|' . $cristal_id]
+                         ?? (float)$cristal['precio_m2'];
 
             $precio_unit  = round($m2 * $precio_m2 * (1 - $descuento / 100), 4);
             $subtotal     = round($precio_unit * $cantidad, 2);
             $iva          = round($subtotal * 0.16, 2);
             $total_p      = round($subtotal + $iva, 2);
             $subtotal_total += $subtotal;
+            $bruto_total    += $m2 * $precio_m2 * $cantidad; // A-2
 
             $partidas_data[] = [
                 'cristal_id'           => $cristal_id,
@@ -637,9 +678,23 @@ if ($method === 'PUT') {
 
         if (empty($partidas_data)) { jsonResponse(['error' => 'Ninguna partida válida']); exit; }
 
-        $iva_total   = round($subtotal_total * 0.16, 2);
-        $total_final = round($subtotal_total + $iva_total, 2);
-        $saldo       = ($condicion === 'anticipo') ? round($total_final * 0.5, 2) : $total_final;
+        // A-2: estimar los servicios que sobreviven la edición (se preservan por
+        // num_partida más abajo) para que el total ya los incluya desde el UPDATE.
+        $stSrvEst = $db->prepare("
+            SELECT COALESCE(SUM(cps.subtotal),0)
+            FROM cotizacion_partida_servicios cps
+            JOIN cotizaciones_partidas cp ON cp.id = cps.partida_id
+            WHERE cps.cotizacion_id = ? AND cp.num_partida <= ?
+        ");
+        $stSrvEst->execute([$id, count($partidas_data)]);
+        $servicios_estimados = (float)$stSrvEst->fetchColumn();
+
+        // A-2: fórmula canónica — c.total incluye servicios
+        $tots          = apexTotales($bruto_total, $descuento, $servicios_estimados);
+        $subtotal_neto = $tots['subtotal'];
+        $iva_total     = $tots['iva'];
+        $total_final   = $tots['total'];
+        $saldo         = ($condicion === 'anticipo') ? round($total_final * 0.5, 2) : $total_final;
 
         $db->beginTransaction();
         try {
@@ -655,7 +710,7 @@ if ($method === 'PUT') {
                 $cliente_id, $cliente_nombre, $proyecto, $descuento,
                 $credito, $condicion, $tipo_entrega, $localidad,
                 $ciudad, $factura_tipo, $fecha_entrega, $es_manual,
-                $alerta, $subtotal_total, $iva_total, $total_final, $saldo,
+                $alerta, $subtotal_neto, $iva_total, $total_final, $saldo,
                 $id
             ]);
 
@@ -720,6 +775,19 @@ if ($method === 'PUT') {
 
             $db->commit();
 
+            // C-2: invalidar aprobaciones previas cuyo % ya no coincide con el actual.
+            // Una aprobación ampara únicamente el descuento exacto que se autorizó.
+            // (Se marca 'rechazado' con nota para conservar la traza en el historial.)
+            $db->prepare("UPDATE autorizaciones_descuento
+                SET estatus = 'rechazado',
+                    nota_resolucion = ?,
+                    fecha_resolucion = NOW()
+                WHERE cotizacion_id = ? AND estatus = 'aprobado' AND descuento <> ?")
+               ->execute([
+                   'Invalidada automáticamente: el descuento cambió a ' . $descuento . '% — requiere nueva autorización',
+                   $id, $descuento
+               ]);
+
             // Gestionar autorización de descuento al actualizar
             if ($descuento > 10 && !in_array($rol, ['dir_admin', 'desarrollo'])) {
                 $motivo_auth = trim($body['motivo_descuento'] ?? '');
@@ -769,16 +837,90 @@ if ($method === 'PUT') {
     }
 
     if ($accion === 'actualizar_saldo') {
-        $saldo = (float)($body['saldo'] ?? 0);
+        // A-7: solo Finanzas/admin — un comercial no puede liquidar adeudos
+        // ni desbloquear entregas (mismos roles que api/finanzas.php).
+        if (!in_array($rol, ['administracion', 'dir_admin', 'dueno', 'desarrollo'])) {
+            jsonResponse(['error' => 'Solo Finanzas puede ajustar saldos'], 403); exit;
+        }
+
+        $stmtC = $db->prepare("SELECT folio, COALESCE(saldo_pagado,0) AS saldo_pagado, saldo_pendiente
+                               FROM cotizaciones WHERE id = ?");
+        $stmtC->execute([$id]);
+        $cot = $stmtC->fetch(PDO::FETCH_ASSOC);
+        if (!$cot) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
+
+        // A-7: el saldo se RECALCULA en servidor (total canónico − saldo_pagado);
+        // el valor del body ya no se acepta.
+        $totales   = apexTotalesCotizacion($db, $id);
+        $saldo     = max(0, round($totales['total'] - (float)$cot['saldo_pagado'], 2));
         $bloqueada = $saldo > 0 ? 1 : 0;
         $db->prepare("UPDATE cotizaciones SET saldo_pendiente=?, entrega_bloqueada=?, updated_at=NOW() WHERE id=?")
            ->execute([$saldo, $bloqueada, $id]);
-        jsonResponse(['ok' => true]); exit;
+
+        // Bitácora del ajuste (quién/cuándo/antes/después)
+        $db->prepare("INSERT INTO correcciones_log
+            (tipo, referencia_id, folio, campo, valor_anterior, valor_nuevo, motivo, usuario)
+            VALUES ('cotizacion', ?, ?, 'saldo_pendiente', ?, ?, ?, ?)")
+           ->execute([
+               $id, $cot['folio'],
+               (string)$cot['saldo_pendiente'], (string)$saldo,
+               'Recalculado: total $' . number_format($totales['total'], 2)
+                   . ' − pagado $' . number_format((float)$cot['saldo_pagado'], 2),
+               $usuario_nombre
+           ]);
+
+        jsonResponse(['ok' => true, 'saldo_pendiente' => $saldo, 'entrega_bloqueada' => $bloqueada]); exit;
     }
 
     if ($accion === 'cancelar') {
         if (!$es_admin) { jsonResponse(['error' => 'Solo dir_admin puede cancelar']); exit; }
-        $db->prepare("UPDATE cotizaciones SET estatus='cancelada', updated_at=NOW() WHERE id=?")->execute([$id]);
+
+        // A-8: cascada cotización ↔ orden + el dinero cobrado NO queda atrapado
+        $stmtC = $db->prepare("SELECT id, folio, orden_id, cliente_id, estatus, COALESCE(saldo_pagado,0) AS saldo_pagado
+                               FROM cotizaciones WHERE id = ?");
+        $stmtC->execute([$id]);
+        $cot = $stmtC->fetch(PDO::FETCH_ASSOC);
+        if (!$cot) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
+        if (in_array($cot['estatus'], ['cancelada', 'rechazada'])) {
+            jsonResponse(['error' => 'La cotización ya está ' . $cot['estatus']]); exit;
+        }
+        if ($cot['orden_id']) {
+            $stO = $db->prepare("SELECT estado FROM ordenes WHERE id = ?");
+            $stO->execute([$cot['orden_id']]);
+            if ($stO->fetchColumn() === 'entregada') {
+                jsonResponse(['error' => 'La orden ya fue entregada; no se puede cancelar (usa el flujo de rechazo/devolución)']); exit;
+            }
+        }
+
+        $db->beginTransaction();
+        try {
+            // Cancelar ambas puntas
+            $db->prepare("UPDATE cotizaciones SET estatus='cancelada', updated_at=NOW() WHERE id=?")->execute([$id]);
+            if ($cot['orden_id']) {
+                $db->prepare("UPDATE ordenes SET estado='cancelada', updated_at=NOW() WHERE id=? AND estado != 'entregada'")
+                   ->execute([$cot['orden_id']]);
+            }
+
+            // Dinero cobrado → saldo a favor del cliente (mismo flujo que 'rechazar')
+            $monto = (float)$cot['saldo_pagado'];
+            if ($monto > 0 && $cot['cliente_id']) {
+                $db->prepare("INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
+                              VALUES (?, 'deposito', ?, CURDATE(), ?, ?, ?, ?)")
+                   ->execute([
+                       $cot['cliente_id'], $monto,
+                       'Cancelación ' . $cot['folio'],
+                       'Saldo cobrado movido a favor por cancelación',
+                       $id, $usuario_nombre
+                   ]);
+                $db->prepare("UPDATE cotizaciones SET saldo_pagado=0, saldo_pendiente=0, estatus_pago='pendiente', updated_at=NOW() WHERE id=?")
+                   ->execute([$id]);
+            }
+
+            $db->commit();
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => $e->getMessage()]); exit;
+        }
         jsonResponse(['ok' => true]); exit;
     }
 
@@ -788,41 +930,57 @@ if ($method === 'PUT') {
         $motivo = trim($body['motivo'] ?? '');
         if (!$motivo) { jsonResponse(['error' => 'El motivo del rechazo es obligatorio']); exit; }
 
-        $stmtCot = $db->prepare("SELECT id, orden_id, cliente_id, saldo_pagado, folio FROM cotizaciones WHERE id = ?");
+        // C-13: se lee el estatus para no permitir doble rechazo
+        $stmtCot = $db->prepare("SELECT id, orden_id, cliente_id, saldo_pagado, folio, estatus FROM cotizaciones WHERE id = ?");
         $stmtCot->execute([$id]);
         $cot = $stmtCot->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
+        if ($cot['estatus'] === 'rechazada') { jsonResponse(['error' => 'Esta cotización ya fue rechazada — el saldo a favor ya se generó']); exit; }
+        if ($cot['estatus'] === 'cancelada')  { jsonResponse(['error' => 'La cotización está cancelada']); exit; }
         if (!$cot['orden_id']) { jsonResponse(['error' => 'Esta cotización no tiene una orden generada']); exit; }
 
         $montoDevuelto = (float)($cot['saldo_pagado'] ?? 0);
         $db->beginTransaction();
+        try {
+            // 1. Marcar orden y cotización como rechazadas.
+            //    C-13: UPDATE condicional + rowCount — un doble clic/reintento
+            //    concurrente no puede volver a ejecutar el flujo.
+            $db->prepare("UPDATE ordenes SET estado='rechazada', updated_at=NOW() WHERE id=?")
+               ->execute([$cot['orden_id']]);
+            $stUp = $db->prepare("UPDATE cotizaciones
+                                  SET estatus='rechazada', saldo_pagado=0, saldo_pendiente=0, updated_at=NOW()
+                                  WHERE id=? AND estatus NOT IN ('rechazada','cancelada')");
+            $stUp->execute([$id]);
+            if ($stUp->rowCount() === 0) {
+                throw new Exception('La cotización ya fue rechazada o cancelada por otro proceso');
+            }
 
-        // 1. Marcar orden y cotización como rechazadas
-        $db->prepare("UPDATE ordenes SET estado='rechazada', updated_at=NOW() WHERE id=?")
-           ->execute([$cot['orden_id']]);
-        $db->prepare("UPDATE cotizaciones SET estatus='rechazada', updated_at=NOW() WHERE id=?")
-           ->execute([$id]);
+            // 2. Insertar en bitácora de rechazos
+            $db->prepare("INSERT INTO rechazo_calidad (cotizacion_id, orden_id, cliente_id, motivo, monto_devuelto, registrado_por)
+                          VALUES (?, ?, ?, ?, ?, ?)")
+               ->execute([$id, $cot['orden_id'], $cot['cliente_id'], $motivo, $montoDevuelto, $user['nombre']]);
 
-        // 2. Insertar en bitácora de rechazos
-        $db->prepare("INSERT INTO rechazo_calidad (cotizacion_id, orden_id, cliente_id, motivo, monto_devuelto, registrado_por)
-                      VALUES (?, ?, ?, ?, ?, ?)")
-           ->execute([$id, $cot['orden_id'], $cot['cliente_id'], $motivo, $montoDevuelto, $user['nombre']]);
+            // 3. Mover saldo_pagado a saldo a favor del cliente (una sola vez:
+            //    el UPDATE de arriba ya puso saldo_pagado=0, por lo que el dinero
+            //    deja de contarse como "cobrado" en el mismo paso)
+            if ($montoDevuelto > 0) {
+                $db->prepare("INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
+                              VALUES (?, 'deposito', ?, CURDATE(), ?, ?, ?, ?)")
+                   ->execute([
+                       $cot['cliente_id'],
+                       $montoDevuelto,
+                       'Rechazo ' . $cot['folio'],
+                       'Rechazo por calidad: ' . mb_substr($motivo, 0, 150),
+                       $id,
+                       $user['nombre']
+                   ]);
+            }
 
-        // 3. Mover saldo_pagado a saldo a favor del cliente
-        if ($montoDevuelto > 0) {
-            $db->prepare("INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
-                          VALUES (?, 'deposito', ?, CURDATE(), ?, ?, ?, ?)")
-               ->execute([
-                   $cot['cliente_id'],
-                   $montoDevuelto,
-                   'Rechazo ' . $cot['folio'],
-                   'Rechazo por calidad: ' . mb_substr($motivo, 0, 150),
-                   $id,
-                   $user['nombre']
-               ]);
+            $db->commit();
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => $e->getMessage()]); exit;
         }
-
-        $db->commit();
         jsonResponse(['ok' => true, 'monto_devuelto' => $montoDevuelto]); exit;
     }
 

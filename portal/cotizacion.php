@@ -44,17 +44,20 @@ $stmtPart = $pdo->prepare("
 $stmtPart->execute([$cot['id']]);
 $partidas = $stmtPart->fetchAll(PDO::FETCH_ASSOC);
 
-// Totales — fórmula canónica
+// Totales — fórmula canónica (A-2): el descuento aplica SOLO a las partidas;
+// los servicios NO se descuentan; IVA 16% sobre (neto + servicios).
+require_once __DIR__ . '/../api/helpers/totales.php';
 $subtotal_partidas = 0;
 foreach ($partidas as $p) {
     $subtotal_partidas += (float)$p['precio_m2_usado'] * (float)$p['m2'] * (int)$p['cantidad'];
 }
 $servicios      = (float)($cot['servicios_subtotal'] ?? 0);
-$subtotal_bruto = $subtotal_partidas + $servicios;
 $descuento      = (float)$cot['descuento'];
-$subtotal_neto  = ($descuento > 0) ? round($subtotal_bruto * (1 - $descuento / 100), 2) : $subtotal_bruto;
-$iva            = round($subtotal_neto * 0.16, 2);
-$total          = round($subtotal_neto * 1.16, 2);
+$totales        = apexTotales($subtotal_partidas, $descuento, $servicios);
+$monto_desc     = round($subtotal_partidas * $descuento / 100, 2); // descuento solo de partidas
+$subtotal_neto  = $totales['base'];                                 // neto + servicios (base gravable)
+$iva            = $totales['iva'];
+$total          = $totales['total'];
 
 function fmt(float $n): string { return '$' . number_format($n, 2, '.', ','); }
 
@@ -375,7 +378,7 @@ td.num { font-variant-numeric:tabular-nums; }
     <?php if ($descuento > 0): ?>
     <div class="resumen-row">
       <span class="r-lbl">Descuento <?= number_format($descuento, 0) ?>%</span>
-      <span class="r-desc">-<?= fmt($subtotal_bruto * $descuento / 100) ?></span>
+      <span class="r-desc">-<?= fmt($monto_desc) ?></span>
     </div>
     <?php endif; ?>
     <?php if ($descuento > 0 || $servicios > 0): ?>

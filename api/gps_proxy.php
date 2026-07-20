@@ -12,7 +12,7 @@ require_once 'gps_lib.php';
 header('Content-Type: application/json; charset=utf-8');
 
 $user = requireSessionApi();
-if (!in_array($user['rol'], ['administracion','dir_admin','dueno','desarrollo'])) {
+if (!in_array($user['rol'], ['administracion','dir_admin','dueno','desarrollo','comercial'])) {
     jsonResponse(['error' => 'Sin permiso'], 403);
 }
 

@@ -5,6 +5,7 @@
 // ============================================================
 require_once __DIR__ . '/../api/config.php';
 require_once __DIR__ . '/../api/permisos.php';
+require_once __DIR__ . '/../api/helpers/totales.php'; // A-2/C-11
 requirePermiso('ver_ordenes');
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -26,10 +27,14 @@ if (!$c) die('No encontrada');
 
 $epago        = $c['estatus_pago'] ?? 'pendiente';
 $saldo_pagado = (float)($c['saldo_pagado'] ?? 0);
-$total_cot    = (float)($c['total'] ?? 0);
-$pago_completo = $total_cot > 0 && $saldo_pagado >= $total_cot;
+// C-11: el total se RECALCULA en servidor con la fórmula canónica (A-2) —
+// no se confía en c.total (podía estar en $0 por C-5 o sin servicios).
+$totales_cot  = apexTotalesCotizacion($db, $id);
+$total_cot    = $totales_cot ? $totales_cot['total'] : 0.0;
+$pago_completo = $total_cot > 0 && $saldo_pagado >= $total_cot - 0.99;
 if (!$pago_completo && !in_array($epago, ['en_proceso','pago_entrega','pagado'])) {
-    die('Esta orden aún no tiene autorización de salida. Lina debe actualizar el estatus de pago.');
+    die('Esta orden aún no tiene autorización de salida. Faltan $' . number_format(max(0, $total_cot - $saldo_pagado), 2)
+        . ' por cobrar o Finanzas debe actualizar el estatus de pago (queda en bitácora).');
 }
 
 $stmt2 = $db->prepare('

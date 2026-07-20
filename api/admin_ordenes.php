@@ -54,8 +54,48 @@ if ($method === 'POST') {
 
     // Cancelar
     if ($accion === 'cancelar') {
-        $stmt = $db->prepare("UPDATE ordenes SET estado='cancelada' WHERE folio=?");
-        $stmt->execute([$folio]);
+        // A-8: cascada — la cotización ligada y su dinero no quedan sueltos
+        $stmtO = $db->prepare("SELECT id, estado FROM ordenes WHERE folio=?");
+        $stmtO->execute([$folio]);
+        $orden = $stmtO->fetch(PDO::FETCH_ASSOC);
+        if (!$orden) jsonResponse(['error' => 'Orden no encontrada'], 404);
+        if ($orden['estado'] === 'entregada') {
+            jsonResponse(['error' => 'No se puede cancelar una orden entregada'], 422);
+        }
+
+        $db->beginTransaction();
+        try {
+            $db->prepare("UPDATE ordenes SET estado='cancelada', updated_at=NOW() WHERE id=? AND estado != 'entregada'")
+               ->execute([$orden['id']]);
+
+            // Cotización ligada: cancelar y mover lo cobrado a saldo a favor
+            $stmtC = $db->prepare("SELECT id, folio, cliente_id, COALESCE(saldo_pagado,0) AS saldo_pagado
+                                   FROM cotizaciones
+                                   WHERE orden_id = ? AND estatus NOT IN ('cancelada','rechazada')");
+            $stmtC->execute([$orden['id']]);
+            foreach ($stmtC->fetchAll(PDO::FETCH_ASSOC) as $cot) {
+                $db->prepare("UPDATE cotizaciones SET estatus='cancelada', updated_at=NOW() WHERE id=?")
+                   ->execute([$cot['id']]);
+                $monto = (float)$cot['saldo_pagado'];
+                if ($monto > 0 && $cot['cliente_id']) {
+                    $db->prepare("INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
+                                  VALUES (?, 'deposito', ?, CURDATE(), ?, ?, ?, ?)")
+                       ->execute([
+                           $cot['cliente_id'], $monto,
+                           'Cancelación ' . $folio,
+                           'Saldo cobrado movido a favor por cancelación de orden',
+                           $cot['id'], $user['nombre']
+                       ]);
+                    $db->prepare("UPDATE cotizaciones SET saldo_pagado=0, saldo_pendiente=0, estatus_pago='pendiente', updated_at=NOW() WHERE id=?")
+                       ->execute([$cot['id']]);
+                }
+            }
+
+            $db->commit();
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => $e->getMessage()], 500);
+        }
         jsonResponse(['ok' => true]);
     }
 
