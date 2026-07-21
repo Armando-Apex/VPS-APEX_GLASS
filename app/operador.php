@@ -244,7 +244,7 @@ body {
 /* Big feedback */
 .big-fb {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-  z-index: 50; pointer-events: none; opacity: 0; transition: opacity .25s;
+  z-index: 150; pointer-events: none; opacity: 0; transition: opacity .25s;
 }
 .big-fb.show { opacity: 1; pointer-events: auto; }
 .big-fb-inner { text-align: center; padding: 36px 44px; border-radius: 20px; backdrop-filter: blur(24px); }
@@ -258,7 +258,7 @@ body {
   position: fixed; bottom: 28px; left: 50%;
   transform: translateX(-50%) translateY(70px);
   padding: 13px 22px; border-radius: 30px; font-size: 14px; font-weight: 700;
-  z-index: 60; pointer-events: none; white-space: nowrap;
+  z-index: 160; pointer-events: none; white-space: nowrap;
   transition: transform .3s cubic-bezier(.34,1.56,.64,1);
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
@@ -414,6 +414,20 @@ body {
       <div class="action-wrap" id="omActions"></div>
     </div>
 
+    <!-- Botón "Cortar": inicia la sesión (elegir lámina) — solo estación 'corte' -->
+    <button id="btnIniciarCorte" onclick="abrirWizardCorte()" style="display:none;width:100%;margin-bottom:10px;
+      padding:16px;background:#f5a623;color:#000;border:none;border-radius:12px;font-size:15px;font-weight:800;
+      cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3)">✂️ Cortar</button>
+
+    <!-- Franja de sesión de corte activa: escanea con la cámara mientras esto está visible.
+         Al terminar de escanear, "Empezar a cortar" abre el menú de revisión (ver/quitar
+         piezas + Avanzar a canto) — no hay botón de avance directo aquí. -->
+    <div id="franjaSesionCorte" style="display:none;margin-bottom:10px;
+      background:#18181c;border:1.5px solid #f5a623;border-radius:12px;padding:12px 14px;box-shadow:0 4px 14px rgba(0,0,0,.3)">
+      <div style="font-size:13px;color:#f5a623;font-weight:800;margin-bottom:8px" id="franjaSesionInfo">Sesión activa</div>
+      <button onclick="wizAbrirRevision()" style="width:100%;padding:12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer">✂️ Empezar a cortar</button>
+    </div>
+
     <div class="manual-wrap">
       <input type="text" class="manual-input" id="manualQR"
              placeholder="N&#250;mero de orden (ej: 820)"
@@ -454,6 +468,17 @@ body {
     <textarea class="modal-notas" id="modalNotas" rows="2" placeholder="Notas adicionales (opcional)"></textarea>
     <button class="btn-confirmar" id="btnConfirmarRet" disabled onclick="confirmarRetrabajo()">Confirmar Retrabajo</button>
     <button class="btn-cancelar" onclick="cerrarModalRetrabajo()">Cancelar</button>
+  </div>
+</div>
+
+<!-- ── Modal Wizard Sesión de Corte ─────────────────────── -->
+<div class="modal-bg" id="modalCorte">
+  <div class="modal-sheet" style="max-height:85vh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✂️ Sesión de Corte</div>
+    <div class="modal-sub" id="corteSub">—</div>
+    <div id="corteWizardBody"></div>
+    <button class="btn-cancelar" onclick="cerrarWizardCorte()">Cancelar</button>
   </div>
 </div>
 
@@ -523,6 +548,24 @@ let lastQR     = '';
 let lastQRTime = 0;
 const DEBOUNCE = 3000;
 
+// ── Sesión de corte (solo estación 'corte') ───────────────────────────────
+// El operador elige PRIMERO la lámina/pedacería que va a usar, y LUEGO
+// escanea (con la cámara ya activa) las piezas que va sacando de ella.
+// Al terminar ("Avanzar a canto") se descuenta 1 lámina real (o se registra
+// pedacería) y se marcan todas las piezas escaneadas como 'cortado'.
+// Ver api/sesion_corte.php.
+let sesionCorteActiva = false;
+let sesionCorte = {
+  origen: null,      // 'catalogo' | 'pedaceria'
+  tipo: null,        // label real (catálogo de Cristales), se guarda en BD
+  tipoEnum: null,    // slug ENUM de `laminas`, solo para consultar stock (puede ser null)
+  espesor: null,
+  laminaId: null,
+  anchoMm: null,
+  altoMm: null,
+  piezas: [],        // piezas escaneadas durante la sesión (aún no en BD)
+};
+
 // ── Sesion desde PHP ───────────────────────────────────────
 const session = {
   id:       <?= (int)$user['id'] ?? 0 ?>,
@@ -556,6 +599,8 @@ function iniciarScanner() {
   document.getElementById('btnActivarCam').style.display = 'none';
   document.getElementById('cameraWrap').style.display    = 'block';
   startCamera();
+  actualizarUiSesionCorte();
+  restaurarSesionCorteAbierta();
 }
 
 function activarCamara() {
@@ -792,9 +837,19 @@ async function loadPieza(raw) {
   if (salidaOrdenId) { await loadSalida(salidaOrdenId); return; }
 
   const ordenId = extraerOrdenMasivo(raw);
-  if (ordenId) { await loadOrdenMasiva(ordenId); return; }
+  if (ordenId) {
+    if (sesionCorteActiva) { await agregarOrdenASesionCorte(ordenId); return; }
+    await loadOrdenMasiva(ordenId);
+    return;
+  }
 
   const qr = extraerCodigo(raw);
+
+  // Mientras hay una sesión de corte activa, cualquier QR de pieza escaneado
+  // se agrega directo a la sesión (sin mostrar la tarjeta normal) — ver
+  // abrirWizardCorte()/wizAvanzarACanto().
+  if (sesionCorteActiva) { await agregarQrASesionCorte(qr); return; }
+
   try {
     const r = await fetch(API + 'pieza.php?qr=' + encodeURIComponent(qr));
     const d = await r.json();
@@ -886,18 +941,20 @@ function setupButton(p) {
     return;
   }
 
-  // ── CORTE: dos acciones ─────────────────────────────────
+  // ── CORTE ─────────────────────────────────────────────────
+  // El escaneo individual de una pieza ya NO la avanza directo — el flujo
+  // ahora es: primero elegir la lámina/pedacería (botón ✂️ Cortar), y ya
+  // con la sesión activa, escanear las piezas que se van sacando de ella.
+  // Si esta tarjeta llegó a mostrarse es porque no hay sesión activa
+  // (mientras hay sesión activa, loadPieza() intercepta el escaneo antes
+  // de llegar aquí — ver manejarQrEnSesionCorte()).
   if (est === 'corte') {
     const wrap = document.getElementById('btnAction').parentElement;
-    if (p.estatus === 'pendiente') {
-      btn.textContent = '▶ Registrar en CNC';
+    wrap.querySelectorAll('.btn-extra').forEach(e => e.remove());
+    if (p.estatus === 'pendiente' || p.estatus === 'en_corte') {
+      btn.textContent = '✂️ Iniciar sesión de corte';
       btn.className   = 'btn-action go';
-      btn.onclick     = () => doUpdate('en_corte');
-    } else if (p.estatus === 'en_corte') {
-      btn.textContent = '✂️ Pieza Cortada';
-      btn.className   = 'btn-action go';
-      btn.style.background = '#16a34a';
-      btn.onclick     = () => doUpdate('cortado');
+      btn.onclick     = () => abrirWizardCorte();
     } else {
       btn.textContent = '✅ Ya cortada';
       btn.className   = 'btn-action done';
@@ -1228,6 +1285,376 @@ async function confirmarOrdenMasiva() {
       cancelarOrdenMasiva();
     } else {
       toast('❌ ' + (d.error || 'Error'), 'error');
+    }
+  } catch(e) {
+    toast('❌ Error de conexión', 'error');
+  }
+}
+
+// ── Sesión de corte: 1) elegir lámina/pedacería, 2) escanear piezas ───────
+// Tipos y espesores reales tomados del catálogo de Cristales (no de un
+// arreglo fijo) — así incluye también tipos sin lámina dada de alta en
+// inventario (ej. Bronce, Ultra Claro). Ver api/sesion_corte.php accion=catalogo_tipos_mm.
+let catalogoTiposMm = [];
+
+function abrirWizardCorte() {
+  // Defensa extra: el botón "Cortar" ya se oculta mientras hay sesión activa
+  // (actualizarUiSesionCorte), pero si de todos modos se llega aquí con una
+  // sesión abierta, se manda directo a la revisión en vez de empezar otra.
+  if (sesionCorteActiva) { wizAbrirRevision(); return; }
+  document.getElementById('modalCorte').classList.add('open');
+  renderCortePasoTipo();
+}
+
+function cerrarWizardCorte() {
+  document.getElementById('modalCorte').classList.remove('open');
+}
+
+// ── Paso 1: tipo de lámina ─────────────────────────────────
+async function renderCortePasoTipo() {
+  document.getElementById('corteSub').textContent = 'Paso 1 de 3 — Tipo de lámina';
+  document.getElementById('corteWizardBody').innerHTML = '<div style="text-align:center;padding:20px"><span class="spin"></span></div>';
+  try {
+    var r = await fetch(API + 'sesion_corte.php?accion=catalogo_tipos_mm');
+    var d = await r.json();
+    catalogoTiposMm = d.tipos || [];
+    var opts = catalogoTiposMm.map(function(t) { return '<option value="' + t.label + '">' + t.label + '</option>'; }).join('');
+    document.getElementById('corteWizardBody').innerHTML =
+      '<div style="margin-bottom:14px"><select id="corteTipoSel" class="manual-input" style="width:100%">' + opts + '</select></div>' +
+      '<button class="btn-action go" onclick="wizElegirTipo()">Siguiente</button>';
+  } catch(e) { toast('Error al consultar catálogo', 'error'); }
+}
+
+// ── Paso 2: espesor (mm) — según lo que exista de ese tipo en Cristales ───
+function wizElegirTipo() {
+  var label = document.getElementById('corteTipoSel').value;
+  var entry = catalogoTiposMm.find(function(t) { return t.label === label; });
+  sesionCorte.tipo     = label;
+  sesionCorte.tipoEnum = entry ? entry.enum : null;
+  document.getElementById('corteSub').textContent = 'Paso 2 de 3 — Espesor (mm)';
+
+  var espesores = entry ? entry.espesores : [];
+  if (!espesores.length) {
+    document.getElementById('corteWizardBody').innerHTML =
+      '<div class="compat-note show" style="margin-bottom:14px">Sin espesores registrados para este tipo.</div>' +
+      '<input id="corteEspesorManual" class="manual-input" type="number" step="0.5" placeholder="mm" style="width:100%;margin-bottom:12px">' +
+      '<button class="btn-action go" onclick="wizElegirEspesorManual()">Siguiente</button>';
+    return;
+  }
+  document.getElementById('corteWizardBody').innerHTML =
+    '<div class="razones-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px">' +
+    espesores.map(function(e) { return '<button class="btn-razon" onclick="wizElegirEspesor(' + e + ')">' + parseFloat(e) + ' mm</button>'; }).join('') +
+    '</div>';
+}
+
+function wizElegirEspesorManual() {
+  var esp = parseFloat(document.getElementById('corteEspesorManual').value);
+  if (!esp || esp <= 0) { toast('Ingresa un espesor válido', 'error'); return; }
+  wizElegirEspesor(esp);
+}
+
+// ── Paso 3: lámina de catálogo (dropdown) o pedacería (medidas) ───────────
+// Si el tipo elegido no tiene equivalente en el ENUM de `laminas` (tipoEnum
+// vacío), no hay nada que consultar — se ofrece pedacería directamente.
+async function wizElegirEspesor(espesor) {
+  sesionCorte.espesor = parseFloat(espesor);
+  sesionCorte.origen = 'catalogo';
+  document.getElementById('corteSub').textContent = 'Paso 3 de 3 — Elige la lámina';
+
+  if (!sesionCorte.tipoEnum) { renderCortePasoLamina([]); return; }
+
+  document.getElementById('corteWizardBody').innerHTML = '<div style="text-align:center;padding:20px"><span class="spin"></span></div>';
+  try {
+    var r = await fetch(API + 'sesion_corte.php?accion=laminas_disponibles&tipo=' + encodeURIComponent(sesionCorte.tipoEnum) + '&espesor_mm=' + sesionCorte.espesor);
+    var d = await r.json();
+    renderCortePasoLamina(d.laminas || []);
+  } catch(e) { toast('Error al consultar láminas', 'error'); }
+}
+
+var _laminasActuales = [];
+
+function renderCortePasoLamina(laminas) {
+  _laminasActuales = laminas;
+  var opts = laminas.map(function(l) {
+    return '<option value="' + l.id + '" data-ancho="' + l.ancho_mm + '" data-alto="' + l.alto_mm + '">' +
+      l.ancho_mm + ' × ' + l.alto_mm + ' mm (stock: ' + l.stock_laminas + ')</option>';
+  }).join('');
+
+  sesionCorte.origen = 'catalogo';
+  document.getElementById('corteWizardBody').innerHTML =
+    (laminas.length
+      ? '<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">' +
+          '<select id="corteLaminaSel" class="manual-input" style="flex:1">' + opts + '</select>' +
+          '<button onclick="wizTogglePedaceria()" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:11px 14px;font-weight:800;cursor:pointer;white-space:nowrap">🧩 Pedacería</button>' +
+        '</div>'
+      : '<div class="compat-note show" style="margin-bottom:14px">Sin stock de este tipo/espesor en catálogo.</div>' +
+        '<button onclick="wizTogglePedaceria()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:14px;font-weight:800;cursor:pointer;margin-bottom:12px">🧩 Usar pedacería</button>'
+    ) +
+    '<div id="cortePedaceriaWrap" style="display:none;margin-bottom:12px">' +
+      '<div style="display:flex;gap:8px;margin-bottom:10px">' +
+        '<input id="wizPedAncho" class="manual-input" type="number" placeholder="Ancho mm" style="flex:1">' +
+        '<input id="wizPedAlto" class="manual-input" type="number" placeholder="Alto mm" style="flex:1">' +
+      '</div>' +
+      '<button class="btn-sec" style="width:100%" onclick="wizVolverACatalogo()">← Volver</button>' +
+    '</div>' +
+    '<button class="btn-action go" style="margin-top:12px" onclick="wizSiguienteLamina()">Siguiente</button>';
+}
+
+function wizTogglePedaceria() {
+  sesionCorte.origen = 'pedaceria';
+  var sel = document.getElementById('corteLaminaSel');
+  if (sel) sel.parentElement.style.display = 'none';
+  document.getElementById('cortePedaceriaWrap').style.display = 'block';
+}
+
+function wizVolverACatalogo() {
+  renderCortePasoLamina(_laminasActuales);
+}
+
+function wizSiguienteLamina() {
+  if (sesionCorte.origen === 'pedaceria') {
+    var ancho = parseInt(document.getElementById('wizPedAncho').value, 10);
+    var alto  = parseInt(document.getElementById('wizPedAlto').value, 10);
+    if (!ancho || !alto) { toast('Ingresa ancho y alto', 'error'); return; }
+    sesionCorte.laminaId = null; sesionCorte.anchoMm = ancho; sesionCorte.altoMm = alto;
+  } else {
+    var sel = document.getElementById('corteLaminaSel');
+    if (!sel || !sel.value) { toast('Elige una lámina o usa pedacería', 'error'); return; }
+    var opt = sel.options[sel.selectedIndex];
+    sesionCorte.laminaId = parseInt(sel.value, 10);
+    sesionCorte.anchoMm  = parseInt(opt.dataset.ancho, 10);
+    sesionCorte.altoMm   = parseInt(opt.dataset.alto, 10);
+  }
+  sesionCorte.piezas = [];
+  sesionCorteActiva = true;
+  cerrarWizardCorte();
+  actualizarUiSesionCorte();
+  guardarSesionAbiertaServidor();
+  showFeedback('ok', '📷', 'Sesión de corte activa', 'Escanea las piezas que vayas cortando');
+}
+
+// ── Escaneo durante la sesión ──────────────────────────────
+function actualizarUiSesionCorte() {
+  var est = session.estacion || session.rol || 'admin';
+  var btnIniciar = document.getElementById('btnIniciarCorte');
+  var franja     = document.getElementById('franjaSesionCorte');
+  if (!btnIniciar || !franja) return;
+  if (est !== 'corte') { btnIniciar.style.display = 'none'; franja.style.display = 'none'; return; }
+  if (sesionCorteActiva) {
+    btnIniciar.style.display = 'none';
+    franja.style.display = 'block';
+    document.getElementById('franjaSesionInfo').textContent =
+      '📷 Escaneando · ' + sesionCorte.piezas.length + ' pieza(s)';
+  } else {
+    btnIniciar.style.display = 'block';
+    franja.style.display = 'none';
+  }
+}
+
+function sesionEnLista(piezaId) {
+  return sesionCorte.piezas.some(function(x) { return x.id === piezaId; });
+}
+
+// ── Persistencia en servidor de la sesión abierta (sobrevive recargas) ────
+async function guardarSesionAbiertaServidor() {
+  try {
+    await fetch(API + 'sesion_corte.php?accion=guardar_sesion_abierta', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tipo: sesionCorte.tipo, tipo_enum: sesionCorte.tipoEnum, espesor_mm: sesionCorte.espesor,
+        es_pedaceria: sesionCorte.origen === 'pedaceria', lamina_id: sesionCorte.laminaId,
+        ancho_mm: sesionCorte.anchoMm, alto_mm: sesionCorte.altoMm, piezas: sesionCorte.piezas,
+      })
+    });
+  } catch(e) { /* best-effort — no bloquea el flujo si falla la red */ }
+}
+
+// Al entrar a la pantalla de escaneo, revisa si este operador ya dejó una
+// sesión de corte abierta (recarga, pestaña cerrada, otro dispositivo) y la
+// restaura en vez de dejarlo iniciar una nueva encimada.
+async function restaurarSesionCorteAbierta() {
+  var est = session.estacion || session.rol || 'admin';
+  if (est !== 'corte') return;
+  try {
+    var r = await fetch(API + 'sesion_corte.php?accion=sesion_abierta');
+    var d = await r.json();
+    if (!d.sesion) return;
+    var s = d.sesion;
+    sesionCorte = {
+      origen: s.es_pedaceria == 1 ? 'pedaceria' : 'catalogo',
+      tipo: s.tipo, tipoEnum: s.tipo_enum, espesor: parseFloat(s.espesor_mm),
+      laminaId: s.lamina_id ? parseInt(s.lamina_id, 10) : null,
+      anchoMm: s.ancho_mm ? parseInt(s.ancho_mm, 10) : null,
+      altoMm: s.alto_mm ? parseInt(s.alto_mm, 10) : null,
+      piezas: s.piezas || [],
+    };
+    sesionCorteActiva = true;
+    actualizarUiSesionCorte();
+    toast('✂️ Se restauró tu sesión de corte activa (' + sesionCorte.piezas.length + ' pieza(s))', 'info');
+  } catch(e) { /* si falla, el operador puede seguir usando la app normal */ }
+}
+
+// Mismo criterio que api/helpers/cristal_parser.php (parsearCristalLabelEspesor)
+// para validar en el navegador, sin esperar respuesta del servidor, que la
+// pieza escaneada sea del mismo tipo/espesor que se eligió para la sesión.
+function parsearCristalLabelEspesorJs(texto) {
+  if (!texto) return null;
+  var n = texto.replace(/\s*-\s*(Servicio Express|Con Esmerilado)\s*$/i, '');
+  n = n.replace(/^Plantilla\s+/i, '');
+  var m = n.trim().match(/^(.*?)\s*[-]?\s*(\d+(\.\d+)?)\s*mm$/i);
+  if (!m) return null;
+  var label = m[1].replace(/\s+de$/i, '').trim().replace(/[\s-]+$/, '');
+  if (!label) return null;
+  return { label: label, espesor: parseFloat(m[2]) };
+}
+
+function cristalCoincideConSesionJs(cristalTexto) {
+  var parsed = parsearCristalLabelEspesorJs(cristalTexto);
+  if (!parsed) return true; // no se pudo parsear — no bloquea (mismo criterio que backend)
+  var normLabel = parsed.label.replace(/\s+/g, '').toLowerCase();
+  var normSesion = (sesionCorte.tipo || '').replace(/\s+/g, '').toLowerCase();
+  return Math.abs(parsed.espesor - sesionCorte.espesor) < 0.01 && normLabel === normSesion;
+}
+
+async function agregarQrASesionCorte(qr) {
+  try {
+    const r = await fetch(API + 'pieza.php?qr=' + encodeURIComponent(qr));
+    const d = await r.json();
+    if (d.error) { showFeedback('err', '❌', 'QR no encontrado', qr); return; }
+    var p = d.pieza;
+    if (!['pendiente', 'en_corte'].includes(p.estatus)) {
+      showFeedback('err', '⛔', 'Pieza no disponible', 'Estatus actual: ' + p.estatus);
+      return;
+    }
+    if (!cristalCoincideConSesionJs(p.cristal)) {
+      showFeedback('err', '⛔', 'Tipo/espesor distinto', p.cristal + ' — la sesión es de ' + sesionCorte.tipo + ' ' + sesionCorte.espesor + 'mm');
+      return;
+    }
+    if (sesionEnLista(p.id)) {
+      toast('Esa pieza ya está en la sesión', 'info');
+      return;
+    }
+    sesionCorte.piezas.push({
+      id: p.id, qr_code: p.qr_code, folio: p.folio, cliente_nombre: p.cliente_nombre,
+      partida: p.partida, pieza_num: p.pieza_num, pieza_total: p.pieza_total,
+      cristal: p.cristal, cristal_corto: p.cristal_corto,
+      ancho_mm: p.ancho_mm, alto_mm: p.alto_mm, m2: p.m2,
+    });
+    camFlash();
+    actualizarUiSesionCorte();
+    guardarSesionAbiertaServidor();
+    toast('✂️ ' + p.folio + ' P' + p.partida + ' agregada (' + sesionCorte.piezas.length + ')', 'success');
+  } catch(e) { toast('Error de conexión', 'error'); }
+}
+
+async function agregarOrdenASesionCorte(ordenId) {
+  try {
+    const r = await fetch(API + 'orden_masivo.php?orden_id=' + encodeURIComponent(ordenId));
+    const d = await r.json();
+    if (d.error) { showFeedback('err', '❌', 'Orden no encontrada', ''); return; }
+    const r2 = await fetch(API + 'buscar_orden.php?num=' + encodeURIComponent(d.folio) + '&estacion=corte');
+    const d2 = await r2.json();
+    if (d2.error || !d2.ordenes?.length) { toast('Sin piezas pendientes en esa orden', 'info'); return; }
+    var agregadas = 0, omitidas = 0;
+    d2.ordenes.forEach(function(orden) {
+      (orden.piezas || []).forEach(function(p) {
+        if (!['pendiente', 'en_corte'].includes(p.estatus) || sesionEnLista(p.id)) return;
+        if (!cristalCoincideConSesionJs(p.cristal)) { omitidas++; return; }
+        sesionCorte.piezas.push({
+          id: p.id, qr_code: p.qr_code, folio: orden.folio, cliente_nombre: orden.cliente_nombre,
+          partida: p.partida, pieza_num: p.pieza_num, pieza_total: p.pieza_total,
+          cristal: p.cristal, cristal_corto: p.cristal_corto,
+          ancho_mm: p.ancho_mm, alto_mm: p.alto_mm,
+          m2: p.ancho_mm && p.alto_mm ? (p.ancho_mm * p.alto_mm / 1000000) : null,
+        });
+        agregadas++;
+      });
+    });
+    actualizarUiSesionCorte();
+    if (agregadas > 0) guardarSesionAbiertaServidor();
+    showFeedback('ok', '✂️', 'Orden ' + d.folio,
+      agregadas + ' pieza(s) agregada(s)' + (omitidas ? ' · ' + omitidas + ' omitida(s) por tipo/espesor distinto' : ''));
+  } catch(e) { toast('Error de conexión', 'error'); }
+}
+
+// ── Revisión de la sesión (botón "Ver lista") ─────────────
+function wizAbrirRevision() {
+  document.getElementById('modalCorte').classList.add('open');
+  document.getElementById('corteSub').textContent = 'Piezas en esta sesión';
+  renderCorteRevision();
+}
+
+function renderCorteRevision() {
+  var rows = sesionCorte.piezas.map(function(p) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;background:#252530;border-radius:10px;padding:10px 12px;margin-bottom:6px;border:1.5px solid #2a2a32">' +
+      '<div><div style="font-size:13px;font-weight:700">' + p.folio + ' · P' + p.partida + '</div>' +
+      '<div style="font-size:11px;color:#6b6b7a">' + (p.cristal_corto || p.cristal || '') + ' · ' + p.ancho_mm + '×' + p.alto_mm + 'mm</div></div>' +
+      '<button onclick="wizQuitarDeSesion(' + p.id + ')" style="background:none;border:1.5px solid rgba(255,71,87,.4);color:#ff4757;border-radius:8px;padding:6px 12px;font-weight:800;cursor:pointer">✕</button>' +
+      '</div>';
+  }).join('') || '<div style="text-align:center;color:#6b6b7a;padding:14px">Aún no has escaneado ninguna pieza</div>';
+
+  document.getElementById('corteWizardBody').innerHTML =
+    '<div style="font-size:12px;color:#6b6b7a;margin-bottom:8px">' + sesionCorte.piezas.length + ' pieza(s) — pasarán a CORTADO al avanzar a canto</div>' +
+    rows +
+    '<button class="btn-action go" style="margin-top:12px;background:#16a34a" onclick="wizAvanzarACanto()" ' + (!sesionCorte.piezas.length ? 'disabled' : '') + '>✅ Avanzar a canto</button>' +
+    '<button class="btn-sec" style="margin-top:8px;width:100%" onclick="cerrarWizardCorte()">Seguir escaneando</button>' +
+    '<button class="btn-sec" style="margin-top:8px;width:100%;color:#ff4757;border-color:rgba(255,71,87,.4)" onclick="wizCancelarSesion()">Cancelar sesión completa</button>';
+}
+
+function wizQuitarDeSesion(piezaId) {
+  sesionCorte.piezas = sesionCorte.piezas.filter(function(p) { return p.id !== piezaId; });
+  actualizarUiSesionCorte();
+  guardarSesionAbiertaServidor();
+  renderCorteRevision();
+}
+
+// Confirmación propia dentro del modal (no window.confirm — en algunos
+// navegadores/PWA de celular el diálogo nativo no se dispara o queda oculto).
+function wizCancelarSesion() {
+  document.getElementById('corteWizardBody').innerHTML =
+    '<div style="text-align:center;padding:10px 0 18px">' +
+      '<div style="font-size:15px;font-weight:800;margin-bottom:6px">¿Cancelar la sesión completa?</div>' +
+      '<div style="font-size:12px;color:#6b6b7a">Las ' + sesionCorte.piezas.length + ' pieza(s) escaneadas se descartan. No se toca la BD — ninguna pieza fue marcada cortado todavía.</div>' +
+    '</div>' +
+    '<button class="btn-action" style="background:#ff4757;color:#fff" onclick="wizConfirmarCancelarSesion()">Sí, cancelar sesión</button>' +
+    '<button class="btn-sec" style="margin-top:8px;width:100%" onclick="renderCorteRevision()">No, seguir aquí</button>';
+}
+
+async function wizConfirmarCancelarSesion() {
+  sesionCorteActiva = false;
+  sesionCorte = { origen: null, tipo: null, tipoEnum: null, espesor: null, laminaId: null, anchoMm: null, altoMm: null, piezas: [] };
+  cerrarWizardCorte();
+  actualizarUiSesionCorte();
+  try {
+    await fetch(API + 'sesion_corte.php?accion=cancelar_sesion_abierta', { method: 'POST' });
+  } catch(e) {}
+  toast('Sesión cancelada', 'info');
+}
+
+// ── Finalizar: avanzar a canto ─────────────────────────────
+async function wizAvanzarACanto() {
+  if (!sesionCorte.piezas.length) { toast('Escanea al menos una pieza primero', 'error'); return; }
+  try {
+    const r = await fetch(API + 'sesion_corte.php?accion=confirmar_sesion', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        es_pedaceria: sesionCorte.origen === 'pedaceria',
+        lamina_id: sesionCorte.laminaId, tipo: sesionCorte.tipo, tipo_enum: sesionCorte.tipoEnum,
+        espesor_mm: sesionCorte.espesor,
+        ancho_mm: sesionCorte.anchoMm, alto_mm: sesionCorte.altoMm,
+        piezas: sesionCorte.piezas.map(function(p) { return { pieza_id: p.id }; }),
+        piezas_removidas: [],
+      })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      sesionCorteActiva = false;
+      sesionCorte = { origen: null, tipo: null, tipoEnum: null, espesor: null, laminaId: null, anchoMm: null, altoMm: null, piezas: [] };
+      cerrarWizardCorte();
+      actualizarUiSesionCorte();
+      showFeedback('ok', '✅', 'Avanzado a canto', 'Efectividad: ' + d.efectividad_pct + '%');
+    } else {
+      toast('❌ ' + (d.error || 'Error al confirmar'), 'error');
     }
   } catch(e) {
     toast('❌ Error de conexión', 'error');

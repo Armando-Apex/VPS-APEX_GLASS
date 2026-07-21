@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
 $user = requirePermiso('ver_inventario');
-$puedeGestionar = in_array($user['rol'], ['dir_admin','administracion']);
+$puedeGestionar = in_array($user['rol'], ['dir_admin','administracion','desarrollo']);
 $esDirAdmin     = $user['rol'] === 'dir_admin';
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=inventario'); exit;

@@ -146,6 +146,51 @@ switch ($periodo) {
         $hasta = $hoy->format('Y-m-d');
 }
 
+// ============================================================
+//  KPI de efectividad de corte (sesiones_corte, ver api/sesion_corte.php)
+//  % por m2: SUM(m2_aprovechado)/SUM(m2_disponible) del período, más
+//  conteo de sesiones de pedacería usadas (para el futuro sistema de bonos).
+// ============================================================
+if ($accion === 'efectividad_corte') {
+    $s = $pdo->prepare("
+        SELECT
+            COUNT(*)                                                            AS total_sesiones,
+            SUM(m2_disponible)                                                  AS m2_disponible_total,
+            SUM(m2_aprovechado)                                                 AS m2_aprovechado_total,
+            ROUND(SUM(m2_aprovechado)/NULLIF(SUM(m2_disponible),0)*100, 2)      AS efectividad_pct_global,
+            SUM(CASE WHEN es_pedaceria=1 THEN 1 ELSE 0 END)                     AS sesiones_pedaceria,
+            SUM(CASE WHEN es_pedaceria=0 THEN 1 ELSE 0 END)                     AS sesiones_catalogo,
+            SUM(CASE WHEN es_pedaceria=1 THEN m2_disponible ELSE 0 END)         AS m2_pedaceria,
+            SUM(CASE WHEN efectividad_pct >= 85 THEN 1 ELSE 0 END)              AS sesiones_efectivas,
+            SUM(CASE WHEN efectividad_pct < 85 THEN 1 ELSE 0 END)               AS sesiones_no_efectivas
+        FROM sesiones_corte
+        WHERE created_at >= ? AND created_at <= ?
+    ");
+    $s->execute([$desde.' 00:00:00', $hasta.' 23:59:59']);
+    $global = $s->fetch(PDO::FETCH_ASSOC);
+
+    $s2 = $pdo->prepare("
+        SELECT tipo, espesor_mm,
+               COUNT(*)                                                    AS sesiones,
+               SUM(m2_disponible)                                          AS m2_disponible,
+               SUM(m2_aprovechado)                                         AS m2_aprovechado,
+               ROUND(SUM(m2_aprovechado)/NULLIF(SUM(m2_disponible),0)*100,2) AS efectividad_pct,
+               SUM(CASE WHEN efectividad_pct >= 85 THEN 1 ELSE 0 END)      AS sesiones_efectivas,
+               SUM(CASE WHEN efectividad_pct < 85 THEN 1 ELSE 0 END)       AS sesiones_no_efectivas,
+               SUM(CASE WHEN es_pedaceria=1 THEN m2_disponible ELSE 0 END) AS m2_pedaceria
+        FROM sesiones_corte
+        WHERE created_at >= ? AND created_at <= ?
+        GROUP BY tipo, espesor_mm
+        ORDER BY tipo ASC, espesor_mm ASC
+    ");
+    $s2->execute([$desde.' 00:00:00', $hasta.' 23:59:59']);
+
+    jsonResponse([
+        'global'   => $global,
+        'por_tipo' => $s2->fetchAll(PDO::FETCH_ASSOC),
+    ]);
+}
+
 $params4 = [$desde, $hasta, $desde.' 00:00:00', $hasta.' 23:59:59'];
 
 // Retraso se mide por fecha_terminado (cuando la última pieza llegó a 'terminado'),

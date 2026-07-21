@@ -55,11 +55,14 @@ $notas   = trim($input['notas']      ?? '');
 
 $omision = !empty($input['omision']) ? 1 : 0;
 
-// C-4: la omisión salta TODA la validación de flujo entre estaciones —
-// solo roles con 'cambiar_cualquier_estatus' (jefe_piso, director, dir_admin,
-// administracion, dueno, desarrollo; ver api/permisos.php).
-if ($omision && !tienePermiso($usuario['rol'], 'cambiar_cualquier_estatus')) {
-    jsonResponse(['error' => 'La omisión de estaciones requiere a un jefe de piso o dirección'], 403);
+// La omisión salta la validación de flujo entre estaciones — permitida a
+// jefe_piso/dirección ('cambiar_cualquier_estatus') Y a los operadores de
+// piso en su propia estación ('escanear_estacion_propia'; revertido a
+// petición explícita, C-4 de UPD-361 lo había restringido solo a jefe_piso+).
+if ($omision
+    && !tienePermiso($usuario['rol'], 'cambiar_cualquier_estatus')
+    && !tienePermiso($usuario['rol'], 'escanear_estacion_propia')) {
+    jsonResponse(['error' => 'No tienes permiso para confirmar una omisión'], 403);
 }
 
 

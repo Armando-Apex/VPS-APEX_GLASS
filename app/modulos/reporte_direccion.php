@@ -213,19 +213,21 @@ async function rdCargar() {
   var periodo = document.getElementById('rdFiltro').value;
   document.getElementById('rdMain').innerHTML = '<div class="loading"><div class="spin"></div>Cargando reporte&#8230;</div>';
   try {
-    const [r1, r2, r3] = await Promise.all([
+    const [r1, r2, r3, r4] = await Promise.all([
       fetch('../api/reporte_direccion.php?periodo=' + periodo),
       fetch('../api/dashboard.php'),
-      fetch('../api/inventario.php?accion=costo_promedio')
+      fetch('../api/inventario.php?accion=costo_promedio'),
+      fetch('../api/reporte_direccion.php?accion=efectividad_corte&periodo=' + periodo)
     ]);
     const rep  = await r1.json();
     const dash = await r2.json();
     const inv  = await r3.json().catch(function(){ return {}; });
+    const ef   = await r4.json().catch(function(){ return {}; });
     if (rep.error) {
       document.getElementById('rdMain').innerHTML = '<div class="loading" style="color:#dc2626">Error: ' + rep.error + '</div>';
       return;
     }
-    rdRender(rep, dash, inv);
+    rdRender(rep, dash, inv, ef);
     document.getElementById('rdTs').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
   } catch(e) {
     document.getElementById('rdMain').innerHTML = '<div class="loading" style="color:#dc2626">Error de conexi&#243;n</div>';
@@ -268,7 +270,7 @@ function mkTopPanel(titulo, lista, valFn) {
     '<table><tbody>' + rows + '</tbody></table></div>';
 }
 
-function rdRender(rep, dash, inv) {
+function rdRender(rep, dash, inv, ef) {
   var r           = rep.resumen      || {};
   var fin         = rep.finanzas     || {};
   var cot         = rep.cots_resumen || {};
@@ -467,6 +469,7 @@ function rdRender(rep, dash, inv) {
 
   html += rdRenderAlmacen(inv);
   html += rdRenderRentabilidad(inv);
+  html += rdRenderEfectividadCorte(ef);
   document.getElementById('rdMain').innerHTML = html;
 }
 
@@ -618,6 +621,45 @@ function rdRenderRentabilidad(inv) {
   });
 
   html += '</tbody></table></div>';
+  return html;
+}
+
+// Efectividad de corte por m2 (sesiones_corte, ver api/sesion_corte.php).
+// % = m2 aprovechado / m2 disponible de la lamina o pedaceria usada.
+function rdRenderEfectividadCorte(ef) {
+  var g = (ef && ef.global) ? ef.global : null;
+  if (!g || !g.total_sesiones) return '';
+
+  var pct = g.efectividad_pct_global !== null ? parseFloat(g.efectividad_pct_global) : null;
+  var clr = pct === null ? 'var(--muted-lt)' : pct >= 85 ? 'var(--green)' : pct >= 70 ? 'var(--amber)' : 'var(--red)';
+
+  var html = '<div class="section-title">Efectividad de Corte</div>';
+  html += '<div class="kpi-grid" style="margin-bottom:14px">' +
+    '<div class="kpi-card"><div class="kpi-num-sm" style="color:' + clr + '">' + (pct !== null ? pct.toFixed(1) + '%' : '&#8212;') + '</div><div class="kpi-label">% Efectividad global</div><div class="kpi-sub">m&#178; aprovechados / m&#178; usados</div></div>' +
+    '<div class="kpi-card"><div class="kpi-num-sm">' + parseFloat(g.m2_aprovechado_total || 0).toFixed(1) + '</div><div class="kpi-label">m&#178; aprovechados</div><div class="kpi-sub">de ' + parseFloat(g.m2_disponible_total || 0).toFixed(1) + ' m&#178; usados</div></div>' +
+    '<div class="kpi-card"><div class="kpi-num-sm">' + (g.sesiones_catalogo || 0) + '</div><div class="kpi-label">L&#225;minas de cat&#225;logo</div><div class="kpi-sub">Sesiones de corte</div></div>' +
+    '<div class="kpi-card"><div class="kpi-num-sm" style="color:var(--amber)">' + (g.sesiones_pedaceria || 0) + '</div><div class="kpi-label">L&#225;minas de pedacer&#237;a usadas</div><div class="kpi-sub">Base para bono de operador</div></div>' +
+  '</div>';
+
+  var porTipo = (ef && ef.por_tipo) ? ef.por_tipo : [];
+  if (porTipo.length) {
+    html += '<div class="table-card"><table>' +
+      '<thead><tr><th>Tipo</th><th>Espesor</th><th style="text-align:right">L&#225;minas</th><th style="text-align:right">% Efectividad</th>' +
+      '<th style="text-align:right">Efectividad &gt;85%</th><th style="text-align:right">Efectividad &lt;85%</th><th style="text-align:right">Pedacer&#237;a (m&#178;)</th></tr></thead><tbody>';
+    porTipo.forEach(function(t) {
+      var tPct = t.efectividad_pct !== null ? parseFloat(t.efectividad_pct) : null;
+      html += '<tr>' +
+        '<td>' + esc(t.tipo) + '</td>' +
+        '<td>' + t.espesor_mm + ' mm</td>' +
+        '<td style="text-align:right">' + t.sesiones + '</td>' +
+        '<td style="text-align:right;font-weight:700">' + (tPct !== null ? tPct.toFixed(1) + '%' : '&#8212;') + '</td>' +
+        '<td style="text-align:right;color:var(--green)">' + (t.sesiones_efectivas || 0) + '</td>' +
+        '<td style="text-align:right;color:var(--red)">' + (t.sesiones_no_efectivas || 0) + '</td>' +
+        '<td style="text-align:right;color:var(--amber)">' + parseFloat(t.m2_pedaceria || 0).toFixed(1) + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
   return html;
 }
 
