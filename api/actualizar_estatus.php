@@ -21,7 +21,7 @@
 require_once 'config.php';
 require_once 'permisos.php';
 require_once 'wa_helper.php';
-requireSessionApi();
+$usuario = requireSessionApi();
 
 
 
@@ -47,11 +47,20 @@ $qr      = trim($input['qr_code']    ?? '');
 
 $estatus = trim($input['estatus']    ?? '');
 
-$userId  = intval($input['usuario_id'] ?? 0);
+// El usuario es SIEMPRE el de la sesión — el usuario_id del body se ignora
+// (antes podía suplantar a cualquier empleado en la bitácora).
+$userId  = (int)$usuario['id'];
 
 $notas   = trim($input['notas']      ?? '');
 
 $omision = !empty($input['omision']) ? 1 : 0;
+
+// C-4: la omisión salta TODA la validación de flujo entre estaciones —
+// solo roles con 'cambiar_cualquier_estatus' (jefe_piso, director, dir_admin,
+// administracion, dueno, desarrollo; ver api/permisos.php).
+if ($omision && !tienePermiso($usuario['rol'], 'cambiar_cualquier_estatus')) {
+    jsonResponse(['error' => 'La omisión de estaciones requiere a un jefe de piso o dirección'], 403);
+}
 
 
 
@@ -82,7 +91,8 @@ $db = getDB();
 
 $stmt = $db->prepare('
 
-    SELECT p.*, o.folio, o.cliente_nombre, o.id as orden_id_val, o.tipo AS orden_tipo
+    SELECT p.*, o.folio, o.cliente_nombre, o.id as orden_id_val, o.tipo AS orden_tipo,
+           o.estado AS orden_estado
 
     FROM piezas p
 
@@ -96,9 +106,15 @@ $stmt->execute([$qr]);
 
 $pieza = $stmt->fetch();
 
+if (!$pieza) jsonResponse(['error' => 'Código QR no encontrado'], 404);
+
+// A-4: solo se produce sobre órdenes activas (con VoBo de Finanzas).
+// Bloquea pendiente_vobo (sin anticipo), cancelada, rechazada y entregada.
+if ($pieza['orden_estado'] !== 'activa') {
+    jsonResponse(['error' => 'La orden ' . $pieza['folio'] . ' no está activa (estado: ' . $pieza['orden_estado'] . '); no se puede registrar avance'], 409);
+}
 
 
-if (!$pieza) jsonResponse(['error' => 'C&#243;digo QR no encontrado'], 404);
 
 // Validar flujo
 // Para piezas sin templado: canteado→terminado y taladro→terminado son válidos
@@ -164,87 +180,60 @@ $estatusAnterior = $pieza['estatus'];
 
 $FLUJO_ORDEN = ['pendiente','en_corte','cortado','canteado','trazo','taladro','en_horno','terminado','entregado'];
 
-// Obtener nombre de usuario
+// El nombre también sale de la sesión (ya no se consulta con el id del body)
+$nombreUsuario = $usuario['nombre'];
 
-$nombreUsuario = 'Desconocido';
+// Actualizar estatus + bitácora en una sola transacción:
+// si falla cualquier INSERT de historial, la pieza no queda movida a medias.
+$db->beginTransaction();
+try {
+    $db->prepare('UPDATE piezas SET estatus = ?, updated_at = NOW() WHERE qr_code = ?')
+       ->execute([$estatus, $qr]);
 
-
-if ($userId) {
-
-    $u = $db->prepare('SELECT nombre FROM usuarios WHERE id = ?');
-
-    $u->execute([$userId]);
-
-    $u = $u->fetch();
-
-    if ($u) $nombreUsuario = $u['nombre'];
-
-} elseif (!empty($_SESSION['user_name'])) {
-
-    $nombreUsuario = $_SESSION['user_name'];
-
-}
-
-
-
-// Actualizar estatus
-
-$db->prepare('UPDATE piezas SET estatus = ?, updated_at = NOW() WHERE qr_code = ?')
-
-   ->execute([$estatus, $qr]);
-
-
-
-// Registrar en historial
-// Si es omisión con salto de múltiples pasos, insertar un registro por cada paso saltado
-if ($omision) {
-    $idxAnterior = array_search($estatusAnterior, $FLUJO_ORDEN);
-    $idxNuevo    = array_search($estatus,          $FLUJO_ORDEN);
-    if ($idxAnterior !== false && $idxNuevo !== false && ($idxNuevo - $idxAnterior) > 1) {
-        for ($i = $idxAnterior; $i < $idxNuevo - 1; $i++) {
-            $db->prepare('
-                INSERT INTO historial_estatus
-                    (pieza_id, estatus_anterior, estatus_nuevo, usuario_id, usuario_nombre, notas, omision)
-                VALUES (?,?,?,?,?,?,1)
-            ')->execute([
-                $pieza['id'],
-                $FLUJO_ORDEN[$i],
-                $FLUJO_ORDEN[$i + 1],
-                $userId ?: null,
-                $nombreUsuario,
-                'OMISIÓN AUTOMÁTICA'
-            ]);
+    // Registrar en historial
+    // Si es omisión con salto de múltiples pasos, insertar un registro por cada paso saltado
+    if ($omision) {
+        $idxAnterior = array_search($estatusAnterior, $FLUJO_ORDEN);
+        $idxNuevo    = array_search($estatus,          $FLUJO_ORDEN);
+        if ($idxAnterior !== false && $idxNuevo !== false && ($idxNuevo - $idxAnterior) > 1) {
+            for ($i = $idxAnterior; $i < $idxNuevo - 1; $i++) {
+                $db->prepare('
+                    INSERT INTO historial_estatus
+                        (pieza_id, estatus_anterior, estatus_nuevo, usuario_id, usuario_nombre, notas, omision)
+                    VALUES (?,?,?,?,?,?,1)
+                ')->execute([
+                    $pieza['id'],
+                    $FLUJO_ORDEN[$i],
+                    $FLUJO_ORDEN[$i + 1],
+                    $userId ?: null,
+                    $nombreUsuario,
+                    'OMISIÓN AUTOMÁTICA'
+                ]);
+            }
+            // El registro final cubre solo el último paso
+            $estatusAnterior = $FLUJO_ORDEN[$idxNuevo - 1];
         }
-        // El registro final cubre solo el último paso
-        $estatusAnterior = $FLUJO_ORDEN[$idxNuevo - 1];
     }
+
+    $db->prepare('
+        INSERT INTO historial_estatus
+            (pieza_id, estatus_anterior, estatus_nuevo, usuario_id, usuario_nombre, notas, omision)
+        VALUES (?,?,?,?,?,?,?)
+    ')->execute([
+        $pieza['id'],
+        $estatusAnterior,
+        $estatus,
+        $userId ?: null,
+        $nombreUsuario,
+        $notas,
+        $omision
+    ]);
+
+    $db->commit();
+} catch (Exception $e) {
+    $db->rollBack();
+    jsonResponse(['error' => 'Error al actualizar la pieza'], 500);
 }
-
-$db->prepare('
-
-    INSERT INTO historial_estatus
-
-        (pieza_id, estatus_anterior, estatus_nuevo, usuario_id, usuario_nombre, notas, omision)
-
-    VALUES (?,?,?,?,?,?,?)
-
-')->execute([
-
-    $pieza['id'],
-
-    $estatusAnterior,
-
-    $estatus,
-
-    $userId ?: null,
-
-    $nombreUsuario,
-
-    $notas,
-
-    $omision
-
-]);
 
 
 

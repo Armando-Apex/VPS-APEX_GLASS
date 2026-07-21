@@ -231,12 +231,67 @@ if ($method === 'POST') {
         $colonia     = trim($body['colonia']     ?? '');
         $ciudad      = trim($body['ciudad']      ?? 'Monterrey');
         $referencias = trim($body['referencias'] ?? '');
-        $pieza_ids   = $body['pieza_ids'] ?? [];
+        $pieza_ids   = array_values(array_unique(array_map('intval', (array)($body['pieza_ids'] ?? []))));
         if (!$ruta_id || !$orden_id) {
             jsonResponse(['error' => 'Datos incompletos']); exit;
         }
         if (empty($pieza_ids)) {
             jsonResponse(['error' => 'Debes seleccionar al menos una pieza']); exit;
+        }
+
+        // ── Validaciones C-14 ────────────────────────────────────────
+        // 1. La ruta existe y sigue en planeación (no meter paradas a una
+        //    ruta que ya salió o ya completó).
+        $stmtRuta = $db->prepare("SELECT id, unidad, estado FROM rutas WHERE id = ? AND archivada = 0");
+        $stmtRuta->execute([$ruta_id]);
+        $rutaRow = $stmtRuta->fetch(PDO::FETCH_ASSOC);
+        if (!$rutaRow) {
+            jsonResponse(['error' => 'Ruta no encontrada']); exit;
+        }
+        if ($rutaRow['estado'] !== 'planificada') {
+            jsonResponse(['error' => 'Solo se puede asignar a rutas en planeación (estado actual: ' . $rutaRow['estado'] . ')']); exit;
+        }
+
+        // 2. La orden existe, no está cancelada y no tiene otra parada
+        //    pendiente (una cancelada en ruta "resucitaba" como entregada).
+        $stmtOrd = $db->prepare("SELECT id, folio, estado FROM ordenes WHERE id = ?");
+        $stmtOrd->execute([$orden_id]);
+        $ordenRow = $stmtOrd->fetch(PDO::FETCH_ASSOC);
+        if (!$ordenRow) {
+            jsonResponse(['error' => 'Orden no encontrada']); exit;
+        }
+        if ($ordenRow['estado'] === 'cancelada') {
+            jsonResponse(['error' => 'La orden ' . $ordenRow['folio'] . ' está cancelada; no se puede asignar a ruta']); exit;
+        }
+        $stmtOtra = $db->prepare("SELECT COUNT(*) FROM ruta_entregas WHERE orden_id = ? AND estado = 'pendiente'");
+        $stmtOtra->execute([$orden_id]);
+        if ((int)$stmtOtra->fetchColumn() > 0) {
+            jsonResponse(['error' => 'La orden ' . $ordenRow['folio'] . ' ya tiene una parada pendiente en una ruta']); exit;
+        }
+
+        // 3. Las piezas deben ser de ESTA orden y estar listas para salir.
+        //    Se aceptan 'terminado' y 'entregado' porque con el flujo
+        //    requiere_ruta Cobranza ya las marcó 'entregado' al cerrar la
+        //    orden (mismo criterio que el GET accion=piezas_orden:175-181).
+        $ph    = implode(',', array_fill(0, count($pieza_ids), '?'));
+        $stmtVal = $db->prepare("
+            SELECT COUNT(*) FROM piezas
+            WHERE id IN ($ph) AND orden_id = ? AND estatus IN ('terminado','entregado')
+        ");
+        $stmtVal->execute([...$pieza_ids, $orden_id]);
+        if ((int)$stmtVal->fetchColumn() !== count($pieza_ids)) {
+            jsonResponse(['error' => 'Hay piezas que no pertenecen a la orden o aún no están terminadas']); exit;
+        }
+
+        // 4. Ninguna pieza puede estar ya asignada a otra parada pendiente.
+        $stmtDup = $db->prepare("
+            SELECT COUNT(*) FROM ruta_entrega_piezas rep
+            JOIN ruta_entregas re ON re.id = rep.ruta_entrega_id
+            WHERE rep.pieza_id IN ($ph) AND re.estado = 'pendiente'
+        ");
+        $stmtDup->execute($pieza_ids);
+        if ((int)$stmtDup->fetchColumn() > 0) {
+            jsonResponse(['error' => 'Alguna pieza ya está asignada a otra parada pendiente']); exit;
         }
 
         // Calcular peso solo de las piezas seleccionadas
@@ -378,10 +433,56 @@ if ($method === 'POST') {
             jsonResponse(['ok' => (bool)($r['ok'] ?? false), 'etas' => $r['etas'] ?? []]); exit;
         }
 
-        // no_entregado / pendiente: solo cambia el estado de la parada, sin cerrar orden ni
-        // recalcular ETA/avisos (no aplica — la parada sigue pendiente).
-        $db->prepare("UPDATE ruta_entregas SET estado=?, entregado_at=NULL, notas_entrega=? WHERE id=?")
-           ->execute([$estado, $notas, $entrega_id]);
+        // C-14b: estado actual de la parada (para reversa e idempotencia)
+        $reAntes = $db->prepare("SELECT estado, orden_id, ruta_id FROM ruta_entregas WHERE id=?");
+        $reAntes->execute([$entrega_id]);
+        $reAntes = $reAntes->fetch(PDO::FETCH_ASSOC);
+        if (!$reAntes) { jsonResponse(['error' => 'Entrega no encontrada'], 404); exit; }
+        if ($reAntes['estado'] === $estado) { jsonResponse(['ok' => true, 'etas' => []]); exit; }
+
+        $db->beginTransaction();
+        try {
+            $db->prepare("UPDATE ruta_entregas SET estado=?, entregado_at=NULL, notas_entrega=? WHERE id=?")
+               ->execute([$estado, $notas, $entrega_id]);
+
+            if ($estado === 'pendiente' && $reAntes['estado'] === 'entregado') {
+                // "Deshacer": se revierten SOLO las piezas de esta parada y se
+                // reabre la orden únicamente si la cerró la ruta. Si la cerró
+                // Cobranza (fecha_cierre puesta en salidas.php) o la pieza ya
+                // tiene salida registrada (orden_salida_piezas), no se toca.
+                $db->prepare("UPDATE ruta_entrega_piezas SET estado='asignada' WHERE ruta_entrega_id=? AND estado='entregada'")
+                   ->execute([$entrega_id]);
+
+                $ord = $db->prepare("SELECT estado, fecha_cierre FROM ordenes WHERE id=?");
+                $ord->execute([$reAntes['orden_id']]);
+                $ord = $ord->fetch(PDO::FETCH_ASSOC);
+
+                $cerradaPorCobranza = $ord && $ord['estado'] === 'entregada' && !empty($ord['fecha_cierre']);
+                if (!$cerradaPorCobranza) {
+                    $db->prepare("
+                        UPDATE piezas p
+                        JOIN ruta_entrega_piezas rep ON rep.pieza_id = p.id
+                        LEFT JOIN orden_salida_piezas osp ON osp.pieza_id = p.id
+                        SET p.estatus='terminado', p.updated_at=NOW()
+                        WHERE rep.ruta_entrega_id=? AND rep.estado='asignada'
+                          AND p.estatus='entregado' AND osp.pieza_id IS NULL
+                    ")->execute([$entrega_id]);
+                    if ($ord && $ord['estado'] === 'entregada') {
+                        $db->prepare("UPDATE ordenes SET estado='activa', updated_at=NOW() WHERE id=?")
+                           ->execute([$reAntes['orden_id']]);
+                    }
+                }
+
+                // Si la ruta ya había completado, reabre al deshacer una parada
+                $db->prepare("UPDATE rutas SET estado='en_ruta', updated_at=NOW() WHERE id=? AND estado='completada'")
+                   ->execute([$reAntes['ruta_id']]);
+            }
+
+            $db->commit();
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => 'Error al actualizar la entrega'], 500); exit;
+        }
         jsonResponse(['ok' => true, 'etas' => []]); exit;
     }
 
@@ -497,10 +598,32 @@ if ($method === 'POST') {
         if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $id = (int)($body['entrega_id'] ?? 0);
         if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
-        // Limpiar piezas primero
-        $db->prepare("DELETE FROM ruta_entrega_piezas WHERE ruta_entrega_id=?")->execute([$id]);
-        $db->prepare("DELETE FROM ruta_entregas WHERE id=?")->execute([$id]);
-        jsonResponse(['ok' => true]); exit;
+
+        // ── A-14: solo se quitan paradas pendientes ────────────────────
+        // Antes borraba cualquier parada sin checar estado y sin transacción:
+        // si el chofer ya la había marcado, se perdía el historial de la
+        // entrega (mismo criterio de protección que 'eliminar_ruta').
+        $stmtE = $db->prepare("SELECT estado FROM ruta_entregas WHERE id=?");
+        $stmtE->execute([$id]);
+        $entrega = $stmtE->fetch(PDO::FETCH_ASSOC);
+        if (!$entrega) { jsonResponse(['error' => 'Entrega no encontrada'], 404); exit; }
+        if ($entrega['estado'] !== 'pendiente') {
+            jsonResponse(['error' => "Solo se pueden quitar paradas pendientes (estado actual: {$entrega['estado']}); el historial de entregas no se borra"], 409); exit;
+        }
+
+        $db->beginTransaction();
+        try {
+            // Limpiar piezas primero
+            $db->prepare("DELETE FROM ruta_entrega_piezas WHERE ruta_entrega_id=?")->execute([$id]);
+            // El AND estado='pendiente' es segunda línea de defensa: si el
+            // chofer la marcó entre el SELECT y aquí, el DELETE no la toca.
+            $db->prepare("DELETE FROM ruta_entregas WHERE id=? AND estado='pendiente'")->execute([$id]);
+            $db->commit();
+            jsonResponse(['ok' => true]); exit;
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => 'Error al quitar la parada'], 500);
+        }
     }
 
     if ($accion === 'eliminar_ruta') {

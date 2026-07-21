@@ -435,20 +435,19 @@ if ($method === 'PUT') {
             $pagado        = (float)$cp['saldo_pagado'];
 
             if ($pagado + 0.99 < $anticipo_req) {
-                // Override auditado: solo dir_admin, con forzar_vobo=1 y nota_vobo obligatoria
-                $forzar   = !empty($body['forzar_vobo']) && in_array($rol, ['dir_admin', 'desarrollo']);
-                $notaOv   = trim($body['nota_vobo'] ?? '');
-                $pctTxt   = ($cp['condicion_pago'] === 'pago_total') ? '100%' : '50%';
-                if (!$forzar) {
+                $pctTxt = ($cp['condicion_pago'] === 'pago_total') ? '100%' : '50%';
+                // C-12: dir_admin/desarrollo pasan directo sin anticipo — no necesitan mandar
+                // nada extra — pero queda registrado en bitácora automáticamente (nota_vobo
+                // opcional, si la mandan se usa; si no, se genera una nota por default).
+                if (in_array($rol, ['dir_admin', 'desarrollo'])) {
+                    $notaOv = trim($body['nota_vobo'] ?? '') ?: 'VoBo forzado por ' . $rol . ' sin anticipo completo';
+                    $vobo_override = true;
+                } else {
                     jsonResponse(['error' => 'Anticipo insuficiente para VoBo: la condición es ' . $pctTxt
                         . ' ($' . number_format($anticipo_req, 2) . ' de $' . number_format($totalCot, 2)
                         . ') y solo hay $' . number_format($pagado, 2)
                         . ' cobrados. Registra el pago o pide a dir_admin el override.']); exit;
                 }
-                if (!$notaOv) {
-                    jsonResponse(['error' => 'El override de VoBo requiere nota_vobo con el motivo.']); exit;
-                }
-                $vobo_override = true;
             }
         }
 

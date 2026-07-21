@@ -27,10 +27,15 @@ if (!$ordenId) jsonResponse(['error' => 'orden_id requerido'], 400);
 
 $db = getDB();
 
-$ord = $db->prepare('SELECT id, folio FROM ordenes WHERE id = ?');
+$ord = $db->prepare('SELECT id, folio, estado FROM ordenes WHERE id = ?');
 $ord->execute([$ordenId]);
 $ord = $ord->fetch();
 if (!$ord) jsonResponse(['error' => 'Orden no encontrada'], 404);
+
+// A-4: el registro masivo en CNC solo aplica a órdenes activas (con VoBo)
+if ($ord['estado'] !== 'activa') {
+    jsonResponse(['error' => 'La orden ' . $ord['folio'] . ' no está activa (estado: ' . $ord['estado'] . '); espera el VoBo de Finanzas'], 409);
+}
 
 $nombreUsuario = 'Desconocido';
 if ($userId) {

@@ -62,9 +62,43 @@ if ($method === 'POST') {
         if ($orden['estado'] === 'entregada') {
             jsonResponse(['error' => 'No se puede cancelar una orden entregada'], 422);
         }
+        $ordenId = (int)$orden['id'];
+
+        // A-14 candado 1: ya tiene una entrega registrada → cancelarla
+        // contradiría el historial (la mercancía sí llegó al cliente).
+        $stmtEnt = $db->prepare("SELECT COUNT(*) FROM ruta_entregas WHERE orden_id=? AND estado='entregado'");
+        $stmtEnt->execute([$ordenId]);
+        if ((int)$stmtEnt->fetchColumn() > 0) {
+            jsonResponse(['error' => "La orden $folio ya tiene una entrega registrada y no puede cancelarse"], 409);
+        }
+
+        // A-14 candado 2: tiene parada pendiente en una ruta que YA SALIÓ → el
+        // chofer la llevaría sin saber que está cancelada. Primero hay que
+        // quitarla de la ruta (accion 'quitar' en api/rutas.php).
+        $stmtRuta = $db->prepare("
+            SELECT COUNT(*) FROM ruta_entregas re
+            JOIN rutas r ON r.id = re.ruta_id
+            WHERE re.orden_id=? AND re.estado='pendiente' AND r.estado='en_ruta'
+        ");
+        $stmtRuta->execute([$ordenId]);
+        if ((int)$stmtRuta->fetchColumn() > 0) {
+            jsonResponse(['error' => "La orden $folio va en una ruta en curso; quítala de la ruta antes de cancelarla"], 409);
+        }
 
         $db->beginTransaction();
         try {
+            // A-14: paradas pendientes en rutas aún en planeación se borran
+            // junto con sus piezas asignadas — mismo criterio que 'quitar' y
+            // 'eliminar_ruta' en api/rutas.php.
+            $stmtPar = $db->prepare("SELECT id FROM ruta_entregas WHERE orden_id=? AND estado='pendiente'");
+            $stmtPar->execute([$ordenId]);
+            $paradaIds = $stmtPar->fetchAll(PDO::FETCH_COLUMN);
+            if ($paradaIds) {
+                $in = implode(',', array_fill(0, count($paradaIds), '?'));
+                $db->prepare("DELETE FROM ruta_entrega_piezas WHERE ruta_entrega_id IN ($in)")->execute($paradaIds);
+                $db->prepare("DELETE FROM ruta_entregas WHERE id IN ($in)")->execute($paradaIds);
+            }
+
             $db->prepare("UPDATE ordenes SET estado='cancelada', updated_at=NOW() WHERE id=? AND estado != 'entregada'")
                ->execute([$orden['id']]);
 
@@ -92,18 +126,37 @@ if ($method === 'POST') {
             }
 
             $db->commit();
+            jsonResponse(['ok' => true, 'paradas_liberadas' => count($paradaIds)]);
         } catch (Exception $e) {
             $db->rollBack();
             jsonResponse(['error' => $e->getMessage()], 500);
         }
-        jsonResponse(['ok' => true]);
     }
 
     // Restaurar
     if ($accion === 'restaurar') {
-        $stmt = $db->prepare("UPDATE ordenes SET estado='activa' WHERE folio=?");
-        $stmt->execute([$folio]);
-        jsonResponse(['ok' => true]);
+        // A-14: restaurar solo desde 'cancelada' y al estado correcto — antes
+        // ponía 'activa' incondicionalmente, saltándose el VoBo de Finanzas.
+        // El VoBo se registra en cotizaciones.vobo_at (api/finanzas.php),
+        // no en la orden.
+        $stmtO = $db->prepare("
+            SELECT o.id, o.estado, c.vobo_at
+            FROM ordenes o
+            LEFT JOIN cotizaciones c ON c.orden_id = o.id
+            WHERE o.folio=?
+        ");
+        $stmtO->execute([$folio]);
+        $orden = $stmtO->fetch(PDO::FETCH_ASSOC);
+        if (!$orden) jsonResponse(['error' => 'Orden no encontrada'], 404);
+        if ($orden['estado'] !== 'cancelada') {
+            jsonResponse(['error' => "Solo se pueden restaurar órdenes canceladas (estado actual: {$orden['estado']})"], 409);
+        }
+        // Con VoBo dado vuelve a 'activa'; sin VoBo vuelve a 'pendiente_vobo'
+        // para que Finanzas la autorice como cualquier orden recién creada.
+        $destino = $orden['vobo_at'] ? 'activa' : 'pendiente_vobo';
+        $stmt = $db->prepare("UPDATE ordenes SET estado=? WHERE id=?");
+        $stmt->execute([$destino, $orden['id']]);
+        jsonResponse(['ok' => true, 'estado' => $destino]);
     }
 
     // Corrección masiva de estatus

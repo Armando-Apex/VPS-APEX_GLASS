@@ -100,7 +100,7 @@ function metricasFranjaAll(PDO $db, string $desde, string $hasta, bool $soloExtr
         : "";
 
     $stmt = $db->prepare("
-        SELECT h.created_at, h.estatus_nuevo,
+        SELECT h.pieza_id, h.created_at, h.estatus_nuevo,
             COALESCE(p.m2, (p.ancho_mm * p.alto_mm / 1000000)) AS m2,
             ((p.ancho_mm + p.alto_mm) * 2 / 1000)              AS metros_lin,
             p.cristal
@@ -118,9 +118,18 @@ function metricasFranjaAll(PDO $db, string $desde, string $hasta, bool $soloExtr
     $buckets = [];
     foreach ($ests as $e) $buckets[$e] = [];
 
+    // A-5: un retrabajo (api/reproceso.php regresa la pieza a 'pendiente' y se
+    // vuelve a escanear) generaba OTRO renglón por estación y duplicaba los
+    // m²/ml "producidos". Solo cuenta el primer pase de cada pieza por estación
+    // dentro de la ventana (el ORDER BY created_at garantiza que el primero es
+    // el pase original, no el retrabajo).
+    $vistos = [];
     foreach ($rows as $r) {
         $est = statusToEst($r['estatus_nuevo']);
         if (!$est) continue;
+        $llave = (int)$r['pieza_id'] . '|' . $est;
+        if (isset($vistos[$llave])) continue;
+        $vistos[$llave] = true;
         if ($est === 'corte' || $est === 'horno') $v = floatval($r['m2']);
         elseif ($est === 'canteado')               $v = floatval($r['metros_lin']);
         else                                        $v = 1.0;
@@ -137,7 +146,11 @@ function metricasFranjaAll(PDO $db, string $desde, string $hasta, bool $soloExtr
             if ($est === 'horno' && $r['cristal'] !== '') {
                 $porCristal[$r['cristal']] = ($porCristal[$r['cristal']] ?? 0) + $val;
             }
-            if ($prevDt !== null) {
+            if ($prevDt !== null && $prevDt->format('Y-m-d') === $curDt->format('Y-m-d')) {
+                // A-5: solo deltas dentro del mismo día/turno — antes el hueco
+                // entre el último escaneo de hoy y el primero de mañana (~900
+                // min de horas no laborales) se sumaba como "tiempo muerto".
+                // El cruce de comida 13:00–13:30 ya se excluye con $esCom.
                 $delta = ($curDt->getTimestamp() - $prevDt->getTimestamp()) / 60;
                 $esCom = ($prevDt->format('H:i') <= '13:00' && $curDt->format('H:i') >= '13:30'
                           && (int)$curDt->format('N') <= 5);

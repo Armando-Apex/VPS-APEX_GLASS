@@ -17,10 +17,16 @@ if (!$ordenId) jsonResponse(['error' => 'orden_id requerido'], 400);
 
 $db = getDB();
 
-$stmt = $db->prepare('SELECT id, folio, cliente_nombre FROM ordenes WHERE id = ?');
+$stmt = $db->prepare('SELECT id, folio, cliente_nombre, estado FROM ordenes WHERE id = ?');
 $stmt->execute([$ordenId]);
 $orden = $stmt->fetch();
 if (!$orden) jsonResponse(['error' => 'Orden no encontrada'], 404);
+
+// A-4: no ofrecer registro masivo de órdenes que no están activas —
+// el mensaje llega al operador ANTES de que confirme en el modal de CNC
+if ($orden['estado'] !== 'activa') {
+    jsonResponse(['error' => 'La orden ' . $orden['folio'] . ' no está activa (estado: ' . $orden['estado'] . '); espera el VoBo de Finanzas'], 409);
+}
 
 $stmt = $db->prepare("SELECT COUNT(*) FROM piezas WHERE orden_id = ? AND estatus = 'pendiente'");
 $stmt->execute([$ordenId]);

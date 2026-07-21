@@ -39,6 +39,39 @@ try {
 
     if ($orden) {
         $ordenId = $orden['id'];
+
+        // ── Guard anti re-importación destructiva (C-1) ──────────────
+        // Si la orden ya tiene avance de piso, reimportar borraría su
+        // historial de estaciones, invalidaría los QR ya impresos y
+        // dejaría huérfanas las asignaciones de ruta: se rechaza (409).
+        $stmtBloq = $db->prepare("
+            SELECT o.estado,
+                   COALESCE(SUM(p.estatus <> 'pendiente'), 0) AS piezas_con_avance,
+                   (SELECT COUNT(*) FROM ruta_entregas re
+                     WHERE re.orden_id = o.id AND re.estado = 'pendiente') AS paradas_activas
+            FROM ordenes o
+            LEFT JOIN piezas p ON p.orden_id = o.id
+            WHERE o.id = ?
+            GROUP BY o.id
+        ");
+        $stmtBloq->execute([$ordenId]);
+        $bloq = $stmtBloq->fetch(PDO::FETCH_ASSOC);
+
+        if (in_array($bloq['estado'], ['entregada', 'cancelada', 'rechazada'], true)) {
+            $db->rollBack();
+            jsonResponse(['error' => "La orden $folio está '{$bloq['estado']}' y no puede reimportarse"], 409);
+        }
+        if ((int)$bloq['piezas_con_avance'] > 0) {
+            $db->rollBack();
+            jsonResponse(['error' => "La orden $folio ya tiene piezas con avance de producción o entrega; reimportación rechazada para no destruir su historial"], 409);
+        }
+        if ((int)$bloq['paradas_activas'] > 0) {
+            $db->rollBack();
+            jsonResponse(['error' => "La orden $folio está asignada a una ruta pendiente; quítala de la ruta antes de reimportar"], 409);
+        }
+
+        // Solo llega aquí si la orden sigue sin arrancar (todas sus piezas
+        // 'pendiente', sin ruta activa): es seguro recrearlas como antes.
         // Borrar piezas anteriores para recrearlas
         $db->prepare('DELETE FROM piezas WHERE orden_id = ?')->execute([$ordenId]);
 

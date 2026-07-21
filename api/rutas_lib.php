@@ -226,31 +226,64 @@ function avisarSiguienteParada($db, $ruta_id) {
 // botón manual del chofer (api/rutas.php, accion=marcar_estado) como por el escaneo del QR de
 // hoja de ruta post-entrega (api/salidas.php, accion=scan_qr_ruta). Cierra la ruta si ya no
 // quedan paradas pendientes; si no, recalcula el ETA y avisa a la siguiente parada.
+// C-14b: entrega SOLO las piezas asignadas a esta parada (ruta_entrega_piezas), no todas las
+// 'terminado' de la orden completa — antes una orden con piezas que se quedaron en planta (sin
+// asignar a esta ruta) se marcaba entregada igual. La orden solo cierra cuando ya no le queda
+// ninguna pieza pendiente por entregar (mismo criterio que api/rutas.php, marcar_pieza).
+// Idempotente: si la parada ya estaba 'entregado', no repite nada. Todo en una transacción.
 function marcarEntregaComoEntregada($db, $entrega_id, $notas = '') {
-    $ts = date('Y-m-d H:i:s');
-    $db->prepare("UPDATE ruta_entregas SET estado='entregado', entregado_at=?, notas_entrega=? WHERE id=?")
-       ->execute([$ts, $notas, $entrega_id]);
-
-    $re = $db->prepare("SELECT orden_id, ruta_id FROM ruta_entregas WHERE id=?");
+    $re = $db->prepare("SELECT orden_id, ruta_id, estado FROM ruta_entregas WHERE id=?");
     $re->execute([$entrega_id]);
     $re = $re->fetch(PDO::FETCH_ASSOC);
     if (!$re) return ['ok' => false];
-
-    $db->prepare("UPDATE ordenes SET estado='entregada', updated_at=NOW() WHERE id=?")
-       ->execute([$re['orden_id']]);
-    $db->prepare("UPDATE piezas SET estatus='entregado', updated_at=NOW() WHERE orden_id=? AND estatus='terminado'")
-       ->execute([$re['orden_id']]);
+    if ($re['estado'] === 'entregado') return ['ok' => true, 'orden_id' => (int)$re['orden_id'], 'ruta_id' => (int)$re['ruta_id'], 'ruta_completada' => false, 'etas' => []];
 
     $etas = [];
     $ruta_completada = false;
-    $pend2 = $db->prepare("SELECT SUM(estado='pendiente') as p FROM ruta_entregas WHERE ruta_id=?");
-    $pend2->execute([$re['ruta_id']]);
-    $pend2 = $pend2->fetch(PDO::FETCH_ASSOC);
-    if ((int)($pend2['p'] ?? 0) === 0) {
-        $db->prepare("UPDATE rutas SET estado='completada', updated_at=NOW() WHERE id=?")
-           ->execute([$re['ruta_id']]);
-        $ruta_completada = true;
-    } else {
+    $db->beginTransaction();
+    try {
+        $ts = date('Y-m-d H:i:s');
+        $db->prepare("UPDATE ruta_entregas SET estado='entregado', entregado_at=?, notas_entrega=? WHERE id=?")
+           ->execute([$ts, $notas, $entrega_id]);
+
+        // Solo las piezas asignadas a ESTA parada.
+        $db->prepare("UPDATE ruta_entrega_piezas SET estado='entregada' WHERE ruta_entrega_id=? AND estado='asignada'")
+           ->execute([$entrega_id]);
+        $db->prepare("
+            UPDATE piezas p
+            JOIN ruta_entrega_piezas rep ON rep.pieza_id = p.id
+            SET p.estatus='entregado', p.updated_at=NOW()
+            WHERE rep.ruta_entrega_id=? AND rep.estado='entregada' AND p.estatus='terminado'
+        ")->execute([$entrega_id]);
+
+        // La orden solo cierra cuando ya no le queda nada pendiente.
+        $tot = $db->prepare("SELECT COUNT(*) FROM piezas WHERE orden_id=?");
+        $tot->execute([$re['orden_id']]);
+        $ent = $db->prepare("SELECT COUNT(*) FROM piezas WHERE orden_id=? AND estatus='entregado'");
+        $ent->execute([$re['orden_id']]);
+        if ((int)$tot->fetchColumn() === (int)$ent->fetchColumn()) {
+            $db->prepare("UPDATE ordenes SET estado='entregada', updated_at=NOW() WHERE id=?")
+               ->execute([$re['orden_id']]);
+        }
+
+        $pend2 = $db->prepare("SELECT SUM(estado='pendiente') as p FROM ruta_entregas WHERE ruta_id=?");
+        $pend2->execute([$re['ruta_id']]);
+        $pend2 = $pend2->fetch(PDO::FETCH_ASSOC);
+        if ((int)($pend2['p'] ?? 0) === 0) {
+            $db->prepare("UPDATE rutas SET estado='completada', updated_at=NOW() WHERE id=?")
+               ->execute([$re['ruta_id']]);
+            $ruta_completada = true;
+        }
+
+        $db->commit();
+    } catch (Exception $e) {
+        $db->rollBack();
+        return ['ok' => false];
+    }
+
+    // Fuera de la transacción: recálculo de ETA y aviso WA son best-effort (mismo criterio
+    // que el resto del archivo — no deben tumbar la confirmación de entrega si fallan).
+    if (!$ruta_completada) {
         $etas = calcularYGuardarEtas($db, $re['ruta_id']);
         avisarSiguienteParada($db, $re['ruta_id']);
     }
