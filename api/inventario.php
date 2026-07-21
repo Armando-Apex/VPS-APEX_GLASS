@@ -66,7 +66,17 @@ if ($method === 'GET') {
                 l.espesor_mm AS lamina_espesor,
                 l.ancho_mm   AS lamina_ancho,
                 l.alto_mm    AS lamina_alto,
-                u.nombre     AS operador_nombre
+                u.nombre     AS operador_nombre,
+                (SELECT GROUP_CONCAT(
+                            CONCAT(o.folio, ' P', p.partida, ' · pieza ', p.pieza_num, '/', p.pieza_total)
+                            ORDER BY o.folio, p.partida, p.pieza_num
+                            SEPARATOR ', ')
+                   FROM sesiones_corte sc
+                   JOIN sesiones_corte_piezas scp ON scp.sesion_id = sc.id AND scp.incluida = 1
+                   JOIN piezas p  ON p.id = scp.pieza_id
+                   JOIN ordenes o ON o.id = p.orden_id
+                  WHERE sc.movimiento_id = im.id
+                ) AS piezas_detalle
             FROM inventario_movimientos im
             JOIN laminas l ON l.id = im.lamina_id
             LEFT JOIN usuarios u ON u.id = im.operador_id

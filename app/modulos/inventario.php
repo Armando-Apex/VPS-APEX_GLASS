@@ -280,7 +280,7 @@ tr:hover td { background: #f8fafc; }
       <table>
         <thead><tr>
           <th>Fecha</th><th>L&#225;mina</th><th>Dimensi&#243;n</th>
-          <th>Cantidad</th><th>Notas</th><th>Registr&#243;</th>
+          <th>Cantidad</th><th>Piezas / Notas</th><th>Registr&#243;</th>
         </tr></thead>
         <tbody id="invTbodyConsumo"><tr class="loading-row"><td colspan="6">Cargando&#8230;</td></tr></tbody>
       </table>
@@ -1578,12 +1578,15 @@ async function cargarConsumo() {
     tbody.innerHTML = movs.map(function(m) {
       var dim    = escAttr(m.lamina_ancho) + 'x' + escAttr(m.lamina_alto) + 'mm';
       var nombre = escAttr(m.lamina_tipo) + ' ' + escAttr(m.lamina_espesor) + 'mm';
+      // Si el movimiento viene de una sesión de corte, mostrar orden/partida/pieza
+      // en vez de la nota genérica ("Consumo real registrado desde wizard de corte").
+      var detalle = m.piezas_detalle ? escAttr(m.piezas_detalle) : (m.notas ? escAttr(m.notas) : '&#8212;');
       return '<tr>' +
         '<td>' + escAttr(m.fecha) + '</td>' +
         '<td><strong>' + nombre + '</strong></td>' +
         '<td style="color:#64748b">' + dim + '</td>' +
         '<td><span class="badge badge-info">' + escAttr(m.cantidad_laminas) + ' l&#225;m.</span></td>' +
-        '<td style="color:#64748b;font-size:12px">' + (m.notas ? escAttr(m.notas) : '&#8212;') + '</td>' +
+        '<td style="color:#64748b;font-size:12px;max-width:320px">' + detalle + '</td>' +
         '<td style="color:#94a3b8;font-size:12px">' + (m.operador_nombre ? escAttr(m.operador_nombre) : '&#8212;') + '</td>' +
       '</tr>';
     }).join('');
