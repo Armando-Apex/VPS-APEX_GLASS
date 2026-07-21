@@ -48,14 +48,14 @@ if ($accion === 'ventas_cobranza') {
     $hasta = $hastaD->format('Y-m-d');
 
     $stmtO = $pdo->prepare("
-        SELECT o.folio, COALESCE(o.fecha_pedido, DATE(o.created_at)) AS fecha_orden,
+        SELECT o.folio, COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) AS fecha_orden,
                c.id AS cotizacion_id, c.asesor_nombre, c.total,
                cl.nombre AS cliente_nombre
         FROM ordenes o
         JOIN cotizaciones c ON c.orden_id = o.id
         JOIN clientes cl ON cl.id = c.cliente_id
         WHERE o.estado IN ('activa','entregada')
-          AND COALESCE(o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
+          AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
         ORDER BY fecha_orden ASC, o.id ASC
     ");
     $stmtO->execute([$desde, $hasta]);
