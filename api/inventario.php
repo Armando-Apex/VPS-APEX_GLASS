@@ -123,12 +123,17 @@ if ($method === 'GET') {
                 $grupos[$key] = [
                     'tipo' => $row['tipo'], 'espesor_mm' => $row['espesor_mm'],
                     'en_stock' => 0, 'sum_valor' => 0.0, 'sum_m2' => 0.0,
+                    'sum_valor_hist' => 0.0, 'sum_m2_hist' => 0.0,
                     'precio_min_m2' => null, 'precio_max_m2' => null,
                 ];
             }
             $grupos[$key]['en_stock']  += $row['en_stock'];
             $grupos[$key]['sum_valor'] += $row['en_stock'] * $row['costo_prom_lamina'];
             $grupos[$key]['sum_m2']    += $row['en_stock'] * $row['m2'];
+            // Histórico: ponderado por TODO lo comprado (no solo lo que queda en stock) — para
+            // que Rentabilidad siga mostrando un costo de referencia aunque el tipo ya se agotó.
+            $grupos[$key]['sum_valor_hist'] += $row['total_compradas'] * $row['costo_prom_lamina'];
+            $grupos[$key]['sum_m2_hist']    += $row['total_compradas'] * $row['m2'];
             // Normalizar min/max a $/m² para comparar entre dimensiones distintas
             $m2 = (float)$row['m2'];
             if ($m2 > 0) {
@@ -146,7 +151,8 @@ if ($method === 'GET') {
                 'tipo'          => $g['tipo'],
                 'espesor_mm'    => $g['espesor_mm'],
                 'en_stock'      => $g['en_stock'],
-                'costo_prom_m2' => $g['sum_m2'] > 0 ? round($g['sum_valor'] / $g['sum_m2'], 4) : null,
+                'costo_prom_m2'      => $g['sum_m2'] > 0 ? round($g['sum_valor'] / $g['sum_m2'], 4) : null,
+                'costo_prom_m2_hist' => $g['sum_m2_hist'] > 0 ? round($g['sum_valor_hist'] / $g['sum_m2_hist'], 4) : null,
                 'valor_total'   => round($g['sum_valor'], 2),
                 'precio_min_m2' => $g['precio_min_m2'] !== null ? round($g['precio_min_m2'], 4) : null,
                 'precio_max_m2' => $g['precio_max_m2'] !== null ? round($g['precio_max_m2'], 4) : null,

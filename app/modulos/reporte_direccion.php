@@ -554,7 +554,10 @@ function rdRenderRentabilidad(inv) {
     var precioSinIva = (g.precio_venta_real !== null && g.precio_venta_real !== undefined) ? parseFloat(g.precio_venta_real) : null;
     var precioConIva = precioSinIva !== null ? parseFloat((precioSinIva * 1.16).toFixed(4)) : null;
     var m2Vendidos  = parseFloat(g.m2_vendidos_real || 0);
-    var costoSinIva = (g.costo_prom_m2 !== null && g.costo_prom_m2 !== undefined) ? parseFloat(g.costo_prom_m2) : null;
+    // Si no hay stock actual (se agotó) usa el costo histórico ponderado por TODO lo comprado,
+    // para no dejar la fila sin costo solo porque ya no queda inventario.
+    var costoBase   = (g.costo_prom_m2 !== null && g.costo_prom_m2 !== undefined) ? g.costo_prom_m2 : g.costo_prom_m2_hist;
+    var costoSinIva = (costoBase !== null && costoBase !== undefined) ? parseFloat(costoBase) : null;
     var costoConIva = costoSinIva !== null ? parseFloat((costoSinIva * 1.16).toFixed(4)) : null;
     // Sin costo actual (se agotó el stock o nunca se compró) y sin ventas registradas: no hay nada que mostrar.
     if (costoSinIva === null && precioSinIva === null) return;
