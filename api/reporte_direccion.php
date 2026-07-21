@@ -192,6 +192,10 @@ if ($accion === 'efectividad_corte') {
 }
 
 $params4 = [$desde, $hasta, $desde.' 00:00:00', $hasta.' 23:59:59'];
+// Ventas confirmadas (Ventas, Top Clientes, Ventas por Asesor): filtran por fecha de
+// VoBo (venta real confirmada), no por fecha_pedido/created_at — mismo criterio que
+// Ventas y Cobranza (UPD-363).
+$params2 = [$desde, $hasta];
 
 // Retraso se mide por fecha_terminado (cuando la última pieza llegó a 'terminado'),
 // NO por fecha_cierre — el cliente puede recoger tarde y eso no es retraso de producción.
@@ -414,13 +418,11 @@ $stmtF = $pdo->prepare("
         AVG(CASE WHEN COALESCE(c.total,0) > 0 THEN c.total ELSE NULL END)      AS ticket_promedio
     FROM ordenes o
     JOIN cotizaciones c ON c.orden_id = o.id
-    WHERE o.estado NOT IN ('cancelada', 'rechazada')
+    WHERE o.estado IN ('activa', 'entregada')
       AND c.estatus NOT IN ('cancelada', 'rechazada')
-      AND LEFT(o.folio, 1) >= 'S'
-      AND (o.fecha_pedido BETWEEN ? AND ?
-           OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
+      AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
 ");
-$stmtF->execute($params4);
+$stmtF->execute($params2);
 $finanzas = $stmtF->fetch(PDO::FETCH_ASSOC);
 
 // ── Pipeline vigente: TODAS las cotizaciones abiertas (estatus=cotizacion),
@@ -468,14 +470,13 @@ $stmtTop = $pdo->prepare("
     FROM ordenes o
     JOIN cotizaciones c ON c.orden_id = o.id
     JOIN clientes cl ON cl.id = c.cliente_id
-    WHERE o.estado != 'cancelada' AND c.estatus != 'cancelada'
-      AND (o.fecha_pedido BETWEEN ? AND ?
-           OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
+    WHERE o.estado IN ('activa', 'entregada') AND c.estatus NOT IN ('cancelada', 'rechazada')
+      AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
     GROUP BY cl.id, cl.nombre
     ORDER BY total_ventas DESC
     LIMIT 5
 ");
-$stmtTop->execute($params4);
+$stmtTop->execute($params2);
 $top_clientes = $stmtTop->fetchAll(PDO::FETCH_ASSOC);
 
 // ── Top 5 clientes por número de pedidos (período) ──
@@ -484,14 +485,13 @@ $stmtTopPed = $pdo->prepare("
     FROM ordenes o
     JOIN cotizaciones c ON c.orden_id = o.id
     JOIN clientes cl ON cl.id = c.cliente_id
-    WHERE o.estado != 'cancelada' AND c.estatus != 'cancelada'
-      AND (o.fecha_pedido BETWEEN ? AND ?
-           OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
+    WHERE o.estado IN ('activa', 'entregada') AND c.estatus NOT IN ('cancelada', 'rechazada')
+      AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
     GROUP BY cl.id, cl.nombre
     ORDER BY ordenes DESC
     LIMIT 5
 ");
-$stmtTopPed->execute($params4);
+$stmtTopPed->execute($params2);
 $top_clientes_pedidos = $stmtTopPed->fetchAll(PDO::FETCH_ASSOC);
 
 // ── Top 5 clientes por M² ordenado (período) ──
@@ -501,14 +501,13 @@ $stmtTopM2 = $pdo->prepare("
     JOIN cotizaciones c ON c.orden_id = o.id
     JOIN clientes cl ON cl.id = c.cliente_id
     JOIN cotizaciones_partidas cp ON cp.cotizacion_id = c.id
-    WHERE o.estado != 'cancelada' AND c.estatus != 'cancelada'
-      AND (o.fecha_pedido BETWEEN ? AND ?
-           OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
+    WHERE o.estado IN ('activa', 'entregada') AND c.estatus NOT IN ('cancelada', 'rechazada')
+      AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
     GROUP BY cl.id, cl.nombre
     ORDER BY total_m2 DESC
     LIMIT 5
 ");
-$stmtTopM2->execute($params4);
+$stmtTopM2->execute($params2);
 $top_clientes_m2 = $stmtTopM2->fetchAll(PDO::FETCH_ASSOC);
 
 // ── Órdenes y ventas por asesor (período) ──
@@ -516,14 +515,12 @@ $stmtAsesor = $pdo->prepare("
     SELECT c.asesor_nombre, COUNT(o.id) AS ordenes, COALESCE(SUM(c.total), 0) AS total_ventas
     FROM cotizaciones c
     JOIN ordenes o ON o.id = c.orden_id
-    WHERE o.estado != 'cancelada' AND c.estatus != 'cancelada'
-      AND LEFT(o.folio, 1) >= 'S'
-      AND (o.fecha_pedido BETWEEN ? AND ?
-           OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
+    WHERE o.estado IN ('activa', 'entregada') AND c.estatus NOT IN ('cancelada', 'rechazada')
+      AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
     GROUP BY c.asesor_nombre
     ORDER BY total_ventas DESC
 ");
-$stmtAsesor->execute($params4);
+$stmtAsesor->execute($params2);
 $por_asesor = $stmtAsesor->fetchAll(PDO::FETCH_ASSOC);
 
 // ── Tasa de reproceso (período) ──
