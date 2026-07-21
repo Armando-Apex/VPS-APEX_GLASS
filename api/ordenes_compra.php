@@ -491,7 +491,9 @@ if ($method === 'POST') {
         ");
         $st->execute([$oc_id, $oc_id]);
         $res = $st->fetch();
-        if ($res && $res['pagado'] >= $res['total_con_iva']) {
+        $total_con_iva = round((float)($res['total_con_iva'] ?? 0), 2);
+        $pagado        = round((float)($res['pagado'] ?? 0), 2);
+        if ($res && $pagado >= $total_con_iva) {
             $db->prepare("UPDATE ordenes_compra SET estado='pagada' WHERE id=?")->execute([$oc_id]);
         }
 
