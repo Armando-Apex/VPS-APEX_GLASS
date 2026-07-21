@@ -551,18 +551,19 @@ function rdRenderRentabilidad(inv) {
 
   var rows = [];
   porTipo.forEach(function(g) {
-    if (!g.costo_prom_m2) return;
     var precioSinIva = (g.precio_venta_real !== null && g.precio_venta_real !== undefined) ? parseFloat(g.precio_venta_real) : null;
     var precioConIva = precioSinIva !== null ? parseFloat((precioSinIva * 1.16).toFixed(4)) : null;
     var m2Vendidos  = parseFloat(g.m2_vendidos_real || 0);
-    var costoSinIva = parseFloat(g.costo_prom_m2);
-    var costoConIva = parseFloat((costoSinIva * 1.16).toFixed(4));
+    var costoSinIva = (g.costo_prom_m2 !== null && g.costo_prom_m2 !== undefined) ? parseFloat(g.costo_prom_m2) : null;
+    var costoConIva = costoSinIva !== null ? parseFloat((costoSinIva * 1.16).toFixed(4)) : null;
+    // Sin costo actual (se agotó el stock o nunca se compró) y sin ventas registradas: no hay nada que mostrar.
+    if (costoSinIva === null && precioSinIva === null) return;
     // Utilidad/Markup/%Utilidad/Margen% se calculan con costo c/IVA vs precio real c/IVA (misma base
     // en ambos lados) a peticion de Armando (10-jul-2026) — antes mezclaba precio s/IVA con costo c/IVA.
-    var utilidad    = precioConIva !== null ? parseFloat((precioConIva - costoConIva).toFixed(4)) : null;
-    var markup      = (precioConIva !== null && costoConIva > 0)  ? (utilidad / costoConIva) * 100 : null;
-    var utilidadPct = (precioConIva !== null && precioConIva > 0) ? (utilidad / precioConIva) * 100 : null;
-    var margen      = (precioConIva !== null && precioConIva > 0) ? (utilidad / precioConIva) * 100 : null;
+    var utilidad    = (precioConIva !== null && costoConIva !== null) ? parseFloat((precioConIva - costoConIva).toFixed(4)) : null;
+    var markup      = (utilidad !== null && costoConIva > 0)  ? (utilidad / costoConIva) * 100 : null;
+    var utilidadPct = (utilidad !== null && precioConIva > 0) ? (utilidad / precioConIva) * 100 : null;
+    var margen      = utilidadPct;
     rows.push({ tipo: g.tipo, espesor: g.espesor_mm, costoSinIva: costoSinIva, costoConIva: costoConIva, precioSinIva: precioSinIva, precioConIva: precioConIva, m2Vendidos: m2Vendidos, utilidad: utilidad, markup: markup, utilidadPct: utilidadPct, margen: margen });
   });
 
@@ -595,6 +596,8 @@ function rdRenderRentabilidad(inv) {
     '</tr></thead><tbody>';
 
   rows.forEach(function(r) {
+    var sinCosto = '<span style="color:var(--muted-lt);font-size:11px">Sin stock</span>';
+    var sinVenta = '<span style="color:var(--muted-lt);font-size:11px">Sin ventas</span>';
     var clr = clrMargen(r.margen);
     var barW = r.margen !== null ? Math.min(100, Math.max(0, parseFloat(r.margen.toFixed(0)))) : 0;
     var margenCell = r.margen !== null
@@ -604,15 +607,15 @@ function rdRenderRentabilidad(inv) {
           '</div>' +
           '<span style="font-weight:800;font-size:13px;color:' + clr + ';min-width:44px;text-align:right">' + fmtPct(r.margen) + '</span>' +
         '</div>'
-      : '<span style="color:var(--muted-lt);font-size:11px">Sin ventas</span>';
+      : (r.costoSinIva === null ? sinCosto : sinVenta);
     html += '<tr>' +
       '<td><strong>' + esc(r.tipo) + '</strong></td>' +
       '<td>' + r.espesor + ' mm</td>' +
-      '<td style="text-align:right;color:var(--muted)">' + fmt(r.costoSinIva) + '</td>' +
-      '<td style="text-align:right;color:var(--purple)">' + fmt(r.costoConIva) + '</td>' +
+      '<td style="text-align:right;color:var(--muted)">' + (r.costoSinIva !== null ? fmt(r.costoSinIva) : sinCosto) + '</td>' +
+      '<td style="text-align:right;color:var(--purple)">' + (r.costoConIva !== null ? fmt(r.costoConIva) : sinCosto) + '</td>' +
       '<td style="text-align:right;color:var(--muted)">' + r.m2Vendidos.toFixed(1) + '</td>' +
-      '<td style="text-align:right;color:var(--muted)">' + (r.precioSinIva !== null ? fmt(r.precioSinIva) : '<span style="color:var(--muted-lt);font-size:11px">Sin ventas</span>') + '</td>' +
-      '<td style="text-align:right">' + (r.precioConIva !== null ? fmt(r.precioConIva) : '<span style="color:var(--muted-lt);font-size:11px">Sin ventas</span>') + '</td>' +
+      '<td style="text-align:right;color:var(--muted)">' + (r.precioSinIva !== null ? fmt(r.precioSinIva) : sinVenta) + '</td>' +
+      '<td style="text-align:right">' + (r.precioConIva !== null ? fmt(r.precioConIva) : sinVenta) + '</td>' +
       '<td style="text-align:right;color:var(--green);font-weight:700">' + fmt(r.utilidad) + '</td>' +
       '<td style="text-align:right;color:var(--muted)">' + fmtPct(r.markup) + '</td>' +
       '<td style="text-align:right;font-weight:700;color:var(--blue)">' + fmtPct(r.utilidadPct) + '</td>' +

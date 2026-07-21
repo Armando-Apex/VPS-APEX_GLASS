@@ -110,7 +110,7 @@ if ($method === 'GET') {
             FROM inventario_compras ic
             JOIN laminas l ON l.id = ic.lamina_id
             GROUP BY ic.lamina_id, l.tipo, l.espesor_mm, l.ancho_mm, l.alto_mm, l.m2
-            HAVING en_stock > 0
+            HAVING en_stock >= 0
             ORDER BY l.tipo, l.espesor_mm, l.ancho_mm, l.alto_mm
         ");
         $por_lamina = $s->fetchAll();
