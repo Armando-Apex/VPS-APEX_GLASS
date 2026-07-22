@@ -74,6 +74,7 @@ function calcularPartidaMaquila($db, $p) {
         'canteado' => 0, 'cpb' => 'No', 'ml_canteado' => 0, 'precio_canteado_usado' => null, 'subtotal_canteado' => 0,
         'taladros_pasados' => 0, 'taladros_avellanados' => 0, 'precio_taladro_usado' => null, 'subtotal_taladro' => 0,
         'templado' => 0, 'precio_horno_usado' => null, 'subtotal_horno' => 0,
+        'filo_muerto' => 0, 'cpb_fm' => 'No', 'ml_filo_muerto' => 0, 'precio_filo_muerto_usado' => null, 'subtotal_filo_muerto' => 0,
     ];
 
     if (!empty($p['corte'])) {
@@ -98,6 +99,18 @@ function calcularPartidaMaquila($db, $p) {
         $out['subtotal_canteado'] = round($ml * $precio * $cantidad, 2);
     }
 
+    if (!empty($p['filo_muerto'])) {
+        $cpbFm = $p['cpb_fm'] ?? 'No';
+        $precio = buscarPrecio($db, 'filo_muerto', $espesor_mm);
+        if ($precio === null) return ['__error' => "Sin precio de filo muerto para espesor {$espesor_mm}mm"];
+        $ml = round(calcularMlCanteado($cpbFm, $ancho, $alto), 4);
+        $out['filo_muerto'] = 1;
+        $out['cpb_fm'] = $cpbFm;
+        $out['ml_filo_muerto'] = $ml;
+        $out['precio_filo_muerto_usado'] = $precio;
+        $out['subtotal_filo_muerto'] = round($ml * $precio * $cantidad, 2);
+    }
+
     $pasados     = (int)($p['taladros_pasados']     ?? 0);
     $avellanados = (int)($p['taladros_avellanados'] ?? 0);
     if ($pasados + $avellanados > 0) {
@@ -119,7 +132,7 @@ function calcularPartidaMaquila($db, $p) {
 
     $out['subtotal'] = round(
         $out['subtotal_corte'] + $out['subtotal_canteado'] +
-        $out['subtotal_taladro'] + $out['subtotal_horno'], 2
+        $out['subtotal_taladro'] + $out['subtotal_horno'] + $out['subtotal_filo_muerto'], 2
     );
 
     return $out;
@@ -238,8 +251,9 @@ if ($recurso === 'cotizacion') {
              canteado, cpb, ml_canteado, precio_canteado_usado, subtotal_canteado,
              taladros_pasados, taladros_avellanados, precio_taladro_usado, subtotal_taladro,
              templado, precio_horno_usado, subtotal_horno,
+             filo_muerto, cpb_fm, ml_filo_muerto, precio_filo_muerto_usado, subtotal_filo_muerto,
              detalles, subtotal)
-            VALUES (?,?,?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?)
+            VALUES (?,?,?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?)
         ");
         foreach ($partidas_calc as $i => $p) {
             $stmtP->execute([
@@ -248,6 +262,7 @@ if ($recurso === 'cotizacion') {
                 $p['canteado'], $p['cpb'], $p['ml_canteado'], $p['precio_canteado_usado'], $p['subtotal_canteado'],
                 $p['taladros_pasados'], $p['taladros_avellanados'], $p['precio_taladro_usado'], $p['subtotal_taladro'],
                 $p['templado'], $p['precio_horno_usado'], $p['subtotal_horno'],
+                $p['filo_muerto'], $p['cpb_fm'], $p['ml_filo_muerto'], $p['precio_filo_muerto_usado'], $p['subtotal_filo_muerto'],
                 $p['detalles'], $p['subtotal']
             ]);
         }
@@ -305,8 +320,9 @@ if ($recurso === 'cotizacion') {
                  canteado, cpb, ml_canteado, precio_canteado_usado, subtotal_canteado,
                  taladros_pasados, taladros_avellanados, precio_taladro_usado, subtotal_taladro,
                  templado, precio_horno_usado, subtotal_horno,
+                 filo_muerto, cpb_fm, ml_filo_muerto, precio_filo_muerto_usado, subtotal_filo_muerto,
                  detalles, subtotal)
-                VALUES (?,?,?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?)
+                VALUES (?,?,?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?)
             ");
             foreach ($partidas_calc as $i => $p) {
                 $stmtP->execute([
@@ -315,6 +331,7 @@ if ($recurso === 'cotizacion') {
                     $p['canteado'], $p['cpb'], $p['ml_canteado'], $p['precio_canteado_usado'], $p['subtotal_canteado'],
                     $p['taladros_pasados'], $p['taladros_avellanados'], $p['precio_taladro_usado'], $p['subtotal_taladro'],
                     $p['templado'], $p['precio_horno_usado'], $p['subtotal_horno'],
+                    $p['filo_muerto'], $p['cpb_fm'], $p['ml_filo_muerto'], $p['precio_filo_muerto_usado'], $p['subtotal_filo_muerto'],
                     $p['detalles'], $p['subtotal']
                 ]);
             }
@@ -399,7 +416,7 @@ if ($recurso === 'precios') {
         $espesor_mm = (float)($body['espesor_mm'] ?? 0);
         $precio     = (float)($body['precio']     ?? 0);
 
-        if (!in_array($servicio, ['corte','canteado','taladro','horno'])) {
+        if (!in_array($servicio, ['corte','canteado','taladro','horno','filo_muerto'])) {
             jsonResponse(['error' => 'Servicio inválido']); exit;
         }
         if ($espesor_mm <= 0 || $precio <= 0) {

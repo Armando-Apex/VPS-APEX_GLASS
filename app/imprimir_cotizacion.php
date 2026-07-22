@@ -372,9 +372,12 @@ function waEnviar() {
     <tbody>
     <?php foreach ($partidas as $p):
         $m2_total = round($p['m2'] * $p['cantidad'], 4);
+        $cpbValNorm = trim((string)($p['cpb'] ?? ''));
+        $cpbUpNorm  = strtoupper($cpbValNorm);
+        $esCPBNorm  = ($cpbValNorm !== '' && $cpbUpNorm !== 'NO' && $cpbUpNorm !== 'FM' && $cpbUpNorm !== 'FILO MUERTO');
         $detalles_extra = array_filter([
             $p['detalles'] !== 'NO' ? $p['detalles'] : '',
-            $p['cpb'] !== 'No' ? 'CPB: '.$p['cpb'] : '',
+            $esCPBNorm ? 'CPB: '.$p['cpb'] : 'Filo Muerto',
             $p['resaques'] > 0 ? $p['resaques'].' resaque(s)' : '',
             $p['taladros_pasados'] > 0 ? $p['taladros_pasados'].' TP' : '',
             $p['taladros_avellanados'] > 0 ? $p['taladros_avellanados'].' TA' : '',
@@ -423,7 +426,12 @@ function waEnviar() {
     <?php foreach ($partidas as $p):
         $servicios = [];
         if (!empty($p['corte']))    $servicios[] = 'Corte (' . number_format((float)$p['ml_corte'], 2) . 'ml)';
-        if (!empty($p['canteado'])) $servicios[] = 'Canteado ' . htmlspecialchars((string)$p['cpb']) . ' (' . number_format((float)$p['ml_canteado'], 2) . 'ml)';
+        $cpbVal = trim((string)($p['cpb'] ?? ''));
+        $cpbUp  = strtoupper($cpbVal);
+        $esCPB  = ($cpbVal !== '' && $cpbUp !== 'NO' && $cpbUp !== 'FM' && $cpbUp !== 'FILO MUERTO');
+        if ($esCPB) $servicios[] = 'Canteado ' . htmlspecialchars($cpbVal) . ' (' . number_format((float)$p['ml_canteado'], 2) . 'ml)';
+        elseif (!empty($p['filo_muerto'])) $servicios[] = 'Filo Muerto ' . htmlspecialchars($p['cpb_fm']) . ' (' . number_format((float)$p['ml_filo_muerto'], 2) . 'ml)';
+        else        $servicios[] = 'Filo Muerto';
         if ((int)$p['taladros_pasados'] + (int)$p['taladros_avellanados'] > 0) $servicios[] = 'Taladro (' . (int)$p['taladros_pasados'] . 'p/' . (int)$p['taladros_avellanados'] . 'a)';
         if (!empty($p['templado']))  $servicios[] = 'Templado';
     ?>

@@ -1250,6 +1250,22 @@ var ModCampanas = (function() {
     }
 
     function cargarMensajes(convId, preservarScroll) {
+        // No pisar un <audio> en reproducción activa (el refresco silencioso destruía el player a medio audio)
+        // Y si está pausado a medias, recordar su currentTime para no reiniciarlo desde 0 tras el refresco
+        var audiosPausadosProgreso = {};
+        if (preservarScroll) {
+            var msgsElChk = document.getElementById('cmpMsgs');
+            if (msgsElChk) {
+                var audiosActivos = msgsElChk.querySelectorAll('audio');
+                for (var ai = 0; ai < audiosActivos.length; ai++) {
+                    if (!audiosActivos[ai].paused) return;
+                    if (audiosActivos[ai].currentTime > 0) {
+                        var srcEl = audiosActivos[ai].querySelector('source');
+                        if (srcEl && srcEl.src) audiosPausadosProgreso[srcEl.src] = audiosActivos[ai].currentTime;
+                    }
+                }
+            }
+        }
         fetch('/produccion/api/campanas.php?accion=mensajes&conversacion_id=' + parseInt(convId))
           .then(function(r) { return r.json(); })
           .then(function(data) {
@@ -1355,6 +1371,13 @@ var ModCampanas = (function() {
                 var cercaAbajo = !preservarScroll || (msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight) < 80;
                 msgsEl.innerHTML = msgs || '<p style="color:#94a3b8;font-size:12px;text-align:center;">Sin mensajes a&uacute;n.</p>';
                 if (cercaAbajo) { msgsEl.scrollTop = msgsEl.scrollHeight; }
+                // Restaurar el punto donde iba cualquier audio que estaba pausado a medias
+                for (var srcRestaurar in audiosPausadosProgreso) {
+                    var audioNuevo = msgsEl.querySelector('source[src="' + srcRestaurar + '"]');
+                    if (audioNuevo && audioNuevo.parentElement) {
+                        audioNuevo.parentElement.currentTime = audiosPausadosProgreso[srcRestaurar];
+                    }
+                }
             }
             // Mantener foco en el textarea después de recargar mensajes (no en refrescos silenciosos)
             if (!preservarScroll) {

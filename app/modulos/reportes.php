@@ -158,7 +158,10 @@ var ModReportes = (function() {
     })
       .then(function(r) { return r.json(); })
       .then(function(d) {
-        if (d.ok) { _cargar(); }
+        if (d.ok) {
+          _cargar();
+          if (typeof window.actualizarBadgeReportes === 'function') window.actualizarBadgeReportes();
+        }
         else { alert(d.error || 'Error'); }
       })
       .catch(function() { alert('Error de conexión'); });

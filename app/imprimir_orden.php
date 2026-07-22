@@ -271,7 +271,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
         <td><?= number_format($m2t, 4) ?></td>
         <td class="left"><?= htmlspecialchars($p['detalles'] ?: '—') ?></td>
         <td class="<?= $templado ? 'si' : 'no' ?>"><?= $templado ? 'Sí' : 'No' ?></td>
-        <td><?= htmlspecialchars($p['cpb'] ?: '—') ?></td>
+        <td><?= htmlspecialchars($p['cpb'] && strtoupper(trim($p['cpb'])) !== 'NO' ? $p['cpb'] : 'FM') ?></td>
         <td><?= $p['resaques'] ?: '—' ?></td>
         <td><?= $p['taladros_pasados'] ?: '—' ?></td>
         <td><?= $p['taladros_avellanados'] ?: '—' ?></td>
@@ -281,7 +281,12 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
     <?php else:
       $servicios = [];
       if ($p['corte'])    $servicios[] = 'Corte (' . number_format($p['ml_corte'], 2) . 'ml)';
-      if ($p['canteado']) $servicios[] = 'Canteado ' . $p['cpb'] . ' (' . number_format($p['ml_canteado'], 2) . 'ml)';
+      $cpbVal = trim((string)($p['cpb'] ?? ''));
+      $cpbUp  = strtoupper($cpbVal);
+      $esCPB  = ($cpbVal !== '' && $cpbUp !== 'NO' && $cpbUp !== 'FM' && $cpbUp !== 'FILO MUERTO');
+      if ($esCPB) $servicios[] = 'Canteado ' . $cpbVal . ' (' . number_format($p['ml_canteado'], 2) . 'ml)';
+      elseif (!empty($p['filo_muerto'])) $servicios[] = 'Filo Muerto ' . $p['cpb_fm'] . ' (' . number_format($p['ml_filo_muerto'], 2) . 'ml)';
+      else        $servicios[] = 'Filo Muerto';
       if ((int)$p['taladros_pasados'] + (int)$p['taladros_avellanados'] > 0) $servicios[] = 'Taladro (' . $p['taladros_pasados'] . 'p/' . $p['taladros_avellanados'] . 'a)';
       if ($p['templado'])  $servicios[] = 'Templado';
     ?>

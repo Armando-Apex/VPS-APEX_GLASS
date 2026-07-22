@@ -303,6 +303,7 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       <?php if ($esDesarrollo || $esAdmin): ?>
       <button class="sidebar-link" data-modulo="reportes" onclick="cargarModulo('reportes')">
         <span class="sidebar-icon"><?= icono('flag') ?></span>Reportes
+        <span id="reportesBadge" style="display:none;background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;margin-left:auto;"></span>
       </button>
       <?php endif; ?>
       <?php if ($esDesarrollo): ?>
@@ -646,7 +647,7 @@ window.cargarModulo = function(nombre, params) {
       .catch(function() {});
   }
   actualizarBadgeAuth();
-  setInterval(actualizarBadgeAuth, 10000);
+  _siOrig.call(window, actualizarBadgeAuth, 10000);
   window.actualizarBadgeAuth = actualizarBadgeAuth;
 })();
 
@@ -670,7 +671,7 @@ window.cargarModulo = function(nombre, params) {
       .catch(function() {});
   }
   actualizarBadgeCompras();
-  setInterval(actualizarBadgeCompras, 60000);
+  _siOrig.call(window, actualizarBadgeCompras, 60000);
   window.actualizarBadgeCompras = actualizarBadgeCompras;
 })();
 <?php else: ?>
@@ -696,8 +697,31 @@ window.actualizarBadgeCompras = function() {};
       .catch(function() {});
   }
   actualizarBadgeWA();
-  setInterval(actualizarBadgeWA, 10000);
+  _siOrig.call(window, actualizarBadgeWA, 10000);
   window.actualizarBadgeWA = actualizarBadgeWA;
+})();
+
+// ── Badge reportes pendientes ─────────────────────────────────
+(function() {
+  function actualizarBadgeReportes() {
+    fetch('/produccion/api/reportes.php?accion=sin_leer')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var badge = document.getElementById('reportesBadge');
+        if (!badge) return;
+        var total = data.total || 0;
+        if (total > 0) {
+          badge.textContent = total;
+          badge.style.display = 'inline-block';
+        } else {
+          badge.style.display = 'none';
+        }
+      })
+      .catch(function() {});
+  }
+  actualizarBadgeReportes();
+  _siOrig.call(window, actualizarBadgeReportes, 10000);
+  window.actualizarBadgeReportes = actualizarBadgeReportes;
 })();
 
 // ── Reportar bug / mejora ─────────────────────────────────────────────────────
@@ -876,6 +900,7 @@ window.actualizarBadgeCompras = function() {};
       if (res.ok) {
         msg.textContent = '¡Gracias! Tu reporte fue enviado.';
         msg.className = 'rep-msg ok';
+        if (typeof window.actualizarBadgeReportes === 'function') window.actualizarBadgeReportes();
         setTimeout(repCerrarModal, 1800);
       } else {
         msg.textContent = res.error || 'Error al enviar';

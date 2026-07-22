@@ -375,7 +375,9 @@ async function cargarCatalogos() {
         cpb: p.cpb || 'No',
         taladros_pasados: parseInt(p.taladros_pasados, 10) || 0,
         taladros_avellanados: parseInt(p.taladros_avellanados, 10) || 0,
-        templado: parseInt(p.templado, 10) || 0
+        templado: parseInt(p.templado, 10) || 0,
+        filo_muerto: parseInt(p.filo_muerto, 10) || 0,
+        cpb_fm: p.cpb_fm || 'No'
       };
     });
     render();
@@ -421,7 +423,7 @@ function seleccionarCliente(id, nombre) {
 }
 
 function agregarPartida() {
-  partidas.push({ ancho:0, alto:0, cantidad:1, espesor_mm:6, cristal_tipo_id:0, corte:0, canteado:0, cpb:'No', taladros_pasados:0, taladros_avellanados:0, templado:0 });
+  partidas.push({ ancho:0, alto:0, cantidad:1, espesor_mm:6, cristal_tipo_id:0, corte:0, canteado:0, cpb:'No', taladros_pasados:0, taladros_avellanados:0, templado:0, filo_muerto:0, cpb_fm:'No' });
   render();
 }
 
@@ -477,6 +479,10 @@ function subtotalPartida(p) {
     var ph = precioDe('horno', p.espesor_mm);
     if (ph) total += m2 * ph * p.cantidad;
   }
+  if (p.filo_muerto) {
+    var pf = precioDe('filo_muerto', p.espesor_mm);
+    if (pf) total += mlCanteado(p.cpb_fm, p.ancho, p.alto) * pf * p.cantidad;
+  }
   return total;
 }
 
@@ -510,6 +516,12 @@ function render() {
     html += '<select onchange="ModMaquilaNueva._campo(' + i + ",'cpb',this.value)\">";
     for (var c = 0; c < CPB_OPTS.length; c++) {
       html += '<option value="' + CPB_OPTS[c] + '"' + (p.cpb === CPB_OPTS[c] ? ' selected' : '') + '>' + CPB_OPTS[c] + '</option>';
+    }
+    html += '</select>';
+    html += '<label class="chk"><input type="checkbox" ' + (p.filo_muerto ? 'checked' : '') + ' onchange="ModMaquilaNueva._campo(' + i + ",'filo_muerto',this.checked?1:0)\"> Filo Muerto</label>";
+    html += '<select onchange="ModMaquilaNueva._campo(' + i + ",'cpb_fm',this.value)\">";
+    for (var fm = 0; fm < CPB_OPTS.length; fm++) {
+      html += '<option value="' + CPB_OPTS[fm] + '"' + (p.cpb_fm === CPB_OPTS[fm] ? ' selected' : '') + '>' + CPB_OPTS[fm] + '</option>';
     }
     html += '</select>';
     html += '<label class="chk"><input type="checkbox" ' + (p.templado ? 'checked' : '') + ' onchange="ModMaquilaNueva._campo(' + i + ",'templado',this.checked?1:0)\"> Templado</label>";
@@ -682,6 +694,7 @@ function render() {
     if (p.canteado == 1) servicios.push('Canteado ' + esc(p.cpb) + ' (' + parseFloat(p.ml_canteado).toFixed(2) + 'ml)');
     if ((parseInt(p.taladros_pasados)||0) + (parseInt(p.taladros_avellanados)||0) > 0) servicios.push('Taladro (' + p.taladros_pasados + 'p/' + p.taladros_avellanados + 'a)');
     if (p.templado == 1) servicios.push('Templado');
+    if (p.filo_muerto == 1) servicios.push('Filo Muerto ' + esc(p.cpb_fm) + ' (' + parseFloat(p.ml_filo_muerto).toFixed(2) + 'ml)');
     html += '<tr>';
     html += '<td>' + (i+1) + '</td>';
     html += '<td>' + p.ancho + 'x' + p.alto + ' mm &times;' + p.cantidad + '</td>';

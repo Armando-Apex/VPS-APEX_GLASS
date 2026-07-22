@@ -363,21 +363,29 @@ async function registrarPago(cot_id, orden_id, btn) {
 }
 
 // ── Dar VoBo ──────────────────────────────────────────────────
-async function darVobo(orden_id) {
+async function darVobo(orden_id, notaVobo) {
   var fecha = document.getElementById('vobo-fecha')?.value;
   if (!fecha) { alert('Selecciona una fecha de entrega'); return; }
-  if (!confirm('¿Confirmar VoBo y pasar esta orden a producción?\n\nFecha de entrega: ' + fecha)) return;
+  if (!notaVobo && !confirm('¿Confirmar VoBo y pasar esta orden a producción?\n\nFecha de entrega: ' + fecha)) return;
+
+  var body = { accion:'vobo', orden_id: orden_id, fecha_entrega: fecha };
+  if (notaVobo) body.nota_vobo = notaVobo;
 
   var res  = await fetch(API, {
     method: 'PUT',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ accion:'vobo', orden_id: orden_id, fecha_entrega: fecha })
+    body: JSON.stringify(body)
   });
   var data = await res.json();
   if (data.ok) {
     alert('✅ VoBo registrado por ' + data.vobo_por + '\nFecha de entrega: ' + data.fecha_entrega);
     cerrarDetalle();
     cargarLista();
+  } else if (data.error && data.error.indexOf('escribir el motivo') !== -1) {
+    // administracion (Lina) puede forzar el VoBo sin el anticipo completo,
+    // pero el motivo es obligatorio — se pide aquí y se reintenta con él.
+    var motivo = prompt(data.error + '\n\nEscribe el motivo para forzar el VoBo:');
+    if (motivo && motivo.trim()) darVobo(orden_id, motivo.trim());
   } else {
     alert(data.error || 'Error al dar VoBo');
   }

@@ -31,6 +31,16 @@ if ($method === 'GET' && $accion === 'lista') {
     exit;
 }
 
+// ── GET sin_leer (contador para badge sidebar) ────────────────────────────────
+if ($method === 'GET' && $accion === 'sin_leer') {
+    if (!in_array($rol, ['desarrollo', 'dir_admin'])) {
+        jsonResponse(['ok'=>true, 'total'=>0]); exit;
+    }
+    $total = (int)$pdo->query("SELECT COUNT(*) FROM reportes WHERE estado='pendiente'")->fetchColumn();
+    jsonResponse(['ok'=>true, 'total'=>$total]);
+    exit;
+}
+
 // ── POST crear ────────────────────────────────────────────────────────────────
 if ($method === 'POST' && $accion === 'crear') {
     $d    = json_decode(file_get_contents('php://input'), true) ?? [];
