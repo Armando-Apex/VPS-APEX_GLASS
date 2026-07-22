@@ -1296,6 +1296,10 @@ async function ocAbrirAgregarPartida(ocId) {
       '<div class="form-group"><label class="form-label">Unidad</label><input type="text" id="npUnidad" class="form-input" value="LAMINA"></div>'+
       '<div class="form-group"><label class="form-label">Cantidad (l&aacute;minas) *</label><input type="number" id="npCantidad" class="form-input" min="1" step="1" oninput="npPreview()"></div>'+
       '<div class="form-group"><label class="form-label" id="npPrecioLabel">Precio unit. s/IVA *</label><input type="number" id="npPrecio" class="form-input" step="0.01" min="0" oninput="npPreview()"></div>'+
+      '<div class="form-group form-full" style="display:flex;align-items:center;gap:6px;padding-top:4px">'+
+        '<input type="checkbox" id="npIvaIncluido" onchange="npDescripcionAuto()" style="width:16px;height:16px">'+
+        '<label class="form-label" style="margin:0" for="npIvaIncluido">Precio con IVA incluido (ej. fletes)</label>'+
+      '</div>'+
       '<div class="form-group form-full" id="npPreviewBox" style="display:none"><div style="background:#f0f9ff;border-radius:8px;padding:10px;font-size:13px;color:#0369a1;font-weight:700" id="npPreviewTxt"></div></div>'+
     '</div>'+
     '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'+

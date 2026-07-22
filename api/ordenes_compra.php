@@ -71,6 +71,8 @@ if ($method === 'GET') {
 
     // Calendario de pagos
     if ($accion === 'calendario_pagos') {
+        // [C-8] Subconsultas agregadas independientes: el JOIN oc_partidas × oc_pagos
+        // hacía fan-out (N partidas × M pagos) y multiplicaba subtotal y pagado.
         $s = $db->query("
             SELECT
                 oc.id,
@@ -81,17 +83,26 @@ if ($method === 'GET') {
                 oc.fecha_pago_programada,
                 oc.notas,
                 p.nombre                            AS proveedor,
-                SUM(op.importe)                     AS subtotal_sin_iva,
-                SUM(op.importe) * 1.16              AS total_con_iva,
-                COALESCE(SUM(pg.monto), 0)          AS pagado,
+                COALESCE(tp.subtotal_sin_iva, 0)    AS subtotal_sin_iva,
+                COALESCE(tp.total_con_iva, 0)        AS total_con_iva,
+                COALESCE(pg.pagado, 0)              AS pagado,
                 DATEDIFF(oc.fecha_pago_programada, CURDATE()) AS dias_para_pago
             FROM ordenes_compra oc
-            JOIN proveedores p   ON p.id = oc.proveedor_id
-            LEFT JOIN oc_partidas op ON op.orden_compra_id = oc.id
-            LEFT JOIN oc_pagos pg    ON pg.orden_compra_id = oc.id
+            JOIN proveedores p ON p.id = oc.proveedor_id
+            LEFT JOIN (
+                SELECT orden_compra_id,
+                       SUM(importe) AS subtotal_sin_iva,
+                       SUM(CASE WHEN iva_incluido = 1 THEN importe ELSE importe * 1.16 END) AS total_con_iva
+                FROM oc_partidas
+                GROUP BY orden_compra_id
+            ) tp ON tp.orden_compra_id = oc.id
+            LEFT JOIN (
+                SELECT orden_compra_id, SUM(monto) AS pagado
+                FROM oc_pagos
+                GROUP BY orden_compra_id
+            ) pg ON pg.orden_compra_id = oc.id
             WHERE oc.estado IN ('cerrada','abierta')
               AND oc.fecha_pago_programada IS NOT NULL
-            GROUP BY oc.id
             ORDER BY oc.fecha_pago_programada ASC
         ");
         jsonResponse(['pagos' => $s->fetchAll()]);
@@ -225,7 +236,7 @@ if ($method === 'GET') {
             p.nombre                            AS proveedor,
             COUNT(DISTINCT op.id)               AS num_partidas,
             COALESCE(SUM(op.importe), 0)        AS subtotal_sin_iva,
-            COALESCE(SUM(op.importe), 0) * 1.16 AS total_con_iva,
+            COALESCE(SUM(CASE WHEN op.iva_incluido = 1 THEN op.importe ELSE op.importe * 1.16 END), 0) AS total_con_iva,
             COALESCE(SUM(op.cantidad_recibida), 0) AS total_recibido,
             COALESCE(SUM(op.cantidad), 0)           AS total_ordenado,
             DATEDIFF(oc.fecha_pago_programada, CURDATE()) AS dias_para_pago,
@@ -291,7 +302,10 @@ if ($method === 'POST') {
         $oc_id      = (int)($body['orden_compra_id'] ?? 0);
         if (!ocHeaderEsEditable($db, $oc_id, $user['rol']))
             jsonResponse(['error' => 'No tienes permiso para modificar esta OC'], 403);
-        $tipo       = $body['tipo'] ?? 'lamina';
+        // [A-12] Tipo limitado al catálogo real; default 'otro' (una partida sin
+        // tipo explícito no debe nacer como lámina)
+        $tipo       = $body['tipo'] ?? 'otro';
+        if (!in_array($tipo, ['lamina', 'flete', 'otro'], true)) $tipo = 'otro';
         $lamina_id  = $tipo === 'lamina' ? (int)($body['lamina_id'] ?? 0) : null;
         $oc_ref_id  = $tipo === 'flete'  ? (int)($body['oc_referencia_id'] ?? 0) : null;
         $desc       = trim($body['descripcion'] ?? '');
@@ -299,20 +313,35 @@ if ($method === 'POST') {
         $cantidad   = (float)($body['cantidad'] ?? 0);
         $precio     = (float)($body['precio_unitario'] ?? 0);
 
-        if (!$oc_id || !$desc || !$cantidad || !$precio)
-            jsonResponse(['error' => 'Faltan campos requeridos'], 422);
+        // [A-3] Cantidad y precio deben ser positivos
+        if (!$oc_id || !$desc || $cantidad <= 0 || $precio <= 0)
+            jsonResponse(['error' => 'Faltan campos requeridos (cantidad y precio deben ser mayores a 0)'], 422);
+
+        // [A-12] Partida tipo lámina: lamina_id obligatorio, existente y activo.
+        // Sin esto la OC cerraba sin crear stock en silencio al recibirla.
+        if ($tipo === 'lamina') {
+            if (!$lamina_id)
+                jsonResponse(['error' => 'Selecciona la lámina de la partida'], 422);
+            $sl = $db->prepare("SELECT id FROM laminas WHERE id = ? AND activo = 1");
+            $sl->execute([$lamina_id]);
+            if (!$sl->fetch())
+                jsonResponse(['error' => 'La lámina seleccionada no existe o está inactiva'], 422);
+        }
 
         // Número de partida
         $n = $db->prepare("SELECT COALESCE(MAX(numero_partida),0)+1 FROM oc_partidas WHERE orden_compra_id=?");
         $n->execute([$oc_id]);
         $num = $n->fetchColumn();
 
+        // [M-3] Flag opcional: si no viene, 0 = precio sin IVA (comportamiento actual)
+        $iva_incluido = !empty($body['iva_incluido']) ? 1 : 0;
+
         $s = $db->prepare("INSERT INTO oc_partidas
             (orden_compra_id, numero_partida, tipo, lamina_id, oc_referencia_id,
-             descripcion, unidad, cantidad, precio_unitario)
-            VALUES (?,?,?,?,?,?,?,?,?)");
+             descripcion, unidad, cantidad, precio_unitario, iva_incluido)
+            VALUES (?,?,?,?,?,?,?,?,?,?)");
         $s->execute([$oc_id, $num, $tipo, $lamina_id, $oc_ref_id ?: null,
-                     $desc, $unidad, $cantidad, $precio]);
+                     $desc, $unidad, $cantidad, $precio, $iva_incluido]);
         jsonResponse(['ok' => true, 'id' => $db->lastInsertId()]);
     }
 
@@ -325,6 +354,17 @@ if ($method === 'POST') {
 
         if (!$oc_id || empty($detalle))
             jsonResponse(['error' => 'Faltan datos de entrega'], 422);
+
+        // [C-7] Solo se recibe mercancía de una OC viva. Se permite 'pagada'
+        // porque el flujo pagar-antes-de-recibir es válido; el cierre (abajo)
+        // tiene guard AND estado='abierta' y nunca la degrada a 'cerrada'.
+        $soce = $db->prepare("SELECT estado FROM ordenes_compra WHERE id = ?");
+        $soce->execute([$oc_id]);
+        $estado_oc = $soce->fetchColumn();
+        if (!$estado_oc)
+            jsonResponse(['error' => 'OC no encontrada'], 404);
+        if (!in_array($estado_oc, ['abierta', 'pagada'], true))
+            jsonResponse(['error' => 'No se pueden registrar entregas en una OC ' . $estado_oc], 422);
 
         // Detectar si es OC de flete
         $stp = $db->prepare("SELECT COUNT(*) FROM oc_partidas WHERE orden_compra_id = ? AND tipo = 'flete'");
@@ -355,43 +395,64 @@ if ($method === 'POST') {
             // Insertar detalle y actualizar cantidad_recibida en partidas
             $sd = $db->prepare("INSERT INTO oc_entrega_detalle
                 (entrega_id, oc_partida_id, cantidad_recibida) VALUES (?,?,?)");
+            // [C-7] Guard atómico por partida: solo suma si la partida pertenece
+            // a esta OC y no excede lo ordenado. Si rowCount=0, la recepción es
+            // inválida (sobre-recepción, doble recepción concurrente o partida
+            // de otra OC) y se revierte TODA la entrega.
             $su = $db->prepare("UPDATE oc_partidas
                 SET cantidad_recibida = cantidad_recibida + ?
-                WHERE id = ? AND orden_compra_id = ?");
+                WHERE id = ? AND orden_compra_id = ?
+                  AND cantidad_recibida + ? <= cantidad");
 
             foreach ($detalle as $d) {
                 $partida_id = (int)($d['oc_partida_id'] ?? 0);
                 $cant       = (float)($d['cantidad_recibida'] ?? 0);
-                if (!$partida_id || !$cant) continue;
+                if (!$partida_id)
+                    throw new Exception('Detalle de entrega con partida inválida', 422);
+                // [A-3] Cantidades deben ser positivas (un negativo restaba stock)
+                if ($cant <= 0)
+                    throw new Exception('La cantidad recibida debe ser mayor a 0 (partida #' . $partida_id . ')', 422);
 
                 $sd->execute([$entrega_id, $partida_id, $cant]);
-                $su->execute([$cant, $partida_id, $oc_id]);
+                $su->execute([$cant, $partida_id, $oc_id, $cant]);
+                if ($su->rowCount() === 0)
+                    throw new Exception('La partida #' . $partida_id . ' no pertenece a la OC o la cantidad excede lo pendiente por recibir', 422);
 
-                if (!$es_oc_flete) {
-                    // Registrar entrada en inventario para partidas de lamina
-                    $sp2 = $db->prepare("SELECT lamina_id, precio_unitario FROM oc_partidas WHERE id = ? AND tipo = 'lamina'");
-                    $sp2->execute([$partida_id]);
-                    $partida = $sp2->fetch();
-                    if ($partida && $partida['lamina_id']) {
-                        $sic = $db->prepare("INSERT INTO inventario_compras
-                            (lamina_id, proveedor_id, fecha_compra, cantidad_laminas,
-                             precio_unitario, flete_tipo, costo_flete_total,
-                             notas, created_by, orden_compra_id, oc_entrega_id)
-                            SELECT ?, oc.proveedor_id, ?, ?, ?, ?, 0, ?, ?, ?, ?
-                            FROM ordenes_compra oc WHERE oc.id = ?");
-                        $sic->execute([
-                            $partida['lamina_id'],
-                            $fecha,
-                            $cant,
-                            $partida['precio_unitario'],
-                            $flete_tipo_vidrio,
-                            'Entrega de OC ' . $oc_id,
-                            $user['id'],
-                            $oc_id,
-                            $entrega_id,
-                            $oc_id
-                        ]);
-                    }
+                // [A-11] La entrada a inventario se decide POR PARTIDA (tipo='lamina'),
+                // no por OC: una OC mixta (lámina + flete) ya no deja de crear stock.
+                // [A-11] La lectura valida que la partida pertenece a ESTA OC
+                // (AND orden_compra_id = ?) — no se puede recibir contra la
+                // partida de otra OC e inflar inventario.
+                // [C-9] costo_real_unitario es columna GENERATED (precio_unitario +
+                // costo_flete_total/cantidad_laminas) — MySQL la calcula sola, no se
+                // inserta explícito (INSERT directo sobre ella falla: error 1906).
+                $sp2 = $db->prepare("SELECT lamina_id, precio_unitario FROM oc_partidas
+                    WHERE id = ? AND orden_compra_id = ? AND tipo = 'lamina'");
+                $sp2->execute([$partida_id, $oc_id]);
+                $partida = $sp2->fetch();
+                if ($partida) {
+                    // [A-12] Partida lámina sin lámina asociada: fallar la entrega
+                    // en vez de cerrar la OC en silencio sin crear stock.
+                    if (!$partida['lamina_id'])
+                        throw new Exception('La partida #' . $partida_id . ' es tipo lámina y no tiene lamina_id; corrige la partida antes de recibir', 422);
+                    $sic = $db->prepare("INSERT INTO inventario_compras
+                        (lamina_id, proveedor_id, fecha_compra, cantidad_laminas,
+                         precio_unitario, flete_tipo, costo_flete_total,
+                         notas, created_by, orden_compra_id, oc_entrega_id)
+                        SELECT ?, oc.proveedor_id, ?, ?, ?, ?, 0, ?, ?, ?, ?
+                        FROM ordenes_compra oc WHERE oc.id = ?");
+                    $sic->execute([
+                        $partida['lamina_id'],
+                        $fecha,
+                        $cant,
+                        $partida['precio_unitario'],
+                        $flete_tipo_vidrio,
+                        'Entrega de OC ' . $oc_id,
+                        $user['id'],
+                        $oc_id,
+                        $entrega_id,
+                        $oc_id
+                    ]);
                 }
             }
 
@@ -426,26 +487,27 @@ if ($method === 'POST') {
                 }
             }
 
-            // Verificar si la OC quedo completa
-            $stype = $db->prepare("SELECT tipo FROM ordenes_compra WHERE id = ?");
-            $stype->execute([$oc_id]);
-            $oc_tipo    = $stype->fetchColumn() ?: 'material';
-            $tipo_check = ($oc_tipo === 'suministro') ? 'otro' : ($es_oc_flete ? 'flete' : 'lamina');
+            // [A-11] Verificar si la OC quedo completa evaluando TODAS las
+            // partidas (lámina, flete y otro). Antes, si existía CUALQUIER
+            // partida de flete, la OC entera se trataba como flete: cerraba
+            // sin recibir las láminas y sin crear su stock.
             $sc = $db->prepare("
-                SELECT SUM(cantidad) - SUM(cantidad_recibida) AS pendiente
-                FROM oc_partidas WHERE orden_compra_id = ? AND tipo = ?
+                SELECT COALESCE(SUM(cantidad),0) - COALESCE(SUM(cantidad_recibida),0) AS pendiente
+                FROM oc_partidas WHERE orden_compra_id = ?
             ");
-            $sc->execute([$oc_id, $tipo_check]);
+            $sc->execute([$oc_id]);
             $pendiente = (float)$sc->fetchColumn();
 
             $cierra = $pendiente <= 0;
             if ($cierra) {
                 $db->prepare("UPDATE oc_entregas SET cierra_oc=1 WHERE id=?")->execute([$entrega_id]);
+                // [C-7] Solo transiciona desde 'abierta': una OC ya 'pagada'
+                // conserva su estado y su fecha de pago programada.
                 $db->prepare("
                     UPDATE ordenes_compra
                     SET estado = 'cerrada',
                         fecha_pago_programada = DATE_ADD(?, INTERVAL dias_credito DAY)
-                    WHERE id = ?
+                    WHERE id = ? AND estado = 'abierta'
                 ")->execute([$fecha, $oc_id]);
             }
 
@@ -453,7 +515,10 @@ if ($method === 'POST') {
             jsonResponse(['ok' => true, 'entrega_id' => $entrega_id, 'cerro_oc' => $cierra]);
         } catch (Exception $e) {
             $db->rollBack();
-            jsonResponse(['error' => $e->getMessage()], 500);
+            // Los throws de validación traen código HTTP int (404/422);
+            // PDOException trae SQLSTATE string → 500
+            $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
+            jsonResponse(['error' => $e->getMessage()], $code);
         }
     }
 
@@ -466,38 +531,71 @@ if ($method === 'POST') {
         $referencia = trim($body['referencia'] ?? '');
         $notas      = trim($body['notas'] ?? '');
 
-        if (!$oc_id || !$monto) jsonResponse(['error' => 'Faltan datos'], 422);
+        if (!$oc_id || $monto <= 0) jsonResponse(['error' => 'Faltan datos'], 422);
 
-        // Anti-doble-clic: mismo pago (OC+monto) registrado hace <8s = envío duplicado
-        $stmt_dup = $db->prepare("SELECT id FROM oc_pagos
-            WHERE orden_compra_id = ? AND monto = ?
-              AND created_at >= (NOW() - INTERVAL 8 SECOND) LIMIT 1");
-        $stmt_dup->execute([$oc_id, $monto]);
-        if ($stmt_dup->fetch()) {
-            jsonResponse(['error' => 'Este pago ya se registró hace unos segundos (posible doble clic). Revisa el historial antes de reintentar.'], 422);
+        $db->beginTransaction();
+        try {
+            // [M-2] Validar estado de la OC con lock de fila: serializa pagos
+            // concurrentes sobre la misma OC (el saldo se calcula protegido).
+            $soc = $db->prepare("SELECT id, estado FROM ordenes_compra WHERE id = ? FOR UPDATE");
+            $soc->execute([$oc_id]);
+            $oc = $soc->fetch();
+            if (!$oc)
+                throw new Exception('OC no encontrada', 404);
+            if (!in_array($oc['estado'], ['abierta', 'cerrada'], true))
+                throw new Exception('No se pueden registrar pagos en una OC ' . $oc['estado'], 422);
+
+            // Anti-doble-clic: mismo pago (OC+monto) registrado hace <8s = envío duplicado
+            $stmt_dup = $db->prepare("SELECT id FROM oc_pagos
+                WHERE orden_compra_id = ? AND monto = ?
+                  AND created_at >= (NOW() - INTERVAL 8 SECOND) LIMIT 1");
+            $stmt_dup->execute([$oc_id, $monto]);
+            if ($stmt_dup->fetch())
+                throw new Exception('Este pago ya se registró hace unos segundos (posible doble clic). Revisa el historial antes de reintentar.', 422);
+
+            // [M-2] Saldo homologado a base CON IVA:
+            //   pago con incluye_iva=1 → el monto ya es con IVA
+            //   pago con incluye_iva=0 → el monto es sin IVA, se homologa ×1.16
+            // Antes se sumaban montos de ambas bases mezclados y se comparaban
+            // contra el total con IVA: los pagos "sin IVA" cerraban la OC antes
+            // de tiempo (o nunca) y no había tope de sobrepago.
+            $st = $db->prepare("
+                SELECT
+                    COALESCE(SUM(CASE WHEN op.iva_incluido = 1 THEN op.importe ELSE op.importe * 1.16 END), 0) AS total_con_iva,
+                    COALESCE((SELECT SUM(CASE WHEN pg.incluye_iva = 1 THEN pg.monto ELSE pg.monto * 1.16 END)
+                              FROM oc_pagos pg WHERE pg.orden_compra_id = ?), 0) AS pagado_con_iva
+                FROM oc_partidas op WHERE op.orden_compra_id = ?
+            ");
+            $st->execute([$oc_id, $oc_id]);
+            $res            = $st->fetch();
+            $total_con_iva  = (float)$res['total_con_iva'];
+            $pagado_con_iva = (float)$res['pagado_con_iva'];
+            $monto_base     = $inc_iva ? $monto : $monto * 1.16;
+            $saldo          = $total_con_iva - $pagado_con_iva;
+
+            // [M-2] Rechazar sobrepago (tolerancia de 1 centavo por redondeo)
+            if ($monto_base > $saldo + 0.01)
+                throw new Exception('El pago excede el saldo pendiente de la OC ($' . number_format(max($saldo, 0), 2) . ' con IVA)', 422);
+
+            $db->prepare("INSERT INTO oc_pagos
+                (orden_compra_id, fecha_pago, monto, incluye_iva, referencia, notas, created_by)
+                VALUES (?,?,?,?,?,?,?)")
+               ->execute([$oc_id, $fecha, $monto, $inc_iva, $referencia, $notas, $user['id']]);
+
+            // Cierre a 'pagada' solo cuando el saldo queda cubierto y solo
+            // desde estados vivos (nunca reabrir/reescribir una cancelada)
+            if ($pagado_con_iva + $monto_base >= $total_con_iva - 0.01) {
+                $db->prepare("UPDATE ordenes_compra SET estado='pagada' WHERE id=? AND estado IN ('abierta','cerrada')")
+                   ->execute([$oc_id]);
+            }
+
+            $db->commit();
+            jsonResponse(['ok' => true]);
+        } catch (Exception $e) {
+            $db->rollBack();
+            $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
+            jsonResponse(['error' => $e->getMessage()], $code);
         }
-
-        $db->prepare("INSERT INTO oc_pagos
-            (orden_compra_id, fecha_pago, monto, incluye_iva, referencia, notas, created_by)
-            VALUES (?,?,?,?,?,?,?)")
-           ->execute([$oc_id, $fecha, $monto, $inc_iva, $referencia, $notas, $user['id']]);
-
-        // Verificar si quedó pagada completamente
-        $st = $db->prepare("
-            SELECT
-                SUM(op.importe) * 1.16 AS total_con_iva,
-                COALESCE((SELECT SUM(pg.monto) FROM oc_pagos pg WHERE pg.orden_compra_id=?),0) AS pagado
-            FROM oc_partidas op WHERE op.orden_compra_id=?
-        ");
-        $st->execute([$oc_id, $oc_id]);
-        $res = $st->fetch();
-        $total_con_iva = round((float)($res['total_con_iva'] ?? 0), 2);
-        $pagado        = round((float)($res['pagado'] ?? 0), 2);
-        if ($res && $pagado >= $total_con_iva) {
-            $db->prepare("UPDATE ordenes_compra SET estado='pagada' WHERE id=?")->execute([$oc_id]);
-        }
-
-        jsonResponse(['ok' => true]);
     }
 
     // ── Distribuir flete de OC sin referencia a inventario ───
@@ -575,7 +673,10 @@ if ($method === 'POST') {
             jsonResponse(['ok' => true, 'total_flete' => $total_flete, 'registros' => count($compras_data)]);
         } catch (Exception $e) {
             $db->rollBack();
-            jsonResponse(['error' => $e->getMessage()], 500);
+            // Los throws de validación traen código HTTP int (404/422);
+            // PDOException trae SQLSTATE string → 500
+            $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
+            jsonResponse(['error' => $e->getMessage()], $code);
         }
     }
 
@@ -594,7 +695,7 @@ if ($method === 'POST') {
             $soc = $db->prepare("
                 SELECT oc.numero_oc, oc.notas,
                        p.nombre AS proveedor_nombre,
-                       COALESCE(SUM(op.importe),0)*1.16 AS total_con_iva
+                       COALESCE(SUM(CASE WHEN op.iva_incluido = 1 THEN op.importe ELSE op.importe * 1.16 END),0) AS total_con_iva
                 FROM ordenes_compra oc
                 JOIN proveedores p ON p.id = oc.proveedor_id
                 LEFT JOIN oc_partidas op ON op.orden_compra_id = oc.id
@@ -631,7 +732,7 @@ if ($method === 'POST') {
         $soc = $db->prepare("
             SELECT oc.numero_oc, oc.notas,
                    p.nombre AS proveedor_nombre,
-                   COALESCE(SUM(op.importe),0)*1.16 AS total_con_iva
+                   COALESCE(SUM(CASE WHEN op.iva_incluido = 1 THEN op.importe ELSE op.importe * 1.16 END),0) AS total_con_iva
             FROM ordenes_compra oc
             JOIN proveedores p ON p.id = oc.proveedor_id
             LEFT JOIN oc_partidas op ON op.orden_compra_id = oc.id

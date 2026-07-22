@@ -240,8 +240,12 @@ if ($method === 'POST') {
         $referencia  = trim($body['referencia']         ?? '');
         $notas       = trim($body['notas']              ?? '');
 
-        if (!$lamina_id || !$proveedor_id || !$cantidad || !$precio)
-            jsonResponse(['error' => 'Faltan campos requeridos'], 422);
+        // [A-3] Cantidad y precio deben ser positivos (antes un negativo pasaba
+        // el filtro !$cantidad y generaba ajustes invisibles de stock)
+        if (!$lamina_id || !$proveedor_id || $cantidad <= 0 || $precio <= 0)
+            jsonResponse(['error' => 'Faltan campos requeridos (cantidad y precio deben ser mayores a 0)'], 422);
+        if ($costo_flete < 0)
+            jsonResponse(['error' => 'El costo de flete no puede ser negativo'], 422);
 
         $s = $db->prepare("INSERT INTO inventario_compras
             (lamina_id, proveedor_id, fecha_compra, cantidad_laminas,
@@ -265,39 +269,56 @@ if ($method === 'POST') {
         $fecha     = $body['fecha']                  ?? date('Y-m-d');
         $notas     = trim($body['notas']             ?? '');
 
-        if (!$lamina_id || !$cantidad)
-            jsonResponse(['error' => 'Faltan campos requeridos'], 422);
+        // [A-3] Cantidad debe ser positiva (un "uso" de -5 sumaba 5 láminas)
+        if ($lamina_id <= 0 || $cantidad <= 0)
+            jsonResponse(['error' => 'Lámina y cantidad (mayor a 0) son requeridas'], 422);
 
         if (!is_array($ordenes))
             jsonResponse(['error' => 'ordenes debe ser un array de folios'], 422);
 
-        // Verificar que hay stock suficiente
-        $s = $db->prepare("
-            SELECT
-                COALESCE(SUM(c.cantidad_laminas),0) -
-                COALESCE((SELECT SUM(m.cantidad_laminas)
-                          FROM inventario_movimientos m
-                          WHERE m.lamina_id = ?), 0) AS stock
-            FROM inventario_compras c
-            WHERE c.lamina_id = ?
-        ");
-        $s->execute([$lamina_id, $lamina_id]);
-        $stock = (int)$s->fetchColumn();
+        $db->beginTransaction();
+        try {
+            // [A-3] Mutex por lámina: bloquear el renglón del catálogo serializa
+            // todos los usos concurrentes de la misma lámina. Se hace ANTES de
+            // leer el stock para que el chequeo y el INSERT vean un estado
+            // consistente (cierra el TOCTOU SELECT→INSERT).
+            $sl = $db->prepare("SELECT id FROM laminas WHERE id = ? FOR UPDATE");
+            $sl->execute([$lamina_id]);
+            if (!$sl->fetch())
+                throw new Exception('La lámina no existe', 422);
 
-        if ($stock < $cantidad)
-            jsonResponse([
-                'error' => 'Stock insuficiente. Disponible: '.$stock.' láminas'
-            ], 422);
+            // Verificar que hay stock suficiente (lectura ya protegida por el lock)
+            $s = $db->prepare("
+                SELECT
+                    COALESCE(SUM(c.cantidad_laminas),0) -
+                    COALESCE((SELECT SUM(m.cantidad_laminas)
+                              FROM inventario_movimientos m
+                              WHERE m.lamina_id = ?), 0) AS stock
+                FROM inventario_compras c
+                WHERE c.lamina_id = ?
+            ");
+            $s->execute([$lamina_id, $lamina_id]);
+            $stock = (int)$s->fetchColumn();
 
-        $s = $db->prepare("INSERT INTO inventario_movimientos
-            (lamina_id, cantidad_laminas, ordenes, operador_id, fecha, notas)
-            VALUES (?,?,?,?,?,?)");
-        $s->execute([
-            $lamina_id, $cantidad,
-            json_encode($ordenes, JSON_UNESCAPED_UNICODE),
-            $user['id'], $fecha, $notas
-        ]);
-        jsonResponse(['ok' => true, 'id' => $db->lastInsertId()]);
+            if ($stock < $cantidad)
+                throw new Exception('Stock insuficiente. Disponible: '.$stock.' láminas', 422);
+
+            $s = $db->prepare("INSERT INTO inventario_movimientos
+                (lamina_id, cantidad_laminas, ordenes, operador_id, fecha, notas)
+                VALUES (?,?,?,?,?,?)");
+            $s->execute([
+                $lamina_id, $cantidad,
+                json_encode($ordenes, JSON_UNESCAPED_UNICODE),
+                $user['id'], $fecha, $notas
+            ]);
+            $mov_id = $db->lastInsertId();
+            $db->commit();
+            jsonResponse(['ok' => true, 'id' => $mov_id]);
+        } catch (Exception $e) {
+            $db->rollBack();
+            $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
+            jsonResponse(['error' => $e->getMessage()], $code);
+        }
     }
 
     jsonResponse(['error' => 'Accion no valida'], 400);
