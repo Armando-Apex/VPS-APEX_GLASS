@@ -141,7 +141,8 @@ if ($method === 'GET') {
         $s->execute([$usuario['id']]);
         $fila = $s->fetch(PDO::FETCH_ASSOC);
         if (!$fila) jsonResponse(['sesion' => null]);
-        $fila['piezas'] = json_decode($fila['piezas'], true) ?: [];
+        $fila['piezas']    = json_decode($fila['piezas'], true) ?: [];
+        $fila['removidas'] = json_decode($fila['removidas'] ?? '[]', true) ?: [];
         jsonResponse(['sesion' => $fila]);
     }
 
@@ -159,12 +160,12 @@ if ($method === 'POST') {
 
         $db->prepare("
             INSERT INTO sesion_corte_abierta
-                (operador_id, tipo, tipo_enum, espesor_mm, es_pedaceria, lamina_id, ancho_mm, alto_mm, piezas)
-            VALUES (?,?,?,?,?,?,?,?,?)
+                (operador_id, tipo, tipo_enum, espesor_mm, es_pedaceria, lamina_id, ancho_mm, alto_mm, piezas, removidas)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
             ON DUPLICATE KEY UPDATE
                 tipo=VALUES(tipo), tipo_enum=VALUES(tipo_enum), espesor_mm=VALUES(espesor_mm),
                 es_pedaceria=VALUES(es_pedaceria), lamina_id=VALUES(lamina_id),
-                ancho_mm=VALUES(ancho_mm), alto_mm=VALUES(alto_mm), piezas=VALUES(piezas)
+                ancho_mm=VALUES(ancho_mm), alto_mm=VALUES(alto_mm), piezas=VALUES(piezas), removidas=VALUES(removidas)
         ")->execute([
             $usuario['id'],
             $tipoLabel,
@@ -175,6 +176,7 @@ if ($method === 'POST') {
             (int)($body['ancho_mm'] ?? 0) ?: null,
             (int)($body['alto_mm'] ?? 0) ?: null,
             json_encode($body['piezas'] ?? [], JSON_UNESCAPED_UNICODE),
+            json_encode($body['removidas'] ?? [], JSON_UNESCAPED_UNICODE),
         ]);
         jsonResponse(['ok' => true]);
     }

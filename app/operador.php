@@ -564,6 +564,7 @@ let sesionCorte = {
   anchoMm: null,
   altoMm: null,
   piezas: [],        // piezas escaneadas durante la sesión (aún no en BD)
+  removidas: [],     // ids de piezas quitadas a propósito (rotas/error) — no deben volver a entrar por re-escaneo
 };
 
 // ── Sesion desde PHP ───────────────────────────────────────
@@ -1426,6 +1427,7 @@ function wizSiguienteLamina() {
     sesionCorte.altoMm   = parseInt(opt.dataset.alto, 10);
   }
   sesionCorte.piezas = [];
+  sesionCorte.removidas = [];
   sesionCorteActiva = true;
   cerrarWizardCorte();
   actualizarUiSesionCorte();
@@ -1464,6 +1466,7 @@ async function guardarSesionAbiertaServidor() {
         tipo: sesionCorte.tipo, tipo_enum: sesionCorte.tipoEnum, espesor_mm: sesionCorte.espesor,
         es_pedaceria: sesionCorte.origen === 'pedaceria', lamina_id: sesionCorte.laminaId,
         ancho_mm: sesionCorte.anchoMm, alto_mm: sesionCorte.altoMm, piezas: sesionCorte.piezas,
+        removidas: sesionCorte.removidas,
       })
     });
   } catch(e) { /* best-effort — no bloquea el flujo si falla la red */ }
@@ -1487,6 +1490,7 @@ async function restaurarSesionCorteAbierta() {
       anchoMm: s.ancho_mm ? parseInt(s.ancho_mm, 10) : null,
       altoMm: s.alto_mm ? parseInt(s.alto_mm, 10) : null,
       piezas: s.piezas || [],
+      removidas: s.removidas || [],
     };
     sesionCorteActiva = true;
     actualizarUiSesionCorte();
@@ -1534,6 +1538,10 @@ async function agregarQrASesionCorte(qr) {
       toast('Esa pieza ya está en la sesión', 'info');
       return;
     }
+    if (sesionCorte.removidas.some(function(r) { return r.id === p.id; })) {
+      showFeedback('err', '⛔', 'Pieza quitada de esta sesión', p.folio + ' P' + p.partida + ' — ya la habías marcado como no cortada. Deshaz la remoción en "Ver lista" si fue un error.');
+      return;
+    }
     sesionCorte.piezas.push({
       id: p.id, qr_code: p.qr_code, folio: p.folio, cliente_nombre: p.cliente_nombre,
       partida: p.partida, pieza_num: p.pieza_num, pieza_total: p.pieza_total,
@@ -1559,6 +1567,7 @@ async function agregarOrdenASesionCorte(ordenId) {
     d2.ordenes.forEach(function(orden) {
       (orden.piezas || []).forEach(function(p) {
         if (!['pendiente', 'en_corte'].includes(p.estatus) || sesionEnLista(p.id)) return;
+        if (sesionCorte.removidas.some(function(r) { return r.id === p.id; })) return;
         if (!cristalCoincideConSesionJs(p.cristal)) { omitidas++; return; }
         sesionCorte.piezas.push({
           id: p.id, qr_code: p.qr_code, folio: orden.folio, cliente_nombre: orden.cliente_nombre,
@@ -1593,16 +1602,40 @@ function renderCorteRevision() {
       '</div>';
   }).join('') || '<div style="text-align:center;color:#6b6b7a;padding:14px">Aún no has escaneado ninguna pieza</div>';
 
+  var rowsRemovidas = sesionCorte.removidas.map(function(p) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;background:#1c1c22;border-radius:10px;padding:10px 12px;margin-bottom:6px;border:1.5px dashed rgba(255,71,87,.3);opacity:.75">' +
+      '<div><div style="font-size:13px;font-weight:700;text-decoration:line-through">' + p.folio + ' · P' + p.partida + '</div>' +
+      '<div style="font-size:11px;color:#6b6b7a">' + (p.cristal_corto || p.cristal || '') + ' · ' + p.ancho_mm + '×' + p.alto_mm + 'mm</div></div>' +
+      '<button onclick="wizDeshacerRemocion(' + p.id + ')" style="background:none;border:1.5px solid rgba(34,197,94,.4);color:#22c55e;border-radius:8px;padding:6px 12px;font-weight:800;cursor:pointer">↩ Deshacer</button>' +
+      '</div>';
+  }).join('');
+
   document.getElementById('corteWizardBody').innerHTML =
     '<div style="font-size:12px;color:#6b6b7a;margin-bottom:8px">' + sesionCorte.piezas.length + ' pieza(s) — pasarán a CORTADO al avanzar a canto</div>' +
     rows +
+    (rowsRemovidas ? '<div style="font-size:11px;color:#6b6b7a;margin:12px 0 6px">Quitadas de esta sesión (rotas/error)</div>' + rowsRemovidas : '') +
     '<button class="btn-action go" style="margin-top:12px;background:#16a34a" onclick="wizAvanzarACanto()" ' + (!sesionCorte.piezas.length ? 'disabled' : '') + '>✅ Avanzar a canto</button>' +
     '<button class="btn-sec" style="margin-top:8px;width:100%" onclick="cerrarWizardCorte()">Seguir escaneando</button>' +
     '<button class="btn-sec" style="margin-top:8px;width:100%;color:#ff4757;border-color:rgba(255,71,87,.4)" onclick="wizCancelarSesion()">Cancelar sesión completa</button>';
 }
 
 function wizQuitarDeSesion(piezaId) {
+  var quitada = sesionCorte.piezas.filter(function(p) { return p.id === piezaId; })[0];
   sesionCorte.piezas = sesionCorte.piezas.filter(function(p) { return p.id !== piezaId; });
+  // Recordar que se quitó a propósito (rota/error) para que no vuelva a entrar
+  // sola si se re-escanea el QR de la pieza o el QR maestro de la orden.
+  if (quitada && !sesionCorte.removidas.some(function(p) { return p.id === piezaId; })) {
+    sesionCorte.removidas.push(quitada);
+  }
+  actualizarUiSesionCorte();
+  guardarSesionAbiertaServidor();
+  renderCorteRevision();
+}
+
+function wizDeshacerRemocion(piezaId) {
+  var restaurada = sesionCorte.removidas.filter(function(p) { return p.id === piezaId; })[0];
+  sesionCorte.removidas = sesionCorte.removidas.filter(function(p) { return p.id !== piezaId; });
+  if (restaurada && !sesionEnLista(piezaId)) sesionCorte.piezas.push(restaurada);
   actualizarUiSesionCorte();
   guardarSesionAbiertaServidor();
   renderCorteRevision();
@@ -1622,7 +1655,7 @@ function wizCancelarSesion() {
 
 async function wizConfirmarCancelarSesion() {
   sesionCorteActiva = false;
-  sesionCorte = { origen: null, tipo: null, tipoEnum: null, espesor: null, laminaId: null, anchoMm: null, altoMm: null, piezas: [] };
+  sesionCorte = { origen: null, tipo: null, tipoEnum: null, espesor: null, laminaId: null, anchoMm: null, altoMm: null, piezas: [], removidas: [] };
   cerrarWizardCorte();
   actualizarUiSesionCorte();
   try {
@@ -1643,13 +1676,13 @@ async function wizAvanzarACanto() {
         espesor_mm: sesionCorte.espesor,
         ancho_mm: sesionCorte.anchoMm, alto_mm: sesionCorte.altoMm,
         piezas: sesionCorte.piezas.map(function(p) { return { pieza_id: p.id }; }),
-        piezas_removidas: [],
+        piezas_removidas: sesionCorte.removidas.map(function(p) { return { pieza_id: p.id }; }),
       })
     });
     const d = await r.json();
     if (d.ok) {
       sesionCorteActiva = false;
-      sesionCorte = { origen: null, tipo: null, tipoEnum: null, espesor: null, laminaId: null, anchoMm: null, altoMm: null, piezas: [] };
+      sesionCorte = { origen: null, tipo: null, tipoEnum: null, espesor: null, laminaId: null, anchoMm: null, altoMm: null, piezas: [], removidas: [] };
       cerrarWizardCorte();
       actualizarUiSesionCorte();
       showFeedback('ok', '✅', 'Avanzado a canto', 'Efectividad: ' + d.efectividad_pct + '%');

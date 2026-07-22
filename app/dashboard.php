@@ -10,6 +10,7 @@ $esDir        = in_array($_rol, ['dueno','dir_admin','director','administracion'
 $esComercial  = in_array($_rol, ['dueno','dir_admin','comercial','administracion','desarrollo']);
 $esAdmin      = in_array($_rol, ['dir_admin','desarrollo']);
 $esInventario = in_array($_rol, ['dir_admin','administracion','desarrollo']);
+$veInventarioStock = $esInventario || $_rol === 'comercial';
 $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno','desarrollo']);
 $esLogistica  = in_array($_rol, ['dir_admin','administracion','dueno','chofer','desarrollo','comercial']);
 $esJefe       = in_array($_rol, ['jefe_piso','dir_admin','dueno','director','desarrollo']);
@@ -313,16 +314,18 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       <?php endif; ?>
     </div>
     <?php endif; ?>
-    <?php if ($esInventario): ?>
+    <?php if ($veInventarioStock): ?>
     <div class="sidebar-section">
       <div class="sidebar-label">Inventario</div>
       <button class="sidebar-link" data-modulo="inventario" onclick="cargarModulo('inventario')">
         <span class="sidebar-icon"><?= icono('package') ?></span>Inventario
       </button>
+      <?php if ($esInventario): ?>
       <button class="sidebar-link" data-modulo="compras" onclick="cargarModulo('compras')">
         <span class="sidebar-icon"><?= icono('shopping-cart') ?></span>Compras
         <?php if ($esAdmin): ?><span id="badge-compras-envio" style="display:none;background:#7c3aed;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:4px"></span><?php endif; ?>
       </button>
+      <?php endif; ?>
     </div>
     <?php endif; ?>
     <?php if ($esFinanzas): ?>

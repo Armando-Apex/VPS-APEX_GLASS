@@ -4,6 +4,8 @@ require_once __DIR__ . '/../../api/permisos.php';
 $user = requirePermiso('ver_inventario');
 $puedeGestionar = in_array($user['rol'], ['dir_admin','administracion','desarrollo']);
 $esDirAdmin     = $user['rol'] === 'dir_admin';
+// Asesores (comercial) solo ven la pestaña Stock — solo lectura, sin gestión
+$soloStock      = $user['rol'] === 'comercial';
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=inventario'); exit;
 }
@@ -218,6 +220,7 @@ tr:hover td { background: #f8fafc; }
   <!-- Tabs -->
   <div class="tabs">
     <button class="tab-btn active" onclick="invTab('stock')">&#128200; Stock</button>
+    <?php if(!$soloStock): ?>
     <button class="tab-btn"        onclick="invTab('oc')">&#128203; &#211;rdenes de Compra</button>
     <button class="tab-btn"        onclick="invTab('calendario')">&#128197; Calendario de Pagos</button>
     <button class="tab-btn"        onclick="invTab('compras')">&#128230; Entradas</button>
@@ -225,6 +228,7 @@ tr:hover td { background: #f8fafc; }
     <button class="tab-btn"        onclick="invTab('consumo')">&#128228; Consumo Diario</button>
     <?php endif; ?>
     <button class="tab-btn"        onclick="invTab('proveedores')">&#127970; Proveedores</button>
+    <?php endif; ?>
   </div>
 
   <!-- ── TAB STOCK ─────────────────────────────────────────── -->
@@ -380,6 +384,7 @@ tr:hover td { background: #f8fafc; }
             <option value="reflecta">Reflecta</option>
             <option value="satinado">Satinado</option>
             <option value="tintex">Tintex</option>
+            <option value="evo_50">EVO 50</option>
           </select>
         </div>
         <div class="form-group">
@@ -715,6 +720,7 @@ var ModInventario = (function(){
 
 var puedeGestionar = <?= $puedeGestionar ? 'true' : 'false' ?>;
 var esDirAdmin     = <?= $esDirAdmin ? 'true' : 'false' ?>;
+var soloStock      = <?= $soloStock ? 'true' : 'false' ?>;
 var _tabActual = 'stock';
 var _laminas   = [];
 var _proveedores = [];
@@ -723,6 +729,7 @@ var _entregaPartidas = [];
 
 // ── Tabs ─────────────────────────────────────────────────────
 function invTab(t) {
+  if (soloStock && t !== 'stock') return; // Asesores: solo pestaña Stock
   _tabActual = t;
   var tabs = puedeGestionar
     ? ['stock','oc','calendario','compras','consumo','proveedores']
@@ -746,7 +753,7 @@ var $ = function(id){ return document.getElementById(id); };
 var tipoLabel = {
   claro:'Claro', claro_zafiro:'Claro Zafiro', filtrasol:'Filtrasol',
   espejo:'Espejo', espejo_aluminio:'Espejo Aluminio', laminado_claro:'Laminado Claro',
-  reflecta:'Reflecta', satinado:'Satinado', tintex:'Tintex'
+  reflecta:'Reflecta', satinado:'Satinado', tintex:'Tintex', evo_50:'EVO 50'
 };
 var fleteLabel = {
   incluido:'<span class="flete-incluido">&#10003; Incluido</span>',
@@ -1179,6 +1186,7 @@ async function ocVerDetalle(id) {
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
         '<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#64748b">Partidas</div>'+
         '<div style="display:flex;gap:8px">'+
+          '<a class="btn btn-ghost btn-sm" href="imprimir_orden_compra.php?id='+oc.id+'" target="_blank" rel="noopener">&#128438; Imprimir OC</a>'+
           (puedeEditarHeader ? '<button class="btn btn-primary btn-sm" onclick="ocAbrirAgregarPartida('+oc.id+')">+ Agregar partida</button>' : '')+
           (oc.estado==='abierta' && puedeGestionar ? '<button class="btn btn-success btn-sm" onclick="ocAbrirEntrega('+oc.id+')">&#128230; Registrar entrega</button>' : '')+
         '</div>'+
@@ -1274,7 +1282,7 @@ async function ocAbrirAgregarPartida(ocId) {
   var dl = await rl.json();
   var laminas = dl.laminas || [];
   var optsLam = laminas.map(function(l){
-    return '<option value="'+l.id+'" data-desc="'+(tipoLabel[l.tipo]||l.tipo)+' '+l.espesor_mm+'MM - '+Math.round(l.ancho_mm/10)+'x'+Math.round(l.alto_mm/10)+'">'+(tipoLabel[l.tipo]||l.tipo)+' '+l.espesor_mm+'mm '+Math.round(l.ancho_mm/10)+'&#215;'+Math.round(l.alto_mm/10)+'cm</option>';
+    return '<option value="'+l.id+'" data-m2="'+l.m2+'" data-desc="'+(tipoLabel[l.tipo]||l.tipo)+' '+l.espesor_mm+'MM - '+Math.round(l.ancho_mm/10)+'x'+Math.round(l.alto_mm/10)+'">'+(tipoLabel[l.tipo]||l.tipo)+' '+l.espesor_mm+'mm '+Math.round(l.ancho_mm/10)+'&#215;'+Math.round(l.alto_mm/10)+'cm ('+parseFloat(l.m2).toFixed(2)+' m&#178;)</option>';
   }).join('');
   var html = '<div style="padding:4px 0 16px">'+
     '<div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:12px">Nueva partida</div>'+
@@ -1286,8 +1294,8 @@ async function ocAbrirAgregarPartida(ocId) {
       '<div class="form-group form-full"><label class="form-label">Descripci&oacute;n *</label>'+
         '<input type="text" id="npDesc" class="form-input" placeholder="Descripci&oacute;n del producto o servicio"></div>'+
       '<div class="form-group"><label class="form-label">Unidad</label><input type="text" id="npUnidad" class="form-input" value="LAMINA"></div>'+
-      '<div class="form-group"><label class="form-label">Cantidad *</label><input type="number" id="npCantidad" class="form-input" min="1" step="1" oninput="npPreview()"></div>'+
-      '<div class="form-group"><label class="form-label">Precio unit. s/IVA *</label><input type="number" id="npPrecio" class="form-input" step="0.01" min="0" oninput="npPreview()"></div>'+
+      '<div class="form-group"><label class="form-label">Cantidad (l&aacute;minas) *</label><input type="number" id="npCantidad" class="form-input" min="1" step="1" oninput="npPreview()"></div>'+
+      '<div class="form-group"><label class="form-label" id="npPrecioLabel">Precio unit. s/IVA *</label><input type="number" id="npPrecio" class="form-input" step="0.01" min="0" oninput="npPreview()"></div>'+
       '<div class="form-group form-full" id="npPreviewBox" style="display:none"><div style="background:#f0f9ff;border-radius:8px;padding:10px;font-size:13px;color:#0369a1;font-weight:700" id="npPreviewTxt"></div></div>'+
     '</div>'+
     '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'+
@@ -1303,26 +1311,48 @@ function npToggleTipo() {
   $('npGrupoLamina').style.display = tipo === 'lamina' ? 'block' : 'none';
   if (tipo === 'flete') { $('npDesc').value = 'SERVICIO DE ENTREGA'; $('npUnidad').value = 'FLETE'; }
   if (tipo === 'lamina') { $('npUnidad').value = 'LAMINA'; }
+  $('npPrecioLabel').textContent = npAreaSeleccionada() > 0 ? 'Precio por m² s/IVA *' : 'Precio unit. s/IVA *';
+  npPreview();
+}
+
+function npAreaSeleccionada() {
+  // Área (m²) de la lámina elegida en el catálogo — solo aplica a tipo='lamina'
+  if ($('npTipo').value !== 'lamina') return 0;
+  var sel = $('npLamina');
+  var opt = sel.options[sel.selectedIndex];
+  return (opt && opt.dataset.m2) ? parseFloat(opt.dataset.m2) : 0;
 }
 
 function npDescripcionAuto() {
   var sel = $('npLamina');
   var opt = sel.options[sel.selectedIndex];
   if (opt && opt.dataset.desc) $('npDesc').value = opt.dataset.desc;
+  var lbl = $('npPrecioLabel');
+  lbl.textContent = npAreaSeleccionada() > 0 ? 'Precio por m² s/IVA *' : 'Precio unit. s/IVA *';
   npPreview();
 }
 
 function npPreview() {
   var cant = parseFloat($('npCantidad').value)||0;
   var prec = parseFloat($('npPrecio').value)||0;
+  var area = npAreaSeleccionada();
   if (!cant || !prec) { $('npPreviewBox').style.display='none'; return; }
-  var imp = cant * prec;
+  // [Fix] PRECIO UNIT. s/IVA × ÁREA (de la lámina elegida) × CANTIDAD — antes
+  // faltaba el factor de área y el importe salía muy por debajo del real.
+  var precioPorLamina = area > 0 ? prec * area : prec;
+  var imp = cant * precioPorLamina;
   $('npPreviewBox').style.display = 'block';
   $('npPreviewTxt').textContent = 'Importe: $' + imp.toLocaleString('es-MX',{minimumFractionDigits:2}) + ' s/IVA  |  Con IVA: $' + (imp*1.16).toLocaleString('es-MX',{minimumFractionDigits:2});
 }
 
 async function npGuardar(ocId) {
   var tipo = $('npTipo').value;
+  var area = npAreaSeleccionada();
+  var precioIngresado = parseFloat($('npPrecio').value);
+  // El backend guarda precio_unitario como precio POR LÁMINA (importe = cantidad × precio_unitario,
+  // columna generada) — si el área aplica, aquí se multiplica antes de mandarlo, para no
+  // tocar el esquema ni el criterio ya usado en todo el histórico de oc_partidas.
+  var precioPorLamina = area > 0 ? precioIngresado * area : precioIngresado;
   var payload = {
     accion:          'agregar_partida',
     orden_compra_id: ocId,
@@ -1331,7 +1361,7 @@ async function npGuardar(ocId) {
     descripcion:     $('npDesc').value.trim(),
     unidad:          $('npUnidad').value.trim()||'LAMINA',
     cantidad:        parseFloat($('npCantidad').value),
-    precio_unitario: parseFloat($('npPrecio').value),
+    precio_unitario: precioPorLamina,
   };
   if (!payload.descripcion || !payload.cantidad || !payload.precio_unitario)
     return alert('Completa todos los campos obligatorios');

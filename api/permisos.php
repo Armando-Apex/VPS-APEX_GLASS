@@ -22,6 +22,7 @@ define('PERMISOS', [
         'ver_estaciones',
         'imprimir_etiquetas',
         'registrar_entrega',
+        'ver_inventario',
     ],
     'jefe_piso' => [
         'ver_dashboard',

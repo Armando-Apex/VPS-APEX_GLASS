@@ -172,7 +172,7 @@ if ($method === 'GET') {
         $tipoLbl = [
             'claro' => 'Claro', 'claro_zafiro' => 'Claro Zafiro', 'filtrasol' => 'Filtrasol',
             'espejo' => 'Espejo', 'espejo_aluminio' => 'Espejo Aluminio', 'laminado_claro' => 'Laminado Claro',
-            'reflecta' => 'Reflecta', 'satinado' => 'Satinado', 'tintex' => 'Tintex',
+            'reflecta' => 'Reflecta', 'satinado' => 'Satinado', 'tintex' => 'Tintex', 'evo_50' => 'EVO 50',
         ];
         $normalizar = function($s) { return preg_replace('/\s+/', '', mb_strtolower($s)); };
 

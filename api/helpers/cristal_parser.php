@@ -9,7 +9,7 @@
 //  y portal/tablero.php (UPD-299/314): el tipo siempre aparece
 //  primero en el texto, seguido del espesor.
 //  Si el texto no matchea ningun tipo del ENUM (ej. "Pavia",
-//  "Bronce", "EVO 50"), retorna null — la UI debe caer a
+//  "Bronce"), retorna null — la UI debe caer a
 //  seleccion manual, nunca bloquear el flujo.
 // ============================================================
 
@@ -23,6 +23,7 @@ const CRISTAL_TIPO_LABEL = [
     'reflecta'        => 'Reflecta',
     'satinado'        => 'Satinado',
     'tintex'          => 'Tintex',
+    'evo_50'          => 'EVO 50',
 ];
 
 function cristalNormalizar($s) {
