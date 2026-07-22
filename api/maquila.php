@@ -284,11 +284,31 @@ if ($recurso === 'cotizacion') {
         $id = (int)($body['id'] ?? 0);
         if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
 
-        $stmt = $db->prepare("SELECT estatus FROM cotizaciones WHERE id = ? AND tipo = 'maquila'");
+        $stmt = $db->prepare("SELECT c.*, o.folio AS orden_folio FROM cotizaciones c
+                               LEFT JOIN ordenes o ON o.id = c.orden_id
+                               WHERE c.id = ? AND c.tipo = 'maquila'");
         $stmt->execute([$id]);
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { jsonResponse(['error' => 'No encontrada']); exit; }
-        if ($cot['estatus'] !== 'cotizacion') { jsonResponse(['error' => 'Solo se pueden editar cotizaciones (no órdenes)']); exit; }
+        if ($cot['estatus'] === 'cancelada') { jsonResponse(['error' => 'No se puede editar una cotización cancelada']); exit; }
+
+        $esOrden = ($cot['estatus'] === 'orden');
+        $motivo  = trim($body['motivo'] ?? '');
+
+        if ($esOrden) {
+            // Corrección de último minuto sobre una orden ya convertida: solo Dirección,
+            // con motivo, y solo si nada de esa orden entró todavía a producción.
+            if (!in_array($rol, ['dir_admin','dueno','desarrollo'])) {
+                jsonResponse(['error' => 'Solo Dirección puede corregir una orden ya convertida'], 403); exit;
+            }
+            if ($motivo === '') { jsonResponse(['error' => 'El motivo de la corrección es requerido']); exit; }
+
+            $chk = $db->prepare("SELECT COUNT(*) FROM piezas WHERE orden_id = ? AND estatus != 'pendiente'");
+            $chk->execute([$cot['orden_id']]);
+            if ((int)$chk->fetchColumn() > 0) {
+                jsonResponse(['error' => 'Esta orden ya tiene piezas en producción y no puede corregirse desde aquí']); exit;
+            }
+        }
 
         $partidas = $body['partidas'] ?? [];
         if (empty($partidas)) { jsonResponse(['error' => 'Se requiere al menos una partida']); exit; }
@@ -304,13 +324,21 @@ if ($recurso === 'cotizacion') {
         }
         if (empty($partidas_calc)) { jsonResponse(['error' => 'Ninguna partida válida']); exit; }
 
-        $iva_total   = round($subtotal_total * 0.16, 2);
-        $total_final = round($subtotal_total + $iva_total, 2);
+        $iva_total       = round($subtotal_total * 0.16, 2);
+        $total_final     = round($subtotal_total + $iva_total, 2);
+        $saldo_pagado    = (float)($cot['saldo_pagado'] ?? 0);
+        $saldo_pendiente = max(0, round($total_final - $saldo_pagado, 2));
 
         $db->beginTransaction();
         try {
+            if ($esOrden) {
+                $sp = $db->prepare("SELECT * FROM cotizaciones_maquila_partidas WHERE cotizacion_id = ? ORDER BY num_partida ASC");
+                $sp->execute([$id]);
+                $partidas_antes = $sp->fetchAll(PDO::FETCH_ASSOC);
+            }
+
             $db->prepare("UPDATE cotizaciones SET subtotal=?, iva=?, total=?, saldo_pendiente=?, updated_at=NOW() WHERE id=?")
-               ->execute([$subtotal_total, $iva_total, $total_final, $total_final, $id]);
+               ->execute([$subtotal_total, $iva_total, $total_final, $saldo_pendiente, $id]);
 
             $db->prepare("DELETE FROM cotizaciones_maquila_partidas WHERE cotizacion_id = ?")->execute([$id]);
 
@@ -333,6 +361,20 @@ if ($recurso === 'cotizacion') {
                     $p['templado'], $p['precio_horno_usado'], $p['subtotal_horno'],
                     $p['filo_muerto'], $p['cpb_fm'], $p['ml_filo_muerto'], $p['precio_filo_muerto_usado'], $p['subtotal_filo_muerto'],
                     $p['detalles'], $p['subtotal']
+                ]);
+            }
+
+            if ($esOrden) {
+                regenerarPiezasMaquila($db, (int)$cot['orden_id'], $cot['orden_folio'], $partidas_calc);
+
+                $db->prepare("
+                    INSERT INTO correcciones_log (tipo, referencia_id, folio, campo, valor_anterior, valor_nuevo, motivo, usuario)
+                    VALUES ('cotizacion', ?, ?, 'partidas_maquila', ?, ?, ?, ?)
+                ")->execute([
+                    $id, $cot['folio'],
+                    json_encode($partidas_antes, JSON_UNESCAPED_UNICODE),
+                    json_encode($partidas_calc, JSON_UNESCAPED_UNICODE),
+                    $motivo, $usuario_nombre,
                 ]);
             }
 

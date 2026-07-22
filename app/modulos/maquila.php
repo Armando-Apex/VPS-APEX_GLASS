@@ -3,6 +3,7 @@ require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
 $user = requirePermiso('ver_maquila');
 $puedeEditar = in_array($user['rol'], ['dir_admin','dueno','comercial','desarrollo']);
+$puedeEditarOrden = in_array($user['rol'], ['dir_admin','dueno','desarrollo']);
 $vista = $_GET['vista'] ?? 'lista';
 $idMaquila = (int)($_GET['id'] ?? 0);
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
@@ -86,6 +87,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 
 <script>
 window._puedeEditarMaquila = <?= $puedeEditar ? 'true' : 'false' ?>;
+window._puedeEditarOrdenMaquila = <?= $puedeEditarOrden ? 'true' : 'false' ?>;
 var ModMaquila = (function(){
 var API = '../api/maquila.php';
 var _data = [];
@@ -263,8 +265,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 .span-2 { grid-column: span 2; }
 .field { display: flex; flex-direction: column; gap: 6px; position: relative; }
 .field label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .5px; }
-.field input, .field select { padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; color: #1e293b; background: white; width: 100%; }
-.field input:focus, .field select:focus { outline: none; border-color: #2563eb; }
+.field input, .field select, .field textarea { padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; color: #1e293b; background: white; width: 100%; font-family: inherit; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: #2563eb; }
 .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 100; max-height: 220px; overflow-y: auto; margin-top: 2px; }
 .autocomplete-item { padding: 9px 12px; cursor: pointer; font-size: 13px; }
 .autocomplete-item:hover { background: #f0f4f8; }
@@ -294,6 +296,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
       <div class="page-sub">Servicio de maquila sobre vidrio del cliente</div>
     </div>
     <button class="btn btn-ghost" onclick="ModMaquilaNueva._volver()">&larr; Volver</button>
+  </div>
+
+  <div class="card" id="mn_card_correccion" style="display:none;border:1.5px solid #f59e0b;background:#fffbeb">
+    <div class="card-title" style="color:#b45309">&#9888; Corrección de orden ya convertida</div>
+    <div class="page-sub" style="margin-bottom:10px">Esta orden ya está activa en producción. Solo puedes corregirla si ninguna pieza ha entrado a producción todavía.</div>
+    <div class="field">
+      <label>Motivo de la corrección *</label>
+      <textarea id="mn_motivo" rows="2" placeholder="Ej. el cliente pidió cambiar el espesor de la partida 2 a último momento"></textarea>
+    </div>
   </div>
 
   <div class="card">
@@ -339,6 +350,7 @@ var tiposVidrio = [];
 var precios = [];
 var partidas = [];
 var clienteId = 0;
+var esOrdenEdit = false;
 var _buscarTimer = null;
 var ESPESORES = [5,6,9,12];
 var CPB_OPTS = ['No','Perimetral','Larguero','Largueros','Cabezal','Cabezales','1 Larguero - 1 cabezal','2 Largueros - 1 cabezal','1 Larguero - 2 cabezales'];
@@ -363,6 +375,11 @@ async function cargarCatalogos() {
     document.getElementById('mn_cliente_busqueda').value = cot.cliente_nombre || '';
     document.getElementById('mn_cliente_busqueda').disabled = true;
     document.getElementById('mn_localidad').value = cot.localidad || 'local';
+    esOrdenEdit = (cot.estatus === 'orden');
+    if (esOrdenEdit) {
+      document.getElementById('mn_card_correccion').style.display = 'block';
+      document.getElementById('mn_titulo').textContent = 'Corregir orden ' + (cot.orden_folio || cot.folio);
+    }
     partidas = (cot.partidas || []).map(function(p) {
       return {
         ancho: parseInt(p.ancho, 10) || 0,
@@ -549,10 +566,12 @@ async function guardar() {
   document.getElementById('mn_error').textContent = '';
   if (!clienteId) { document.getElementById('mn_error').textContent = 'Busca y selecciona un cliente'; return; }
   var localidad = document.getElementById('mn_localidad').value;
+  var motivo = esOrdenEdit ? (document.getElementById('mn_motivo').value || '').trim() : '';
+  if (esOrdenEdit && !motivo) { document.getElementById('mn_error').textContent = 'El motivo de la corrección es requerido'; return; }
 
   try {
     var body = editId
-      ? { recurso: 'cotizacion', accion: 'actualizar', id: editId, partidas: partidas }
+      ? { recurso: 'cotizacion', accion: 'actualizar', id: editId, partidas: partidas, motivo: motivo }
       : { recurso: 'cotizacion', accion: 'crear', cliente_id: clienteId, localidad: localidad, partidas: partidas };
     var res = await fetch(API, {
       method: 'POST',
@@ -654,6 +673,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 
 <script>
 window._puedeEditarMaquila = <?= $puedeEditar ? 'true' : 'false' ?>;
+window._puedeEditarOrdenMaquila = <?= $puedeEditarOrden ? 'true' : 'false' ?>;
 var ModMaquilaDetalle = (function(){
 var API = '../api/maquila.php';
 var cotId = <?= $idMaquila ?>;
@@ -709,6 +729,10 @@ function render() {
     document.getElementById('md_btnEditar').style.display = 'inline-block';
     document.getElementById('md_btnConvertir').style.display = 'inline-block';
     document.getElementById('md_btnCancelar').style.display = 'inline-block';
+  }
+  if (cot.estatus === 'orden' && window._puedeEditarOrdenMaquila) {
+    document.getElementById('md_btnEditar').textContent = 'Corregir orden';
+    document.getElementById('md_btnEditar').style.display = 'inline-block';
   }
 
   var htmlImp = '';

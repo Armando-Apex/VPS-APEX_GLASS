@@ -72,3 +72,40 @@ function calcularFechaEntrega($db, $fecha_inicio, $localidad, $ciudad) {
 
     return $fecha->format('Y-m-d');
 }
+
+// ─── Regenera las piezas de una orden de maquila tras una corrección post-orden ──
+// El caller debe verificar ANTES que TODAS las piezas de la orden siguen 'pendiente'
+// (nada entró a producción) — aquí se borran y se recrean igual que en la conversión
+// inicial (api/cotizaciones.php, accion=convertir), para que num_partida/QR/cantidad
+// queden en sync con las partidas recién corregidas.
+function regenerarPiezasMaquila($db, $orden_id, $folio_orden, $partidas_calc) {
+    $db->prepare("DELETE FROM piezas WHERE orden_id = ?")->execute([$orden_id]);
+
+    $tipos = [];
+    foreach ($db->query("SELECT id, nombre FROM maquila_tipos_vidrio")->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $tipos[(int)$t['id']] = $t['nombre'];
+    }
+
+    $stmtPieza = $db->prepare("INSERT INTO piezas
+        (orden_id, partida, pieza_num, pieza_total,
+         cristal, cristal_corto, requiere_templado, requiere_corte,
+         ancho_mm, alto_mm, m2,
+         cpb, detalles, tp, ta, qr_code, estatus)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ");
+    foreach ($partidas_calc as $i => $p) {
+        $num_partida = $i + 1;
+        $nombreTipo  = $tipos[(int)($p['cristal_tipo_id'] ?? 0)] ?? 'Cliente';
+        $etiqueta    = trim($nombreTipo . ' ' . $p['espesor_mm'] . 'mm');
+        for ($k = 1; $k <= $p['cantidad']; $k++) {
+            $qr = $folio_orden . '-' . str_pad($num_partida, 2, '0', STR_PAD_LEFT) . '-' . str_pad($k, 3, '0', STR_PAD_LEFT) . '-' . str_pad($p['cantidad'], 3, '0', STR_PAD_LEFT);
+            $stmtPieza->execute([
+                $orden_id, $num_partida, $k, $p['cantidad'],
+                $etiqueta, $etiqueta, (int)$p['templado'], (int)$p['corte'],
+                $p['ancho'], $p['alto'], $p['m2'],
+                $p['cpb'], $p['detalles'] ?? '', $p['taladros_pasados'], $p['taladros_avellanados'],
+                $qr, 'pendiente'
+            ]);
+        }
+    }
+}
