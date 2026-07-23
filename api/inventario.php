@@ -197,13 +197,35 @@ if ($method === 'GET') {
         // Agrupa variantes del mismo tipo+espesor (Express, Con Esmerilado, etc.) con el mismo
         // criterio que el ranking del sorteo (UPD-299): mismo cristal base, distinto acabado/servicio.
         // Excluye por diseno Plantilla/Zafiro/Ultra Claro (nombre no arranca con el mismo prefijo).
+        // [UPD-385] Fallback para variantes con color/acabado ENTRE tipo y espesor (ej. "Espejo
+        // Plata 6mm", "Reflecta Plata 6mm") o separador antes del espesor (ej. "EVO 50 - 6mm") —
+        // el match directo de arriba solo cubre nombres donde tipo+espesor van pegados sin nada en
+        // medio ("Claro 6mm", "Filtrasol 9mm - Servicio Express"). Sin este fallback, Espejo y EVO 50
+        // salian con ventas reales pero el reporte mostraba "Sin ventas" (bug detectado 23-jul-2026).
+        $excluidos = ['zafiro', 'ultra', 'plantilla', 'aluminio'];
         foreach ($por_tipo as &$g) {
-            $base = $normalizar(($tipoLbl[$g['tipo']] ?? $g['tipo']) . (int)$g['espesor_mm'] . 'mm');
+            $tipoWord   = $normalizar($tipoLbl[$g['tipo']] ?? $g['tipo']);
+            $espesorTok = $normalizar((int)$g['espesor_mm'] . 'mm');
+            $base = $tipoWord . $espesorTok;
             $ingreso = 0.0; $m2v = 0.0;
             foreach ($cristales as $c) {
                 $nombreNorm = $normalizar($c['nombre']);
                 $sufijo = substr($nombreNorm, strlen($base), 1);
-                if (strpos($nombreNorm, $base) !== 0 || ($sufijo !== '' && $sufijo !== '-')) continue;
+                $matchDirecto = strpos($nombreNorm, $base) === 0 && ($sufijo === '' || $sufijo === '-');
+
+                $matchFallback = false;
+                if (!$matchDirecto && strpos($nombreNorm, $tipoWord) === 0) {
+                    $resto = substr($nombreNorm, strlen($tipoWord));
+                    $tieneExcluido = false;
+                    foreach ($excluidos as $palabra) {
+                        if (strpos($resto, $palabra) !== false) { $tieneExcluido = true; break; }
+                    }
+                    if (!$tieneExcluido && preg_match('/(?<!\d)' . preg_quote($espesorTok, '/') . '(-|$)/', $resto)) {
+                        $matchFallback = true;
+                    }
+                }
+
+                if (!$matchDirecto && !$matchFallback) continue;
                 $cid = (int)$c['id'];
                 if (isset($ventasPorCristal[$cid])) {
                     $ingreso += $ventasPorCristal[$cid]['ingreso'];
