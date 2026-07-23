@@ -650,7 +650,7 @@ function rdRenderEfectividadCorte(ef) {
     '<div class="kpi-card"><div class="kpi-num-sm" style="color:' + clr + '">' + (pct !== null ? pct.toFixed(1) + '%' : '&#8212;') + '</div><div class="kpi-label">% Efectividad global</div><div class="kpi-sub">m&#178; aprovechados / m&#178; usados</div></div>' +
     '<div class="kpi-card"><div class="kpi-num-sm">' + parseFloat(g.m2_aprovechado_total || 0).toFixed(1) + '</div><div class="kpi-label">m&#178; aprovechados</div><div class="kpi-sub">de ' + parseFloat(g.m2_disponible_total || 0).toFixed(1) + ' m&#178; usados</div></div>' +
     '<div class="kpi-card"><div class="kpi-num-sm">' + (g.sesiones_catalogo || 0) + '</div><div class="kpi-label">L&#225;minas de cat&#225;logo</div><div class="kpi-sub">Sesiones de corte</div></div>' +
-    '<div class="kpi-card"><div class="kpi-num-sm" style="color:var(--amber)">' + (g.sesiones_pedaceria || 0) + '</div><div class="kpi-label">L&#225;minas de pedacer&#237;a usadas</div><div class="kpi-sub">Base para bono de operador</div></div>' +
+    '<div class="kpi-card"><div class="kpi-num-sm" style="color:var(--amber)">' + (g.sesiones_pedaceria || 0) + ' / ' + parseFloat(g.m2_pedaceria || 0).toFixed(1) + 'm&#178;</div><div class="kpi-label">L&#225;minas de pedacer&#237;a usadas</div><div class="kpi-sub">Base para bono de operador</div></div>' +
   '</div>';
 
   var porTipo = (ef && ef.por_tipo) ? ef.por_tipo : [];

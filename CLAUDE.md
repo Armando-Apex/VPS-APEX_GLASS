@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 23 julio 2026 | Próximo UPD disponible: UPD-390
+# Última actualización: 23 julio 2026 | Próximo UPD disponible: UPD-391
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -693,4 +693,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-389 | 23-jul-2026 | Armando | "Rentabilidad por m² de vidrio" (Reporte Dirección): el costo ahora se calcula ponderando SOLO las compras del **mes calendario actual** (rango móvil, `date('Y-m-01')` a hoy), no por stock actual ni histórico completo — a petición de Armando: el stock de Claro 9mm 3050×2140 sigue contando 7 láminas en BD que ya no existen físicamente en almacén (ver UPD-388, pendiente que Armando corrija el inventario real), y esas láminas viejas ($261/m², compradas 04-jun) arrastraban el promedio hacia abajo ($321.64/m² con stock, $318.74/m² histórico) muy por debajo del costo real de comprar hoy ($347.81/m², 52 láminas de julio). Backend: `api/inventario.php` (`accion=costo_promedio`) agrega `costo_prom_m2_mes_actual` y `laminas_compradas_mes_actual` por tipo+espesor, más `costo_mes_desde` en la respuesta. Frontend (`rdRenderRentabilidad`): prioriza `costo_prom_m2_mes_actual` sobre el costo por stock/histórico; si un tipo no tuvo compras este mes (ej. Filtrasol, Claro Zafiro) cae al respaldo anterior (stock → histórico) para no perder la fila, marcado con ⚠️ junto al costo para distinguirlo. La tabla "Costo de almacén (stock actual)" NO se tocó — sigue siendo valuación por stock real, propósito distinto a "cuánto cuesta comprar hoy". Verificado con `php84 -l` en ambos archivos + query directa contra la BD real reproduciendo la fórmula del endpoint: Claro 9mm $347.81/m² (52 láminas), Claro 6mm $167.53 (23), Espejo 6mm $127.59 (4), Satinado 9mm $534.48 (1), Tintex 9mm $588.99 (1), EVO 50 $33.32 (14) — todos de julio. Archivos: api/inventario.php, app/modulos/reporte_direccion.php |
 
-**Próximo UPD disponible: UPD-390**
+| UPD-390 | 23-jul-2026 | Armando | "Efectividad de Corte" (Reporte Dirección): la tarjeta "Láminas de pedacería usadas" ahora muestra también los m² totales junto al conteo (ej. "11 / 23.3m²"), no solo el número de sesiones — el backend (`api/reporte_direccion.php`) ya traía `m2_pedaceria` desde antes, solo faltaba mostrarlo. Archivo: app/modulos/reporte_direccion.php |
+
+**Próximo UPD disponible: UPD-391**
