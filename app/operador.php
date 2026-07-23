@@ -1457,6 +1457,16 @@ function sesionEnLista(piezaId) {
   return sesionCorte.piezas.some(function(x) { return x.id === piezaId; });
 }
 
+// [UPD-388] m2 disponible de la lámina/pedacería activa — mismo cálculo que usa el backend
+// (ancho x alto / 1e6) para poder avisar ANTES de escanear si una pieza ya no cabe.
+function sesionM2Disponible() {
+  if (!sesionCorte.anchoMm || !sesionCorte.altoMm) return null;
+  return (sesionCorte.anchoMm * sesionCorte.altoMm) / 1000000;
+}
+function sesionM2Usado() {
+  return sesionCorte.piezas.reduce(function(s, x) { return s + (parseFloat(x.m2) || 0); }, 0);
+}
+
 // ── Persistencia en servidor de la sesión abierta (sobrevive recargas) ────
 async function guardarSesionAbiertaServidor() {
   try {
@@ -1542,6 +1552,13 @@ async function agregarQrASesionCorte(qr) {
       showFeedback('err', '⛔', 'Pieza quitada de esta sesión', p.folio + ' P' + p.partida + ' — ya la habías marcado como no cortada. Deshaz la remoción en "Ver lista" si fue un error.');
       return;
     }
+    var m2Disp = sesionM2Disponible();
+    var m2Pieza = parseFloat(p.m2) || (p.ancho_mm && p.alto_mm ? (p.ancho_mm * p.alto_mm / 1000000) : 0);
+    if (m2Disp && (sesionM2Usado() + m2Pieza) > m2Disp + 0.001) {
+      showFeedback('err', '⛔', 'No cabe en la lámina',
+        p.folio + ' P' + p.partida + ' — suma ' + (sesionM2Usado() + m2Pieza).toFixed(2) + ' m² y la lámina tiene ' + m2Disp.toFixed(2) + ' m² disponibles. Confírmala en una sesión aparte con otra lámina.');
+      return;
+    }
     sesionCorte.piezas.push({
       id: p.id, qr_code: p.qr_code, folio: p.folio, cliente_nombre: p.cliente_nombre,
       partida: p.partida, pieza_num: p.pieza_num, pieza_total: p.pieza_total,
@@ -1563,26 +1580,33 @@ async function agregarOrdenASesionCorte(ordenId) {
     const r2 = await fetch(API + 'buscar_orden.php?num=' + encodeURIComponent(d.folio) + '&estacion=corte');
     const d2 = await r2.json();
     if (d2.error || !d2.ordenes?.length) { toast('Sin piezas pendientes en esa orden', 'info'); return; }
-    var agregadas = 0, omitidas = 0;
+    var agregadas = 0, omitidas = 0, sinEspacio = 0;
+    var m2Disp = sesionM2Disponible();
+    var m2Acum = sesionM2Usado();
     d2.ordenes.forEach(function(orden) {
       (orden.piezas || []).forEach(function(p) {
         if (!['pendiente', 'en_corte'].includes(p.estatus) || sesionEnLista(p.id)) return;
         if (sesionCorte.removidas.some(function(r) { return r.id === p.id; })) return;
         if (!cristalCoincideConSesionJs(p.cristal_corto || p.cristal)) { omitidas++; return; }
+        var m2Pieza = p.ancho_mm && p.alto_mm ? (p.ancho_mm * p.alto_mm / 1000000) : 0;
+        if (m2Disp && (m2Acum + m2Pieza) > m2Disp + 0.001) { sinEspacio++; return; }
         sesionCorte.piezas.push({
           id: p.id, qr_code: p.qr_code, folio: orden.folio, cliente_nombre: orden.cliente_nombre,
           partida: p.partida, pieza_num: p.pieza_num, pieza_total: p.pieza_total,
           cristal: p.cristal, cristal_corto: p.cristal_corto,
           ancho_mm: p.ancho_mm, alto_mm: p.alto_mm,
-          m2: p.ancho_mm && p.alto_mm ? (p.ancho_mm * p.alto_mm / 1000000) : null,
+          m2: m2Pieza || null,
         });
+        m2Acum += m2Pieza;
         agregadas++;
       });
     });
     actualizarUiSesionCorte();
     if (agregadas > 0) guardarSesionAbiertaServidor();
     showFeedback('ok', '✂️', 'Orden ' + d.folio,
-      agregadas + ' pieza(s) agregada(s)' + (omitidas ? ' · ' + omitidas + ' omitida(s) por tipo/espesor distinto' : ''));
+      agregadas + ' pieza(s) agregada(s)' +
+      (omitidas ? ' · ' + omitidas + ' omitida(s) por tipo/espesor distinto' : '') +
+      (sinEspacio ? ' · ' + sinEspacio + ' no cupieron en la lámina (confírmalas en otra sesión)' : ''));
   } catch(e) { toast('Error de conexión', 'error'); }
 }
 

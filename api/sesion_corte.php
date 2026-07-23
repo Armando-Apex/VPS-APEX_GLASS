@@ -302,6 +302,21 @@ if ($method === 'POST') {
                 throw new Exception('Ninguna pieza sigue válida para marcar como cortada');
             }
 
+            // [UPD-388] Candado: no se puede confirmar una sesión cuyas piezas no caben
+            // físicamente en la lámina/pedacería declarada — antes esto se dejaba pasar y
+            // generaba efectividad_pct > 100% (imposible) además de dejar el consumo real
+            // de inventario sin registrar completo (casos reales: sesiones #5 y #29, corregidas
+            // manualmente el 23-jul-2026). Se valida ANTES de tocar piezas/historial para poder
+            // rechazar limpio, sin dejar nada a medias.
+            $m2SeleccionExcede = 0.0;
+            foreach ($piezasValidas as $p) { $m2SeleccionExcede += (float)$p['m2']; }
+            if ($m2Disponible > 0 && $m2SeleccionExcede > $m2Disponible) {
+                throw new Exception(sprintf(
+                    'Las piezas seleccionadas (%.2f m²) no caben en la lámina (%.2f m² disponibles). Quita piezas de esta sesión o confírmalas en una sesión aparte con otra lámina.',
+                    $m2SeleccionExcede, $m2Disponible
+                ));
+            }
+
             $nombreUsuario = $usuario['nombre'];
             $upd  = $db->prepare("UPDATE piezas SET estatus='cortado', updated_at=NOW() WHERE id=?");
             $histEnCorte = $db->prepare("
