@@ -1530,7 +1530,7 @@ async function agregarQrASesionCorte(qr) {
       showFeedback('err', '⛔', 'Pieza no disponible', 'Estatus actual: ' + p.estatus);
       return;
     }
-    if (!cristalCoincideConSesionJs(p.cristal)) {
+    if (!cristalCoincideConSesionJs(p.cristal_corto || p.cristal)) {
       showFeedback('err', '⛔', 'Tipo/espesor distinto', p.cristal + ' — la sesión es de ' + sesionCorte.tipo + ' ' + sesionCorte.espesor + 'mm');
       return;
     }
@@ -1568,7 +1568,7 @@ async function agregarOrdenASesionCorte(ordenId) {
       (orden.piezas || []).forEach(function(p) {
         if (!['pendiente', 'en_corte'].includes(p.estatus) || sesionEnLista(p.id)) return;
         if (sesionCorte.removidas.some(function(r) { return r.id === p.id; })) return;
-        if (!cristalCoincideConSesionJs(p.cristal)) { omitidas++; return; }
+        if (!cristalCoincideConSesionJs(p.cristal_corto || p.cristal)) { omitidas++; return; }
         sesionCorte.piezas.push({
           id: p.id, qr_code: p.qr_code, folio: orden.folio, cliente_nombre: orden.cliente_nombre,
           partida: p.partida, pieza_num: p.pieza_num, pieza_total: p.pieza_total,

@@ -267,7 +267,7 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
     <div class="lr-field">
       <label>Unidad</label>
       <select id="nr-unidad">
-        <option value="gris">&#128665; Gris — 1,250 kg</option>
+        <option value="gris">&#128665; Gris — 1,500 kg</option>
         <option value="blanca">&#128665; Blanca — 700 kg</option>
       </select>
     </div>
@@ -309,6 +309,7 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
     <div class="lr-field">
       <label>Dirección</label>
       <input type="text" id="as-dir" placeholder="Calle y número">
+      <button type="button" class="lr-btn-coords" onclick="LR.usarCoordenadas('as')" style="margin-top:4px;font-size:11px;background:none;border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;cursor:pointer;color:#475569">&#128205; Usar coordenadas de Google Maps</button>
     </div>
     <div class="lr-row2">
       <div class="lr-field">
@@ -339,6 +340,7 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
     <div class="lr-field">
       <label>Dirección</label>
       <input type="text" id="ed-dir">
+      <button type="button" class="lr-btn-coords" onclick="LR.usarCoordenadas('ed')" style="margin-top:4px;font-size:11px;background:none;border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;cursor:pointer;color:#475569">&#128205; Usar coordenadas de Google Maps</button>
     </div>
     <div class="lr-row2">
       <div class="lr-field"><label>Colonia</label><input type="text" id="ed-col"></div>
@@ -380,7 +382,7 @@ var LR = (function() {
   var _fecha       = new Date().toISOString().slice(0,10);
   var _rutas       = [];
   var _pendientes  = [];
-  var CAP          = { gris: 1250, blanca: 700 };
+  var CAP          = { gris: 1500, blanca: 700 };
   var UNIDAD_LABEL = { gris: '🚛 Gris', blanca: '🚛 Blanca' };
   // Planta — C. de la Industria 214, Marfer, 66367 Cdad. Santa Catarina, N.L. (mismas coords que UPD-266, WA ubicación)
   var PLANTA_LATLNG = { lat: 25.6930336, lng: -100.4807059 };
@@ -1438,6 +1440,63 @@ var LR = (function() {
     });
   }
 
+  // Usar coordenadas / link de Google Maps para llenar Dirección/Colonia/Ciudad
+  // sin depender del autocomplete de texto — útil cuando el cliente manda su
+  // ubicación exacta (ej. copiada del propio Google Maps) en vez de una dirección.
+  function usarCoordenadas(prefix) {
+    var raw = prompt('Pega las coordenadas (lat,lng) o el link de Google Maps:');
+    if (!raw) return;
+    var m = raw.match(/(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
+    if (!m) { toast('No se reconocieron coordenadas válidas', true); return; }
+    var lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+    if (!window.google || !window.google.maps) { toast('Google Maps aún no cargó, intenta de nuevo', true); return; }
+    var geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ location: { lat: lat, lng: lng }, language: 'es', region: 'mx' }, function(results, status) {
+      if (status !== 'OK' || !results || !results.length) {
+        toast('No se pudo encontrar una dirección para esas coordenadas', true);
+        return;
+      }
+      var r = results[0];
+      var numero = '', calle = '', estado = '';
+      var coloniaPorTipo = {}, ciudadPorTipo = {};
+      (r.address_components || []).forEach(function(c) {
+        var types = c.types || [];
+        if (types.indexOf('street_number') >= 0) numero = c.long_name;
+        if (types.indexOf('route') >= 0) calle = c.long_name;
+        if (types.indexOf('administrative_area_level_1') >= 0) estado = c.long_name;
+        types.forEach(function(t) {
+          if (['sublocality_level_1','sublocality','neighborhood'].indexOf(t) >= 0) coloniaPorTipo[t] = c.long_name;
+          if (['locality','administrative_area_level_2'].indexOf(t) >= 0) ciudadPorTipo[t] = c.long_name;
+        });
+      });
+      // Mismo criterio de restricción geográfica que initAutocomplete(), pero
+      // comparando sin acentos — Google a veces regresa "Nuevo Leon" sin
+      // acentuar (según idioma detectado), y la comparación exacta lo rechazaba
+      // aunque sí fuera un estado permitido.
+      var normEstado = function(s) { return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(); };
+      var estadoPermitido = !estado || ESTADOS_PERMITIDOS.some(function(e) { return normEstado(e) === normEstado(estado); });
+      if (!estadoPermitido) {
+        toast('Esa ubicación está en ' + estado + ' — solo se aceptan Nuevo León, Tamaulipas y Coahuila', true);
+        return;
+      }
+      var colonia = coloniaPorTipo.sublocality_level_1 || coloniaPorTipo.sublocality || coloniaPorTipo.neighborhood || '';
+      var ciudad  = ciudadPorTipo.locality || ciudadPorTipo.administrative_area_level_2 || '';
+      var dirCompleta = (calle + (numero ? ' ' + numero : '')).trim() || r.formatted_address || '';
+
+      // [Fix] PlaceAutocompleteElement no soporta que se le ponga texto por código
+      // (asignar .value no truena, pero tampoco se ve reflejado en el widget) — por
+      // eso la dirección encontrada por coordenadas no se veía, aunque sí quedaba
+      // guardada en el input real oculto detrás. Se destruye el widget y se muestra
+      // el input normal (editable) con el texto encontrado.
+      destruirAutocomplete(prefix + '-dir');
+      var input = document.getElementById(prefix + '-dir');
+      input.value = dirCompleta;
+      if (colonia) document.getElementById(prefix + '-col').value = colonia;
+      if (ciudad)  document.getElementById(prefix + '-ciu').value = ciudad;
+      toast('Dirección encontrada: ' + dirCompleta);
+    });
+  }
+
   // Init
   setFecha(new Date().toISOString().slice(0,10));
   // Refresco de ubicación en vivo — cada 15s, en línea con el cache de ~12s del backend (api/gps_lib.php)
@@ -1457,6 +1516,7 @@ var LR = (function() {
     actualizarContPiezas:actualizarContPiezas, toggleTodasPiezas:toggleTodasPiezas,
     togglePartidaExpand:togglePartidaExpand, togglePartida:togglePartida, onPiezaCb:onPiezaCb,
     abrirModalCarga:abrirModalCarga, cerrarModalCarga:cerrarModalCarga,
+    usarCoordenadas:usarCoordenadas,
   };
 })();
 </script>

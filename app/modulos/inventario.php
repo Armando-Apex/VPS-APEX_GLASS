@@ -1315,7 +1315,7 @@ function npToggleTipo() {
   $('npGrupoLamina').style.display = tipo === 'lamina' ? 'block' : 'none';
   if (tipo === 'flete') { $('npDesc').value = 'SERVICIO DE ENTREGA'; $('npUnidad').value = 'FLETE'; }
   if (tipo === 'lamina') { $('npUnidad').value = 'LAMINA'; }
-  $('npPrecioLabel').textContent = npAreaSeleccionada() > 0 ? 'Precio por m² s/IVA *' : 'Precio unit. s/IVA *';
+  npActualizarLabelPrecio();
   npPreview();
 }
 
@@ -1327,12 +1327,17 @@ function npAreaSeleccionada() {
   return (opt && opt.dataset.m2) ? parseFloat(opt.dataset.m2) : 0;
 }
 
+function npActualizarLabelPrecio() {
+  var base = npAreaSeleccionada() > 0 ? 'Precio por m²' : 'Precio unit.';
+  var iva  = $('npIvaIncluido').checked ? 'c/IVA incluido' : 's/IVA';
+  $('npPrecioLabel').textContent = base + ' ' + iva + ' *';
+}
+
 function npDescripcionAuto() {
   var sel = $('npLamina');
   var opt = sel.options[sel.selectedIndex];
   if (opt && opt.dataset.desc) $('npDesc').value = opt.dataset.desc;
-  var lbl = $('npPrecioLabel');
-  lbl.textContent = npAreaSeleccionada() > 0 ? 'Precio por m² s/IVA *' : 'Precio unit. s/IVA *';
+  npActualizarLabelPrecio();
   npPreview();
 }
 
@@ -1340,13 +1345,16 @@ function npPreview() {
   var cant = parseFloat($('npCantidad').value)||0;
   var prec = parseFloat($('npPrecio').value)||0;
   var area = npAreaSeleccionada();
+  var ivaIncluido = $('npIvaIncluido').checked;
   if (!cant || !prec) { $('npPreviewBox').style.display='none'; return; }
-  // [Fix] PRECIO UNIT. s/IVA × ÁREA (de la lámina elegida) × CANTIDAD — antes
+  // [Fix] PRECIO UNIT. × ÁREA (de la lámina elegida) × CANTIDAD — antes
   // faltaba el factor de área y el importe salía muy por debajo del real.
   var precioPorLamina = area > 0 ? prec * area : prec;
   var imp = cant * precioPorLamina;
   $('npPreviewBox').style.display = 'block';
-  $('npPreviewTxt').textContent = 'Importe: $' + imp.toLocaleString('es-MX',{minimumFractionDigits:2}) + ' s/IVA  |  Con IVA: $' + (imp*1.16).toLocaleString('es-MX',{minimumFractionDigits:2});
+  $('npPreviewTxt').textContent = ivaIncluido
+    ? ('Importe (ya incluye IVA): $' + imp.toLocaleString('es-MX',{minimumFractionDigits:2}) + '  |  Sin IVA: $' + (imp/1.16).toLocaleString('es-MX',{minimumFractionDigits:2}))
+    : ('Importe: $' + imp.toLocaleString('es-MX',{minimumFractionDigits:2}) + ' s/IVA  |  Con IVA: $' + (imp*1.16).toLocaleString('es-MX',{minimumFractionDigits:2}));
 }
 
 async function npGuardar(ocId) {
@@ -1366,6 +1374,7 @@ async function npGuardar(ocId) {
     unidad:          $('npUnidad').value.trim()||'LAMINA',
     cantidad:        parseFloat($('npCantidad').value),
     precio_unitario: precioPorLamina,
+    iva_incluido:    $('npIvaIncluido').checked ? 1 : 0,
   };
   if (!payload.descripcion || !payload.cantidad || !payload.precio_unitario)
     return alert('Completa todos los campos obligatorios');

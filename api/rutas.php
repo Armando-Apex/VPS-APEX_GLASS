@@ -312,7 +312,7 @@ if ($method === 'POST') {
         $peso = round($peso, 2);
 
         // Verificar capacidad
-        $cap = ['gris' => 1250, 'blanca' => 700];
+        $cap = ['gris' => 1500, 'blanca' => 700];
         $r = $db->prepare("SELECT r.unidad, COALESCE(SUM(re.peso_kg),0) as usado
                             FROM rutas r LEFT JOIN ruta_entregas re ON re.ruta_id = r.id
                             WHERE r.id = ? GROUP BY r.id");

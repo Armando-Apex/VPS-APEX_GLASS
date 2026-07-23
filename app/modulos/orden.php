@@ -204,7 +204,11 @@ function calcularAvance(piezas) {
 
     const pasos = ['pendiente','cortado','canteado'];
     if (tieneAgujeros) { pasos.push('trazo'); pasos.push('taladro'); }
-    if (!esRecocida)   { pasos.push('templado'); }
+    // [Fix] El estatus real en BD es 'en_horno' (ENUM vigente) — 'templado' es un
+    // valor histórico que ya no se usa (ver CLAUDE.md). Con 'templado' aquí, el
+    // indexOf() nunca encontraba la posición de una pieza en 'en_horno' y contaba
+    // como 0% (igual que 'pendiente'), aunque estuviera a un paso de terminar.
+    if (!esRecocida)   { pasos.push('en_horno'); }
     pasos.push('terminado');
 
     const totalPasos = pasos.length - 1;

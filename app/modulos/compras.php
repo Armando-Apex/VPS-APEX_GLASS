@@ -301,6 +301,12 @@ tbody td { padding: 11px 14px; font-size: 13px; }
           <input type="text" id="pImporte" class="form-input" readonly placeholder="0.00">
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group" style="flex-direction:row;align-items:center;gap:6px">
+          <input type="checkbox" id="pIvaIncluido" style="width:16px;height:16px">
+          <label class="form-label" style="margin:0" for="pIvaIncluido">Precio con IVA incluido</label>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-sec" onclick="ModCompras._cerrarModal('modalPartida')">Cancelar</button>
@@ -809,6 +815,7 @@ function cmpAbrirModalPartida(oc_id) {
   document.getElementById('pCantidad').value = '';
   document.getElementById('pPrecio').value  = '';
   document.getElementById('pImporte').value = '';
+  document.getElementById('pIvaIncluido').checked = false;
   document.getElementById('modalPartida').style.display = 'flex';
 }
 window.cmpAbrirModalPartida = cmpAbrirModalPartida;
@@ -817,7 +824,11 @@ document.addEventListener('input', function(e) {
   if (e.target.id === 'pCantidad' || e.target.id === 'pPrecio') {
     var c = parseFloat(document.getElementById('pCantidad').value) || 0;
     var p = parseFloat(document.getElementById('pPrecio').value) || 0;
-    document.getElementById('pImporte').value = '$' + (c * p).toLocaleString('es-MX', {minimumFractionDigits: 2});
+    var ivaIncluido = document.getElementById('pIvaIncluido').checked;
+    var imp = c * p;
+    document.getElementById('pImporte').value = ivaIncluido
+      ? ('$' + imp.toLocaleString('es-MX', {minimumFractionDigits: 2}) + ' (c/IVA)')
+      : ('$' + imp.toLocaleString('es-MX', {minimumFractionDigits: 2}));
   }
 });
 
@@ -827,6 +838,7 @@ async function cmpGuardarPartida() {
   var unidad   = document.getElementById('pUnidad').value.trim() || 'PZA';
   var cantidad = parseFloat(document.getElementById('pCantidad').value);
   var precio   = parseFloat(document.getElementById('pPrecio').value);
+  var ivaIncluido = document.getElementById('pIvaIncluido').checked ? 1 : 0;
 
   if (!desc || !cantidad || !precio) { alert('Descripción, cantidad y precio son requeridos'); return; }
 
@@ -834,7 +846,7 @@ async function cmpGuardarPartida() {
     var r = await fetch('../api/ordenes_compra.php', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({accion:'agregar_partida', orden_compra_id: oc_id, tipo:'otro', descripcion: desc, unidad: unidad, cantidad: cantidad, precio_unitario: precio})
+      body: JSON.stringify({accion:'agregar_partida', orden_compra_id: oc_id, tipo:'otro', descripcion: desc, unidad: unidad, cantidad: cantidad, precio_unitario: precio, iva_incluido: ivaIncluido})
     });
     var d = await r.json();
     if (d.ok) {

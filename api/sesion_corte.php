@@ -259,7 +259,7 @@ if ($method === 'POST') {
         try {
             $placeholders = implode(',', array_fill(0, count($piezaIds), '?'));
             $s = $db->prepare("
-                SELECT p.id, p.qr_code, p.estatus, p.m2, p.cristal, o.folio, o.estado AS orden_estado
+                SELECT p.id, p.qr_code, p.estatus, p.m2, p.cristal, p.cristal_corto, o.folio, o.estado AS orden_estado
                 FROM piezas p
                 JOIN ordenes o ON o.id = p.orden_id
                 WHERE p.id IN ($placeholders)
@@ -274,14 +274,21 @@ if ($method === 'POST') {
             // Defensa en profundidad: aunque el frontend ya filtra, aquí se vuelve a
             // exigir que el tipo/espesor de la pieza coincida con lo declarado para la
             // sesión — nunca se descuenta una lámina/pedacería de un tipo por piezas de otro.
+            // Se compara contra cristal_corto (= cristales.nombre_etiqueta, la misma fuente
+            // que arma el selector "Tipo de lámina" del wizard), no contra `cristal` (nombre
+            // completo) — para cristales donde el nombre trae una palabra extra que la
+            // etiqueta corta no tiene (ej. "Espejo Plata 6mm" vs. etiqueta "Espejo 6mm"),
+            // comparar contra el nombre completo rechazaba piezas válidas (bug real,
+            // reportado con la orden S-326, ver UPD-384).
             $piezasValidas = [];
             $piezasTipoIncorrecto = 0;
             $folios = [];
             foreach ($piezasDb as $p) {
                 if (!in_array($p['estatus'], ['pendiente', 'en_corte'], true)) continue;
                 if ($p['orden_estado'] !== 'activa') continue;
-                $parsedPieza = parsearCristalLabelEspesor($p['cristal']);
-                if ($parsedPieza && !cristalCoincideConSesion($p['cristal'], $tipoLabel, $espesor)) {
+                $cristalComparar = $p['cristal_corto'] ?: $p['cristal'];
+                $parsedPieza = parsearCristalLabelEspesor($cristalComparar);
+                if ($parsedPieza && !cristalCoincideConSesion($cristalComparar, $tipoLabel, $espesor)) {
                     $piezasTipoIncorrecto++;
                     continue;
                 }
