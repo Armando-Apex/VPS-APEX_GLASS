@@ -122,7 +122,8 @@ $totales = $db->query('
     WHERE o.estado = "activa"
 ')->fetch();
 
-// ── Últimos movimientos — solo 25 ───────────────────────────
+// ── Últimos movimientos — hasta 100 (el frontend ofrece ver 25/50/100
+//    recortando este mismo arreglo en memoria, sin volver a pedirlo) ──
 $movimientos = $db->query('
     SELECT
         h.estatus_nuevo, h.created_at, h.usuario_nombre,
@@ -133,7 +134,7 @@ $movimientos = $db->query('
     JOIN piezas p  ON p.id  = h.pieza_id
     JOIN ordenes o ON o.id  = p.orden_id
     ORDER BY h.created_at DESC
-    LIMIT 25
+    LIMIT 100
 ')->fetchAll();
 
 jsonResponse([
