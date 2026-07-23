@@ -171,7 +171,9 @@
       "Bash(base64 -w0 /home/apexglass2025/herramientas/video-marketing/out/portal-demo.mp4)",
       "Bash(rm -f out/pdm-*.png)",
       "Bash(npx remotion *)",
-      "Bash(base64 -w0 /home/apexglass2025/herramientas/video-marketing/out/portal-demo-mobile.mp4)"
+      "Bash(base64 -w0 /home/apexglass2025/herramientas/video-marketing/out/portal-demo-mobile.mp4)",
+      "Bash(crontab -l -u apexglass2025)",
+      "Bash(echo \"exit:$?\")"
     ]
   },
   "hooks": {
