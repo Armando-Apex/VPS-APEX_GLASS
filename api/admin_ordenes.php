@@ -169,6 +169,13 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Estatus no válido'], 400);
         }
 
+        // [UPD-386] La fecha capturada aquí se escribe directo en historial_estatus.created_at
+        // (Actividad Reciente del Resumen la ordena por esa columna) — una fecha futura por error
+        // de captura (ej. mes equivocado) queda pegada arriba de todo indefinidamente.
+        if ($fecha !== null && strtotime($fecha) > time()) {
+            jsonResponse(['error' => 'La fecha de corrección no puede ser futura'], 422);
+        }
+
         // Obtener la orden
         $stmtO = $db->prepare("SELECT id FROM ordenes WHERE folio=?");
         $stmtO->execute([$folio]);
