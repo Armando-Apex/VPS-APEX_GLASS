@@ -105,10 +105,12 @@ if ($method === 'POST' && $accion === 'subir') {
         jsonResponse(['error' => 'El archivo supera el límite de 10 MB']); exit;
     }
 
-    // Generar nombre servidor: FOLIO_categoria_YYYY-MM-DD_HH-mm.ext
-    $fecha          = date('Y-m-d_H-i');
-    $cat_slug       = str_replace(' ', '_', $categoria);
-    $nombre_servidor = $folio . '_' . $cat_slug . '_' . $fecha . '.' . $ext;
+    // Generar nombre servidor: FOLIO_categoria_YYYY-MM-DD_HH-mm_<8 hex aleatorios>.ext
+    // El sufijo aleatorio evita que dos archivos de la misma orden/categoría subidos
+    // en el mismo minuto se sobrescriban entre sí (antes se perdían comprobantes, M-19).
+    $fecha           = date('Y-m-d_H-i');
+    $cat_slug        = str_replace(' ', '_', $categoria);
+    $nombre_servidor = $folio . '_' . $cat_slug . '_' . $fecha . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
 
     $dir_archivos = __DIR__ . '/../../archivos_ordenes/';
     if (!is_dir($dir_archivos)) {

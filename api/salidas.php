@@ -112,8 +112,15 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
     $db->beginTransaction();
     try {
         // Marcar piezas seleccionadas como entregado (guard estatus previene TOCTOU)
-        $db->prepare("UPDATE piezas SET estatus='entregado', updated_at=NOW() WHERE id IN ($ph2) AND orden_id = ? AND estatus='terminado'")
-           ->execute([...$piezas_validas, $orden_id]);
+        $stmtUpd = $db->prepare("UPDATE piezas SET estatus='entregado', updated_at=NOW() WHERE id IN ($ph2) AND orden_id = ? AND estatus='terminado'");
+        $stmtUpd->execute([...$piezas_validas, $orden_id]);
+
+        // Verificar el guard: si no se actualizaron TODAS las piezas esperadas es que
+        // otro request ya las entregó (doble submit) o cambiaron de estatus en paralelo.
+        // Se aborta toda la transacción para no duplicar orden_salidas ni el WhatsApp (A-6).
+        if ($stmtUpd->rowCount() !== count($piezas_validas)) {
+            throw new Exception('No se registró la salida: alguna pieza ya fue entregada o cambió de estatus (posible doble envío). Recarga la remisión y verifica.');
+        }
 
         // Cerrar orden si todas están entregadas
         if ($orden_completa) {
@@ -167,9 +174,16 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
         }
 
         $db->commit();
+    } catch (PDOException $e) {
+        $db->rollBack();
+        // 23000 = violación de UNIQUE (uq_salida_pieza: la pieza ya está en otra salida)
+        if ($e->getCode() === '23000') {
+            jsonResponse(['error' => 'Alguna pieza ya estaba registrada en otra salida (doble envío).'], 409);
+        }
+        jsonResponse(['error' => 'Error BD: ' . $e->getMessage()], 500);
     } catch (Exception $e) {
         $db->rollBack();
-        jsonResponse(['error' => 'Error BD: ' . $e->getMessage()], 500);
+        jsonResponse(['error' => $e->getMessage()], 409);
     }
 
     // ── Enviar WA (fuera de transacción — error aquí no revierte la salida) ──────

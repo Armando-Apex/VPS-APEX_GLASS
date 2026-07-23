@@ -14,7 +14,13 @@ if (isset($_SERVER["REQUEST_METHOD"]) && $_SERVER["REQUEST_METHOD"] === "OPTIONS
     exit;
 }
 
-if (session_status() === PHP_SESSION_NONE) session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    // Flags de la cookie de sesión ANTES de session_start (M-17c) — la cookie nace aquí
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.cookie_secure', 1);
+    ini_set('session.cookie_samesite', 'Lax');
+    session_start();
+}
 
 header("Content-Type: application/json; charset=utf-8");
 header("Access-Control-Allow-Origin: https://apex.glass");

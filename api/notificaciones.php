@@ -78,15 +78,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'leer') {
 
     if ($id) {
         if ($rol === 'corte' || $rol === 'jefe_piso') {
-            // Insertar en tabla por usuario — IGNORE para evitar duplicados
+            // Por usuario — solo si la notificación va dirigida a su rol
+            // (antes se podía "leer" el id de una alerta de dirección, M-18)
             $db->prepare("
                 INSERT IGNORE INTO notificaciones_leidas_usuario (notificacion_id, usuario_id)
-                VALUES (?, ?)
+                SELECT n.id, ? FROM notificaciones n WHERE n.id = ? AND n.rol_destino = ?
+            ")->execute([$user_id, $id, $rol]);
+        } elseif ($rol === 'comercial') {
+            // Solo las propias (mismo criterio que leer_todas)
+            $db->prepare("
+                UPDATE notificaciones SET leida = 1
+                WHERE id = ? AND rol_destino = 'comercial' AND usuario_id_dest = ?
             ")->execute([$id, $user_id]);
-        } else {
-            // dir_admin y comercial: UPDATE directo al campo leida
-            $db->prepare("UPDATE notificaciones SET leida = 1 WHERE id = ?")->execute([$id]);
+        } elseif (in_array($rol, ['dir_admin', 'administracion', 'desarrollo'], true)) {
+            // Solo las de su propia bandeja (mismo criterio que leer_todas)
+            $dest = ($rol === 'dir_admin' || $rol === 'desarrollo') ? 'dir_admin' : 'administracion';
+            $db->prepare("UPDATE notificaciones SET leida = 1 WHERE id = ? AND rol_destino = ?")
+               ->execute([$id, $dest]);
         }
+        // Cualquier otro rol (chofer, operador, director...): no marca nada —
+        // en listar tampoco reciben notificaciones.
     }
     jsonResponse(['ok' => true]);
 }

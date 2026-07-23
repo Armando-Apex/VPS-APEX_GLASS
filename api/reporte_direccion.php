@@ -138,7 +138,8 @@ switch ($periodo) {
     case '6meses':
         $desde = (clone $hoy)->modify('-6 months')->format('Y-m-d');
         $hasta = $hoy->format('Y-m-d'); break;
-    case 'a�0�9o':
+    case 'año':
+    case 'anio':
         $desde = $hoy->format('Y-01-01');
         $hasta = $hoy->format('Y-m-d'); break;
     default:

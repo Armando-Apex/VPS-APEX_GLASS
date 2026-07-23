@@ -322,7 +322,10 @@ if ($method === 'POST') {
                 if (!$cliente_id) {
                     throw new Exception('Cotización sin cliente asociado');
                 }
-                $stmt_s = $db->prepare("SELECT COALESCE(SUM(monto),0) as saldo FROM clientes_saldo_favor WHERE cliente_id = ?");
+                // FOR UPDATE bloquea las filas del monedero del cliente hasta el commit:
+                // dos aplicaciones concurrentes del mismo saldo ya no pueden pasar las dos
+                // el chequeo de suficiencia y dejar el monedero en negativo (M-1).
+                $stmt_s = $db->prepare("SELECT COALESCE(SUM(monto),0) as saldo FROM clientes_saldo_favor WHERE cliente_id = ? FOR UPDATE");
                 $stmt_s->execute([$cliente_id]);
                 $saldo_disp = (float)$stmt_s->fetch(PDO::FETCH_ASSOC)['saldo'];
                 if ($saldo_disp < $monto) {

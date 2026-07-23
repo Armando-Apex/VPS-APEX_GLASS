@@ -6,13 +6,22 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/permisos.php';
 
+// Flags de la cookie de sesión ANTES de cualquier session_start (M-17c).
+// requirePermiso/requireSessionApi respetan la sesión ya iniciada y no la vuelven a abrir.
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.cookie_secure', 1);
+    ini_set('session.cookie_samesite', 'Lax');
+    session_start();
+}
+
 header('Content-Type: application/json; charset=utf-8');
 
 $accion = $_GET['accion'] ?? '';
 
 // ── Generar / regenerar password (solo dir_admin) ────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'generar_pass') {
-    $user = requirePermiso('ver_dashboard');
+    $user = requirePermisoApi('ver_dashboard');
     if (!in_array($user['rol'], ['dir_admin', 'dueno', 'comercial', 'desarrollo'])) {
         http_response_code(403); echo json_encode(['error' => 'Sin permiso']); exit;
     }
@@ -70,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'generar_pass') {
 
 // ── Enviar acceso al portal por WhatsApp ─────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'enviar_acceso_wa') {
-    $user = requirePermiso('ver_dashboard');
+    $user = requirePermisoApi('ver_dashboard');
     if (!in_array($user['rol'], ['dir_admin', 'dueno', 'comercial', 'desarrollo'])) {
         http_response_code(403); echo json_encode(['error' => 'Sin permiso']); exit;
     }
@@ -145,6 +154,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'enviar_acceso_wa') {
     exit;
 }
 
+// Registra un intento fallido del portal y bloquea a los 10 (idéntico a api/login.php:39-68)
+function _portalLoginFallo($pdo, $ip, $llave, $intento) {
+    if ($intento) {
+        $nuevos = $intento['intentos'] + 1;
+        $bloq   = $nuevos >= 10 ? 1 : 0;
+        $pdo->prepare("UPDATE login_intentos SET intentos=?, bloqueado=? WHERE ip=? AND usuario=?")->execute([$nuevos, $bloq, $ip, $llave]);
+    } else {
+        $pdo->prepare("INSERT INTO login_intentos (ip, usuario, intentos) VALUES (?, ?, 1)")->execute([$ip, $llave]);
+    }
+}
+
 // ── Login del portal ──────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'login') {
     $usuario  = strtoupper(trim($_POST['usuario']  ?? ''));
@@ -154,7 +174,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'login') {
         echo json_encode(['error' => 'Usuario y contraseña requeridos']); exit;
     }
 
-    $pdo  = getDB();
+    $pdo = getDB();
+    $ip  = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    // Reutiliza login_intentos del login interno; el prefijo 'portal:' separa el
+    // namespace de los usuarios internos y no requiere migración (M-17b).
+    $llave = 'portal:' . $usuario;
+
+    // Verificar bloqueo por IP + código de cliente (mismo criterio que api/login.php)
+    $stmt = $pdo->prepare("SELECT intentos, bloqueado, updated_at FROM login_intentos WHERE ip = ? AND usuario = ?");
+    $stmt->execute([$ip, $llave]);
+    $intento = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($intento && $intento['bloqueado']) {
+        $minutos = (time() - strtotime($intento['updated_at'])) / 60;
+        if ($minutos < 15) {
+            $restantes = ceil(15 - $minutos);
+            http_response_code(429);
+            echo json_encode(['error' => "Demasiados intentos. Espera {$restantes} minutos."]); exit;
+        }
+        $pdo->prepare("UPDATE login_intentos SET intentos=0, bloqueado=0 WHERE ip=? AND usuario=?")->execute([$ip, $llave]);
+        $intento = null;
+    }
+
     $stmt = $pdo->prepare(
         "SELECT id, codigo, razon_social, nombre, portal_password_hash, portal_activo
          FROM clientes WHERE codigo = ? LIMIT 1"
@@ -167,12 +208,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'login') {
     if (!$c || !$c['portal_activo'] || !$c['portal_password_hash']) {
         // Hacer verify de todas formas para evitar timing attack
         password_verify($password, '$2y$12$invalidhashpadding000000000000000000000000000000000000u');
+        _portalLoginFallo($pdo, $ip, $llave, $intento);
         echo json_encode(['error' => 'Usuario o contraseña incorrectos']); exit;
     }
 
     if (!password_verify($password, $c['portal_password_hash'])) {
+        _portalLoginFallo($pdo, $ip, $llave, $intento);
         echo json_encode(['error' => 'Usuario o contraseña incorrectos']); exit;
     }
+
+    // Login exitoso - limpiar intentos (igual que api/login.php)
+    $pdo->prepare("DELETE FROM login_intentos WHERE ip=? AND usuario=?")->execute([$ip, $llave]);
 
     // Iniciar sesión del portal
     if (session_status() === PHP_SESSION_NONE) session_start();

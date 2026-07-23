@@ -32,7 +32,7 @@ if ($metodo === 'POST' && $accion === 'reset_mostrar') {
 
 // ── GET imágenes disponibles ──────────────────────────────────────────────────
 if ($metodo === 'GET' && $accion === 'imagenes') {
-    requirePermiso('ver_dashboard');
+    requirePermisoApi('ver_dashboard');
     $dir   = __DIR__ . '/../imagenes_comunicados/';
     $files = [];
     if (is_dir($dir)) {
@@ -48,7 +48,7 @@ if ($metodo === 'GET' && $accion === 'imagenes') {
 }
 
 // ── Resto requiere dir_admin ──────────────────────────────────────────────────
-$user = requirePermiso('ver_dashboard');
+$user = requirePermisoApi('ver_dashboard');
 if (!in_array($user['rol'], ['dir_admin', 'desarrollo'])) {
     jsonResponse(['error' => 'Sin permiso'], 403);
 }

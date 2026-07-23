@@ -245,7 +245,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
     $id = isset($d['id']) ? (int)$d['id'] : 0;
 
     if ($id) {
-        // Actualizar borrador existente — verificar propiedad
+        // Actualizar borrador existente — verificar propiedad Y que siga en borrador.
+        // Sin este chequeo el UPDATE afectaba 0 filas (factura ajena o ya timbrada)
+        // y se respondía ok=true igual: el usuario creía haber guardado sus cambios (A-9a).
+        $stmt = $pdo->prepare("SELECT folio_interno FROM facturas WHERE id=? AND estatus='borrador' AND creado_por=?");
+        $stmt->execute([$id, $user['nombre']]);
+        $folioInterno = $stmt->fetchColumn();
+        if (!$folioInterno) {
+            jsonResponse(['ok'=>false,'error'=>'Factura no encontrada, ya timbrada o creada por otro usuario']); exit;
+        }
+
         $stmt = $pdo->prepare("
             UPDATE facturas SET
                 tipo_cfdi=?, fecha=?, orden_folio=?, receptor_nombre=?, receptor_rfc=?,
@@ -261,9 +270,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
             $d['receptor_email'] ?? null, $clienteSolicitoId, $d['forma_pago'], $d['metodo_pago'],
             json_encode($d['conceptos']), $sub, $iva, $total, $id, $user['nombre']
         ]);
-        $stmt = $pdo->prepare("SELECT folio_interno FROM facturas WHERE id=?");
-        $stmt->execute([$id]);
-        $folioInterno = $stmt->fetchColumn();
+        // rowCount()===0 aquí solo significa "guardó sin cambios" (PDO MySQL no cuenta
+        // filas que quedaron idénticas) — la existencia/propiedad ya se verificó arriba.
+        if ($stmt->rowCount() === 0) {
+            jsonResponse(['ok'=>true,'id'=>$id,'folio'=>$folioInterno,'total'=>$total,'sin_cambios'=>true]);
+        }
         jsonResponse(['ok'=>true,'id'=>$id,'folio'=>$folioInterno,'total'=>$total]);
     } else {
         // Nueva factura — reintenta si otra petición concurrente ya tomó el folio calculado
@@ -313,11 +324,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     $id = (int)($d['id'] ?? 0);
     if (!$id) { jsonResponse(['ok'=>false,'error'=>'ID requerido']); exit; }
 
-    // Cargar factura — verificar propiedad
-    $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=? AND estatus='borrador' AND creado_por=?");
+    // Reserva atómica: solo UNA petición concurrente logra pasar la factura de
+    // 'borrador' a 'timbrando' (rowCount=1); la otra recibe error y NUNCA llama al PAC.
+    // Antes: dos pestañas pasaban el SELECT de 'borrador' y timbraban las dos →
+    // dos CFDI válidos ante el SAT para la misma venta (A-9b).
+    $stmt = $pdo->prepare("
+        UPDATE facturas SET estatus='timbrando', updated_at=NOW()
+        WHERE id=? AND estatus='borrador' AND creado_por=?
+    ");
     $stmt->execute([$id, $user['nombre']]);
+    if ($stmt->rowCount() !== 1) {
+        jsonResponse(['ok'=>false,'error'=>'Factura no encontrada o ya timbrada']); exit;
+    }
+
+    // Libera la reserva y responde error — usar en TODO fallo anterior al timbrado
+    // para que la factura no quede atascada en 'timbrando'.
+    $abortar = function($msg) use ($pdo, $id) {
+        $pdo->prepare("UPDATE facturas SET estatus='borrador' WHERE id=? AND estatus='timbrando'")->execute([$id]);
+        jsonResponse(['ok'=>false,'error'=>$msg]); exit;
+    };
+
+    $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=?");
+    $stmt->execute([$id]);
     $fac = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$fac) { jsonResponse(['ok'=>false,'error'=>'Factura no encontrada o ya timbrada']); exit; }
+
+    // Una orden no debe tener dos CFDI activos: si ya existe otra factura timbrada
+    // (o en proceso de timbrado) ligada al mismo folio de orden, se aborta.
+    // Las canceladas no estorban (refacturación tras cancelación es flujo válido).
+    if (!empty($fac['orden_folio'])) {
+        $stmt = $pdo->prepare("
+            SELECT folio_interno FROM facturas
+            WHERE orden_folio = ? AND id <> ? AND estatus IN ('timbrada','timbrando')
+            LIMIT 1
+        ");
+        $stmt->execute([$fac['orden_folio'], $id]);
+        if ($otra = $stmt->fetchColumn()) {
+            $abortar('La orden '.$fac['orden_folio'].' ya tiene la factura '.$otra.' timbrada. Si necesitas refacturar, cancela primero la anterior.');
+        }
+    }
 
     $conceptos = json_decode($fac['conceptos'], true);
 
@@ -326,8 +370,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     foreach ($conceptos as $i => $c) {
         $clave = trim($c['clave'] ?? '');
         if ($clave === '' || $clave === '01010101') {
-            jsonResponse(['ok'=>false,'error'=>'El concepto "'.($c['desc'] ?: ($i+1)).'" no tiene una clave SAT válida asignada. Asígnala antes de timbrar.']);
-            exit;
+            $abortar('El concepto "'.($c['desc'] ?: ($i+1)).'" no tiene una clave SAT válida asignada. Asígnala antes de timbrar.');
         }
     }
 
@@ -398,8 +441,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     unset($ch);
 
     if ($curlErr) {
-        jsonResponse(['ok'=>false,'error'=>'Error de conexión con FacturAPI: '.$curlErr]);
-        exit;
+        $abortar('Error de conexión con FacturAPI: '.$curlErr);
     }
 
     $res = json_decode($response, true);
@@ -407,8 +449,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     if ($httpCode !== 200) {
         $msg = $res['message'] ?? $res['error'] ?? 'Error desconocido de FacturAPI';
         error_log('APEX FacturAPI error '.$httpCode.': '.$response);
-        jsonResponse(['ok'=>false,'error'=>'FacturAPI: '.$msg]);
-        exit;
+        $abortar('FacturAPI: '.$msg);
     }
 
     // Guardar resultado en BD
@@ -417,11 +458,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     $pdfUrl      = 'https://www.facturapi.io/v2/invoices/' . $facurapiId . '/pdf';
     $xmlUrl      = 'https://www.facturapi.io/v2/invoices/' . $facurapiId . '/xml';
 
+    // El UPDATE final confirma desde la reserva 'timbrando' (A-9b) — si por alguna
+    // razón la factura ya no estuviera en ese estatus, no se sobreescribe nada.
     $stmt = $pdo->prepare("
         UPDATE facturas SET
             estatus='timbrada', facturapi_id=?, uuid=?,
             pdf_url=?, xml_url=?, updated_at=NOW()
-        WHERE id=?
+        WHERE id=? AND estatus='timbrando'
     ");
     $stmt->execute([$facurapiId, $uuid, $pdfUrl, $xmlUrl, $id]);
 
