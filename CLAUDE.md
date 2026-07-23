@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 23 julio 2026 | Próximo UPD disponible: UPD-391
+# Última actualización: 23 julio 2026 | Próximo UPD disponible: UPD-392
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -695,4 +695,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-390 | 23-jul-2026 | Armando | "Efectividad de Corte" (Reporte Dirección): la tarjeta "Láminas de pedacería usadas" ahora muestra también los m² totales junto al conteo (ej. "11 / 23.3m²"), no solo el número de sesiones — el backend (`api/reporte_direccion.php`) ya traía `m2_pedaceria` desde antes, solo faltaba mostrarlo. Archivo: app/modulos/reporte_direccion.php |
 
-**Próximo UPD disponible: UPD-391**
+| UPD-391 | 23-jul-2026 | Armando | Fix de metodología en Inventario → Stock, columna "Costo prom. m²" (`api/laminas.php`, `accion=stock`): antes promediaba TODAS las compras históricas de la lámina (ej. Claro 9mm 3600×2600 daba $332.55/m² mezclando compras desde junio), sin importar si esas láminas ya se usaron — a petición de Armando, con ejemplo concreto: "si compro 1 a $100 y 1 a $110 y ya usé la de $100, lo que queda en stock cuesta $110, no $105". El sistema no rastrea de qué compra específica sale cada lámina consumida (`inventario_movimientos` no liga a un lote de `inventario_compras`), así que se asume **FIFO** (se usan primero las compras más viejas) — el stock actual se compone de las compras MÁS RECIENTES, acumulando hacia atrás en el tiempo hasta completar la cantidad en stock. Con Claro 9mm 3600×2600 (15 láminas en stock) esto da $345.39/m² en vez de $332.55/m². Si el stock es 0, ahora muestra "—" en vez de "$0.00" (antes `COALESCE(...,0)` disfrazaba "sin stock" como costo cero). De paso se agregó el mismo fallback `COALESCE(costo_real_unitario, precio_unitario)` que ya usa `api/inventario.php` (por si algún día hay una compra sin costo_real_unitario capturado, hoy no hay ninguna). Nota: esto es un cálculo DISTINTO al de Reporte Dirección → Rentabilidad (UPD-389, ponderado por compras del mes actual, no por FIFO de stock) — cada uno responde una pregunta distinta: Inventario = "¿cuánto vale lo que tengo en el estante hoy?", Rentabilidad = "¿cuánto me cuesta comprar hoy?". Verificado con `php84 -r` reproduciendo la función completa contra la BD real: Claro 9mm 3600×2600 → $345.39/m² (15 en stock, viene de los 2 lotes más recientes de julio a $3,232.87/lámina); Espejo 6mm (stock=0 tras la corrección de UPD-388) → null/"—" en vez de un número engañoso. Archivo: api/laminas.php |
+
+**Próximo UPD disponible: UPD-392**

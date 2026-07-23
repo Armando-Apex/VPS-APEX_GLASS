@@ -25,7 +25,8 @@ if ($method === 'GET') {
     }
 
     if ($accion === 'stock') {
-        // Stock actual + costo ponderado + m² requeridos en produccion
+        // Stock actual + m² requeridos en produccion (el costo promedio se calcula aparte,
+        // ver [UPD-391] mas abajo)
         $s = $db->query("
             SELECT
                 l.id,
@@ -46,22 +47,11 @@ if ($method === 'GET') {
                 (COALESCE(c.total_compradas, 0)
                   - COALESCE(m.total_usadas, 0))
                   * l.m2                               AS stock_m2,
-                -- Costo promedio ponderado por lámina
-                COALESCE(c.costo_ponderado, 0)         AS costo_prom_lamina,
-                -- Costo por m²
-                CASE WHEN l.m2 > 0
-                     THEN COALESCE(c.costo_ponderado, 0) / l.m2
-                     ELSE 0 END                        AS costo_prom_m2,
                 -- m² requeridos en produccion (piezas pendiente + en_corte)
                 COALESCE(req.m2_requeridos, 0)         AS m2_requeridos
             FROM laminas l
             LEFT JOIN (
-                SELECT
-                    lamina_id,
-                    SUM(cantidad_laminas)  AS total_compradas,
-                    -- Costo ponderado = suma(costo_real * cantidad) / total
-                    SUM(costo_real_unitario * cantidad_laminas)
-                      / NULLIF(SUM(cantidad_laminas), 0) AS costo_ponderado
+                SELECT lamina_id, SUM(cantidad_laminas) AS total_compradas
                 FROM inventario_compras
                 GROUP BY lamina_id
             ) c ON c.lamina_id = l.id
@@ -78,6 +68,47 @@ if ($method === 'GET') {
             ORDER BY l.tipo ASC, l.espesor_mm ASC, l.ancho_mm DESC
         ");
         $laminas = $s->fetchAll();
+
+        // [UPD-391] Costo promedio del STOCK ACTUAL (no de todo lo comprado históricamente,
+        // ver conversación 23-jul-2026) — ej. si compré 1 a $100 y 1 a $110 y ya usé la de $100,
+        // lo que queda en stock cuesta $110, no $105. El sistema no rastrea de qué compra
+        // específica sale cada lámina consumida, así que se asume FIFO (se usan primero las
+        // compras más viejas) — lo que queda en stock corresponde a las compras MÁS RECIENTES,
+        // acumulando hacia atrás en el tiempo hasta completar la cantidad en stock. Con la lámina
+        // usada como ejemplo (Claro 9mm 3600x2600) esto baja el costo de $332.55 (promedio de
+        // TODO lo comprado desde junio) a solo lo que realmente compone las láminas que quedan.
+        $comprasPorLamina = [];
+        $sc = $db->query("
+            SELECT lamina_id, fecha_compra, id, cantidad_laminas,
+                   COALESCE(costo_real_unitario, precio_unitario) AS costo
+            FROM inventario_compras
+            ORDER BY lamina_id, fecha_compra DESC, id DESC
+        ");
+        foreach ($sc->fetchAll() as $c) {
+            $comprasPorLamina[$c['lamina_id']][] = $c;
+        }
+
+        foreach ($laminas as &$l) {
+            $stockLaminas = (int)$l['stock_laminas'];
+            $l['costo_prom_lamina'] = null;
+            $l['costo_prom_m2']     = null;
+            if ($stockLaminas <= 0 || empty($comprasPorLamina[$l['id']])) continue;
+
+            $restante = $stockLaminas;
+            $valorAcumulado = 0.0;
+            foreach ($comprasPorLamina[$l['id']] as $c) {
+                if ($restante <= 0) break;
+                $tomar = min((int)$c['cantidad_laminas'], $restante);
+                $valorAcumulado += $tomar * (float)$c['costo'];
+                $restante -= $tomar;
+            }
+            $cubierto = $stockLaminas - $restante; // por si el historial de compras no alcanza a cubrir el stock (dato incompleto)
+            if ($cubierto > 0) {
+                $l['costo_prom_lamina'] = round($valorAcumulado / $cubierto, 2);
+                $l['costo_prom_m2']     = $l['m2'] > 0 ? round($valorAcumulado / $cubierto / $l['m2'], 2) : null;
+            }
+        }
+        unset($l);
 
         // Marcar alerta: stock_m2 <= m2_requeridos * 1.20
         foreach ($laminas as &$l) {
