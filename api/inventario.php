@@ -159,6 +159,39 @@ if ($method === 'GET') {
                 'prom_lamina'   => $g['en_stock'] > 0 ? round($g['sum_valor'] / $g['en_stock'], 2) : null,
             ];
         }
+        // [UPD-389] Costo ponderado SOLO por las compras del mes calendario en curso, a peticion
+        // de Armando (23-jul-2026): el stock actual puede incluir laminas que ya no existen
+        // fisicamente en almacen (ver UPD-388, Claro 9mm 3050x2140) y arrastran el promedio hacia
+        // abajo con precios viejos — para Rentabilidad quiere el costo de comprar HOY, no lo que
+        // ya no es representativo. Es un rango movil (mes calendario actual), a diferencia de la
+        // ventana fija del precio de venta real (UPD-314) — aqui explicitamente se pidio "el mes
+        // actual en este momento", no un ancla fija.
+        $MES_ACTUAL_INICIO = date('Y-m-01 00:00:00');
+        $sMes = $db->prepare("
+            SELECT l.tipo, l.espesor_mm,
+                   SUM(ic.cantidad_laminas) AS cantidad_mes,
+                   SUM(ic.cantidad_laminas * COALESCE(ic.costo_real_unitario, ic.precio_unitario))
+                     / SUM(ic.cantidad_laminas * l.m2) AS costo_prom_m2_mes
+            FROM inventario_compras ic
+            JOIN laminas l ON l.id = ic.lamina_id
+            WHERE ic.fecha_compra >= ?
+            GROUP BY l.tipo, l.espesor_mm
+        ");
+        $sMes->execute([$MES_ACTUAL_INICIO]);
+        $costoMesPorTipo = [];
+        foreach ($sMes->fetchAll() as $r) {
+            $costoMesPorTipo[$r['tipo'] . '|' . $r['espesor_mm']] = [
+                'costo_prom_m2' => round((float)$r['costo_prom_m2_mes'], 4),
+                'cantidad'      => (int)$r['cantidad_mes'],
+            ];
+        }
+        foreach ($por_tipo as &$g) {
+            $key = $g['tipo'] . '|' . $g['espesor_mm'];
+            $g['costo_prom_m2_mes_actual']     = $costoMesPorTipo[$key]['costo_prom_m2'] ?? null;
+            $g['laminas_compradas_mes_actual'] = $costoMesPorTipo[$key]['cantidad'] ?? 0;
+        }
+        unset($g);
+
         usort($por_tipo, function($a, $b) { return strcmp($a['tipo'] . $a['espesor_mm'], $b['tipo'] . $b['espesor_mm']); });
 
         $sc = $db->query("SELECT id, nombre, nombre_etiqueta, precio_m2 FROM cristales WHERE activo = 1 ORDER BY nombre ASC");
@@ -237,7 +270,7 @@ if ($method === 'GET') {
         }
         unset($g);
 
-        jsonResponse(['por_lamina' => $por_lamina, 'por_tipo' => $por_tipo, 'cristales' => $cristales, 'precio_real_desde' => $FECHA_INICIO_PRECIO_REAL]);
+        jsonResponse(['por_lamina' => $por_lamina, 'por_tipo' => $por_tipo, 'cristales' => $cristales, 'precio_real_desde' => $FECHA_INICIO_PRECIO_REAL, 'costo_mes_desde' => $MES_ACTUAL_INICIO]);
     }
 
     jsonResponse(['error' => 'Accion no valida'], 400);

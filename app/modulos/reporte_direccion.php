@@ -548,15 +548,21 @@ function rdRenderRentabilidad(inv) {
   var porTipo = (inv && inv.por_tipo) ? inv.por_tipo : [];
   if (!porTipo.length) return '';
   var fechaDesde = (inv && inv.precio_real_desde) ? inv.precio_real_desde.substring(0, 10) : '';
+  var costoMesDesde = (inv && inv.costo_mes_desde) ? inv.costo_mes_desde.substring(0, 10) : '';
 
   var rows = [];
   porTipo.forEach(function(g) {
     var precioSinIva = (g.precio_venta_real !== null && g.precio_venta_real !== undefined) ? parseFloat(g.precio_venta_real) : null;
     var precioConIva = precioSinIva !== null ? parseFloat((precioSinIva * 1.16).toFixed(4)) : null;
     var m2Vendidos  = parseFloat(g.m2_vendidos_real || 0);
-    // Si no hay stock actual (se agotó) usa el costo histórico ponderado por TODO lo comprado,
-    // para no dejar la fila sin costo solo porque ya no queda inventario.
-    var costoBase   = (g.costo_prom_m2 !== null && g.costo_prom_m2 !== undefined) ? g.costo_prom_m2 : g.costo_prom_m2_hist;
+    // Costo: prioriza SOLO compras del mes actual (a peticion de Armando, 23-jul-2026) — el stock
+    // actual puede incluir laminas que ya no hay fisicamente en almacen y arrastran el promedio
+    // con precios viejos. Si no hubo compras este mes para ese tipo+espesor, cae a stock actual,
+    // y si tampoco hay stock, al historico completo — para no perder filas de tipos que no se
+    // compraron este mes.
+    var costoEsMesActual = g.costo_prom_m2_mes_actual !== null && g.costo_prom_m2_mes_actual !== undefined;
+    var costoBase   = costoEsMesActual ? g.costo_prom_m2_mes_actual
+                     : (g.costo_prom_m2 !== null && g.costo_prom_m2 !== undefined) ? g.costo_prom_m2 : g.costo_prom_m2_hist;
     var costoSinIva = (costoBase !== null && costoBase !== undefined) ? parseFloat(costoBase) : null;
     var costoConIva = costoSinIva !== null ? parseFloat((costoSinIva * 1.16).toFixed(4)) : null;
     // Sin costo actual (se agotó el stock o nunca se compró) y sin ventas registradas: no hay nada que mostrar.
@@ -567,7 +573,7 @@ function rdRenderRentabilidad(inv) {
     var markup      = (utilidad !== null && costoConIva > 0)  ? (utilidad / costoConIva) * 100 : null;
     var utilidadPct = (utilidad !== null && precioConIva > 0) ? (utilidad / precioConIva) * 100 : null;
     var margen      = utilidadPct;
-    rows.push({ tipo: g.tipo, espesor: g.espesor_mm, costoSinIva: costoSinIva, costoConIva: costoConIva, precioSinIva: precioSinIva, precioConIva: precioConIva, m2Vendidos: m2Vendidos, utilidad: utilidad, markup: markup, utilidadPct: utilidadPct, margen: margen });
+    rows.push({ tipo: g.tipo, espesor: g.espesor_mm, costoSinIva: costoSinIva, costoConIva: costoConIva, costoEsMesActual: costoEsMesActual, precioSinIva: precioSinIva, precioConIva: precioConIva, m2Vendidos: m2Vendidos, utilidad: utilidad, markup: markup, utilidadPct: utilidadPct, margen: margen });
   });
 
   if (!rows.length) return '';
@@ -582,7 +588,7 @@ function rdRenderRentabilidad(inv) {
   var clrMargen = function(m) { return m === null ? 'var(--muted-lt)' : m >= 55 ? 'var(--green)' : m >= 40 ? 'var(--amber)' : 'var(--red)'; };
 
   var html = '<div class="section-title">Rentabilidad por m&#178; de vidrio</div>';
-  html += '<div style="font-size:11px;color:var(--muted-lt);margin:-6px 0 10px">Precio real ponderado por m&#178; efectivamente vendido' + (fechaDesde ? ' desde ' + fechaDesde : '') + ' (neto de descuento, no precio de cat&#225;logo)</div>';
+  html += '<div style="font-size:11px;color:var(--muted-lt);margin:-6px 0 10px">Precio real ponderado por m&#178; efectivamente vendido' + (fechaDesde ? ' desde ' + fechaDesde : '') + ' (neto de descuento, no precio de cat&#225;logo) &middot; Costo: compras del mes actual' + (costoMesDesde ? ' (desde ' + costoMesDesde + ')' : '') + '; si un tipo no se compr&#243; este mes, usa el costo del stock/hist&#243;rico como respaldo</div>';
   html += '<div class="table-card"><table>' +
     '<thead><tr>' +
       '<th>Tipo</th>' +
@@ -614,7 +620,7 @@ function rdRenderRentabilidad(inv) {
     html += '<tr>' +
       '<td><strong>' + esc(r.tipo) + '</strong></td>' +
       '<td>' + r.espesor + ' mm</td>' +
-      '<td style="text-align:right;color:var(--muted)">' + (r.costoSinIva !== null ? fmt(r.costoSinIva) : sinCosto) + '</td>' +
+      '<td style="text-align:right;color:var(--muted)">' + (r.costoSinIva !== null ? fmt(r.costoSinIva) : sinCosto) + (r.costoSinIva !== null && !r.costoEsMesActual ? ' <span title="Sin compras este mes — usando stock/hist&#243;rico" style="color:var(--amber);font-size:10px">&#9888;</span>' : '') + '</td>' +
       '<td style="text-align:right;color:var(--purple)">' + (r.costoConIva !== null ? fmt(r.costoConIva) : sinCosto) + '</td>' +
       '<td style="text-align:right;color:var(--muted)">' + r.m2Vendidos.toFixed(1) + '</td>' +
       '<td style="text-align:right;color:var(--muted)">' + (r.precioSinIva !== null ? fmt(r.precioSinIva) : sinVenta) + '</td>' +
