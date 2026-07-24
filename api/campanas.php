@@ -21,16 +21,20 @@ if (!$esCampanas) {
     jsonResponse(['error' => 'Sin permiso'], 403);
 }
 
-// ── Función: normalizar teléfono a 52XXXXXXXXXX ──────────────
+// ── Función: normalizar teléfono con código de país ───────────
+// Solo antepone 52 (México) cuando el número son exactamente 10 dígitos
+// (formato local sin código de país) — mismo criterio que ya usan
+// actualizar_estatus.php/rutas_lib.php/salidas.php para WA. Antes forzaba
+// '52' + últimos 10 dígitos en CUALQUIER otro caso, lo que corrompía
+// números internacionales ya completos (ej. CTN-457, EUA +17262312603 →
+// se hubiera mandado como 527262312603, un número inexistente). Con 11+
+// dígitos se asume que el usuario ya capturó el código de país correcto.
 function normalizarTelefono($tel) {
     $tel = preg_replace('/\D/', '', $tel);
     if (strlen($tel) === 10) {
         return '52' . $tel;
     }
-    if (strlen($tel) === 12 && substr($tel, 0, 2) === '52') {
-        return $tel;
-    }
-    return '52' . substr($tel, -10);
+    return $tel;
 }
 
 // ── Función: nombre corto para campañas ──────────────────────
