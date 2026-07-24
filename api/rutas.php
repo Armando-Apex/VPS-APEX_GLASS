@@ -24,9 +24,22 @@ if (!$esLogistica && !$esChofer) {
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
-// ── Helper: peso estimado de una orden ───────────────────────
-function calcularPesoOrden($db, $orden_id) {
-    $stmt = $db->prepare("SELECT ancho_mm, alto_mm, cristal FROM piezas WHERE orden_id = ?");
+// ── Helper: peso estimado de lo que FALTA por rutear de una orden ────────────
+// Solo piezas con salida tipo 'chofer' registrada que no están ya en una parada
+// viva ('pendiente'/'entregado') — mismo criterio que accion=pendientes (UPD-395).
+function calcularPesoPendienteRutear($db, $orden_id) {
+    $stmt = $db->prepare("
+        SELECT p.ancho_mm, p.alto_mm, p.cristal
+        FROM piezas p
+        JOIN orden_salida_piezas osp ON osp.pieza_id = p.id
+        JOIN orden_salidas os ON os.id = osp.salida_id AND os.tipo = 'chofer'
+        WHERE p.orden_id = ?
+          AND p.id NOT IN (
+              SELECT rep.pieza_id FROM ruta_entrega_piezas rep
+              JOIN ruta_entregas re ON re.id = rep.ruta_entrega_id
+              WHERE re.estado IN ('pendiente','entregado')
+          )
+    ");
     $stmt->execute([$orden_id]);
     $piezas = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $peso = 0;
@@ -51,23 +64,42 @@ if ($method === 'GET') {
         // falta el trayecto físico. No se filtra por fecha de ruta (a diferencia de antes) porque
         // la orden ya no está en estado 'activa' y debe seguir apareciendo hasta que se asigne,
         // sin importar cuántos días lleve esperando.
-        // Orden: primero las que siguen 'activa' (aún pendientes de cerrarse — ej.
-        // salida parcial, ver UPD-393) y luego las 'entregada' (ya cerradas en
-        // Cobranza, solo falta el trayecto físico); dentro de cada grupo, fecha de
-        // entrega prometida más antigua primero.
+        // Criterio POR PIEZA (UPD-395, antes era por orden completa): una orden aparece si
+        // tiene piezas con salida tipo 'chofer' registrada en Cobranza que aún no están en
+        // ninguna parada viva ('pendiente' o 'entregado' — las de paradas 'no_entregado' se
+        // liberan para re-rutear), y no tiene ya otra parada pendiente (una parada viva a la
+        // vez por orden, C-14). Así una orden con salidas PARCIALES reaparece sola cuando
+        // Cobranza registra la siguiente tanda, y desaparece cuando todo quedó ruteado.
+        // Orden: primero 'activa' (aún con piezas por salir) y luego 'entregada'; dentro de
+        // cada grupo, fecha de entrega prometida más antigua primero.
         $stmt = $db->prepare("
             SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_entrega,
                    o.estado, c.localidad, c.ciudad_destino
             FROM ordenes o
             LEFT JOIN cotizaciones c ON c.orden_id = o.id
             WHERE o.requiere_ruta = 1
-              AND o.id NOT IN (SELECT re.orden_id FROM ruta_entregas re)
+              AND o.estado != 'cancelada'
+              AND NOT EXISTS (
+                  SELECT 1 FROM ruta_entregas re
+                  WHERE re.orden_id = o.id AND re.estado = 'pendiente'
+              )
+              AND EXISTS (
+                  SELECT 1
+                  FROM orden_salida_piezas osp
+                  JOIN orden_salidas os ON os.id = osp.salida_id
+                  WHERE os.orden_id = o.id AND os.tipo = 'chofer'
+                    AND osp.pieza_id NOT IN (
+                        SELECT rep.pieza_id FROM ruta_entrega_piezas rep
+                        JOIN ruta_entregas re2 ON re2.id = rep.ruta_entrega_id
+                        WHERE re2.estado IN ('pendiente','entregado')
+                    )
+              )
             ORDER BY (o.estado = 'entregada') ASC, o.fecha_entrega ASC, o.id ASC
         ");
         $stmt->execute();
         $ordenes = $stmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($ordenes as &$o) {
-            $o['peso_kg'] = calcularPesoOrden($db, $o['id']);
+            $o['peso_kg'] = calcularPesoPendienteRutear($db, $o['id']);
         }
         jsonResponse($ordenes); exit;
     }
@@ -173,14 +205,23 @@ if ($method === 'GET') {
         if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $orden_id = (int)($_GET['orden_id'] ?? 0);
         if (!$orden_id) { jsonResponse(['error' => 'orden_id requerido']); exit; }
-        // Con el flujo de requiere_ruta, la orden ya cerró en Cobranza y sus piezas ya quedaron
-        // en 'entregado' (no 'terminado') — se incluyen ambos estatus para no romper la
-        // asignación de piezas a la ruta.
+        // UPD-395: solo se ofrecen piezas con salida tipo 'chofer' ya registrada en Cobranza
+        // (la salida es la barrera de cobro, A-8) que no estén ya en una parada viva
+        // ('pendiente'/'entregado' — las de paradas 'no_entregado' se liberan para re-rutear).
+        // Antes listaba TODA pieza terminado/entregado de la orden, lo que permitía volver a
+        // asignar piezas de una tanda anterior ya ruteada en salidas parciales.
         $stmt = $db->prepare("
             SELECT p.id, p.partida, p.pieza_num, p.pieza_total,
                    p.qr_code, p.cristal_corto, p.ancho_mm, p.alto_mm, p.estatus
             FROM piezas p
-            WHERE p.orden_id = ? AND p.estatus IN ('terminado','entregado')
+            JOIN orden_salida_piezas osp ON osp.pieza_id = p.id
+            JOIN orden_salidas os ON os.id = osp.salida_id AND os.tipo = 'chofer'
+            WHERE p.orden_id = ?
+              AND p.id NOT IN (
+                  SELECT rep.pieza_id FROM ruta_entrega_piezas rep
+                  JOIN ruta_entregas re ON re.id = rep.ruta_entrega_id
+                  WHERE re.estado IN ('pendiente','entregado')
+              )
             ORDER BY p.partida ASC, p.pieza_num ASC
         ");
         $stmt->execute([$orden_id]);
@@ -273,29 +314,32 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'La orden ' . $ordenRow['folio'] . ' ya tiene una parada pendiente en una ruta']); exit;
         }
 
-        // 3. Las piezas deben ser de ESTA orden y estar listas para salir.
-        //    Se aceptan 'terminado' y 'entregado' porque con el flujo
-        //    requiere_ruta Cobranza ya las marcó 'entregado' al cerrar la
-        //    orden (mismo criterio que el GET accion=piezas_orden:175-181).
+        // 3. Las piezas deben ser de ESTA orden y tener salida tipo 'chofer' ya
+        //    registrada en Cobranza (la salida es la barrera de cobro, A-8) —
+        //    mismo criterio que el GET accion=piezas_orden (UPD-395).
         $ph    = implode(',', array_fill(0, count($pieza_ids), '?'));
         $stmtVal = $db->prepare("
-            SELECT COUNT(*) FROM piezas
-            WHERE id IN ($ph) AND orden_id = ? AND estatus IN ('terminado','entregado')
+            SELECT COUNT(*) FROM piezas p
+            JOIN orden_salida_piezas osp ON osp.pieza_id = p.id
+            JOIN orden_salidas os ON os.id = osp.salida_id AND os.tipo = 'chofer'
+            WHERE p.id IN ($ph) AND p.orden_id = ?
         ");
         $stmtVal->execute([...$pieza_ids, $orden_id]);
         if ((int)$stmtVal->fetchColumn() !== count($pieza_ids)) {
-            jsonResponse(['error' => 'Hay piezas que no pertenecen a la orden o aún no están terminadas']); exit;
+            jsonResponse(['error' => 'Hay piezas que no pertenecen a la orden o que aún no tienen salida registrada en Cobranza']); exit;
         }
 
-        // 4. Ninguna pieza puede estar ya asignada a otra parada pendiente.
+        // 4. Ninguna pieza puede estar ya en una parada viva — pendiente O ya
+        //    entregada (UPD-395: antes solo checaba 'pendiente', lo que permitía
+        //    re-rutear piezas ya entregadas de una tanda anterior).
         $stmtDup = $db->prepare("
             SELECT COUNT(*) FROM ruta_entrega_piezas rep
             JOIN ruta_entregas re ON re.id = rep.ruta_entrega_id
-            WHERE rep.pieza_id IN ($ph) AND re.estado = 'pendiente'
+            WHERE rep.pieza_id IN ($ph) AND re.estado IN ('pendiente','entregado')
         ");
         $stmtDup->execute($pieza_ids);
         if ((int)$stmtDup->fetchColumn() > 0) {
-            jsonResponse(['error' => 'Alguna pieza ya está asignada a otra parada pendiente']); exit;
+            jsonResponse(['error' => 'Alguna pieza ya está asignada a otra parada o ya fue entregada en una ruta']); exit;
         }
 
         // Calcular peso solo de las piezas seleccionadas

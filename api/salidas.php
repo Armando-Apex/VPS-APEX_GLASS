@@ -147,13 +147,22 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
         }
 
         // Si esta orden ya estaba asignada a una ruta (módulo Rutas de Entrega) y esa parada
-        // seguía "pendiente", se cierra aquí — si no, se queda pegada ahí para siempre y la
-        // orden nunca vuelve a aparecer en "Pendientes de asignar" para las piezas que faltan
-        // (en salidas parciales) ni se puede re-planificar. Se marca 'entregado' porque lo que
-        // SÍ estaba asignado a esa parada ya salió, aunque haya sido parcial.
+        // seguía "pendiente", se cierra aquí SOLO si las piezas asignadas a esa parada vienen
+        // en ESTA salida (la salida es la confirmación de esa asignación, flujo viejo) o si la
+        // parada no tiene piezas registradas (legacy, criterio original de UPD-342). Si la
+        // parada tiene piezas de OTRA tanda (ej. una salida parcial anterior aún en ruta), se
+        // deja pendiente — cerrarla marcaría como entregado un viaje que no ha ocurrido y
+        // rompería la trazabilidad de entregas parciales (caso real S-350, UPD-395).
         $stmtRE = $db->prepare("SELECT id, ruta_id FROM ruta_entregas WHERE orden_id = ? AND estado = 'pendiente'");
         $stmtRE->execute([$orden_id]);
         foreach ($stmtRE->fetchAll(PDO::FETCH_ASSOC) as $re) {
+            $stmtRep = $db->prepare("SELECT pieza_id FROM ruta_entrega_piezas WHERE ruta_entrega_id = ?");
+            $stmtRep->execute([$re['id']]);
+            $piezasParada = $stmtRep->fetchAll(PDO::FETCH_COLUMN);
+            $deOtraTanda  = array_diff(array_map('intval', $piezasParada), array_map('intval', $piezas_validas));
+            if (!empty($piezasParada) && !empty($deOtraTanda)) {
+                continue; // parada de otra tanda de piezas — sigue su curso normal en la ruta
+            }
             $notaRE = $es_parcial ? "Salida parcial ($piezas_count/$total_piezas) impresa desde Cobranza" : 'Salida completa impresa desde Cobranza';
             $db->prepare("UPDATE ruta_entregas SET estado='entregado', entregado_at=NOW(), notas_entrega=? WHERE id=?")
                ->execute([$notaRE, $re['id']]);
