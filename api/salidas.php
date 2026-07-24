@@ -131,9 +131,19 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
             $reqRuta = ($tipo === 'chofer') ? 1 : 0;
             $db->prepare("UPDATE ordenes SET estado='entregada', fecha_cierre=NOW(), fecha_entrega_chofer=?, requiere_ruta=? WHERE id=?")
                ->execute([$fecha_chofer, $reqRuta, $orden_id]);
-        } elseif ($fecha_chofer && $tipo === 'chofer') {
-            $db->prepare("UPDATE ordenes SET fecha_entrega_chofer=? WHERE id=?")
-               ->execute([$fecha_chofer, $orden_id]);
+        } elseif ($tipo === 'chofer') {
+            // Salida parcial tipo chofer: la orden sigue 'activa' pero las piezas ya
+            // marcadas 'entregado' arriba deben salir físicamente al cliente — debe
+            // aparecer en "Pendientes de asignar" igual que una salida completa (antes
+            // requiere_ruta solo se activaba al cerrar la orden por completo, dejando
+            // las salidas parciales sin forma de llegar a Rutas de Entrega).
+            if ($fecha_chofer) {
+                $db->prepare("UPDATE ordenes SET fecha_entrega_chofer=?, requiere_ruta=1 WHERE id=?")
+                   ->execute([$fecha_chofer, $orden_id]);
+            } else {
+                $db->prepare("UPDATE ordenes SET requiere_ruta=1 WHERE id=?")
+                   ->execute([$orden_id]);
+            }
         }
 
         // Si esta orden ya estaba asignada a una ruta (módulo Rutas de Entrega) y esa parada

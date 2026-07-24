@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 24 julio 2026 | Próximo UPD disponible: UPD-393
+# Última actualización: 24 julio 2026 | Próximo UPD disponible: UPD-394
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -699,4 +699,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-392 | 24-jul-2026 | Armando | Corrección de dato puntual: pieza id 5086 (orden S-350, partida 33, Filtrasol 6mm) estaba marcada `terminado` por error de captura; regresada a `pendiente` vía UPDATE directo + registro en `historial_estatus` para trazabilidad (no existe UI para corregir el estatus de una sola pieza — `admin_ordenes.php accion=corregir_estatus` solo corrige TODAS las piezas de una orden a la vez). Sin cambios de código. |
 
-**Próximo UPD disponible: UPD-393**
+| UPD-393 | 24-jul-2026 | Armando | Fix real reportado por Armando: la orden S-350 tenía una salida parcial tipo chofer registrada desde Cobranza (10 de 36 piezas, ya marcadas `entregado`) pero no aparecía en "Pendientes de asignar" de Logística Rutas. Causa: `api/salidas.php` solo activaba `ordenes.requiere_ruta=1` cuando la salida cerraba la orden POR COMPLETO (`$orden_completa`) — la rama de salida PARCIAL (`elseif`) nunca tocaba esa bandera, aunque las piezas ya estuvieran confirmadas y listas para el trayecto físico. Fix: la rama parcial ahora también activa `requiere_ruta=1` cuando `tipo='chofer'`, igual que la rama completa. Corrección de dato puntual: `ordenes.id=590` (S-350) actualizada a `requiere_ruta=1` para que apareciera de inmediato sin esperar otra salida; verificado contra el query real de "Pendientes de asignar" que ya la incluye. Archivo: api/salidas.php |
+
+**Próximo UPD disponible: UPD-394**
