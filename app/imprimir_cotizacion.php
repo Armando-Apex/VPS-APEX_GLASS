@@ -536,7 +536,7 @@ function waEnviar() {
     <div class="condiciones" style="margin-bottom:0">
       <div class="title">Condiciones Generales</div>
       <ul>
-        <li>Esta cotización tiene vigencia de <strong>15 días naturales</strong> a partir de la fecha de emisión.</li>
+        <li>Esta cotización tiene vigencia de <strong>3 días naturales</strong> a partir de la fecha de emisión.</li>
         <li>Los precios están expresados en <strong>Pesos Mexicanos (MXN)</strong> e incluyen IVA.</li>
         <?php if ($c['condicion_pago'] === 'anticipo'): ?>
         <li>Se requiere <strong>50% de anticipo</strong> para iniciar la producción. Saldo al momento de la entrega.</li>
