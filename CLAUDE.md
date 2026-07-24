@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 24 julio 2026 | Próximo UPD disponible: UPD-394
+# Última actualización: 24 julio 2026 | Próximo UPD disponible: UPD-395
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -701,4 +701,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-393 | 24-jul-2026 | Armando | Fix real reportado por Armando: la orden S-350 tenía una salida parcial tipo chofer registrada desde Cobranza (10 de 36 piezas, ya marcadas `entregado`) pero no aparecía en "Pendientes de asignar" de Logística Rutas. Causa: `api/salidas.php` solo activaba `ordenes.requiere_ruta=1` cuando la salida cerraba la orden POR COMPLETO (`$orden_completa`) — la rama de salida PARCIAL (`elseif`) nunca tocaba esa bandera, aunque las piezas ya estuvieran confirmadas y listas para el trayecto físico. Fix: la rama parcial ahora también activa `requiere_ruta=1` cuando `tipo='chofer'`, igual que la rama completa. Corrección de dato puntual: `ordenes.id=590` (S-350) actualizada a `requiere_ruta=1` para que apareciera de inmediato sin esperar otra salida; verificado contra el query real de "Pendientes de asignar" que ya la incluye. Archivo: api/salidas.php |
 
-**Próximo UPD disponible: UPD-394**
+| UPD-394 | 24-jul-2026 | Armando | Logística Rutas — "Órdenes pendientes de asignar": (1) orden cambiado a `activa` primero (aún pendientes de cerrarse, ej. salida parcial de UPD-393), luego `entregada` (ya cerradas en Cobranza, solo falta el trayecto físico), y dentro de cada grupo por fecha de entrega más antigua (`api/rutas.php`, accion=pendientes). (2) Paginación de 25 en 25 en el frontend (`app/modulos/logistica_rutas.php`) — esta lista no tiene filtro de fecha por diseño (UPD-353/comentario en código: debe seguir apareciendo "sin importar cuántos días lleve esperando"), así que podía crecer sin límite; nuevos controles Anterior/Siguiente + "Mostrando X–Y de Z" bajo la tabla, ocultos si cabe todo en una página. Verificado con `php84 -l` + `node --check` del bloque `<script>` extraído (tags PHP stubeados) + query real reproduciendo el nuevo ORDER BY (S-350 ya aparece primero). Archivos: api/rutas.php, app/modulos/logistica_rutas.php |
+
+**Próximo UPD disponible: UPD-395**

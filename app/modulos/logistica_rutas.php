@@ -90,6 +90,9 @@ table.lr-tbl { width:100%; border-collapse:collapse; font-size:13px; }
 .ec-terminado { background:#dcfce7; color:#16a34a; }
 .btn-asignar { background:#2563eb; color:#fff; border:none; border-radius:6px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; }
 .btn-asignar:hover { background:#1d4ed8; }
+.btn-pag { background:#fff; color:#334155; border:1px solid #e2e8f0; border-radius:6px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer; }
+.btn-pag:hover:not(:disabled) { background:#f8fafc; }
+.btn-pag:disabled { opacity:.4; cursor:default; }
 .loading-row td { text-align:center; color:#94a3b8; padding:30px; }
 
 /* Modales */
@@ -258,6 +261,7 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
       </tbody>
     </table>
   </div>
+  <div id="lr-pendientes-pag"></div>
 </div>
 
 <!-- Modal nueva ruta -->
@@ -382,6 +386,8 @@ var LR = (function() {
   var _fecha       = new Date().toISOString().slice(0,10);
   var _rutas       = [];
   var _pendientes  = [];
+  var _pendPagina  = 1;
+  var PEND_POR_PAG = 25;
   var CAP          = { gris: 1500, blanca: 700 };
   var UNIDAD_LABEL = { gris: '🚛 Gris', blanca: '🚛 Blanca' };
   // Planta — C. de la Industria 214, Marfer, 66367 Cdad. Santa Catarina, N.L. (mismas coords que UPD-266, WA ubicación)
@@ -445,6 +451,10 @@ var LR = (function() {
   async function cargarPendientes() {
     var r = await fetch(API_RUTAS + '?accion=pendientes&fecha=' + _fecha);
     _pendientes = await r.json();
+    // Si la página actual quedó fuera de rango (se asignó/entregó algo y ahora
+    // hay menos páginas), regresar a la 1 en vez de mostrar la tabla vacía.
+    var totalPagAhora = Math.max(1, Math.ceil(_pendientes.length / PEND_POR_PAG));
+    if (_pendPagina > totalPagAhora) _pendPagina = 1;
     renderPendientes();
   }
 
@@ -582,12 +592,20 @@ var LR = (function() {
 
   function renderPendientes() {
     var tbody = document.getElementById('lr-pendientes-tbody');
+    var pagDiv = document.getElementById('lr-pendientes-pag');
     if (!_pendientes.length) {
       tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:24px">Sin órdenes pendientes de asignar</td></tr>';
+      pagDiv.innerHTML = '';
       return;
     }
+    var totalPag = Math.max(1, Math.ceil(_pendientes.length / PEND_POR_PAG));
+    if (_pendPagina > totalPag) _pendPagina = totalPag;
+    if (_pendPagina < 1) _pendPagina = 1;
+    var inicio = (_pendPagina - 1) * PEND_POR_PAG;
+    var pagina = _pendientes.slice(inicio, inicio + PEND_POR_PAG);
+
     var rows = '';
-    _pendientes.forEach(function(o) {
+    pagina.forEach(function(o) {
       var fmtF = o.fecha_entrega ? new Date(o.fecha_entrega+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : '—';
       var eCls = 'ec-' + o.estado;
       rows += '<tr>'
@@ -602,6 +620,25 @@ var LR = (function() {
         + '</tr>';
     });
     tbody.innerHTML = rows;
+    renderPendientesPag(totalPag);
+  }
+
+  function renderPendientesPag(totalPag) {
+    var div = document.getElementById('lr-pendientes-pag');
+    if (totalPag <= 1) { div.innerHTML = ''; return; }
+    var desde = (_pendPagina - 1) * PEND_POR_PAG + 1;
+    var hasta = Math.min(_pendientes.length, _pendPagina * PEND_POR_PAG);
+    var html = '<div style="display:flex;align-items:center;gap:10px;justify-content:center;padding:12px 14px;border-top:1px solid #f1f5f9">';
+    html += '<button class="btn-pag" '+(_pendPagina<=1?'disabled':'')+' onclick="LR.pendPagina('+(_pendPagina-1)+')">&larr; Anterior</button>';
+    html += '<span style="font-size:12px;color:#64748b">Mostrando '+desde+'&#8211;'+hasta+' de '+_pendientes.length+' &middot; p&#225;g. '+_pendPagina+' de '+totalPag+'</span>';
+    html += '<button class="btn-pag" '+(_pendPagina>=totalPag?'disabled':'')+' onclick="LR.pendPagina('+(_pendPagina+1)+')">Siguiente &rarr;</button>';
+    html += '</div>';
+    div.innerHTML = html;
+  }
+
+  function irAPendPagina(n) {
+    _pendPagina = n;
+    renderPendientes();
   }
 
   function escH(s) {
@@ -1517,6 +1554,7 @@ var LR = (function() {
     togglePartidaExpand:togglePartidaExpand, togglePartida:togglePartida, onPiezaCb:onPiezaCb,
     abrirModalCarga:abrirModalCarga, cerrarModalCarga:cerrarModalCarga,
     usarCoordenadas:usarCoordenadas,
+    pendPagina:irAPendPagina,
   };
 })();
 </script>

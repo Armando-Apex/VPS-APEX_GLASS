@@ -51,6 +51,10 @@ if ($method === 'GET') {
         // falta el trayecto físico. No se filtra por fecha de ruta (a diferencia de antes) porque
         // la orden ya no está en estado 'activa' y debe seguir apareciendo hasta que se asigne,
         // sin importar cuántos días lleve esperando.
+        // Orden: primero las que siguen 'activa' (aún pendientes de cerrarse — ej.
+        // salida parcial, ver UPD-393) y luego las 'entregada' (ya cerradas en
+        // Cobranza, solo falta el trayecto físico); dentro de cada grupo, fecha de
+        // entrega prometida más antigua primero.
         $stmt = $db->prepare("
             SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_entrega,
                    o.estado, c.localidad, c.ciudad_destino
@@ -58,7 +62,7 @@ if ($method === 'GET') {
             LEFT JOIN cotizaciones c ON c.orden_id = o.id
             WHERE o.requiere_ruta = 1
               AND o.id NOT IN (SELECT re.orden_id FROM ruta_entregas re)
-            ORDER BY o.fecha_entrega ASC, o.id ASC
+            ORDER BY (o.estado = 'entregada') ASC, o.fecha_entrega ASC, o.id ASC
         ");
         $stmt->execute();
         $ordenes = $stmt->fetchAll(PDO::FETCH_ASSOC);
