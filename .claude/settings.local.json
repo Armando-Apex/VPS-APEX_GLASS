@@ -173,7 +173,8 @@
       "Bash(npx remotion *)",
       "Bash(base64 -w0 /home/apexglass2025/herramientas/video-marketing/out/portal-demo-mobile.mp4)",
       "Bash(crontab -l -u apexglass2025)",
-      "Bash(echo \"exit:$?\")"
+      "Bash(echo \"exit:$?\")",
+      "Bash(runuser -u apexglass2025 -- php84 -r ' *)"
     ]
   },
   "hooks": {
