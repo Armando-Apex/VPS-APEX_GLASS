@@ -229,24 +229,43 @@ function avisarSiguienteParada($db, $ruta_id) {
 // C-14b: entrega SOLO las piezas asignadas a esta parada (ruta_entrega_piezas), no todas las
 // 'terminado' de la orden completa — antes una orden con piezas que se quedaron en planta (sin
 // asignar a esta ruta) se marcaba entregada igual. La orden solo cierra cuando ya no le queda
-// ninguna pieza pendiente por entregar (mismo criterio que api/rutas.php, marcar_pieza).
+// ninguna pieza pendiente por entregar.
+// $piezaIdsRechazadas (UPD-399): entrega parcial en puerta — el cliente se queda con algunas
+// piezas de la parada pero regresa otras (defecto, no era lo que pidió, etc.). Esas piezas se
+// marcan 'rechazada' en vez de 'entregada' — quedan en estatus 'terminado' (nunca llegan a
+// 'entregado') y libres para re-rutear en otra parada/día (ver fix rep.estado != 'rechazada'
+// en accion=pendientes/piezas_orden/asignar de api/rutas.php), sin afectar a las que sí se
+// entregaron ni bloquear el cierre de la orden cuando esas piezas se vuelvan a entregar.
+// La parada de todos modos cierra como 'entregado' (el chofer sí llegó) mientras quede al
+// menos 1 pieza aceptada — si se rechazan TODAS, quien llama debe usar 'no_entregado' en su
+// lugar (validado en api/rutas.php antes de invocar esta función).
 // Idempotente: si la parada ya estaba 'entregado', no repite nada. Todo en una transacción.
-function marcarEntregaComoEntregada($db, $entrega_id, $notas = '') {
+function marcarEntregaComoEntregada($db, $entrega_id, $notas = '', $piezaIdsRechazadas = []) {
     $re = $db->prepare("SELECT orden_id, ruta_id, estado FROM ruta_entregas WHERE id=?");
     $re->execute([$entrega_id]);
     $re = $re->fetch(PDO::FETCH_ASSOC);
     if (!$re) return ['ok' => false];
-    if ($re['estado'] === 'entregado') return ['ok' => true, 'orden_id' => (int)$re['orden_id'], 'ruta_id' => (int)$re['ruta_id'], 'ruta_completada' => false, 'etas' => []];
+    if ($re['estado'] === 'entregado') return ['ok' => true, 'orden_id' => (int)$re['orden_id'], 'ruta_id' => (int)$re['ruta_id'], 'ruta_completada' => false, 'etas' => [], 'piezas_rechazadas' => 0];
 
     $etas = [];
     $ruta_completada = false;
+    $piezaIdsRechazadas = array_values(array_unique(array_map('intval', $piezaIdsRechazadas)));
     $db->beginTransaction();
     try {
         $ts = date('Y-m-d H:i:s');
         $db->prepare("UPDATE ruta_entregas SET estado='entregado', entregado_at=?, notas_entrega=? WHERE id=?")
            ->execute([$ts, $notas, $entrega_id]);
 
-        // Solo las piezas asignadas a ESTA parada.
+        if ($piezaIdsRechazadas) {
+            $ph = implode(',', array_fill(0, count($piezaIdsRechazadas), '?'));
+            $db->prepare("
+                UPDATE ruta_entrega_piezas
+                SET estado='rechazada', rechazada_at=?
+                WHERE ruta_entrega_id=? AND estado='asignada' AND pieza_id IN ($ph)
+            ")->execute(array_merge([$ts, $entrega_id], $piezaIdsRechazadas));
+        }
+
+        // Solo las piezas asignadas a ESTA parada que NO se acaban de rechazar arriba.
         $db->prepare("UPDATE ruta_entrega_piezas SET estado='entregada' WHERE ruta_entrega_id=? AND estado='asignada'")
            ->execute([$entrega_id]);
         $db->prepare("
@@ -256,7 +275,8 @@ function marcarEntregaComoEntregada($db, $entrega_id, $notas = '') {
             WHERE rep.ruta_entrega_id=? AND rep.estado='entregada' AND p.estatus='terminado'
         ")->execute([$entrega_id]);
 
-        // La orden solo cierra cuando ya no le queda nada pendiente.
+        // La orden solo cierra cuando ya no le queda nada pendiente (una pieza rechazada
+        // sigue 'terminado', no 'entregado' — la orden no cierra hasta que se re-entregue).
         $tot = $db->prepare("SELECT COUNT(*) FROM piezas WHERE orden_id=?");
         $tot->execute([$re['orden_id']]);
         $ent = $db->prepare("SELECT COUNT(*) FROM piezas WHERE orden_id=? AND estatus='entregado'");
@@ -288,5 +308,5 @@ function marcarEntregaComoEntregada($db, $entrega_id, $notas = '') {
         avisarSiguienteParada($db, $re['ruta_id']);
     }
 
-    return ['ok' => true, 'orden_id' => (int)$re['orden_id'], 'ruta_id' => (int)$re['ruta_id'], 'ruta_completada' => $ruta_completada, 'etas' => $etas];
+    return ['ok' => true, 'orden_id' => (int)$re['orden_id'], 'ruta_id' => (int)$re['ruta_id'], 'ruta_completada' => $ruta_completada, 'etas' => $etas, 'piezas_rechazadas' => count($piezaIdsRechazadas)];
 }

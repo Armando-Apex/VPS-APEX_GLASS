@@ -50,6 +50,7 @@ $maps_key = defined('GOOGLE_MAPS_KEY') ? GOOGLE_MAPS_KEY : '';
 .entrega-info { flex:1; min-width:0; }
 .entrega-folio  { font-size:11px; font-weight:700; color:#2563eb; }
 .badge-parcial-ruta { font-size:10px; font-weight:700; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; padding:1px 6px; border-radius:4px; margin-left:4px; }
+.badge-parcial-puerta { font-size:10px; font-weight:700; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; padding:1px 6px; border-radius:4px; margin-left:4px; }
 .tiempo-estimado-box { font-size:12px; font-weight:700; color:#1d4ed8; background:#eff6ff; border-top:1px solid #bfdbfe; padding:8px 14px; }
 .entrega-cliente{ font-size:12px; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .entrega-dir    { font-size:10px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -378,6 +379,26 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
   </div>
 </div>
 
+<div id="modal-entrega-parcial" class="lr-modal-bg">
+  <div class="lr-modal">
+    <h3>Entrega parcial en puerta</h3>
+    <div style="font-size:12px;color:#64748b;margin-bottom:10px">
+      Desmarca las piezas que el cliente <strong>NO</strong> se quedó (las que regresó). Las que dejes marcadas se registran como entregadas; las que desmarques quedan libres para volver a rutearlas otro día — la orden no se cierra hasta que se entreguen todas.
+    </div>
+    <input type="hidden" id="ep-entrega-id">
+    <div id="ep-folio" style="font-weight:700;color:#2563eb;font-size:13px;margin-bottom:6px"></div>
+    <div id="ep-lista" style="max-height:320px;overflow-y:auto"></div>
+    <div class="lr-field">
+      <label>Motivo (opcional)</label>
+      <input type="text" id="ep-notas" placeholder="ej. lleg&oacute; rota, no era la medida, el cliente ya no la quiso...">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="LR.cerrarEntregaParcial()">Cancelar</button>
+      <button class="btn-confirm" onclick="LR.guardarEntregaParcial()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div id="lr-toast" class="lr-toast"></div>
 
 <script>
@@ -506,15 +527,21 @@ var LR = (function() {
         var badgeParcial = e.es_parcial == 1
           ? ' <span class="badge-parcial-ruta" title="Ya sali&oacute; parte de esta orden (remisi&oacute;n impresa)">Parcial '+e.salida_piezas_count+'/'+e.salida_piezas_total+'</span>'
           : '';
+        var totalPz = (e.piezas || []).length;
+        var rechazadasPz = (e.piezas || []).filter(function(pz){ return pz.estado === 'rechazada'; }).length;
+        var badgeParcialPuerta = rechazadasPz > 0
+          ? ' <span class="badge-parcial-puerta" title="El cliente no acept&oacute; '+rechazadasPz+' pieza(s) en la entrega">Parcial puerta '+(totalPz-rechazadasPz)+'/'+totalPz+'</span>'
+          : '';
         rows += '<div class="entrega-row" id="erow-'+e.id+'">'
           + '<div class="entrega-num">'+(i+1)+'</div>'
           + '<div class="entrega-info">'
-          +   '<div class="entrega-folio">'+escH(e.folio)+badgeParcial+'</div>'
+          +   '<div class="entrega-folio">'+escH(e.folio)+badgeParcial+badgeParcialPuerta+'</div>'
           +   '<div class="entrega-cliente">'+escH(e.cliente_nombre)+'</div>'
           +   '<div class="entrega-dir">'+dir+'</div>'
           + '</div>'
           + '<div class="entrega-peso">'+fmtKg(e.peso_kg)+'</div>'
           + '<span class="entrega-badge '+bCls+'">'+{pendiente:'Pend.',entregado:'OK',no_entregado:'No ent.'}[e.entrega_estado]+'</span>'
+          + (e.entrega_estado === 'pendiente' && totalPz > 1 ? '<button class="btn-no-entregado" title="Entrega parcial: el cliente se qued&oacute; con algunas piezas y regres&oacute; otras" onclick="LR.abrirEntregaParcial('+e.id+','+ruta.id+')">&#128230; Parcial</button>' : '')
           + (e.entrega_estado === 'pendiente' ? '<button class="btn-no-entregado" title="No se pudo entregar" onclick="LR.marcarNoEntregado('+e.id+','+ruta.id+')">&#10060; No ent.</button>' : '')
           + (i>0 ? '<button class="btn-mv" title="Subir" onclick="LR.mover('+ruta.id+','+e.id+',-1)">&#9650;</button>' : '<div style="width:22px"></div>')
           + (i<ruta.entregas.length-1 ? '<button class="btn-mv" title="Bajar" onclick="LR.mover('+ruta.id+','+e.id+',1)">&#9660;</button>' : '<div style="width:22px"></div>')
@@ -923,6 +950,61 @@ var LR = (function() {
     var d = await r.json();
     if (d.ok) {
       toast(d.ruta_completada ? 'Marcada como no entregada — ruta completada, ya puedes Finalizarla' : 'Marcada como no entregada — la orden se liberó para reprogramarla');
+      await cargar();
+    } else {
+      toast(d.error||'Error', true);
+    }
+  }
+
+  // ── Entrega parcial en puerta (UPD-399) ────────────────────────────────
+  // El chofer sí llegó pero el cliente solo se quedó con algunas piezas — distinto de
+  // "No entregado" (nada se aceptó). Usa las piezas que ya viene trayendo _rutas (de
+  // accion=rutas_fecha, campo e.piezas) en vez de pedirlas aparte.
+  function abrirEntregaParcial(entrega_id, ruta_id) {
+    var ruta = _rutas.find(function(r){ return r.id == ruta_id; });
+    var ent = ruta && ruta.entregas ? ruta.entregas.find(function(x){ return x.id == entrega_id; }) : null;
+    if (!ent) return;
+    document.getElementById('ep-entrega-id').value = entrega_id;
+    document.getElementById('ep-folio').textContent = ent.folio + ' — ' + (ent.cliente_nombre || '');
+    document.getElementById('ep-notas').value = '';
+    var piezas = (ent.piezas || []).filter(function(pz){ return pz.estado !== 'rechazada'; });
+    var html = '';
+    piezas.forEach(function(pz) {
+      html += '<label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;color:#374151;cursor:pointer">'
+        + '<input type="checkbox" class="ep-pieza-cb" value="'+pz.pieza_id+'" checked>'
+        + '<span>'+escH(pz.cristal_corto||'')+' — Partida '+pz.partida+' / Pieza '+pz.pieza_num+' de '+pz.pieza_total
+        + (pz.ancho_mm && pz.alto_mm ? ' &bull; '+pz.ancho_mm+'&times;'+pz.alto_mm+'mm' : '') + '</span>'
+        + '</label>';
+    });
+    document.getElementById('ep-lista').innerHTML = html || '<div style="color:#94a3b8;font-size:12px">Sin piezas asignadas</div>';
+    document.getElementById('modal-entrega-parcial').classList.add('open');
+  }
+
+  function cerrarEntregaParcial() {
+    document.getElementById('modal-entrega-parcial').classList.remove('open');
+  }
+
+  async function guardarEntregaParcial() {
+    var entrega_id = document.getElementById('ep-entrega-id').value;
+    var notas = document.getElementById('ep-notas').value.trim();
+    var checks = document.querySelectorAll('.ep-pieza-cb');
+    var rechazadas = [];
+    checks.forEach(function(cb) { if (!cb.checked) rechazadas.push(parseInt(cb.value, 10)); });
+    if (rechazadas.length === checks.length) {
+      toast('Desmarcaste todas las piezas — usa el botón "No entregado" en vez de Entrega parcial', true);
+      return;
+    }
+    if (!rechazadas.length && !confirm('No desmarcaste ninguna pieza — se registrará como entrega completa. ¿Continuar?')) return;
+    var r = await fetch(API_RUTAS, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'entrega_parcial', entrega_id:entrega_id, pieza_ids_rechazadas:rechazadas, notas_entrega:notas})
+    });
+    var d = await r.json();
+    if (d.ok) {
+      cerrarEntregaParcial();
+      toast(d.piezas_rechazadas > 0
+        ? 'Entrega parcial registrada — ' + d.piezas_rechazadas + ' pieza(s) libre(s) para reprogramar'
+        : 'Entrega registrada');
       await cargar();
     } else {
       toast(d.error||'Error', true);
@@ -1578,6 +1660,7 @@ var LR = (function() {
     abrirEditDir:abrirEditDir, cerrarEditDir:cerrarEditDir, guardarEditDir:guardarEditDir,
     mover:mover, quitar:quitar, eliminarRuta:eliminarRuta, finalizarRuta:finalizarRuta, planificar:planificar,
     marcarNoEntregado:marcarNoEntregado,
+    abrirEntregaParcial:abrirEntregaParcial, cerrarEntregaParcial:cerrarEntregaParcial, guardarEntregaParcial:guardarEntregaParcial,
     dibujarPines:dibujarPines,
     initAutocomplete:initAutocomplete, renderTramos:renderTramos,
     actualizarContPiezas:actualizarContPiezas, toggleTodasPiezas:toggleTodasPiezas,

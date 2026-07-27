@@ -27,6 +27,9 @@ $body = json_decode(file_get_contents('php://input'), true) ?? [];
 // ── Helper: peso estimado de lo que FALTA por rutear de una orden ────────────
 // Solo piezas con salida tipo 'chofer' registrada que no están ya en una parada
 // viva ('pendiente'/'entregado') — mismo criterio que accion=pendientes (UPD-395).
+// rep.estado != 'rechazada' (UPD-399): una pieza que el cliente NO aceptó en una
+// entrega parcial en puerta sigue libre para re-rutear aunque su parada ya haya
+// cerrado como 'entregado' (parcial) por las demás piezas que sí se quedó.
 function calcularPesoPendienteRutear($db, $orden_id) {
     $stmt = $db->prepare("
         SELECT p.ancho_mm, p.alto_mm, p.cristal
@@ -37,7 +40,7 @@ function calcularPesoPendienteRutear($db, $orden_id) {
           AND p.id NOT IN (
               SELECT rep.pieza_id FROM ruta_entrega_piezas rep
               JOIN ruta_entregas re ON re.id = rep.ruta_entrega_id
-              WHERE re.estado IN ('pendiente','entregado')
+              WHERE re.estado IN ('pendiente','entregado') AND rep.estado != 'rechazada'
           )
     ");
     $stmt->execute([$orden_id]);
@@ -91,7 +94,7 @@ if ($method === 'GET') {
                     AND osp.pieza_id NOT IN (
                         SELECT rep.pieza_id FROM ruta_entrega_piezas rep
                         JOIN ruta_entregas re2 ON re2.id = rep.ruta_entrega_id
-                        WHERE re2.estado IN ('pendiente','entregado')
+                        WHERE re2.estado IN ('pendiente','entregado') AND rep.estado != 'rechazada'
                     )
               )
             ORDER BY (o.estado = 'entregada') ASC, o.fecha_entrega ASC, o.id ASC
@@ -220,7 +223,7 @@ if ($method === 'GET') {
               AND p.id NOT IN (
                   SELECT rep.pieza_id FROM ruta_entrega_piezas rep
                   JOIN ruta_entregas re ON re.id = rep.ruta_entrega_id
-                  WHERE re.estado IN ('pendiente','entregado')
+                  WHERE re.estado IN ('pendiente','entregado') AND rep.estado != 'rechazada'
               )
             ORDER BY p.partida ASC, p.pieza_num ASC
         ");
@@ -335,7 +338,7 @@ if ($method === 'POST') {
         $stmtDup = $db->prepare("
             SELECT COUNT(*) FROM ruta_entrega_piezas rep
             JOIN ruta_entregas re ON re.id = rep.ruta_entrega_id
-            WHERE rep.pieza_id IN ($ph) AND re.estado IN ('pendiente','entregado')
+            WHERE rep.pieza_id IN ($ph) AND re.estado IN ('pendiente','entregado') AND rep.estado != 'rechazada'
         ");
         $stmtDup->execute($pieza_ids);
         if ((int)$stmtDup->fetchColumn() > 0) {
@@ -455,6 +458,42 @@ if ($method === 'POST') {
         if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
         $etas = calcularYGuardarEtas($db, $id);
         jsonResponse(['ok' => true, 'etas' => $etas]); exit;
+    }
+
+    if ($accion === 'entrega_parcial') {
+        // Entrega parcial en puerta (UPD-399): el chofer sí llegó y el cliente se quedó con
+        // algunas piezas, pero regresó otras (defecto, no era lo que pidió, etc.) — distinto de
+        // 'no_entregado' (nada se aceptó). Solo desde el panel de Logística (Armando/Lina, con
+        // lo que les reporta el chofer), no desde el celular del chofer.
+        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
+        $entrega_id = (int)($body['entrega_id'] ?? 0);
+        $rechazadas = array_values(array_unique(array_map('intval', (array)($body['pieza_ids_rechazadas'] ?? []))));
+        $notas      = trim($body['notas_entrega'] ?? '');
+        if (!$entrega_id) { jsonResponse(['error' => 'Datos incompletos']); exit; }
+
+        $reCheck = $db->prepare("SELECT estado FROM ruta_entregas WHERE id=?");
+        $reCheck->execute([$entrega_id]);
+        $reCheck = $reCheck->fetch(PDO::FETCH_ASSOC);
+        if (!$reCheck) { jsonResponse(['error' => 'Entrega no encontrada'], 404); exit; }
+        if ($reCheck['estado'] !== 'pendiente') {
+            jsonResponse(['error' => 'Esta parada ya no está pendiente (estado actual: ' . $reCheck['estado'] . ')']); exit;
+        }
+
+        $totStmt = $db->prepare("SELECT COUNT(*) FROM ruta_entrega_piezas WHERE ruta_entrega_id=? AND estado='asignada'");
+        $totStmt->execute([$entrega_id]);
+        $total = (int)$totStmt->fetchColumn();
+        if ($total === 0) { jsonResponse(['error' => 'Esta parada no tiene piezas asignadas']); exit; }
+        if (!empty($rechazadas) && count($rechazadas) >= $total) {
+            jsonResponse(['error' => 'Estás rechazando todas las piezas de esta parada — usa el botón "No entregado" en vez de Entrega parcial']); exit;
+        }
+
+        $r = marcarEntregaComoEntregada($db, $entrega_id, $notas, $rechazadas);
+        jsonResponse([
+            'ok' => (bool)($r['ok'] ?? false),
+            'etas' => $r['etas'] ?? [],
+            'ruta_completada' => $r['ruta_completada'] ?? false,
+            'piezas_rechazadas' => $r['piezas_rechazadas'] ?? 0,
+        ]); exit;
     }
 
     if ($accion === 'marcar_estado') {
