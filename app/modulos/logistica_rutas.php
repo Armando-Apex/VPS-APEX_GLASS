@@ -64,6 +64,8 @@ $maps_key = defined('GOOGLE_MAPS_KEY') ? GOOGLE_MAPS_KEY : '';
 .btn-edit-e:hover { background:#f1f5f9; }
 .btn-quitar-e { background:none; border:none; cursor:pointer; font-size:13px; padding:2px 4px; border-radius:4px; color:#dc2626; }
 .btn-quitar-e:hover { background:#fee2e2; }
+.btn-no-entregado { background:#fff; border:1px solid #fecaca; cursor:pointer; font-size:10px; font-weight:600; padding:2px 6px; border-radius:5px; color:#dc2626; white-space:nowrap; }
+.btn-no-entregado:hover { background:#fee2e2; }
 
 .unit-footer { padding:10px 12px; border-top:1px solid #f1f5f9; display:flex; gap:8px; align-items:center; }
 .unit-estado { font-size:11px; font-weight:600; padding:3px 10px; border-radius:99px; }
@@ -513,6 +515,7 @@ var LR = (function() {
           + '</div>'
           + '<div class="entrega-peso">'+fmtKg(e.peso_kg)+'</div>'
           + '<span class="entrega-badge '+bCls+'">'+{pendiente:'Pend.',entregado:'OK',no_entregado:'No ent.'}[e.entrega_estado]+'</span>'
+          + (e.entrega_estado === 'pendiente' ? '<button class="btn-no-entregado" title="No se pudo entregar" onclick="LR.marcarNoEntregado('+e.id+','+ruta.id+')">&#10060; No ent.</button>' : '')
           + (i>0 ? '<button class="btn-mv" title="Subir" onclick="LR.mover('+ruta.id+','+e.id+',-1)">&#9650;</button>' : '<div style="width:22px"></div>')
           + (i<ruta.entregas.length-1 ? '<button class="btn-mv" title="Bajar" onclick="LR.mover('+ruta.id+','+e.id+',1)">&#9660;</button>' : '<div style="width:22px"></div>')
           + '<button class="btn-edit-e" title="Editar direcci&oacute;n" onclick="LR.abrirEditDir('+e.id+')">&#9999;&#65039;</button>'
@@ -898,6 +901,32 @@ var LR = (function() {
     var d = await r.json();
     if (d.ok) { toast('Entrega quitada'); await cargar(); }
     else toast(d.error||'Error', true);
+  }
+
+  // Parada que el chofer no pudo entregar (cliente no estaba, rechazó, dirección incorrecta,
+  // etc.) — libera la orden para reprogramarla en otra ruta/día (reaparece sola en "Pendientes
+  // de asignar", ver accion=pendientes en api/rutas.php) y, si era la última parada pendiente
+  // de la ruta, la cierra automáticamente para que el botón "Finalizar" pueda aparecer.
+  async function marcarNoEntregado(entrega_id, ruta_id) {
+    var folio = '';
+    var ruta = _rutas.find(function(r){ return r.id == ruta_id; });
+    if (ruta && ruta.entregas) {
+      var ent = ruta.entregas.find(function(x){ return x.id == entrega_id; });
+      if (ent) folio = ent.folio;
+    }
+    var motivo = window.prompt('¿Por qué no se pudo entregar ' + folio + '? (ej. cliente no estaba, rechazó, dirección incorrecta)', '');
+    if (motivo === null) return;
+    var r = await fetch(API_RUTAS, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'marcar_estado', entrega_id:entrega_id, estado:'no_entregado', notas_entrega:motivo})
+    });
+    var d = await r.json();
+    if (d.ok) {
+      toast(d.ruta_completada ? 'Marcada como no entregada — ruta completada, ya puedes Finalizarla' : 'Marcada como no entregada — la orden se liberó para reprogramarla');
+      await cargar();
+    } else {
+      toast(d.error||'Error', true);
+    }
   }
 
   // ETA por parada calculada al iniciar la ruta (una sola vez, no se recalcula con tráfico
@@ -1548,6 +1577,7 @@ var LR = (function() {
     abrirModalAsignar:abrirModalAsignar, cerrarModalAsignar:cerrarModalAsignar, guardarAsignacion:guardarAsignacion,
     abrirEditDir:abrirEditDir, cerrarEditDir:cerrarEditDir, guardarEditDir:guardarEditDir,
     mover:mover, quitar:quitar, eliminarRuta:eliminarRuta, finalizarRuta:finalizarRuta, planificar:planificar,
+    marcarNoEntregado:marcarNoEntregado,
     dibujarPines:dibujarPines,
     initAutocomplete:initAutocomplete, renderTramos:renderTramos,
     actualizarContPiezas:actualizarContPiezas, toggleTodasPiezas:toggleTodasPiezas,

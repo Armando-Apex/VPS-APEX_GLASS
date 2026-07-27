@@ -526,12 +526,28 @@ if ($method === 'POST') {
                    ->execute([$reAntes['ruta_id']]);
             }
 
+            $ruta_completada = false;
+            if ($estado === 'no_entregado') {
+                // Mismo cierre automático que marcarEntregaComoEntregada() cuando la parada
+                // entregada era la última pendiente — antes esta rama nunca lo revisaba, así que
+                // una orden que no se pudo entregar dejaba la ruta 'en_ruta' para siempre sin
+                // botón "Finalizar" posible (reportado por Armando con S-375, ruta 44).
+                $pend = $db->prepare("SELECT SUM(estado='pendiente') as p FROM ruta_entregas WHERE ruta_id=?");
+                $pend->execute([$reAntes['ruta_id']]);
+                $pend = $pend->fetch(PDO::FETCH_ASSOC);
+                if ((int)($pend['p'] ?? 0) === 0) {
+                    $db->prepare("UPDATE rutas SET estado='completada', updated_at=NOW() WHERE id=?")
+                       ->execute([$reAntes['ruta_id']]);
+                    $ruta_completada = true;
+                }
+            }
+
             $db->commit();
         } catch (Exception $e) {
             $db->rollBack();
             jsonResponse(['error' => 'Error al actualizar la entrega'], 500); exit;
         }
-        jsonResponse(['ok' => true, 'etas' => []]); exit;
+        jsonResponse(['ok' => true, 'etas' => [], 'ruta_completada' => $ruta_completada]); exit;
     }
 
     if ($accion === 'marcar_pieza') {
