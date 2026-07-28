@@ -454,36 +454,46 @@ if ($method === 'POST') {
                         $oc_id
                     ]);
                 }
-            }
 
-            // Si es OC de flete, distribuir costo al inventario de la OC de vidrio vinculada
-            if ($es_oc_flete) {
-                $sfp = $db->prepare("
-                    SELECT precio_unitario * cantidad AS importe_flete, oc_referencia_id
-                    FROM oc_partidas
-                    WHERE orden_compra_id = ? AND tipo = 'flete' AND oc_referencia_id IS NOT NULL
-                ");
-                $sfp->execute([$oc_id]);
-                foreach ($sfp->fetchAll() as $fp) {
-                    $glass_oc_id   = (int)$fp['oc_referencia_id'];
-                    $importe_flete = (float)$fp['importe_flete'];
+                // [Alto#8 fix] Si esta línea del detalle es la partida de flete (no
+                // una de lámina), distribuir SOLO el importe correspondiente a lo
+                // recién recibido en ESTA entrega ($cant), no el total ordenado de
+                // la partida completa. Antes se recalculaba con `precio_unitario *
+                // cantidad` (el total ordenado) en CADA entrega parcial de la OC de
+                // flete — 2 entregas parciales duplicaban el costo_flete_total
+                // completo sobre las láminas de la OC de vidrio vinculada.
+                if ($es_oc_flete) {
+                    $sf = $db->prepare("SELECT precio_unitario, oc_referencia_id FROM oc_partidas
+                        WHERE id = ? AND orden_compra_id = ? AND tipo = 'flete' AND oc_referencia_id IS NOT NULL");
+                    $sf->execute([$partida_id, $oc_id]);
+                    $fletePartida = $sf->fetch();
+                    if ($fletePartida) {
+                        $glass_oc_id     = (int)$fletePartida['oc_referencia_id'];
+                        // precio_unitario es POR UNIDAD (mismo criterio que el resto de
+                        // oc_partidas: importe total de la línea = precio_unitario × cantidad
+                        // ordenada) — el importe de ESTA entrega es precio_unitario × $cant
+                        // recibido ahora, no × la cantidad total ordenada de la partida.
+                        $importeEsteRecibo = (float)$fletePartida['precio_unitario'] * $cant;
 
-                    $stl = $db->prepare("SELECT COALESCE(SUM(cantidad_laminas), 0) FROM inventario_compras WHERE orden_compra_id = ?");
-                    $stl->execute([$glass_oc_id]);
-                    $total_laminas = (float)$stl->fetchColumn();
-                    if ($total_laminas <= 0) continue;
-
-                    $flete_x_lamina = $importe_flete / $total_laminas;
-
-                    // Distribuye flete por lamina; usa OLD costo_flete_total para acumular si hay mas de una OC flete
-                    $sup = $db->prepare("
-                        UPDATE inventario_compras
-                        SET costo_flete_total = costo_flete_total + ? * cantidad_laminas,
-                            flete_tipo        = 'oc_separada',
-                            flete_oc_id       = ?
-                        WHERE orden_compra_id = ?
-                    ");
-                    $sup->execute([$flete_x_lamina, $oc_id, $glass_oc_id]);
+                        $stl = $db->prepare("SELECT COALESCE(SUM(cantidad_laminas), 0) FROM inventario_compras WHERE orden_compra_id = ?");
+                        $stl->execute([$glass_oc_id]);
+                        $total_laminas = (float)$stl->fetchColumn();
+                        if ($total_laminas > 0) {
+                            $flete_x_lamina = $importeEsteRecibo / $total_laminas;
+                            // Se sigue acumulando (+=) a propósito — así 2 OCs de flete
+                            // DISTINTAS ligadas a la misma OC de vidrio sí se suman entre
+                            // sí; lo que se corrigió es que la MISMA OC de flete ya no
+                            // vuelve a sumar su propio importe completo en cada entrega.
+                            $sup = $db->prepare("
+                                UPDATE inventario_compras
+                                SET costo_flete_total = costo_flete_total + ? * cantidad_laminas,
+                                    flete_tipo        = 'oc_separada',
+                                    flete_oc_id       = ?
+                                WHERE orden_compra_id = ?
+                            ");
+                            $sup->execute([$flete_x_lamina, $oc_id, $glass_oc_id]);
+                        }
+                    }
                 }
             }
 

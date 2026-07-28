@@ -37,7 +37,7 @@ if (!$razon_final) {
 
 // Obtener pieza actual
 $stmt = $db->prepare('
-    SELECT p.*, o.folio, o.cliente_nombre, o.id as oid, o.asesor
+    SELECT p.*, o.folio, o.cliente_nombre, o.id as oid, o.asesor, o.estado AS orden_estado
     FROM piezas p
     JOIN ordenes o ON o.id = p.orden_id
     WHERE p.id = ?
@@ -47,6 +47,21 @@ $p = $stmt->fetch();
 
 if (!$p) {
     jsonResponse(['ok' => false, 'error' => 'Pieza no encontrada']);
+}
+
+// V3-C6: reproceso regresa la pieza a 'pendiente', pero actualizar_estatus.php y
+// sesion_corte.php exigen orden 'activa' para volver a mover cualquier pieza (A-4) —
+// sin este candado, retrabajar una pieza de una orden entregada/cancelada la deja
+// atascada en 'pendiente' para siempre (ningún flujo posterior la puede tocar).
+if ($p['orden_estado'] !== 'activa') {
+    jsonResponse(['ok' => false, 'error' => 'La orden ' . $p['folio'] . ' está "' . $p['orden_estado'] . '", no se puede retrabajar una pieza de una orden que no está activa']);
+}
+// Solo tiene sentido retrabajar una pieza que ya avanzó en producción — no una que
+// sigue en pendiente/ya se descartó por otro retrabajo/ya se entregó (ese caso pasa
+// por la barrera de cobro, no por aquí).
+$origenesValidos = ['en_corte', 'cortado', 'canteado', 'trazo', 'taladro', 'en_horno', 'terminado'];
+if (!in_array($p['estatus'], $origenesValidos)) {
+    jsonResponse(['ok' => false, 'error' => 'La pieza está en "' . $p['estatus'] . '" y no se puede retrabajar desde ese estatus']);
 }
 
 $estatus_anterior = $p['estatus'];

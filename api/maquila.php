@@ -394,7 +394,65 @@ if ($recurso === 'cotizacion') {
         }
         $id = (int)($body['id'] ?? 0);
         if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
-        $db->prepare("UPDATE cotizaciones SET estatus = 'cancelada' WHERE id = ? AND tipo = 'maquila'")->execute([$id]);
+
+        // [Alto#18 fix] Cancelar maquila era un UPDATE crudo sin candados — mismos
+        // huecos que V3-C4/C-13 ya cerraron para suministro (api/cotizaciones.php
+        // accion=cancelar), aplicados aquí por primera vez: no permitir doble
+        // cancelación, no cancelar una orden ya entregada, no cancelar con una
+        // parada de ruta en curso, y mover lo cobrado a saldo a favor del cliente
+        // en vez de dejarlo huérfano en la cotización cancelada.
+        $stmtC = $db->prepare("SELECT id, folio, orden_id, cliente_id, estatus, COALESCE(saldo_pagado,0) AS saldo_pagado
+                               FROM cotizaciones WHERE id = ? AND tipo = 'maquila'");
+        $stmtC->execute([$id]);
+        $cotM = $stmtC->fetch(PDO::FETCH_ASSOC);
+        if (!$cotM) { jsonResponse(['error' => 'Cotización de maquila no encontrada']); exit; }
+        if (in_array($cotM['estatus'], ['cancelada', 'rechazada'])) {
+            jsonResponse(['error' => 'La cotización ya está ' . $cotM['estatus']]); exit;
+        }
+        if ($cotM['orden_id']) {
+            $stO = $db->prepare("SELECT estado FROM ordenes WHERE id = ?");
+            $stO->execute([$cotM['orden_id']]);
+            if ($stO->fetchColumn() === 'entregada') {
+                jsonResponse(['error' => 'La orden ya fue entregada; no se puede cancelar']); exit;
+            }
+            $stmtRuta = $db->prepare("
+                SELECT COUNT(*) FROM ruta_entregas re
+                JOIN rutas r ON r.id = re.ruta_id
+                WHERE re.orden_id=? AND re.estado='pendiente' AND r.estado='en_ruta'
+            ");
+            $stmtRuta->execute([$cotM['orden_id']]);
+            if ((int)$stmtRuta->fetchColumn() > 0) {
+                jsonResponse(['error' => 'La orden va en una ruta en curso; quítala de la ruta antes de cancelarla']); exit;
+            }
+        }
+
+        $db->beginTransaction();
+        try {
+            $db->prepare("UPDATE cotizaciones SET estatus='cancelada', updated_at=NOW() WHERE id=?")->execute([$id]);
+            if ($cotM['orden_id']) {
+                $db->prepare("UPDATE ordenes SET estado='cancelada', updated_at=NOW() WHERE id=? AND estado != 'entregada'")
+                   ->execute([$cotM['orden_id']]);
+            }
+
+            $monto = (float)$cotM['saldo_pagado'];
+            if ($monto > 0 && $cotM['cliente_id']) {
+                $db->prepare("INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
+                              VALUES (?, 'deposito', ?, CURDATE(), ?, ?, ?, ?)")
+                   ->execute([
+                       $cotM['cliente_id'], $monto,
+                       'Cancelación ' . $cotM['folio'],
+                       'Saldo cobrado movido a favor por cancelación (maquila)',
+                       $id, $usuario_nombre
+                   ]);
+                $db->prepare("UPDATE cotizaciones SET saldo_pagado=0, saldo_pendiente=0, estatus_pago='pendiente', updated_at=NOW() WHERE id=?")
+                   ->execute([$id]);
+            }
+
+            $db->commit();
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => $e->getMessage()]); exit;
+        }
         jsonResponse(['ok' => true]);
         exit;
     }

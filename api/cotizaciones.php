@@ -111,9 +111,9 @@ if ($method === 'GET') {
     $stmt = $db->prepare("
         SELECT c.id, c.folio, c.fecha, c.cliente_nombre, c.asesor_nombre,
                c.proyecto, c.estatus,
-               ROUND((COALESCE(cp_sums.bruto, 0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) AS total,
+               ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE(cp_sums.bruto, 0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
                c.fecha_entrega, c.localidad, c.ciudad_destino, c.condicion_pago,
-               GREATEST(0, ROUND((COALESCE(cp_sums.bruto, 0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+               GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE(cp_sums.bruto, 0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                c.entrega_bloqueada,
                o.folio AS orden_folio,
                IF(c.estatus = 'cotizacion' AND c.created_at < DATE_SUB(NOW(), INTERVAL 15 DAY), 1, 0) AS es_inactiva
@@ -188,6 +188,18 @@ if ($method === 'POST') {
         $folio_orden = generarFolioOrden($db);
         $db->beginTransaction();
         try {
+            // [Alto#14 fix] Claim atómico: bloquea el renglón de la cotización y
+            // vuelve a leer su estatus ANTES de crear la orden — dos clics casi
+            // simultáneos pasaban ambos el chequeo de arriba (fuera de la tx) y
+            // creaban 2 órdenes reales con QR duplicados para la misma cotización.
+            // El segundo request que llega aquí espera el lock, ve que ya no dice
+            // 'cotizacion' (el primero ya la convirtió) y aborta limpio.
+            $lockStmt = $db->prepare("SELECT estatus FROM cotizaciones WHERE id = ? FOR UPDATE");
+            $lockStmt->execute([$id]);
+            if ($lockStmt->fetchColumn() !== 'cotizacion') {
+                throw new Exception('Esta cotización ya fue convertida a orden');
+            }
+
             if ($cot['tipo'] === 'maquila') {
                 $folio_final = 'MA-' . $folio_orden;
 
@@ -573,7 +585,7 @@ if ($method === 'PUT') {
         if (!$puede_editar) { jsonResponse(['error' => 'Sin permiso']); exit; }
 
         // Verificar que existe y está en estatus cotizacion
-        $stmt = $db->prepare("SELECT estatus, asesor_id FROM cotizaciones WHERE id = ?");
+        $stmt = $db->prepare("SELECT estatus, asesor_id, COALESCE(saldo_pagado,0) AS saldo_pagado FROM cotizaciones WHERE id = ?");
         $stmt->execute([$id]);
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
@@ -694,7 +706,11 @@ if ($method === 'PUT') {
         $subtotal_neto = $tots['subtotal'];
         $iva_total     = $tots['iva'];
         $total_final   = $tots['total'];
-        $saldo         = ($condicion === 'anticipo') ? round($total_final * 0.5, 2) : $total_final;
+        // A-2 fix: el saldo pendiente debe restar lo ya cobrado, no resetear al total/50%
+        // completo — si no, corregir una cotización con anticipo ya pagado revive el
+        // saldo pendiente como si nunca se hubiera cobrado nada.
+        $saldo_base    = ($condicion === 'anticipo') ? round($total_final * 0.5, 2) : $total_final;
+        $saldo         = max(0, round($saldo_base - (float)$cot['saldo_pagado'], 2));
 
         $db->beginTransaction();
         try {
@@ -889,6 +905,20 @@ if ($method === 'PUT') {
             $stO->execute([$cot['orden_id']]);
             if ($stO->fetchColumn() === 'entregada') {
                 jsonResponse(['error' => 'La orden ya fue entregada; no se puede cancelar (usa el flujo de rechazo/devolución)']); exit;
+            }
+
+            // V3-C4: mismo candado que admin_ordenes.php (A-14 candado 2) — si la
+            // orden va en una ruta en curso, cancelar aquí dejaba a la orden
+            // "cancelada" mientras el chofer la entregaba igual y la resucitaba
+            // como "entregada" (dinero en monedero + producto entregado).
+            $stmtRuta = $db->prepare("
+                SELECT COUNT(*) FROM ruta_entregas re
+                JOIN rutas r ON r.id = re.ruta_id
+                WHERE re.orden_id=? AND re.estado='pendiente' AND r.estado='en_ruta'
+            ");
+            $stmtRuta->execute([$cot['orden_id']]);
+            if ((int)$stmtRuta->fetchColumn() > 0) {
+                jsonResponse(['error' => 'La orden va en una ruta en curso; quítala de la ruta antes de cancelarla']); exit;
             }
         }
 

@@ -280,7 +280,11 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
     </div>
     <div class="lr-field">
       <label>Chofer</label>
-      <input type="text" id="nr-chofer" placeholder="Nombre del chofer">
+      <select id="nr-chofer">
+        <option value="">Selecciona un chofer&#8230;</option>
+        <option value="ROBERTO GARCIA">ROBERTO GARCIA</option>
+        <option value="VICTOR BAUTISTA">VICTOR BAUTISTA</option>
+      </select>
     </div>
     <div class="lr-field">
       <label>Notas</label>

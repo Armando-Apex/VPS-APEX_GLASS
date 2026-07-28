@@ -318,6 +318,14 @@ if ($method === 'POST') {
                 $db->prepare("DELETE FROM cotizaciones_partidas WHERE id = ?")
                    ->execute([$pid]);
 
+                // Alto#4: eliminar la partida no borraba sus servicios adicionales
+                // (cotizacion_partida_servicios) — quedaban huérfanos y su costo
+                // seguía sumado en servicios_subtotal, cobrando servicios de una
+                // partida que ya no existe. Mismo patrón que ya usa
+                // api/cotizaciones.php al eliminar un servicio.
+                $db->prepare("DELETE FROM cotizacion_partida_servicios WHERE partida_id = ? AND cotizacion_id = ?")
+                   ->execute([$pid, $cot_id]);
+
                 // Log
                 $db->prepare("
                     INSERT INTO correcciones_log
@@ -332,6 +340,16 @@ if ($method === 'POST') {
                 ]);
                 $cambios++;
             }
+
+            // Alto#4: cotizaciones.servicios_subtotal es una columna guardada (no
+            // se re-suma en vivo) — hay que recalcularla desde lo que realmente
+            // quedó en cotizacion_partida_servicios tras borrar las de la(s)
+            // partida(s) eliminada(s), o el total seguiría cobrando servicios
+            // fantasma aunque ya no existan sus filas.
+            $stSrv = $db->prepare("SELECT COALESCE(SUM(subtotal),0) FROM cotizacion_partida_servicios WHERE cotizacion_id = ?");
+            $stSrv->execute([$cot_id]);
+            $db->prepare("UPDATE cotizaciones SET servicios_subtotal = ? WHERE id = ?")
+               ->execute([(float)$stSrv->fetchColumn(), $cot_id]);
         }
 
         // ── Recalcular totales de la cotización (fórmula canónica A-2) ────────

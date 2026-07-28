@@ -47,17 +47,32 @@ $partidas = $stmtPart->fetchAll(PDO::FETCH_ASSOC);
 // Totales — fórmula canónica (A-2): el descuento aplica SOLO a las partidas;
 // los servicios NO se descuentan; IVA 16% sobre (neto + servicios).
 require_once __DIR__ . '/../api/helpers/totales.php';
-$subtotal_partidas = 0;
-foreach ($partidas as $p) {
-    $subtotal_partidas += (float)$p['precio_m2_usado'] * (float)$p['m2'] * (int)$p['cantidad'];
+$es_maquila = ($cot['tipo'] ?? '') === 'maquila';
+
+if ($es_maquila) {
+    // Maquila no usa cotizaciones_partidas (sus renglones viven en
+    // cotizaciones_maquila_partidas) — c.total ya viene canónico con IVA
+    // incluido desde api/maquila.php. Mismo bug raíz que V3-C1.
+    $total          = (float)$cot['total'];
+    $iva            = round($total - ($total / 1.16), 2);
+    $subtotal_neto  = round($total - $iva, 2);
+    $monto_desc     = 0.0;
+    $subtotal_partidas = $subtotal_neto;
+    $servicios         = 0.0;
+    $descuento         = 0.0;
+} else {
+    $subtotal_partidas = 0;
+    foreach ($partidas as $p) {
+        $subtotal_partidas += (float)$p['precio_m2_usado'] * (float)$p['m2'] * (int)$p['cantidad'];
+    }
+    $servicios      = (float)($cot['servicios_subtotal'] ?? 0);
+    $descuento      = (float)$cot['descuento'];
+    $totales        = apexTotales($subtotal_partidas, $descuento, $servicios);
+    $monto_desc     = round($subtotal_partidas * $descuento / 100, 2); // descuento solo de partidas
+    $subtotal_neto  = $totales['base'];                                 // neto + servicios (base gravable)
+    $iva            = $totales['iva'];
+    $total          = $totales['total'];
 }
-$servicios      = (float)($cot['servicios_subtotal'] ?? 0);
-$descuento      = (float)$cot['descuento'];
-$totales        = apexTotales($subtotal_partidas, $descuento, $servicios);
-$monto_desc     = round($subtotal_partidas * $descuento / 100, 2); // descuento solo de partidas
-$subtotal_neto  = $totales['base'];                                 // neto + servicios (base gravable)
-$iva            = $totales['iva'];
-$total          = $totales['total'];
 
 function fmt(float $n): string { return '$' . number_format($n, 2, '.', ','); }
 
@@ -283,6 +298,11 @@ td.num { font-variant-numeric:tabular-nums; }
     <span class="section-label-line"></span>
   </div>
 
+  <?php if ($es_maquila): ?>
+  <div class="table-wrap">
+    <p class="muted" style="padding:16px">Servicio de maquila — para el detalle de piezas y trabajos, consulta con tu asesor.</p>
+  </div>
+  <?php else: ?>
   <!-- DESKTOP: tabla 7 columnas -->
   <div class="table-wrap">
     <table>
@@ -362,6 +382,7 @@ td.num { font-variant-numeric:tabular-nums; }
     </div>
     <?php endforeach; ?>
   </div>
+  <?php endif; ?>
 
   <!-- ── Resumen de precios ── -->
   <div class="resumen-card">

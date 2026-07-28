@@ -527,6 +527,28 @@ if ($method === 'POST') {
         if (!$reAntes) { jsonResponse(['error' => 'Entrega no encontrada'], 404); exit; }
         if ($reAntes['estado'] === $estado) { jsonResponse(['ok' => true, 'etas' => []]); exit; }
 
+        // [V3-C5 fix] Candado de integridad: 'no_entregado' asume que las piezas de
+        // esta parada NUNCA se marcaron 'entregado' (es el flujo normal — el botón
+        // solo se ofrece desde 'pendiente', antes de que el chofer llegue). Pero si
+        // ya están 'entregado' por otra vía (una salida de Cobranza, un escaneo
+        // directo, o una parada vieja que quedó desincronizada), marcar "no
+        // entregado" aquí encima sería falso — la mercancía sí llegó/se cobró — y
+        // punto de quiebre de auditoria_e2e_v3.md V3-C5: el resto del sistema
+        // (portal, Cobranza) seguiría diciendo "entregado" sin que nadie se
+        // enterara de la contradicción. Se bloquea con un mensaje claro en vez de
+        // fallar en silencio.
+        if ($estado === 'no_entregado') {
+            $chk = $db->prepare("
+                SELECT COUNT(*) FROM ruta_entrega_piezas rep
+                JOIN piezas p ON p.id = rep.pieza_id
+                WHERE rep.ruta_entrega_id = ? AND rep.estado = 'asignada' AND p.estatus = 'entregado'
+            ");
+            $chk->execute([$entrega_id]);
+            if ((int)$chk->fetchColumn() > 0) {
+                jsonResponse(['error' => 'Las piezas de esta parada ya están marcadas como entregadas por otra vía (Cobranza/escaneo) — no se puede marcar "no entregado". Repórtalo para revisar manualmente.']); exit;
+            }
+        }
+
         $db->beginTransaction();
         try {
             $db->prepare("UPDATE ruta_entregas SET estado=?, entregado_at=NULL, notas_entrega=? WHERE id=?")

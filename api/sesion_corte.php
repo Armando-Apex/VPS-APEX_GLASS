@@ -215,32 +215,14 @@ if ($method === 'POST') {
         $altoMm  = $altoBody;
         $m2Disponible = null;
 
+        // [V3-C2 fix] La verificación de stock/lámina real (con el mutex FOR UPDATE)
+        // se movió DENTRO de la transacción, justo abajo — antes ocurría aquí, antes
+        // de beginTransaction(), sin ningún lock sobre `laminas`. Dos confirmaciones
+        // casi simultáneas de la misma lámina podían leer el mismo stock=1 y ambas
+        // pasar la validación, dejando stock en −1 (ver auditoria_e2e_v3.md V3-C2).
+        // Aquí solo queda la validación de entrada que no depende de la BD.
         if (!$esPedaceria) {
             if (!$laminaId) jsonResponse(['error' => 'lamina_id requerido para catálogo'], 422);
-
-            // Recalcular stock server-side — nunca confiar en el cliente.
-            $s = $db->prepare("
-                SELECT l.ancho_mm, l.alto_mm, l.m2, l.tipo, l.espesor_mm,
-                       COALESCE(c.total_compradas,0) - COALESCE(m.total_usadas,0) AS stock_laminas
-                FROM laminas l
-                LEFT JOIN (SELECT lamina_id, SUM(cantidad_laminas) total_compradas
-                           FROM inventario_compras GROUP BY lamina_id) c ON c.lamina_id = l.id
-                LEFT JOIN (SELECT lamina_id, SUM(cantidad_laminas) total_usadas
-                           FROM inventario_movimientos GROUP BY lamina_id) m ON m.lamina_id = l.id
-                WHERE l.id = ? AND l.activo = 1
-            ");
-            $s->execute([$laminaId]);
-            $lam = $s->fetch(PDO::FETCH_ASSOC);
-            if (!$lam) jsonResponse(['error' => 'Lámina no encontrada'], 404);
-            if ((int)$lam['stock_laminas'] < 1) {
-                jsonResponse(['error' => 'Sin stock disponible de esta lámina'], 422);
-            }
-            if (!$tipoEnum || $lam['tipo'] !== $tipoEnum || (float)$lam['espesor_mm'] !== $espesor) {
-                jsonResponse(['error' => 'La lámina no coincide con el tipo/espesor solicitado'], 422);
-            }
-            $anchoMm = (int)$lam['ancho_mm'];
-            $altoMm  = (int)$lam['alto_mm'];
-            $m2Disponible = (float)$lam['m2'];
         } else {
             if (!$anchoMm || !$altoMm) {
                 jsonResponse(['error' => 'ancho_mm y alto_mm requeridos para pedacería'], 422);
@@ -257,9 +239,44 @@ if ($method === 'POST') {
 
         $db->beginTransaction();
         try {
+            if (!$esPedaceria) {
+                // [V3-C2 fix] Mutex por lámina: bloquear el renglón del catálogo ANTES
+                // de leer el stock, mismo patrón que api/inventario.php (A-3) — cierra
+                // el TOCTOU que dejaba stock negativo con 2 confirmaciones simultáneas.
+                $sl = $db->prepare("SELECT id FROM laminas WHERE id = ? AND activo = 1 FOR UPDATE");
+                $sl->execute([$laminaId]);
+                if (!$sl->fetch()) throw new Exception('Lámina no encontrada');
+
+                // Recalcular stock server-side (lectura ya protegida por el lock) —
+                // nunca confiar en el cliente.
+                $s2 = $db->prepare("
+                    SELECT l.ancho_mm, l.alto_mm, l.m2, l.tipo, l.espesor_mm,
+                           COALESCE(c.total_compradas,0) - COALESCE(m.total_usadas,0) AS stock_laminas
+                    FROM laminas l
+                    LEFT JOIN (SELECT lamina_id, SUM(cantidad_laminas) total_compradas
+                               FROM inventario_compras GROUP BY lamina_id) c ON c.lamina_id = l.id
+                    LEFT JOIN (SELECT lamina_id, SUM(cantidad_laminas) total_usadas
+                               FROM inventario_movimientos GROUP BY lamina_id) m ON m.lamina_id = l.id
+                    WHERE l.id = ?
+                ");
+                $s2->execute([$laminaId]);
+                $lam = $s2->fetch(PDO::FETCH_ASSOC);
+                if (!$lam) throw new Exception('Lámina no encontrada');
+                if ((int)$lam['stock_laminas'] < 1) {
+                    throw new Exception('Sin stock disponible de esta lámina');
+                }
+                if (!$tipoEnum || $lam['tipo'] !== $tipoEnum || (float)$lam['espesor_mm'] !== $espesor) {
+                    throw new Exception('La lámina no coincide con el tipo/espesor solicitado');
+                }
+                $anchoMm = (int)$lam['ancho_mm'];
+                $altoMm  = (int)$lam['alto_mm'];
+                $m2Disponible = (float)$lam['m2'];
+            }
+
             $placeholders = implode(',', array_fill(0, count($piezaIds), '?'));
             $s = $db->prepare("
-                SELECT p.id, p.qr_code, p.estatus, p.m2, p.cristal, p.cristal_corto, o.folio, o.estado AS orden_estado
+                SELECT p.id, p.qr_code, p.estatus, p.m2, p.cristal, p.cristal_corto,
+                       p.requiere_corte, o.folio, o.estado AS orden_estado
                 FROM piezas p
                 JOIN ordenes o ON o.id = p.orden_id
                 WHERE p.id IN ($placeholders)
@@ -286,6 +303,16 @@ if ($method === 'POST') {
             foreach ($piezasDb as $p) {
                 if (!in_array($p['estatus'], ['pendiente', 'en_corte'], true)) continue;
                 if ($p['orden_estado'] !== 'activa') continue;
+                // [Alto#10 fix] En maquila, 'cortado' no siempre es un paso aplicable
+                // (piezas con requiere_corte=0, ej. cliente trae su propio vidrio ya
+                // cortado) — actualizar_estatus.php arma la ruta dinámica de esa pieza
+                // SIN 'cortado' en ese caso, así que forzarla aquí la dejaba atascada
+                // para siempre (ningún endpoint la vuelve a reconocer). Se rechaza
+                // igual que un tipo/espesor incorrecto, en vez de aceptarla en silencio.
+                if ((int)($p['requiere_corte'] ?? 1) === 0) {
+                    $piezasTipoIncorrecto++;
+                    continue;
+                }
                 $cristalComparar = $p['cristal_corto'] ?: $p['cristal'];
                 $parsedPieza = parsearCristalLabelEspesor($cristalComparar);
                 if ($parsedPieza && !cristalCoincideConSesion($cristalComparar, $tipoLabel, $espesor)) {
@@ -296,7 +323,7 @@ if ($method === 'POST') {
                 $folios[$p['folio']] = true;
             }
             if ($piezasTipoIncorrecto > 0 && !count($piezasValidas)) {
-                throw new Exception($piezasTipoIncorrecto . ' pieza(s) son de otro tipo/espesor de cristal (sesión: ' . $tipoLabel . ' ' . $espesor . 'mm)');
+                throw new Exception($piezasTipoIncorrecto . ' pieza(s) son de otro tipo/espesor de cristal o no requieren corte (sesión: ' . $tipoLabel . ' ' . $espesor . 'mm)');
             }
             if (!count($piezasValidas)) {
                 throw new Exception('Ninguna pieza sigue válida para marcar como cortada');

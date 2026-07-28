@@ -593,7 +593,7 @@ if ($vista === 'trazabilidad_rutas') {
     $stmt = $db->prepare("
         SELECT
             o.folio, o.cliente_nombre,
-            r.id AS ruta_id, r.unidad, r.chofer, r.estado AS ruta_estado,
+            r.id AS ruta_id, r.unidad, r.chofer, r.estado AS ruta_estado, r.creado_por,
             re.id AS entrega_id, re.secuencia,
             re.movimiento_iniciado_at, re.llegada_gps_at, re.entregado_at,
             (SELECT MAX(created_at) FROM orden_salida_escaneos
@@ -619,6 +619,7 @@ if ($vista === 'trazabilidad_rutas') {
             'cliente'           => $f['cliente_nombre'],
             'unidad'            => $f['unidad'],
             'chofer'            => $f['chofer'],
+            'creado_por'        => $f['creado_por'],
             'salida_qr_at'      => $f['salida_qr_at'],
             'movimiento_iniciado_at' => $f['movimiento_iniciado_at'],
             'tiempo_muerto_min' => $tiempoMuertoMin,

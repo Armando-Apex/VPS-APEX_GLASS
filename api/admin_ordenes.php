@@ -140,7 +140,7 @@ if ($method === 'POST') {
         // El VoBo se registra en cotizaciones.vobo_at (api/finanzas.php),
         // no en la orden.
         $stmtO = $db->prepare("
-            SELECT o.id, o.estado, c.vobo_at
+            SELECT o.id, o.estado, c.id AS cot_id, c.estatus AS cot_estatus, c.vobo_at
             FROM ordenes o
             LEFT JOIN cotizaciones c ON c.orden_id = o.id
             WHERE o.folio=?
@@ -151,11 +151,44 @@ if ($method === 'POST') {
         if ($orden['estado'] !== 'cancelada') {
             jsonResponse(['error' => "Solo se pueden restaurar órdenes canceladas (estado actual: {$orden['estado']})"], 409);
         }
+
+        // Alto#7: restaurar solo la orden dejaba la cotización ligada en
+        // 'cancelada' — Finanzas nunca puede registrar un pago sobre una
+        // cotización cancelada (api/finanzas.php:283), así que la orden
+        // "restaurada" quedaba viva pero incobrable (zombie). Si al cancelar
+        // ya se movió dinero cobrado a saldo a favor del cliente, no lo
+        // revertimos automáticamente aquí (mismo dinero que la redefinición
+        // de Depósito/Saldo a Favor sigue en discusión, ver sección 12 de
+        // CLAUDE.md) — se bloquea con instrucción clara en vez de re-cobrar
+        // solo o dejarlo huérfano.
+        if ($orden['cot_id'] && $orden['cot_estatus'] === 'cancelada') {
+            $stmtSF = $db->prepare("SELECT COALESCE(SUM(monto),0) FROM clientes_saldo_favor WHERE cotizacion_id = ?");
+            $stmtSF->execute([$orden['cot_id']]);
+            $montoSaldoFavor = (float)$stmtSF->fetchColumn();
+            if ($montoSaldoFavor > 0) {
+                jsonResponse(['error' => 'Esta orden se canceló y $' . number_format($montoSaldoFavor, 2)
+                    . ' ya se movieron a saldo a favor del cliente. Antes de restaurarla, aplica ese saldo a favor'
+                    . ' manualmente (Finanzas → Saldo a Favor) o consulta con Armando/Lina cómo re-ligar el cobro.'], 409); exit;
+            }
+        }
+
         // Con VoBo dado vuelve a 'activa'; sin VoBo vuelve a 'pendiente_vobo'
         // para que Finanzas la autorice como cualquier orden recién creada.
         $destino = $orden['vobo_at'] ? 'activa' : 'pendiente_vobo';
-        $stmt = $db->prepare("UPDATE ordenes SET estado=? WHERE id=?");
-        $stmt->execute([$destino, $orden['id']]);
+        $db->beginTransaction();
+        try {
+            $db->prepare("UPDATE ordenes SET estado=? WHERE id=?")->execute([$destino, $orden['id']]);
+            // Re-vincular la cotización: sin esto quedaba 'cancelada' aunque la
+            // orden ya volviera a estar activa, bloqueando cualquier pago futuro.
+            if ($orden['cot_id'] && $orden['cot_estatus'] === 'cancelada') {
+                $db->prepare("UPDATE cotizaciones SET estatus='orden', updated_at=NOW() WHERE id=?")
+                   ->execute([$orden['cot_id']]);
+            }
+            $db->commit();
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => 'No se pudo restaurar: ' . $e->getMessage()], 500); exit;
+        }
         jsonResponse(['ok' => true, 'estado' => $destino]);
     }
 

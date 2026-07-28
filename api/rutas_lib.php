@@ -282,7 +282,11 @@ function marcarEntregaComoEntregada($db, $entrega_id, $notas = '', $piezaIdsRech
         $ent = $db->prepare("SELECT COUNT(*) FROM piezas WHERE orden_id=? AND estatus='entregado'");
         $ent->execute([$re['orden_id']]);
         if ((int)$tot->fetchColumn() === (int)$ent->fetchColumn()) {
-            $db->prepare("UPDATE ordenes SET estado='entregada', updated_at=NOW() WHERE id=?")
+            // V3-C4: si la orden se canceló por otra puerta mientras iba en ruta
+            // (cotizaciones.php ahora lo bloquea si la ruta está 'en_ruta', pero
+            // cubre también rutas ya no 'en_ruta' u otras vías), no la resucitamos
+            // como 'entregada' — el dinero ya se movió a saldo a favor.
+            $db->prepare("UPDATE ordenes SET estado='entregada', updated_at=NOW() WHERE id=? AND estado != 'cancelada'")
                ->execute([$re['orden_id']]);
         }
 

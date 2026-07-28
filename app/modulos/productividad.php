@@ -935,7 +935,7 @@ function renderTrazabilidadRutas(data) {
   let actual = null;
   filas.forEach(f => {
     if (!actual || actual.ruta_id !== f.ruta_id) {
-      actual = { ruta_id: f.ruta_id, unidad: f.unidad, chofer: f.chofer, estado: f.ruta_estado, filas: [] };
+      actual = { ruta_id: f.ruta_id, unidad: f.unidad, chofer: f.chofer, estado: f.ruta_estado, creado_por: f.creado_por, filas: [] };
       grupos.push(actual);
     }
     actual.filas.push(f);
@@ -945,7 +945,10 @@ function renderTrazabilidadRutas(data) {
 
   grupos.forEach(g => {
     html += `<div style="display:flex;align-items:center;justify-content:space-between;margin:14px 0 6px">
-      <div style="font-size:13px;font-weight:700">${UNIDAD_LBL[g.unidad] || esc(g.unidad)} &#8212; ${esc(g.chofer) || 'Sin chofer'}</div>
+      <div>
+        <div style="font-size:13px;font-weight:700">${UNIDAD_LBL[g.unidad] || esc(g.unidad)} &#8212; ${esc(g.chofer) || 'Sin chofer'}</div>
+        <div style="font-size:11px;color:var(--text-2,#64748b)">Ruta creada por: ${esc(g.creado_por) || '&#8212;'}</div>
+      </div>
       <button onclick="abrirReplay(${g.ruta_id})" style="background:#3b82f6;color:#fff;border:none;padding:5px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">&#128205; Ver recorrido</button>
     </div>
     <div class="traza-table-wrap">
