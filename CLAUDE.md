@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 30 julio 2026 | Próximo UPD disponible: UPD-416
+# Última actualización: 30 julio 2026 | Próximo UPD disponible: UPD-417
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -537,4 +537,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-415 | 30-jul-2026 | Armando | Revisión de seguridad automática detectó 2 hallazgos tras el auto-commit `b3dc5bb`: (1) XSS en `app/modulos/contabilidad_catalogo.php` — `renderTabla()`/`renderSelectPadre()` concatenaban `c.codigo`/`c.nombre` sin escapar en `innerHTML` (mismo patrón pendiente de UPD-275 para `cotizacion.php`); agregado helper `esc()` y aplicado en ambos renders. (2) `scripts/gps_cache/apex_gps_token.json` (token de sesión web de ProTrack365) quedó versionado y subido a GitHub por el hook de auto-commit; verificado que el token ya había expirado al detectarlo (no explotable) y que las credenciales reales (`PROTRACK_ACCOUNT`/`PROTRACK_PASSWORD`) están en `.env`, fuera del repo, sin filtrarse. Agregado `scripts/gps_cache/` a `.gitignore` + `git rm --cached` para que no se repita. Armando decidió no purgar el historial de git (repo privado, dato ya no explotable). Aviso dejado para Mando en Pendientes Activos (sección 12) para que confirme que el tracker GPS sigue funcionando normal sin el cache trackeado. |
 
-**Próximo UPD disponible: UPD-416**
+| UPD-416 | 30-jul-2026 | Armando | Fix de seguimiento a UPD-414 (COT-907): el fix anterior mostraba Subtotal por partida como `precio_m2_usado × round(m2×cantidad, 4)` — ese redondeo intermedio de m² a 4 decimales desfasaba centavos vs el Subtotal general (que sí usa m2 completo sin redondear) en medidas cuyo m²×cantidad termina en x.xxxx50 (ej. partida 7 de COT-907: mostraba $210.82, el bruto real es $210.78). Fix: (1) el bruto por fila ahora se calcula UNA sola vez con precisión completa (`precio_m2_usado × m2 × cantidad`, sin redondear m² a medio camino) y se reutiliza igual en la tabla; (2) el Subtotal general ahora es la suma exacta de esos brutos por fila (antes se recalculaba aparte con `round(SUM(...))`, lo que podía diferir 1 centavo del total de sumar las filas a mano); (3) columna m² ahora se imprime con `fmtM2Exacto()` — recorta ceros sobrantes pero conserva hasta 6 decimales (precisión real de la columna `m2 DECIMAL(10,6)`, exacta porque viene de mm enteros ÷1000) en vez de truncar siempre a 3, para que precio/m² × m² mostrados multipliquen exacto al centavo. Verificado con las 11 partidas reales de COT-907: las 11 cuadran exacto y suman $20,932.86 = Subtotal mostrado. |
+
+**Próximo UPD disponible: UPD-417**

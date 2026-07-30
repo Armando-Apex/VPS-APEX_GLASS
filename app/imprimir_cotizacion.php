@@ -82,11 +82,27 @@ if ($esMaquila) {
         $subtotal += (float)$p['subtotal'];
     }
 } else {
-    foreach ($partidas as $p) {
-        $subtotal += (float)$p['precio_m2_usado'] * (float)$p['m2'] * (int)$p['cantidad'];
+    // bruto_fila se redondea UNA vez aquí y se reutiliza tal cual en la tabla de partidas,
+    // para que la suma de los renglones mostrados cuadre exacto con este Subtotal (sin
+    // redondear m² a medio camino, que desfasaba centavos en medidas terminadas en .5mm²).
+    foreach ($partidas as &$p) {
+        $p['bruto_fila'] = round((float)$p['precio_m2_usado'] * (float)$p['m2'] * (int)$p['cantidad'], 2);
+        $subtotal += $p['bruto_fila'];
     }
+    unset($p);
 }
 $subtotal = round($subtotal, 2);
+
+// m2 es DECIMAL(10,6) exacto (viene de ancho/alto en mm ÷ 1000) — mostrar recortando
+// ceros sobrantes pero SIN redondear a menos de 6 decimales, para que precio × m² mostrados
+// den siempre el mismo centavo que el subtotal de la fila (ver UPD-416).
+function fmtM2Exacto($v) {
+    $s = number_format((float)$v, 6, '.', '');
+    while (strlen(substr($s, strpos($s, '.') + 1)) > 3 && substr($s, -1) === '0') {
+        $s = substr($s, 0, -1);
+    }
+    return $s;
+}
 
 $subtotal_neto = ($descuento > 0 && $descuento < 100)
     ? round($subtotal * (1 - $descuento / 100), 2)
@@ -371,7 +387,7 @@ function waEnviar() {
     </thead>
     <tbody>
     <?php foreach ($partidas as $p):
-        $m2_total = round($p['m2'] * $p['cantidad'], 4);
+        $m2_total = (float)$p['m2'] * (int)$p['cantidad'];
         $cpbValNorm = trim((string)($p['cpb'] ?? ''));
         $cpbUpNorm  = strtoupper($cpbValNorm);
         $esCPBNorm  = ($cpbValNorm !== '' && $cpbUpNorm !== 'NO' && $cpbUpNorm !== 'FM' && $cpbUpNorm !== 'FILO MUERTO');
@@ -395,9 +411,9 @@ function waEnviar() {
         </td>
         <td class="right"><?= number_format($p['ancho'],0) ?> × <?= number_format($p['alto'],0) ?></td>
         <td class="center"><?= $p['cantidad'] ?></td>
-        <td class="right"><?= number_format($m2_total, 3) ?></td>
+        <td class="right"><?= fmtM2Exacto($m2_total) ?></td>
         <td class="right">$<?= number_format($p['precio_m2_usado'], 2) ?></td>
-        <td class="right">$<?= number_format($p['precio_m2_usado'] * $m2_total, 2) ?></td>
+        <td class="right">$<?= number_format($p['bruto_fila'], 2) ?></td>
       </tr>
       <?php foreach ($servicios_por_partida[$p['id']] ?? [] as $srv): ?>
       <tr style="background:#f0fdf4;">
