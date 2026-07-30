@@ -397,7 +397,7 @@ function waEnviar() {
         <td class="center"><?= $p['cantidad'] ?></td>
         <td class="right"><?= number_format($m2_total, 3) ?></td>
         <td class="right">$<?= number_format($p['precio_m2_usado'], 2) ?></td>
-        <td class="right">$<?= number_format($p['subtotal'], 2) ?></td>
+        <td class="right">$<?= number_format($p['precio_m2_usado'] * $m2_total, 2) ?></td>
       </tr>
       <?php foreach ($servicios_por_partida[$p['id']] ?? [] as $srv): ?>
       <tr style="background:#f0fdf4;">

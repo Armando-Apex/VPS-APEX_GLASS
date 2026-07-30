@@ -53,6 +53,8 @@ define('PERMISOS', [
         'gestionar_inventario',
         'gestionar_maquila_precios',
         'ver_wip',
+        'ver_contabilidad',
+        'gestionar_contabilidad',
     ],
     'administracion' => [
         'ver_dashboard',
@@ -65,6 +67,8 @@ define('PERMISOS', [
         'ver_reportes',
         'ver_inventario',
         'gestionar_inventario',
+        'ver_contabilidad',
+        'gestionar_contabilidad',
     ],
     'dueno' => [
         'ver_dashboard',
@@ -78,6 +82,8 @@ define('PERMISOS', [
         'ver_inventario',
         'gestionar_inventario',
         'gestionar_maquila_precios',
+        'ver_contabilidad',
+        'gestionar_contabilidad',
     ],
     'desarrollo' => [
         'ver_dashboard',

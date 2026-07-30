@@ -1162,7 +1162,7 @@ function _renderFormCorreccion() {
 
     html += '<td><input type="number" id="cp_pm2_'   + idx + '" value="' + (p.precio_m2_usado    || 0) + '" step="0.01" min="0" style="width:90px"></td>';
     html += '<td><input type="number" id="cp_pu_'    + idx + '" value="' + (p.precio_unitario    || 0) + '" step="0.01" min="0" style="width:90px"></td>';
-    html += '<td><input type="number" id="cp_cant_'  + idx + '" value="' + (p.cantidad           || 1) + '" min="1"' + (esOrden ? ' disabled title="No se puede cambiar cantidad en orden activa"' : '') + ' style="width:55px"></td>';
+    html += '<td><input type="number" id="cp_cant_'  + idx + '" value="' + (p.cantidad           || 1) + '" min="1" style="width:55px"></td>';
 
     // Detalles select
     html += '<td><select id="cp_det_' + idx + '" style="width:100px">';
@@ -1237,7 +1237,7 @@ async function guardarCorreccion() {
     if (alEl)  pc.alto                     = parseInt(alEl.value)   || 0;
     if (pmEl)  pc.precio_m2_usado          = parseFloat(pmEl.value);
     if (puEl)  pc.precio_unitario          = parseFloat(puEl.value);
-    if (cEl && !cEl.disabled) pc.cantidad  = parseInt(cEl.value);
+    if (cEl) pc.cantidad                   = parseInt(cEl.value);
     if (detEl) pc.detalles                 = detEl.value;
     if (cpbEl) pc.cpb                      = cpbEl.value;
     if (resEl) pc.resaques                 = parseInt(resEl.value);

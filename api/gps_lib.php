@@ -9,9 +9,18 @@
 //  un login distinto contra ProTrack365 por cada pestaña/cliente abierto.
 // ============================================================
 
-define('GPS_CACHE_POS_FILE',   sys_get_temp_dir() . '/apex_gps_pos.json');
-define('GPS_CACHE_TOKEN_FILE', sys_get_temp_dir() . '/apex_gps_token.json');
-define('GPS_CACHE_LOCK_FILE',  sys_get_temp_dir() . '/apex_gps.lock');
+// Carpeta compartida con ACL (no /tmp): el fetch real lo puede disparar tanto el cron
+// (scripts/gps_tracker.php, corre como usuario del sistema "mando") como cualquier
+// request web (php-fpm, corre como "apexglass2025") — ambos necesitan poder crear Y
+// reescribir estos archivos sin importar quién los creó primero. En /tmp, con dueño y
+// permisos normales de Unix, el que NO creó el archivo se quedaba sin poder tomar el
+// flock ni refrescar la posición, y el sistema servía la última posición cacheada para
+// siempre sin nunca reportar error (bug real detectado 28-jul-2026: replay de rutas con
+// el camión congelado todo el día).
+define('GPS_CACHE_DIR',        __DIR__ . '/../scripts/gps_cache');
+define('GPS_CACHE_POS_FILE',   GPS_CACHE_DIR . '/apex_gps_pos.json');
+define('GPS_CACHE_TOKEN_FILE', GPS_CACHE_DIR . '/apex_gps_token.json');
+define('GPS_CACHE_LOCK_FILE',  GPS_CACHE_DIR . '/apex_gps.lock');
 define('GPS_CACHE_TTL', 12); // segundos de frescura para la posición
 
 function _gpsLeerTokens() {

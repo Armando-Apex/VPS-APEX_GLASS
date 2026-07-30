@@ -167,8 +167,6 @@ if ($method === 'POST') {
 
             foreach ($campos_partida as $campo) {
                 if (!array_key_exists($campo, $pc)) continue;
-                // Cantidad solo si aún es cotización
-                if ($campo === 'cantidad' && $es_orden) continue;
 
                 $nuevo    = $pc[$campo];
                 $anterior = $partida[$campo] ?? '';
@@ -225,9 +223,10 @@ if ($method === 'POST') {
                         : (float)$partida['precio_unitario'];
                 }
 
-                $nueva_cant = (!$es_orden && array_key_exists('cantidad', $pc))
-                    ? (int)$pc['cantidad']
+                $nueva_cant = array_key_exists('cantidad', $pc)
+                    ? max(1, (int)$pc['cantidad'])
                     : (int)$partida['cantidad'];
+                $cantidad_cambio = $nueva_cant !== (int)$partida['cantidad'];
 
                 $subtotal_p = round($nuevo_unit * $nueva_cant, 2);
                 $iva_p      = round($subtotal_p * 0.16, 2);
@@ -274,6 +273,80 @@ if ($method === 'POST') {
                         $piezas_params[] = $partida['num_partida'];
                         $db->prepare("UPDATE piezas SET " . implode(', ', $piezas_sets) . " WHERE orden_id = ? AND partida = ?")
                            ->execute($piezas_params);
+                    }
+
+                    // Corrección de cantidad de piezas en una orden ya convertida (dir_admin/desarrollo
+                    // solamente, ver guard de rol arriba). Cada unidad tiene su propia fila en `piezas`
+                    // (generadas 1:1 al convertir la cotización) y su `qr_code` trae el total horneado
+                    // en el string (`{folio}-{partida}-{num}-{total}`) — cambiar la cantidad sin
+                    // resincronizar `piezas` dejaría el conteo de producción y los QR desalineados.
+                    if ($cantidad_cambio) {
+                        $spz = $db->prepare("SELECT id, pieza_num, estatus FROM piezas WHERE orden_id = ? AND partida = ? ORDER BY pieza_num ASC");
+                        $spz->execute([$cot['orden_id'], $partida['num_partida']]);
+                        $piezasActuales = $spz->fetchAll(PDO::FETCH_ASSOC);
+                        $cantActual     = count($piezasActuales);
+
+                        if ($nueva_cant < $cantActual) {
+                            // Reducir: solo permitido si ninguna de las piezas a quitar ya tiene
+                            // historial de producción — nunca se borra trabajo real ya hecho.
+                            $aQuitar = array_slice($piezasActuales, $nueva_cant);
+                            $idsQuitar = array_column($aQuitar, 'id');
+                            foreach ($aQuitar as $pz) {
+                                if ($pz['estatus'] !== 'pendiente') {
+                                    throw new Exception("No se puede reducir la cantidad de la partida P{$partida['num_partida']}: la pieza #{$pz['pieza_num']} ya tiene estatus '{$pz['estatus']}' (ya entró a producción).");
+                                }
+                            }
+                            $shp = $db->prepare("SELECT COUNT(*) FROM historial_estatus WHERE pieza_id IN (" . implode(',', array_fill(0, count($idsQuitar), '?')) . ")");
+                            $shp->execute($idsQuitar);
+                            if ((int)$shp->fetchColumn() > 0) {
+                                throw new Exception("No se puede reducir la cantidad de la partida P{$partida['num_partida']}: alguna de las piezas a eliminar ya tiene historial de producción.");
+                            }
+                            $db->prepare("DELETE FROM piezas WHERE id IN (" . implode(',', array_fill(0, count($idsQuitar), '?')) . ")")
+                               ->execute($idsQuitar);
+                        } elseif ($nueva_cant > $cantActual) {
+                            // Aumentar: clonar los atributos compartidos de la partida desde una
+                            // pieza existente y crear las unidades nuevas en estatus 'pendiente'.
+                            $base = $piezasActuales[0] ?? null;
+                            $sb = $db->prepare("SELECT * FROM piezas WHERE id = ?");
+                            $sb->execute([$base ? $base['id'] : 0]);
+                            $modelo = $sb->fetch(PDO::FETCH_ASSOC);
+                            if ($modelo) {
+                                $insPz = $db->prepare("INSERT INTO piezas
+                                    (orden_id, partida, pieza_num, pieza_total,
+                                     cristal, cristal_corto, requiere_templado, requiere_corte,
+                                     ancho_mm, alto_mm, m2,
+                                     cpb, detalles, resaques, tp, ta, pintura, esmerilado,
+                                     acabado_forma, requiere_trazo, tipo_biselado, espesor_biselado,
+                                     comentarios, qr_code, estatus)
+                                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                                ");
+                                for ($i = $cantActual + 1; $i <= $nueva_cant; $i++) {
+                                    $qr = $folio . '-' . str_pad($partida['num_partida'], 2, '0', STR_PAD_LEFT) . '-' . str_pad($i, 3, '0', STR_PAD_LEFT) . '-' . str_pad($nueva_cant, 3, '0', STR_PAD_LEFT);
+                                    $insPz->execute([
+                                        $cot['orden_id'], $partida['num_partida'], $i, $nueva_cant,
+                                        $modelo['cristal'], $modelo['cristal_corto'], $modelo['requiere_templado'], $modelo['requiere_corte'],
+                                        $modelo['ancho_mm'], $modelo['alto_mm'], $modelo['m2'],
+                                        $modelo['cpb'], $modelo['detalles'], $modelo['resaques'], $modelo['tp'], $modelo['ta'],
+                                        $modelo['pintura'], $modelo['esmerilado'], $modelo['acabado_forma'], $modelo['requiere_trazo'],
+                                        $modelo['tipo_biselado'], $modelo['espesor_biselado'], $modelo['comentarios'],
+                                        $qr, 'pendiente'
+                                    ]);
+                                }
+                            }
+                        }
+
+                        // Re-numerar y regenerar QR de TODAS las piezas restantes de esta partida —
+                        // el total cambió, así que el string del QR (que lo incluye) ya no es válido.
+                        $spz2 = $db->prepare("SELECT id FROM piezas WHERE orden_id = ? AND partida = ? ORDER BY pieza_num ASC");
+                        $spz2->execute([$cot['orden_id'], $partida['num_partida']]);
+                        $ids = $spz2->fetchAll(PDO::FETCH_COLUMN);
+                        $upPz = $db->prepare("UPDATE piezas SET pieza_num = ?, pieza_total = ?, qr_code = ?, updated_at = NOW() WHERE id = ?");
+                        $n = 1;
+                        foreach ($ids as $pid2) {
+                            $qr = $folio . '-' . str_pad($partida['num_partida'], 2, '0', STR_PAD_LEFT) . '-' . str_pad($n, 3, '0', STR_PAD_LEFT) . '-' . str_pad($nueva_cant, 3, '0', STR_PAD_LEFT);
+                            $upPz->execute([$n, $nueva_cant, $qr, $pid2]);
+                            $n++;
+                        }
                     }
                 }
             }
