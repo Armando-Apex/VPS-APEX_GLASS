@@ -12,6 +12,9 @@ archivos_ordenes/
 *.log
 *.tmp
 
+# Cache runtime GPS (contiene token en vivo)
+scripts/gps_cache/
+
 # Dependencias Composer
 vendor/
 archivos_campanas/wa_media/

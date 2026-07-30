@@ -181,6 +181,12 @@ async function cargar() {
   }
 }
 
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = (s === null || s === undefined) ? '' : String(s);
+  return d.innerHTML;
+}
+
 var TIPO_LABEL = {
   ingreso: 'Ingreso', costo_venta: 'Costo de venta', gasto_operativo: 'Gasto operativo',
   financiero: 'Financiero', impuesto: 'Impuesto'
@@ -206,8 +212,8 @@ function renderTabla() {
       acciones += '<button class="btn btn-sm" onclick="ModCatalogoContable._toggleActivo(' + c.id + ',' + c.activo + ')">' + txt + '</button>';
     }
     html += '<tr>';
-    html += '<td class="codigo">' + c.codigo + '</td>';
-    html += '<td class="' + nivelClass + '">' + c.nombre + '</td>';
+    html += '<td class="codigo">' + esc(c.codigo) + '</td>';
+    html += '<td class="' + nivelClass + '">' + esc(c.nombre) + '</td>';
     html += '<td><span class="badge-tipo tipo-' + c.tipo_financiero + '">' + (TIPO_LABEL[c.tipo_financiero] || c.tipo_financiero) + '</span></td>';
     html += '<td>' + (c.naturaleza == 'suma' ? '+ Suma' : '&minus; Resta') + '</td>';
     html += '<td>' + badgeEstatus + '</td>';
@@ -222,7 +228,7 @@ function renderSelectPadre() {
   var html = '<option value="">(ninguna — cuenta raíz)</option>';
   for (var i = 0; i < cuentasData.length; i++) {
     var c = cuentasData[i];
-    html += '<option value="' + c.id + '">' + c.codigo + ' — ' + c.nombre + '</option>';
+    html += '<option value="' + c.id + '">' + esc(c.codigo) + ' — ' + esc(c.nombre) + '</option>';
   }
   sel.innerHTML = html;
 }
