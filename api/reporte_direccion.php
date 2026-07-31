@@ -544,12 +544,19 @@ $stmtAsesor->execute($params2);
 $por_asesor = $stmtAsesor->fetchAll(PDO::FETCH_ASSOC);
 
 // ── Tasa de reproceso (período) ──
+// La tabla `reprocesos` está vacía (0 filas siempre) — el flujo real de retrabajo
+// (api/reproceso.php) nunca escribe ahí, marca la pieza con es_retrabajo=1 y deja
+// el registro en historial_estatus (notas = "Retrabajo: <razón>"). Esta tarjeta
+// llevaba rota desde siempre (mostraba 0 sin importar el período, no solo julio).
 $stmtRep = $pdo->prepare("
     SELECT
-        (SELECT COUNT(DISTINCT r.pieza_id)
-         FROM reprocesos r JOIN ordenes o ON o.id = r.orden_id
-         WHERE o.fecha_pedido BETWEEN ? AND ?
-            OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?)
+        (SELECT COUNT(DISTINCT h.pieza_id)
+         FROM historial_estatus h
+         JOIN piezas p ON p.id = h.pieza_id
+         JOIN ordenes o ON o.id = p.orden_id
+         WHERE h.notas LIKE 'Retrabajo:%'
+           AND (o.fecha_pedido BETWEEN ? AND ?
+                OR (o.fecha_pedido IS NULL AND o.created_at BETWEEN ? AND ?))
         ) AS piezas_reproceso,
         (SELECT COUNT(*) FROM piezas p
          JOIN ordenes o ON o.id = p.orden_id
