@@ -176,7 +176,8 @@
       "Bash(echo \"exit:$?\")",
       "Bash(runuser -u apexglass2025 -- php84 -r ' *)",
       "Bash(git check-ignore *)",
-      "Bash(git ls-remote *)"
+      "Bash(git ls-remote *)",
+      "Bash(awk '/GET ─/,0' /home/apexglass2025/apex.glass/public_html/produccion/api/ordenes_compra.php)"
     ]
   },
   "hooks": {

@@ -240,6 +240,8 @@ if ($method === 'GET') {
             COALESCE(SUM(op.cantidad_recibida), 0) AS total_recibido,
             COALESCE(SUM(op.cantidad), 0)           AS total_ordenado,
             DATEDIFF(oc.fecha_pago_programada, CURDATE()) AS dias_para_pago,
+            -- subconsulta independiente (no JOIN) para no repetir el fan-out de partidas×pagos que ya se corrigió en calendario_pagos (C-8)
+            (SELECT COALESCE(SUM(pg.monto), 0) FROM oc_pagos pg WHERE pg.orden_compra_id = oc.id) AS pagado_total,
             -- OC que solo tiene partidas de flete sin referencia a OC de vidrio
             (SUM(CASE WHEN op.tipo != 'flete' THEN 1 ELSE 0 END) = 0
              AND SUM(CASE WHEN op.tipo = 'flete' AND op.oc_referencia_id IS NULL THEN 1 ELSE 0 END) > 0
