@@ -33,7 +33,7 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','adm
 .cmp-preview{background:#dcfce7;border-radius:12px 12px 12px 3px;padding:12px 16px;font-size:13px;max-width:320px;margin-top:8px;line-height:1.5;}
 .cmp-progreso{background:#e2e8f0;border-radius:99px;height:8px;margin:12px 0;}
 .cmp-progreso-bar{background:#2563eb;border-radius:99px;height:8px;transition:width .3s;}
-.conv-panel{display:flex;gap:0;height:520px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;}
+.conv-panel{display:flex;gap:0;height:calc(100vh - var(--topbar-h) - 160px);min-height:460px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;}
 .conv-lista{width:300px;border-right:1px solid #e2e8f0;flex-shrink:0;background:#fff;display:flex;flex-direction:column;}
 .conv-lista-search{padding:10px;border-bottom:1px solid #e2e8f0;flex-shrink:0;}
 .conv-lista-search input{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;}

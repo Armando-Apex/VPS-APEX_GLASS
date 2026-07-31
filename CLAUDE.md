@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 30 julio 2026 | Próximo UPD disponible: UPD-418
+# Última actualización: 31 julio 2026 | Próximo UPD disponible: UPD-419
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -543,4 +543,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-417 | 30-jul-2026 | Armando | Documentación (sin cambio de código): módulo Contabilidad — Catálogo de Cuentas (`app/modulos/contabilidad_catalogo.php` + `api/contabilidad_catalogo.php` + tabla `cuentas_contables`) no tenía entrada previa en CLAUDE.md pese a ya estar visible en el sidebar con badge WIP. Registrado en sección 5 (Módulos SPA) y sección 12 (Pendientes): es solo el plan de cuentas (13 cuentas, 5 categorías raíz) de un proyecto de Estado de Resultados (P&L) que aún no tiene módulo de movimientos ni reporte — no conectado a ningún dato real del sistema todavía. |
 
-**Próximo UPD disponible: UPD-418**
+| UPD-418 | 31-jul-2026 | Armando | UX: el panel de chat de Campañas WhatsApp (`app/modulos/campanas.php`, `.conv-panel`) tenía altura fija `520px` sin importar el tamaño de pantalla — Armando reportó que se veía como ~60% del alto disponible. Cambiado a `height:calc(100vh - var(--topbar-h) - 160px)` con `min-height:460px` de piso; `.conv-lista`/`.conv-chat` ya heredan la altura por flexbox (`align-items:stretch` implícito), no necesitaron cambio. El offset de 160px es estimado a partir del CSS (padding del wrapper + fila de título + fila de tabs), sin verificación visual en navegador (no había Chrome DevTools MCP conectado en la sesión) — pendiente que Armando confirme que se ve bien y no corta contenido en pantallas chicas. Sin cambio en el breakpoint móvil (`@media max-width:640px` ya fuerza `height:auto`, no se tocó). |
+
+**Próximo UPD disponible: UPD-419**
