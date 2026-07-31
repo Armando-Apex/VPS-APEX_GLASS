@@ -28,7 +28,8 @@ $db = getDB();
 
 // Datos de la orden
 $stmt = $db->prepare('
-    SELECT o.*, c.vobo_at, c.vobo_por
+    SELECT o.*, c.vobo_at, c.vobo_por,
+           COALESCE(DATE(c.vobo_at), o.fecha_pedido) AS fecha_pedido_portal
     FROM ordenes o
     LEFT JOIN cotizaciones c ON c.orden_id = o.id
     WHERE o.folio = ?

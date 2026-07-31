@@ -334,7 +334,7 @@ function render(data) {
   const total       = todasPiezas.length;
 
   const fmt = (d, hora) => d ? new Date(d + (hora ? '' : 'T12:00:00')).toLocaleDateString('es-MX', {day:'2-digit',month:'short',year:'numeric'}) : '—';
-  const fechaPedido  = fmt(orden.fecha_pedido);
+  const fechaPedido  = fmt(orden.fecha_pedido_portal || orden.fecha_pedido);
   const fechaEntrega = fmt(orden.fecha_entrega);
   const fechaCierre  = orden.fecha_cierre ? fmt(orden.fecha_cierre, true) : null;
 

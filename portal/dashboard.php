@@ -26,7 +26,7 @@ $stmt = $pdo->prepare("
         o.folio,
         o.orden_trabajo,
         o.proyecto,
-        o.fecha_pedido,
+        COALESCE(DATE(c.vobo_at), o.fecha_pedido) AS fecha_pedido,
         o.fecha_entrega,
         o.fecha_cierre,
         o.estado,
@@ -51,10 +51,11 @@ $stmt = $pdo->prepare("
         ) AS avance_pct
     FROM ordenes o
     LEFT JOIN piezas p ON p.orden_id = o.id
+    LEFT JOIN cotizaciones c ON c.orden_id = o.id
     WHERE (o.cliente_id = ? OR o.cliente_nombre = ?)
       AND o.estado IN ('activa','entregada')
     GROUP BY o.id
-    ORDER BY FIELD(o.estado,'activa','entregada'), o.fecha_pedido DESC
+    ORDER BY FIELD(o.estado,'activa','entregada'), COALESCE(DATE(c.vobo_at), o.fecha_pedido) DESC
 ");
 $stmt->execute([$cliente_id, $cliente_razon]);
 $ordenes = $stmt->fetchAll(PDO::FETCH_ASSOC);

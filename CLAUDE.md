@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 31 julio 2026 | Próximo UPD disponible: UPD-423
+# Última actualización: 31 julio 2026 | Próximo UPD disponible: UPD-424
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -437,7 +437,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-423**
+Próximo UPD disponible: **UPD-424**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -555,4 +555,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-422 | 31-jul-2026 | Armando | **Apartado de Precio con vigencia** (sub-feature del rediseño de Depósito a Cuenta/Saldo a Favor, diseño discutido a fondo con Armando el mismo día, ver `project_apartado_precio_vigencia.md`): cliente deposita para congelar precio de productos específicos antes de un incremento. Es un solo saldo en dinero (no tope de cantidad por producto) repartible entre los productos amarrados, con garantía de precio que vence (≤45 días, nunca el dinero) — vigencia cuenta desde el día siguiente al depósito. Requiere VoBo del Director si la vigencia pedida es >7 días (activo directo si es ≤7). Tablas nuevas `saldo_favor_apartados` + `saldo_favor_apartado_items` (aditivas, no se tocó `clientes_saldo_favor` ni ningún dato existente). Nuevas acciones en `api/saldo_favor.php`: `crear_apartado`, `vobo_apartado`, `apartados_pendientes`, `apartados_cliente`, `apartado`. UI en `app/modulos/finanzas_cobranza.php` (checkbox "Apartar precio" en el modal de depósito + panel de VoBo pendiente solo para dir_admin + apartados visibles en el historial de cada cliente). Documento imprimible nuevo `app/imprimir_apartado.php` con leyenda obligatoria de "no reembolsable en efectivo, solo aplicable a productos" y banner de estatus (vigente/pendiente de VoBo/rechazado/vencido). Aplicación del precio pactado en cotizaciones reales sigue siendo MANUAL en v1 (el asesor consulta el apartado y teclea el precio) — automatizar detección/prellenado y ligar a facturación de anticipos quedan fuera de alcance por ahora. Probado con dry-run en BD dentro de una transacción con ROLLBACK (creación, cálculo de vigencia, aprobación de VoBo) antes de dar por buena la lógica — falta que Armando lo pruebe visualmente en el navegador. |
 
-**Próximo UPD disponible: UPD-423**
+| UPD-423 | 31-jul-2026 | Armando | Fix "Fecha pedido" en Portal Clientes (reportado por Armando viendo S-435): mostraba la fecha de la **cotización** (`ordenes.fecha_pedido`, se llena con `cot.fecha` al convertir), no la fecha en que Lina dio el **VoBo** (`cotizaciones.vobo_at`) — Armando confirmó que debe ser la del VoBo. Cambiado solo en las 2 vistas del portal: `portal/dashboard.php` (lista, agregado `LEFT JOIN cotizaciones` + `COALESCE(DATE(c.vobo_at), o.fecha_pedido)`, mismo criterio y orden) y `api/orden.php` (agregado campo nuevo `fecha_pedido_portal` sin tocar `fecha_pedido` original, consumido por `portal/orden.php`). A propósito NO se tocó el valor interno `ordenes.fecha_pedido` ni las vistas internas del dashboard (`app/modulos/orden.php`, `admin_ordenes.php`, `app/orden.php` comparten el mismo `api/orden.php` pero siguen leyendo el campo original) — mismo criterio ya usado en `api/reporte_direccion.php` desde UPD-267/285/301/304/363/364, pero nunca se había aplicado al portal. Verificado con S-435: 22-jul (cotización) → 28-jul (VoBo real), consulta corrida contra la BD real antes de publicar. |
+
+**Próximo UPD disponible: UPD-424**
