@@ -426,22 +426,21 @@ $stmtF = $pdo->prepare("
 $stmtF->execute($params2);
 $finanzas = $stmtF->fetch(PDO::FETCH_ASSOC);
 
-// ── Pipeline vigente: cotizaciones abiertas (estatus=cotizacion) que todavía
-// no caducaron — regla de la empresa: una cotización vence a los 15 días
-// naturales desde su fecha de emisión (c.fecha). Antes NO se filtraba por
-// antigüedad ("vivas hoy sin importar cuándo se crearon"), lo que dejaba
-// cotizaciones de meses atrás (hasta 52 días vistas en auditoría) inflando el
-// número aunque el cliente ya nunca fuera a decidir sobre un precio vencido.
-// No se cambia el estatus en BD (no hay 'vencida' en el ENUM) — el filtro es
-// solo de lectura para este KPI. Además se desglosa mes anterior vs mes actual
-// (calendario fijo, independiente del selector de período) para comparar cómo
-// evoluciona el pipeline VIGENTE mes a mes — con el filtro de 15 días, la
-// mayoría de "mes anterior" será $0 salvo cotizaciones de los últimos días del
-// mes pasado que aún no cumplen 15 días.
-$mesActualIni    = $hoy->format('Y-m-01') . ' 00:00:00';
-$mesAnteriorIni  = (clone $hoy)->modify('first day of last month')->format('Y-m-01') . ' 00:00:00';
-$mesAnteriorFin  = (clone $hoy)->modify('last day of last month')->format('Y-m-d') . ' 23:59:59';
-
+// ── Pipeline: cotizaciones abiertas (estatus=cotizacion, es decir NO convertidas
+// a orden). Dos medidas distintas en la misma tarjeta (a petición de Armando,
+// 31-jul-2026, tras el fix de UPD-427):
+//   - pipeline_vigente: solo las que todavía no caducaron — regla de la empresa,
+//     una cotización vence a los 15 días naturales desde su fecha de emisión
+//     (c.fecha). Es "cuánto negocio vivo hay hoy", sin importar el período
+//     seleccionado en el reporte.
+//   - pipeline_total_periodo: TODAS las del período seleccionado (mismo $desde/
+//     $hasta que usa el resto del reporte), aunque ya estén vencidas — es
+//     "cuánto se cotizó en el período", sin filtrar por vigencia.
+// total_cots/total_cotizado/ticket_promedio/bethy_total/cynthia_total se dejan
+// SIN filtro de fecha (vivas hoy, cualquier antigüedad) — feeden la tarjeta
+// "Pendientes" y el desglose por asesor, que están rotulados como "cualquier
+// fecha"; UPD-427 los había filtrado por error al agregar el WHERE de 15 días
+// a nivel de toda la query en vez de solo a la columna de pipeline_vigente.
 $stmtC = $pdo->prepare("
     SELECT
         COUNT(c.id)                                                                         AS total_cots,
@@ -449,14 +448,13 @@ $stmtC = $pdo->prepare("
         AVG(CASE WHEN COALESCE(c.total,0) > 0 THEN c.total ELSE NULL END)                  AS ticket_promedio,
         COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Bethy%' THEN c.total ELSE 0 END), 0) AS bethy_total,
         COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Cynthia%' THEN c.total ELSE 0 END),0) AS cynthia_total,
-        COALESCE(SUM(CASE WHEN c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0)   AS pipeline_mes_anterior,
-        COALESCE(SUM(CASE WHEN c.created_at >= ? THEN c.total ELSE 0 END), 0)              AS pipeline_mes_actual
+        COALESCE(SUM(CASE WHEN c.fecha >= DATE_SUB(CURDATE(), INTERVAL 15 DAY) THEN c.total ELSE 0 END), 0) AS pipeline_vigente,
+        COALESCE(SUM(CASE WHEN c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0)                    AS pipeline_total_periodo
     FROM cotizaciones c
     WHERE c.folio >= 'COT-0100'
       AND c.estatus = 'cotizacion'
-      AND c.fecha >= DATE_SUB(CURDATE(), INTERVAL 15 DAY)
 ");
-$stmtC->execute([$mesAnteriorIni, $mesAnteriorFin, $mesActualIni]);
+$stmtC->execute([$desde . ' 00:00:00', $hasta . ' 23:59:59']);
 $cots_resumen = $stmtC->fetch(PDO::FETCH_ASSOC);
 
 // ── Tasa de conversión cotizaciones (período) ──
