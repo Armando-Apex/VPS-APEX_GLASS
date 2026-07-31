@@ -272,6 +272,9 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 
   <!-- Sección Saldo a Favor -->
   <div id="sec-saldo" style="display:none">
+    <?php if ($_rol === 'dir_admin'): ?>
+    <div id="sf-ap-vobo-box" style="display:none;margin-bottom:16px"></div>
+    <?php endif; ?>
     <div class="sf-toolbar">
       <input type="text" class="sf-search" id="sf-q" placeholder="Buscar cliente..." oninput="sfFiltrar()">
       <button class="btn-sf-nuevo" onclick="sfAbrirModal()">&#43; Registrar Dep&#243;sito</button>
@@ -322,6 +325,30 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
         <div class="sf-form-row">
           <label class="sf-form-label">Anotaciones</label>
           <input class="sf-form-input" id="sf-notas" type="text" placeholder="Notas adicionales...">
+        </div>
+        <div class="sf-form-row" style="border-top:1px solid #f1f5f9;padding-top:12px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#374151;cursor:pointer">
+            <input type="checkbox" id="sf-ap-check" onchange="sfToggleApartado()">
+            Apartar precio de productos espec&#237;ficos (protege al cliente de un incremento)
+          </label>
+        </div>
+        <div id="sf-ap-box" style="display:none">
+          <div class="sf-form-row">
+            <label class="sf-form-label">Vigencia de la garant&#237;a de precio (d&#237;as) <span style="color:#ef4444">*</span></label>
+            <input class="sf-form-input" id="sf-ap-vigencia" type="number" min="1" max="45" value="7">
+            <div style="font-size:11px;color:#64748b;margin-top:4px">Hasta 7 d&#237;as: aplica directo. M&#225;s de 7 d&#237;as (hasta 45): requiere VoBo del Director antes de tener validez. El dinero nunca vence, solo la garant&#237;a de precio.</div>
+          </div>
+          <div class="sf-form-row">
+            <label class="sf-form-label">Agregar producto apartado</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+              <select class="sf-form-input" id="sf-ap-cristal" style="flex:2;min-width:160px" onchange="sfApPrellenar()"><option value="">Producto...</option></select>
+              <input class="sf-form-input" id="sf-ap-precio" type="number" min="0.01" step="0.01" placeholder="Precio/m&#178; pactado" style="flex:1;min-width:120px">
+              <input class="sf-form-input" id="sf-ap-m2" type="number" min="0" step="0.01" placeholder="m&#178; ref. (opcional)" style="flex:1;min-width:110px">
+              <button type="button" class="sf-btn-cancel" onclick="sfAgregarItem()" style="white-space:nowrap">&#43; Agregar</button>
+            </div>
+          </div>
+          <div id="sf-ap-items" style="margin-top:6px"></div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:8px">El monto depositado no es reembolsable en efectivo, solo aplicable a productos que ofrece la empresa. El total puede repartirse libremente entre los productos apartados mientras no exceda el monto depositado.</div>
         </div>
       </div>
       <div class="sf-modal-foot">
@@ -802,6 +829,9 @@ var _sfLista    = [];
 var _sfAbiertos = {};
 var _sfCliTimer = null;
 var API_SF = '../api/saldo_favor.php';
+var ES_DIR_ADMIN = <?= $_rol === 'dir_admin' ? 'true' : 'false' ?>;
+var _sfApItems = [];
+var _sfCristalesCargados = false;
 
 function sfSwitchTab(tab) {
   var isCobranza = tab === 'cobranza';
@@ -812,8 +842,127 @@ function sfSwitchTab(tab) {
   var secCob = document.getElementById('sec-cobranza');
   if (secCob) secCob.style.display = isCobranza ? '' : 'none';
   if (!isCobranza && !_sfData.length) sfCargar();
+  if (!isCobranza && ES_DIR_ADMIN) sfCargarVoboPendientes();
 }
 window.sfSwitchTab = sfSwitchTab;
+
+// ── Apartado de Precio: VoBo pendiente (solo dir_admin) ──────────────────────
+async function sfCargarVoboPendientes() {
+  var box = document.getElementById('sf-ap-vobo-box');
+  if (!box) return;
+  try {
+    var res   = await fetch(API_SF + '?accion=apartados_pendientes&t=' + Date.now());
+    var items = await res.json();
+    if (!Array.isArray(items) || !items.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    var fmt = function(n) { return '$' + parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+    var html = '<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px 14px">'
+      + '<div style="font-weight:700;color:#92400e;font-size:13px;margin-bottom:8px">Apartados de precio pendientes de tu VoBo</div>';
+    items.forEach(function(a) {
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #fde68a;font-size:12px;flex-wrap:wrap">'
+        + '<span style="flex:1;min-width:200px"><b>' + escHtmlSf(a.cliente_nombre) + '</b> &#8212; ' + fmt(a.monto) + ' &#183; vigencia ' + a.vigencia_dias + ' d&#237;as (hasta ' + escHtmlSf(a.vigencia_hasta) + ')</span>'
+        + '<button type="button" onclick="sfVoboResolver(' + a.id + ',\'activo\')" style="background:#16a34a;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">Aprobar</button>'
+        + '<button type="button" onclick="sfVoboResolver(' + a.id + ',\'rechazado\')" style="background:#ef4444;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">Rechazar</button>'
+        + '<button type="button" onclick="window.open(\'../app/imprimir_apartado.php?id=' + a.id + '\',\'_blank\')" style="background:#f1f5f9;border:none;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer">Ver</button>'
+        + '</div>';
+    });
+    html += '</div>';
+    box.innerHTML = html;
+    box.style.display = '';
+  } catch(e) {}
+}
+window.sfCargarVoboPendientes = sfCargarVoboPendientes;
+
+async function sfVoboResolver(apartadoId, nuevoEstatus) {
+  var nota = '';
+  if (nuevoEstatus === 'rechazado') {
+    nota = prompt('Motivo del rechazo (obligatorio):') || '';
+    if (!nota.trim()) { alert('Se requiere un motivo para rechazar'); return; }
+  }
+  try {
+    var r = await fetch(API_SF, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'vobo_apartado', apartado_id: apartadoId, estatus: nuevoEstatus, nota: nota})
+    });
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error desconocido');
+    sfCargarVoboPendientes();
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+window.sfVoboResolver = sfVoboResolver;
+
+// ── Apartado de Precio: armar productos en el modal de depósito ──────────────
+function sfToggleApartado() {
+  var checked = document.getElementById('sf-ap-check').checked;
+  document.getElementById('sf-ap-box').style.display = checked ? '' : 'none';
+  if (checked && !_sfCristalesCargados) sfCargarCristalesAp();
+}
+window.sfToggleApartado = sfToggleApartado;
+
+async function sfCargarCristalesAp() {
+  try {
+    var res   = await fetch('../api/cristales.php');
+    var items = await res.json();
+    var sel   = document.getElementById('sf-ap-cristal');
+    if (!sel) return;
+    var html = '<option value="">Producto...</option>';
+    items.forEach(function(c) {
+      html += '<option value="' + c.id + '" data-precio="' + parseFloat(c.precio_m2||0).toFixed(2) + '">' + escHtmlSf(c.nombre) + '</option>';
+    });
+    sel.innerHTML = html;
+    _sfCristalesCargados = true;
+  } catch(e) {}
+}
+
+function sfApPrellenar() {
+  var sel = document.getElementById('sf-ap-cristal');
+  var opt = sel.options[sel.selectedIndex];
+  var precio = opt ? opt.getAttribute('data-precio') : '';
+  if (precio) document.getElementById('sf-ap-precio').value = precio;
+}
+window.sfApPrellenar = sfApPrellenar;
+
+function sfAgregarItem() {
+  var sel        = document.getElementById('sf-ap-cristal');
+  var cristal_id = parseInt(sel.value || 0);
+  var nombre     = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+  var precio     = parseFloat(document.getElementById('sf-ap-precio').value || 0);
+  var m2refInput = document.getElementById('sf-ap-m2').value;
+  var m2ref      = m2refInput === '' ? null : parseFloat(m2refInput);
+
+  if (!cristal_id) { alert('Selecciona un producto'); return; }
+  if (precio <= 0) { alert('El precio pactado debe ser mayor a cero'); return; }
+
+  _sfApItems.push({cristal_id: cristal_id, cristal_nombre: nombre, precio_m2_pactado: precio, m2_referencia: m2ref});
+  document.getElementById('sf-ap-precio').value = '';
+  document.getElementById('sf-ap-m2').value     = '';
+  sfRenderApItems();
+}
+window.sfAgregarItem = sfAgregarItem;
+
+function sfQuitarItem(idx) {
+  _sfApItems.splice(idx, 1);
+  sfRenderApItems();
+}
+window.sfQuitarItem = sfQuitarItem;
+
+function sfRenderApItems() {
+  var box = document.getElementById('sf-ap-items');
+  if (!box) return;
+  if (!_sfApItems.length) { box.innerHTML = '<div style="font-size:12px;color:#94a3b8">Sin productos agregados</div>'; return; }
+  var html = '';
+  _sfApItems.forEach(function(it, idx) {
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f8fafc;border-radius:6px;margin-bottom:4px;font-size:12px">'
+      + '<span style="flex:1;font-weight:600">' + escHtmlSf(it.cristal_nombre) + '</span>'
+      + '<span>$' + it.precio_m2_pactado.toFixed(2) + '/m&#178;</span>'
+      + (it.m2_referencia ? '<span style="color:#64748b">ref. ' + it.m2_referencia + 'm&#178;</span>' : '')
+      + '<button type="button" onclick="sfQuitarItem(' + idx + ')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 4px">&times;</button>'
+      + '</div>';
+  });
+  box.innerHTML = html;
+}
 
 async function sfCargar() {
   try {
@@ -876,21 +1025,40 @@ async function sfToggleHist(cid, idx) {
       var inner = document.getElementById('sfhist-inner-' + cid);
       if (!inner) return;
       var fmt = function(n) { return '$' + parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
-      if (!movs.length) {
-        inner.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:8px 0">Sin movimientos registrados</div>'; return;
-      }
-      var html = movs.map(function(m) {
-        var pos = parseFloat(m.monto) >= 0;
-        return '<div class="sf-mov-row">'
-          + '<span class="sf-mov-tipo sf-mov-' + m.tipo + '">' + m.tipo.charAt(0).toUpperCase() + m.tipo.slice(1) + '</span>'
-          + '<span class="sf-mov-fecha">' + m.fecha + '</span>'
-          + (m.referencia ? '<span class="sf-mov-ref">' + escHtmlSf(m.referencia) + '</span>' : '<span class="sf-mov-ref" style="font-style:italic;color:#cbd5e1">Sin referencia</span>')
-          + (m.notas ? '<span style="font-size:12px;color:#64748b">' + escHtmlSf(m.notas) + '</span>' : '')
-          + '<span class="sf-mov-monto ' + (pos?'positivo':'negativo') + '">' + (pos?'+':'') + fmt(m.monto) + '</span>'
-          + '<span style="font-size:11px;color:#94a3b8">por ' + escHtmlSf(m.creado_por||'—') + '</span>'
-          + '</div>';
-      }).join('');
+      var html = !movs.length
+        ? '<div style="color:#94a3b8;font-size:13px;padding:8px 0">Sin movimientos registrados</div>'
+        : movs.map(function(m) {
+            var pos = parseFloat(m.monto) >= 0;
+            return '<div class="sf-mov-row">'
+              + '<span class="sf-mov-tipo sf-mov-' + m.tipo + '">' + m.tipo.charAt(0).toUpperCase() + m.tipo.slice(1) + '</span>'
+              + '<span class="sf-mov-fecha">' + m.fecha + '</span>'
+              + (m.referencia ? '<span class="sf-mov-ref">' + escHtmlSf(m.referencia) + '</span>' : '<span class="sf-mov-ref" style="font-style:italic;color:#cbd5e1">Sin referencia</span>')
+              + (m.notas ? '<span style="font-size:12px;color:#64748b">' + escHtmlSf(m.notas) + '</span>' : '')
+              + '<span class="sf-mov-monto ' + (pos?'positivo':'negativo') + '">' + (pos?'+':'') + fmt(m.monto) + '</span>'
+              + '<span style="font-size:11px;color:#94a3b8">por ' + escHtmlSf(m.creado_por||'—') + '</span>'
+              + '</div>';
+          }).join('');
       inner.innerHTML = html;
+
+      // Apartados de precio de este cliente
+      try {
+        var resAp = await fetch(API_SF + '?accion=apartados_cliente&cliente_id=' + cid);
+        var aps   = await resAp.json();
+        if (Array.isArray(aps) && aps.length) {
+          var etiquetas = {activo:'Activo', pendiente_vobo:'Pendiente de VoBo', rechazado:'Rechazado', vencido:'Vencido'};
+          var colores   = {activo:'#16a34a', pendiente_vobo:'#d97706', rechazado:'#ef4444', vencido:'#94a3b8'};
+          var htmlAp = '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 6px">Apartados de Precio</div>';
+          aps.forEach(function(a) {
+            var est = a.estatus_efectivo;
+            htmlAp += '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #f1f5f9;font-size:12px">'
+              + '<span style="color:' + (colores[est]||'#64748b') + ';font-weight:700;min-width:110px">' + (etiquetas[est]||est) + '</span>'
+              + '<span style="flex:1">' + fmt(a.monto) + ' &#183; vigencia hasta ' + escHtmlSf(a.vigencia_hasta) + '</span>'
+              + '<button type="button" onclick="window.open(\'../app/imprimir_apartado.php?id=' + a.id + '\',\'_blank\')" style="background:#f1f5f9;border:none;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer">Imprimir</button>'
+              + '</div>';
+          });
+          inner.innerHTML += htmlAp;
+        }
+      } catch(e2) {}
     } catch(e) {}
   }
 }
@@ -904,6 +1072,13 @@ function sfAbrirModal(clienteId, clienteNombre) {
   document.getElementById('sf-ref').value      = '';
   document.getElementById('sf-notas').value    = '';
   document.getElementById('sf-cli-lista').style.display = 'none';
+  document.getElementById('sf-ap-check').checked = false;
+  document.getElementById('sf-ap-box').style.display = 'none';
+  document.getElementById('sf-ap-vigencia').value = 7;
+  document.getElementById('sf-ap-precio').value   = '';
+  document.getElementById('sf-ap-m2').value       = '';
+  _sfApItems = [];
+  sfRenderApItems();
   document.getElementById('sfModalBg').classList.add('open');
   setTimeout(function() {
     var el = clienteId ? document.getElementById('sf-monto') : document.getElementById('sf-cli-busq');
@@ -949,15 +1124,32 @@ function sfSelCliente(id, nombre) {
 window.sfSelCliente = sfSelCliente;
 
 async function sfGuardar() {
-  var cid    = document.getElementById('sf-cli-id').value;
-  var monto  = parseFloat(document.getElementById('sf-monto').value || 0);
-  var fecha  = document.getElementById('sf-fecha').value;
-  var ref    = document.getElementById('sf-ref').value.trim();
-  var notas  = document.getElementById('sf-notas').value.trim();
+  var cid       = document.getElementById('sf-cli-id').value;
+  var monto     = parseFloat(document.getElementById('sf-monto').value || 0);
+  var fecha     = document.getElementById('sf-fecha').value;
+  var ref       = document.getElementById('sf-ref').value.trim();
+  var notas     = document.getElementById('sf-notas').value.trim();
+  var esApartado = document.getElementById('sf-ap-check').checked;
 
   if (!cid)      { alert('Selecciona un cliente'); document.getElementById('sf-cli-busq').focus(); return; }
   if (monto <= 0){ alert('El monto debe ser mayor a cero'); document.getElementById('sf-monto').focus(); return; }
   if (!fecha)    { alert('La fecha es obligatoria'); return; }
+
+  var payload;
+  if (esApartado) {
+    var vigencia = parseInt(document.getElementById('sf-ap-vigencia').value || 0);
+    if (vigencia < 1 || vigencia > 45) { alert('La vigencia debe ser de 1 a 45 días'); return; }
+    if (!_sfApItems.length) { alert('Agrega al menos un producto apartado'); return; }
+    payload = {
+      accion: 'crear_apartado', cliente_id: parseInt(cid), monto: monto, fecha: fecha,
+      referencia: ref, notas: notas, vigencia_dias: vigencia,
+      items: _sfApItems.map(function(it) {
+        return {cristal_id: it.cristal_id, precio_m2_pactado: it.precio_m2_pactado, m2_referencia: it.m2_referencia};
+      })
+    };
+  } else {
+    payload = {accion:'deposito', cliente_id: parseInt(cid), monto: monto, fecha: fecha, referencia: ref, notas: notas};
+  }
 
   var btn = document.getElementById('sf-btn-guardar');
   btn.disabled = true; btn.textContent = 'Guardando...';
@@ -965,7 +1157,7 @@ async function sfGuardar() {
     var r = await fetch(API_SF, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({accion:'deposito', cliente_id: parseInt(cid), monto: monto, fecha: fecha, referencia: ref, notas: notas})
+      body: JSON.stringify(payload)
     });
     var d = await r.json();
     if (!d.ok) throw new Error(d.error || 'Error desconocido');
@@ -975,6 +1167,13 @@ async function sfGuardar() {
     _sfAbiertos[parseInt(cid)] = true;
     sfRender();
     sfToggleHist(parseInt(cid), 0);
+    if (esApartado) {
+      var msg = d.estatus === 'activo'
+        ? 'Apartado registrado y activo. Se abrirá el comprobante para imprimir.'
+        : 'Apartado registrado. Queda pendiente del VoBo del Director antes de tener validez.';
+      alert(msg);
+      window.open('../app/imprimir_apartado.php?id=' + d.apartado_id, '_blank');
+    }
   } catch(e) {
     alert('Error: ' + e.message);
   } finally {
