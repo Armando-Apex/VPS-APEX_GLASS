@@ -343,7 +343,7 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       </button>
       <?php endif; ?>
       <?php if (tienePermiso($_rol, 'ver_contabilidad')): ?>
-      <button class="sidebar-link" data-modulo="contabilidad_catalogo" onclick="cargarModulo('contabilidad_catalogo')">
+      <button class="sidebar-link" data-modulo="contabilidad" onclick="cargarModulo('contabilidad')">
         <span class="sidebar-icon"><?= icono('layers') ?></span>Contabilidad <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px">WIP</span>
       </button>
       <?php endif; ?>
@@ -402,7 +402,7 @@ const MODULOS = {
   finanzas_vobo:'modulos/finanzas_vobo.php',
   finanzas_cobranza:'modulos/finanzas_cobranza.php',
   facturacion:'modulos/facturacion.php',
-  contabilidad_catalogo:'modulos/contabilidad_catalogo.php',
+  contabilidad:'modulos/contabilidad.php',
   logistica_rutas:'modulos/logistica_rutas.php', chofer_ruta:'modulos/chofer_ruta.php',
   omisiones:'modulos/omisiones.php',
   campanas:'modulos/campanas.php',

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
+require_once __DIR__ . '/../../api/helpers/icons.php';
 $user = requirePermiso('ver_contabilidad');
 $puedeEditar = tienePermiso($user['rol'], 'gestionar_contabilidad');
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {

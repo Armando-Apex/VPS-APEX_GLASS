@@ -98,6 +98,8 @@ define('PERMISOS', [
         'gestionar_inventario',
         'ver_wip',
         'gestionar_maquila_precios',
+        'ver_contabilidad',
+        'gestionar_contabilidad',
     ],
 ]);
 
