@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 31 julio 2026 | Próximo UPD disponible: UPD-431
+# Última actualización: 31 julio 2026 | Próximo UPD disponible: UPD-432
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -571,4 +571,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-430 | 31-jul-2026 | Armando | Fix tarjeta "Pendientes" en Reporte Dirección (`api/reporte_direccion.php` + `app/modulos/reporte_direccion.php`) — Armando pidió que solo cuente las que "conforman el período y que estén vivas", en vez de todo el histórico vivo sin filtro de fecha (comportamiento previo a este UPD, y que UPD-427 casi rompió por accidente). `total_cots`/`total_cotizado` ahora se filtran con `CASE WHEN c.created_at BETWEEN ? AND ?` (mismo `$desde`/`$hasta` del selector de período, igual criterio que `pipeline_total_periodo` de UPD-428) en vez de estar en el `WHERE` general — así no arrastran el filtro a `pipeline_vigente`, que a propósito sigue siendo independiente del período. Sub-texto de la tarjeta actualizado de "Vivas hoy, cualquier fecha" a "Vivas del período". `ticket_promedio` de esta misma query se deja sin tocar — confirmado que no lo consume ningún KPI visible (dead field). Verificado con BD real (julio): Pendientes pasa de 438 ($4,319,354.54, histórico completo) a **302 ($3,201,847.49)**, ya acotado al período. |
 
-**Próximo UPD disponible: UPD-431**
+| UPD-431 | 31-jul-2026 | Armando | Fix tarjeta "Foráneas" en Reporte Dirección mostrando siempre $0/0 — mismo patrón de bug que `cliente_id` en UPD-194: `api/cotizaciones.php` (`accion=convertir_orden`, ambos flujos suministro y maquila) nunca copiaba `ubicacion`/`ciudad_destino` de la cotización a la orden nueva al `INSERT INTO ordenes`. Solo `api/recibir_orden.php` (import viejo desde Google Sheets/Apps Script) llenaba ese campo, y ese camino dejó de usarse desde el 9-jun-2026 — desde entonces el 100% de las órdenes quedaban con `ubicacion` vacío, y la fórmula de la tarjeta (`!= 'FORANEO'` cuenta vacíos como local) las metía todas a "Locales" sin que se notara. Fix: (1) agregado `ubicacion` (`UPPER(cotizaciones.localidad)`) y `ciudad_destino` al INSERT en ambos flujos; (2) backfill de las 465 órdenes existentes con `ubicacion` vacío, copiando desde su cotización ligada (`UPDATE ... JOIN`, dentro de transacción con SELECT antes/después) — 99 resultaron foráneas, 366 locales. Verificado con BD real: total global Foráneas 54→153, Locales 153→519; para julio específicamente (período default del reporte) la tarjeta pasa de 0 foráneas a **217 locales / 57 foráneas**. |
+
+**Próximo UPD disponible: UPD-432**

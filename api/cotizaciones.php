@@ -205,14 +205,15 @@ if ($method === 'POST') {
 
                 $stmt3 = $db->prepare("INSERT INTO ordenes
                     (folio, orden_trabajo, tipo, cliente_id, cliente_nombre, asesor, proyecto,
-                     fecha_pedido, fecha_entrega, tipo_entrega, observaciones)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                     fecha_pedido, fecha_entrega, tipo_entrega, observaciones, ubicacion, ciudad_destino)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ");
                 $stmt3->execute([
                     $folio_final, $folio_final, 'maquila',
                     $cot['cliente_id'] ?: null, $cot['cliente_nombre'], $cot['asesor_nombre'],
                     $cot['proyecto'] ?? '', $cot['fecha'], $cot['fecha_entrega'],
-                    $cot['tipo_entrega'], $cot['alerta'] ?? ''
+                    $cot['tipo_entrega'], $cot['alerta'] ?? '',
+                    strtoupper($cot['localidad'] ?? 'local'), $cot['ciudad_destino'] ?? null
                 ]);
                 $orden_id = $db->lastInsertId();
 
@@ -248,8 +249,8 @@ if ($method === 'POST') {
             } else {
             $stmt3 = $db->prepare("INSERT INTO ordenes
                 (folio, orden_trabajo, tipo, cliente_id, cliente_nombre, asesor, proyecto,
-                 fecha_pedido, fecha_entrega, tipo_entrega, observaciones)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                 fecha_pedido, fecha_entrega, tipo_entrega, observaciones, ubicacion, ciudad_destino)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
             ");
             $stmt3->execute([
                 $folio_orden,
@@ -262,7 +263,9 @@ if ($method === 'POST') {
                 $cot['fecha'],
                 $cot['fecha_entrega'],
                 $cot['tipo_entrega'],
-                $cot['alerta'] ?? ''
+                $cot['alerta'] ?? '',
+                strtoupper($cot['localidad'] ?? 'local'),
+                $cot['ciudad_destino'] ?? null
             ]);
             $orden_id = $db->lastInsertId();
 
