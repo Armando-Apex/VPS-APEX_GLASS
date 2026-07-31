@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 31 julio 2026 | Próximo UPD disponible: UPD-419
+# Última actualización: 31 julio 2026 | Próximo UPD disponible: UPD-420
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -545,4 +545,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-418 | 31-jul-2026 | Armando | UX: el panel de chat de Campañas WhatsApp (`app/modulos/campanas.php`, `.conv-panel`) tenía altura fija `520px` sin importar el tamaño de pantalla — Armando reportó que se veía como ~60% del alto disponible. Cambiado a `height:calc(100vh - var(--topbar-h) - 160px)` con `min-height:460px` de piso; `.conv-lista`/`.conv-chat` ya heredan la altura por flexbox (`align-items:stretch` implícito), no necesitaron cambio. El offset de 160px es estimado a partir del CSS (padding del wrapper + fila de título + fila de tabs), sin verificación visual en navegador (no había Chrome DevTools MCP conectado en la sesión) — pendiente que Armando confirme que se ve bien y no corta contenido en pantallas chicas. Sin cambio en el breakpoint móvil (`@media max-width:640px` ya fuerza `height:auto`, no se tocó). |
 
-**Próximo UPD disponible: UPD-419**
+| UPD-419 | 31-jul-2026 | Armando | Fix orden de la bandeja de Campañas WhatsApp (`api/campanas.php`, `accion=conversaciones`): ordenaba solo por `ultima_actividad DESC`, así que una conversación sin leer se hundía en la lista en cuanto entraban mensajes nuevos en OTRAS conversaciones (reportado: contestas 4 de 5, llegan 8 más en otros chats, la sin leer queda en la posición 13, fuera de vista). Cambiado a `ORDER BY (mensajes_sin_leer > 0) DESC, ultima_actividad DESC` — las conversaciones sin leer siempre flotan arriba (ordenadas entre sí por más reciente), y bajan al grupo de leídas en cuanto se abren (`accion=marcar_leido` ya existente). No requirió cambios en el JS del módulo — `renderConvLista()` ya pinta la lista tal cual llega del API. |
+
+**Próximo UPD disponible: UPD-420**

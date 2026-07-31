@@ -256,7 +256,7 @@ if ($metodo === 'GET' && $accion === 'conversaciones') {
         LEFT JOIN prospectos pr ON wc.cliente_id IS NULL
             AND RIGHT(REGEXP_REPLACE(wc.telefono,'[^0-9]',''), 10) = pr.telefono
             AND pr.activo = 1
-        ORDER BY wc.ultima_actividad DESC");
+        ORDER BY (wc.mensajes_sin_leer > 0) DESC, wc.ultima_actividad DESC");
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     // Auto-vincular conversaciones sin cliente cuando el fallback por teléfono encontró uno
     $stmtVinc = $db->prepare("
