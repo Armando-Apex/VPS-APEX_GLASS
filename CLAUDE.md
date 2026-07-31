@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 31 julio 2026 | Próximo UPD disponible: UPD-429
+# Última actualización: 31 julio 2026 | Próximo UPD disponible: UPD-430
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -567,4 +567,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-428 | 31-jul-2026 | Armando | Rediseño de la tarjeta "Pipeline" en Reporte Dirección (`api/reporte_direccion.php` + `app/modulos/reporte_direccion.php`), a petición de Armando tras UPD-427: ya no muestra "mes anterior / mes actual" — ahora muestra **"Vigentes / Total del período"**. `pipeline_vigente` = cotizaciones sin convertir a orden que aún no cumplen los 15 días de vigencia (igual que UPD-427, independiente del selector de período). `pipeline_total_periodo` = TODAS las cotizaciones sin convertir del período seleccionado en el reporte (mismo `$desde`/`$hasta` que usa el resto de las tarjetas), **incluyendo las ya vencidas** — responde "cuánto se cotizó en el período" sin importar si ya caducó. De paso se corrigió una regresión propia de UPD-427: el filtro de 15 días se había puesto sobre el WHERE de toda la query, lo que también recortaba sin querer `total_cots`/`total_cotizado` (tarjeta "Pendientes", rotulada "cualquier fecha") y el desglose por asesor (Bethy/Cynthia) — esos 3 ya vuelven a ser sin filtro de antigüedad, como estaban antes de UPD-427. Verificado contra BD real: Pendientes regresa a $4,319,354.54 (438, cualquier fecha, correcto); Vigentes = $1,698,813.11; Total del período (julio) = $3,200,544.09. |
 
-**Próximo UPD disponible: UPD-429**
+| UPD-429 | 31-jul-2026 | Armando | Fix columna "Cotizado (pipeline)" en "Rendimiento por asesor" (Reporte Dirección) — Armando pidió que sea "las del mes", pero `bethy_total`/`cynthia_total` en `api/reporte_direccion.php` sumaban TODO histórico sin filtro de fecha. Agregado `AND c.created_at BETWEEN ? AND ?` (mismo `$desde`/`$hasta` del selector de período del reporte) a ambos CASE — mismo criterio que `pipeline_total_periodo` de UPD-428 (incluye vencidas del período, filtra por cuándo se cotizó, no por vigencia). Verificado con BD real (período por defecto, julio): Bethy $2,399,213.19 → $1,753,034.46; Cynthia $1,576,964.90 → $1,133,279.18. No se tocó `total_cots`/`total_cotizado` (tarjeta "Pendientes", sigue sin filtro por diseño). |
+
+**Próximo UPD disponible: UPD-430**

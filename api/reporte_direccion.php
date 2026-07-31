@@ -436,25 +436,31 @@ $finanzas = $stmtF->fetch(PDO::FETCH_ASSOC);
 //   - pipeline_total_periodo: TODAS las del período seleccionado (mismo $desde/
 //     $hasta que usa el resto del reporte), aunque ya estén vencidas — es
 //     "cuánto se cotizó en el período", sin filtrar por vigencia.
-// total_cots/total_cotizado/ticket_promedio/bethy_total/cynthia_total se dejan
-// SIN filtro de fecha (vivas hoy, cualquier antigüedad) — feeden la tarjeta
-// "Pendientes" y el desglose por asesor, que están rotulados como "cualquier
-// fecha"; UPD-427 los había filtrado por error al agregar el WHERE de 15 días
-// a nivel de toda la query en vez de solo a la columna de pipeline_vigente.
+// total_cots/total_cotizado/ticket_promedio se dejan SIN filtro de fecha (vivas
+// hoy, cualquier antigüedad) — feeden la tarjeta "Pendientes", rotulada como
+// "cualquier fecha"; UPD-427 la había filtrado por error al agregar el WHERE de
+// 15 días a nivel de toda la query en vez de solo a la columna pipeline_vigente.
+// bethy_total/cynthia_total ("Cotizado (pipeline)" en Rendimiento por asesor) SÍ
+// se filtran por el período seleccionado ($desde/$hasta) — a petición de
+// Armando, 31-jul-2026: ese pipeline por asesor debe ser "las del mes", igual
+// criterio que pipeline_total_periodo (incluye vencidas del período, no solo
+// vigentes — son cosas distintas: una es antigüedad, otra es cuándo se cotizó).
+$desdeTS = $desde . ' 00:00:00';
+$hastaTS = $hasta . ' 23:59:59';
 $stmtC = $pdo->prepare("
     SELECT
         COUNT(c.id)                                                                         AS total_cots,
         COALESCE(SUM(c.total), 0)                                                          AS total_cotizado,
         AVG(CASE WHEN COALESCE(c.total,0) > 0 THEN c.total ELSE NULL END)                  AS ticket_promedio,
-        COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Bethy%' THEN c.total ELSE 0 END), 0) AS bethy_total,
-        COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Cynthia%' THEN c.total ELSE 0 END),0) AS cynthia_total,
-        COALESCE(SUM(CASE WHEN c.fecha >= DATE_SUB(CURDATE(), INTERVAL 15 DAY) THEN c.total ELSE 0 END), 0) AS pipeline_vigente,
-        COALESCE(SUM(CASE WHEN c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0)                    AS pipeline_total_periodo
+        COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Bethy%' AND c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0)   AS bethy_total,
+        COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Cynthia%' AND c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0) AS cynthia_total,
+        COALESCE(SUM(CASE WHEN c.fecha >= DATE_SUB(CURDATE(), INTERVAL 15 DAY) THEN c.total ELSE 0 END), 0)                   AS pipeline_vigente,
+        COALESCE(SUM(CASE WHEN c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0)                                     AS pipeline_total_periodo
     FROM cotizaciones c
     WHERE c.folio >= 'COT-0100'
       AND c.estatus = 'cotizacion'
 ");
-$stmtC->execute([$desde . ' 00:00:00', $hasta . ' 23:59:59']);
+$stmtC->execute([$desdeTS, $hastaTS, $desdeTS, $hastaTS, $desdeTS, $hastaTS]);
 $cots_resumen = $stmtC->fetch(PDO::FETCH_ASSOC);
 
 // ── Tasa de conversión cotizaciones (período) ──
