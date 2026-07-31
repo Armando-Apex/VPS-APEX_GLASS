@@ -436,21 +436,29 @@ $finanzas = $stmtF->fetch(PDO::FETCH_ASSOC);
 //   - pipeline_total_periodo: TODAS las del período seleccionado (mismo $desde/
 //     $hasta que usa el resto del reporte), aunque ya estén vencidas — es
 //     "cuánto se cotizó en el período", sin filtrar por vigencia.
-// total_cots/total_cotizado/ticket_promedio se dejan SIN filtro de fecha (vivas
-// hoy, cualquier antigüedad) — feeden la tarjeta "Pendientes", rotulada como
-// "cualquier fecha"; UPD-427 la había filtrado por error al agregar el WHERE de
-// 15 días a nivel de toda la query en vez de solo a la columna pipeline_vigente.
+// total_cots/total_cotizado ("Pendientes") ahora SÍ se filtran por el período
+// seleccionado ($desde/$hasta) — a petición de Armando, 31-jul-2026: antes
+// mostraba TODO el histórico vivo sin importar la fecha, lo cual no cuadraba
+// contra la tarjeta "Cotizaciones" (576, del período) que está justo al lado.
+// Se filtra con CASE dentro del SUM (no en el WHERE) para no arrastrar el
+// filtro a pipeline_vigente, que a propósito debe seguir siendo independiente
+// del período (ver abajo). ticket_promedio queda sin uso en el frontend (dead
+// field histórico) — se deja sin filtro, no vale la pena mantenerlo si nadie
+// lo consume.
 // bethy_total/cynthia_total ("Cotizado (pipeline)" en Rendimiento por asesor) SÍ
 // se filtran por el período seleccionado ($desde/$hasta) — a petición de
 // Armando, 31-jul-2026: ese pipeline por asesor debe ser "las del mes", igual
 // criterio que pipeline_total_periodo (incluye vencidas del período, no solo
 // vigentes — son cosas distintas: una es antigüedad, otra es cuándo se cotizó).
+// pipeline_vigente sigue siendo la única columna de esta tarjeta que NO se
+// filtra por período — es "cuánto negocio vivo hay hoy" sin importar qué
+// período esté seleccionado en el reporte.
 $desdeTS = $desde . ' 00:00:00';
 $hastaTS = $hasta . ' 23:59:59';
 $stmtC = $pdo->prepare("
     SELECT
-        COUNT(c.id)                                                                         AS total_cots,
-        COALESCE(SUM(c.total), 0)                                                          AS total_cotizado,
+        COALESCE(SUM(CASE WHEN c.created_at BETWEEN ? AND ? THEN 1 ELSE 0 END), 0)          AS total_cots,
+        COALESCE(SUM(CASE WHEN c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0)    AS total_cotizado,
         AVG(CASE WHEN COALESCE(c.total,0) > 0 THEN c.total ELSE NULL END)                  AS ticket_promedio,
         COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Bethy%' AND c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0)   AS bethy_total,
         COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Cynthia%' AND c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0) AS cynthia_total,
@@ -460,7 +468,7 @@ $stmtC = $pdo->prepare("
     WHERE c.folio >= 'COT-0100'
       AND c.estatus = 'cotizacion'
 ");
-$stmtC->execute([$desdeTS, $hastaTS, $desdeTS, $hastaTS, $desdeTS, $hastaTS]);
+$stmtC->execute([$desdeTS, $hastaTS, $desdeTS, $hastaTS, $desdeTS, $hastaTS, $desdeTS, $hastaTS, $desdeTS, $hastaTS]);
 $cots_resumen = $stmtC->fetch(PDO::FETCH_ASSOC);
 
 // ── Tasa de conversión cotizaciones (período) ──

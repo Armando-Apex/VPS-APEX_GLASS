@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 31 julio 2026 | Próximo UPD disponible: UPD-430
+# Última actualización: 31 julio 2026 | Próximo UPD disponible: UPD-431
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -569,4 +569,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-429 | 31-jul-2026 | Armando | Fix columna "Cotizado (pipeline)" en "Rendimiento por asesor" (Reporte Dirección) — Armando pidió que sea "las del mes", pero `bethy_total`/`cynthia_total` en `api/reporte_direccion.php` sumaban TODO histórico sin filtro de fecha. Agregado `AND c.created_at BETWEEN ? AND ?` (mismo `$desde`/`$hasta` del selector de período del reporte) a ambos CASE — mismo criterio que `pipeline_total_periodo` de UPD-428 (incluye vencidas del período, filtra por cuándo se cotizó, no por vigencia). Verificado con BD real (período por defecto, julio): Bethy $2,399,213.19 → $1,753,034.46; Cynthia $1,576,964.90 → $1,133,279.18. No se tocó `total_cots`/`total_cotizado` (tarjeta "Pendientes", sigue sin filtro por diseño). |
 
-**Próximo UPD disponible: UPD-430**
+| UPD-430 | 31-jul-2026 | Armando | Fix tarjeta "Pendientes" en Reporte Dirección (`api/reporte_direccion.php` + `app/modulos/reporte_direccion.php`) — Armando pidió que solo cuente las que "conforman el período y que estén vivas", en vez de todo el histórico vivo sin filtro de fecha (comportamiento previo a este UPD, y que UPD-427 casi rompió por accidente). `total_cots`/`total_cotizado` ahora se filtran con `CASE WHEN c.created_at BETWEEN ? AND ?` (mismo `$desde`/`$hasta` del selector de período, igual criterio que `pipeline_total_periodo` de UPD-428) en vez de estar en el `WHERE` general — así no arrastran el filtro a `pipeline_vigente`, que a propósito sigue siendo independiente del período. Sub-texto de la tarjeta actualizado de "Vivas hoy, cualquier fecha" a "Vivas del período". `ticket_promedio` de esta misma query se deja sin tocar — confirmado que no lo consume ningún KPI visible (dead field). Verificado con BD real (julio): Pendientes pasa de 438 ($4,319,354.54, histórico completo) a **302 ($3,201,847.49)**, ya acotado al período. |
+
+**Próximo UPD disponible: UPD-431**
