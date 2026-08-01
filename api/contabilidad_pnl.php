@@ -45,9 +45,9 @@ if (isset($porCodigo['5.1'])) {
 
 $utilidadBruta = $totalIngresos - $costoVentas;
 
-// ── 3) Gastos operativos, financieros, impuestos (desde movimientos_contables) ─
+// ── 3) Gastos operativos, financieros, impuestos (movimientos_contables + Compras mapeadas) ─
 $stmtMov = $pdo->prepare("
-    SELECT c.codigo, c.nombre, c.tipo_financiero, c.cuenta_padre_id, COALESCE(SUM(m.monto), 0) AS monto
+    SELECT c.id, c.codigo, c.nombre, c.tipo_financiero, c.cuenta_padre_id, COALESCE(SUM(m.monto), 0) AS monto
     FROM cuentas_contables c
     LEFT JOIN movimientos_contables m ON m.cuenta_id = c.id AND m.fecha_movimiento BETWEEN ? AND ?
     WHERE c.es_acumulativa = 0 AND c.activo = 1
@@ -58,6 +58,8 @@ $stmtMov = $pdo->prepare("
 $stmtMov->execute([$desde, $hasta]);
 $movFilas = $stmtMov->fetchAll(PDO::FETCH_ASSOC);
 
+$comprasPorCuenta = gastosComprasPorCuenta($pdo, $desde, $hasta);
+
 $gastosOperativos = [];
 $financieros = [];
 $impuestos = [];
@@ -66,7 +68,8 @@ $totalFinancieros = 0.0;
 $totalImpuestos = 0.0;
 
 foreach ($movFilas as $f) {
-    $linea = ['codigo' => $f['codigo'], 'nombre' => $f['nombre'], 'monto' => (float) $f['monto']];
+    $monto = (float) $f['monto'] + ($comprasPorCuenta[(int) $f['id']] ?? 0.0);
+    $linea = ['codigo' => $f['codigo'], 'nombre' => $f['nombre'], 'monto' => $monto];
     if ($f['tipo_financiero'] === 'gasto_operativo') {
         $gastosOperativos[] = $linea;
         $totalGastosOperativos += $linea['monto'];
@@ -78,6 +81,8 @@ foreach ($movFilas as $f) {
         $totalImpuestos += $linea['monto'];
     }
 }
+
+$comprasSinMapear = comprasSinMapearPeriodo($pdo, $desde, $hasta);
 
 $utilidadOperativa = $utilidadBruta - $totalGastosOperativos;
 $utilidadAntesImpuestos = $utilidadOperativa - $totalFinancieros;
@@ -93,4 +98,5 @@ jsonResponse([
     'financieros' => ['lineas' => $financieros, 'total' => $totalFinancieros],
     'impuestos' => ['lineas' => $impuestos, 'total' => $totalImpuestos],
     'utilidad_neta' => $utilidadNeta,
+    'compras_sin_mapear' => $comprasSinMapear,
 ]);

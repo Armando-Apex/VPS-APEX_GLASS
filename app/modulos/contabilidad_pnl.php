@@ -183,10 +183,23 @@ async function cargar() {
 
 function render(d) {
   var cob = d.costo_ventas.cobertura;
-  var avisoEl = document.getElementById('avisoCobertura');
+  var avisos = [];
   if (cob && !cob.confiable) {
+    avisos.push('Aviso: solo ' + cob.pct_cobertura + '% de las piezas entregadas en este rango tienen costo real trazado (' + cob.piezas_con_costo + ' de ' + cob.piezas_total + '). El costo de ventas está subestimado y el margen mostrado no es confiable.');
+  }
+  if (d.compras_sin_mapear && d.compras_sin_mapear.length) {
+    var totalSinMapear = 0;
+    var nombres = [];
+    for (var si = 0; si < d.compras_sin_mapear.length; si++) {
+      totalSinMapear += parseFloat(d.compras_sin_mapear[si].monto);
+      nombres.push(d.compras_sin_mapear[si].categoria);
+    }
+    avisos.push('Aviso: hay ' + fmt(totalSinMapear) + ' en pagos de Compras (' + nombres.join(', ') + ') sin cuenta contable asignada todavía — no están incluidos en Gastos Operativos. Asígnalas en Contabilidad → Mapeo Compras.');
+  }
+  var avisoEl = document.getElementById('avisoCobertura');
+  if (avisos.length) {
     avisoEl.style.display = 'block';
-    avisoEl.textContent = 'Aviso: solo ' + cob.pct_cobertura + '% de las piezas entregadas en este rango tienen costo real trazado (' + cob.piezas_con_costo + ' de ' + cob.piezas_total + '). El costo de ventas está subestimado y el margen mostrado no es confiable.';
+    avisoEl.innerHTML = avisos.map(esc).join('<br>');
   } else {
     avisoEl.style.display = 'none';
   }

@@ -73,6 +73,53 @@ function costoVentasPeriodo(PDO $pdo, string $desde, string $hasta): float {
 }
 
 /**
+ * Gastos de Compras (OCs tipo 'suministro' — Mantenimiento, Herramienta,
+ * Limpieza, etc.) que ya tienen regla de mapeo a una cuenta contable
+ * (cuenta_mapeo_reglas, origen_tipo='oc_categoria'). Reconocido en base a
+ * efectivo (oc_pagos.fecha_pago), igual que Nómina/Gastos Fijos/Caja Chica.
+ * OCs tipo 'material' (vidrio/flete) se excluyen a propósito — ese costo ya
+ * llega al P&L vía costoVentasPeriodo() (consumo real trazado); incluirlo
+ * aquí también duplicaría el gasto.
+ * Regresa [cuenta_id => monto].
+ */
+function gastosComprasPorCuenta(PDO $pdo, string $desde, string $hasta): array {
+    $stmt = $pdo->prepare("
+        SELECT r.cuenta_id, SUM(p.monto) AS monto
+        FROM oc_pagos p
+        JOIN ordenes_compra oc ON oc.id = p.orden_compra_id
+        JOIN cuenta_mapeo_reglas r ON r.origen_tipo = 'oc_categoria' AND r.origen_valor = oc.categoria
+        WHERE oc.tipo = 'suministro'
+          AND p.fecha_pago BETWEEN ? AND ?
+        GROUP BY r.cuenta_id
+    ");
+    $stmt->execute([$desde, $hasta]);
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[(int) $r['cuenta_id']] = (float) $r['monto'];
+    }
+    return $out;
+}
+
+/**
+ * Categorías de Compras (tipo 'suministro') con pagos en el rango pero SIN
+ * regla de mapeo todavía — para avisar en vez de perder el gasto en silencio.
+ */
+function comprasSinMapearPeriodo(PDO $pdo, string $desde, string $hasta): array {
+    $stmt = $pdo->prepare("
+        SELECT oc.categoria, SUM(p.monto) AS monto
+        FROM oc_pagos p
+        JOIN ordenes_compra oc ON oc.id = p.orden_compra_id
+        LEFT JOIN cuenta_mapeo_reglas r ON r.origen_tipo = 'oc_categoria' AND r.origen_valor = oc.categoria
+        WHERE oc.tipo = 'suministro'
+          AND p.fecha_pago BETWEEN ? AND ?
+          AND r.id IS NULL
+        GROUP BY oc.categoria
+    ");
+    $stmt->execute([$desde, $hasta]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
  * % de piezas entregadas en el rango que sí tienen costo real trazado
  * (via wizard de corte). Bajo este % el costo de ventas del rango
  * está subestimado — el margen que salga no es confiable.
