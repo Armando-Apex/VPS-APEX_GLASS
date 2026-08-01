@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 01 agosto 2026 | Próximo UPD disponible: UPD-441
+# Última actualización: 01 agosto 2026 | Próximo UPD disponible: UPD-442
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -591,4 +591,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-440 | 01-ago-2026 | Armando | Captura manual de precios de compra para completar cobertura de costeo del P&L (catálogo `laminas` + `inventario_compras`, ver hallazgo UPD-438). Se agregaron 3 de los 5 tipos de vidrio sin precio de referencia detectados: **Bronce 6mm** (3.60×2.60m=9.36m², $6,149 neto, Bodega de Vidrios y Cristales de León — requirió `ALTER TABLE laminas MODIFY tipo ENUM(...)` para agregar 'bronce', no estaba en el catálogo cerrado), **Filtrasol 9mm** (3.66×2.14m=7.83m², $5,286.87 neto, mismo proveedor — se creó lámina nueva en vez de usar la existente id=2 de 3.60×2.60m porque el tamaño real es distinto y esa entrada nunca tuvo compras), **Satinado 6mm** (1.80×2.60m=4.68m², $1,869 neto, mismo proveedor). Todos son precios de referencia manuales (no atados a una OC real), marcados así en `notas`. Cobertura histórica de piezas costeables sube de la base anterior a **97.1%** (2,094 de 2,156 piezas, excluyendo maquila). Pendiente (Armando decidió pausar aquí): Bronce 9mm, Claro 5mm, y el precio de INDI GLASS para Satinado 6mm (Armando mencionó que también se lo vende, para promediar entre las 2 fuentes). |
 
-**Próximo UPD disponible: UPD-441**
+| UPD-441 | 01-ago-2026 | Armando | Corrección de datos (no código): los 3 precios de UPD-440 (Bronce 6mm $6,149, Filtrasol 9mm $5,286.87, Satinado 6mm $1,869) los dio Armando **con IVA incluido**, no netos como se asumió inicialmente — Armando lo confirmó al preguntarle directo. Corregidos los 3 `inventario_compras.precio_unitario` dividiendo entre 1.16 (Bronce→$5,300.8621, Filtrasol→$4,557.6466, Satinado→$1,611.2069), nota agregada documentando la corrección. Costo de Ventas de julio baja de $422,087.87 a **$421,602.10** (Utilidad Bruta: $713,808.44). |
+
+**Próximo UPD disponible: UPD-442**
