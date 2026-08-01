@@ -51,6 +51,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <div class="top-bar">
     <div class="section-title"><?= icono('bar-chart-2') ?> Estado de Resultados (P&amp;L) <span class="wip-badge">WIP</span></div>
     <div class="rango-selector">
+      <select id="rangoPreset">
+        <option value="mes_actual">Mes actual</option>
+        <option value="mes_anterior" selected>Mes anterior</option>
+        <option value="2_meses_atras">2 meses atrás</option>
+        <option value="trimestre">Trimestre (últimos 3 meses)</option>
+        <option value="semestre">Semestre (últimos 6 meses)</option>
+        <option value="anio">Año actual</option>
+        <option value="personalizado">Personalizado</option>
+      </select>
       <input type="date" id="fDesde">
       <span style="color:#94a3b8">a</span>
       <input type="date" id="fHasta">
@@ -84,14 +93,63 @@ function esc(s) {
   return d.innerHTML;
 }
 
-function inicioMes() {
-  var d = new Date();
-  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-01';
-}
-
 function hoy() {
   var d = new Date();
   return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+}
+
+function pad2(n) { return ('0' + n).slice(-2); }
+function fechaStr(y, m, d) { return y + '-' + pad2(m) + '-' + pad2(d); }
+function ultimoDiaMes(y, m) { return new Date(y, m, 0).getDate(); }
+
+function calcularRango(preset) {
+  var hoyD = new Date();
+  var y = hoyD.getFullYear();
+  var m = hoyD.getMonth() + 1;
+  var py, pm;
+
+  if (preset === 'mes_actual') {
+    return { desde: fechaStr(y, m, 1), hasta: hoy() };
+  }
+  if (preset === 'mes_anterior') {
+    py = y; pm = m - 1;
+    if (pm === 0) { pm = 12; py = y - 1; }
+    return { desde: fechaStr(py, pm, 1), hasta: fechaStr(py, pm, ultimoDiaMes(py, pm)) };
+  }
+  if (preset === '2_meses_atras') {
+    py = y; pm = m - 2;
+    if (pm <= 0) { pm += 12; py = y - 1; }
+    return { desde: fechaStr(py, pm, 1), hasta: fechaStr(py, pm, ultimoDiaMes(py, pm)) };
+  }
+  if (preset === 'trimestre') {
+    py = y; pm = m - 2;
+    if (pm <= 0) { pm += 12; py = y - 1; }
+    return { desde: fechaStr(py, pm, 1), hasta: hoy() };
+  }
+  if (preset === 'semestre') {
+    py = y; pm = m - 5;
+    if (pm <= 0) { pm += 12; py = y - 1; }
+    return { desde: fechaStr(py, pm, 1), hasta: hoy() };
+  }
+  if (preset === 'anio') {
+    return { desde: fechaStr(y, 1, 1), hasta: hoy() };
+  }
+  return null;
+}
+
+function aplicarPreset() {
+  var preset = document.getElementById('rangoPreset').value;
+  var rango = calcularRango(preset);
+  if (rango) {
+    document.getElementById('fDesde').value = rango.desde;
+    document.getElementById('fHasta').value = rango.hasta;
+  }
+  cargar();
+}
+
+function fechaEditadaManual() {
+  document.getElementById('rangoPreset').value = 'personalizado';
+  cargar();
 }
 
 function bloque(titulo, lineas, total, esResta) {
@@ -153,12 +211,11 @@ function render(d) {
   document.getElementById('pnlContent').innerHTML = html;
 }
 
-document.getElementById('fDesde').value = inicioMes();
-document.getElementById('fHasta').value = hoy();
-document.getElementById('fDesde').addEventListener('change', cargar);
-document.getElementById('fHasta').addEventListener('change', cargar);
+document.getElementById('rangoPreset').addEventListener('change', aplicarPreset);
+document.getElementById('fDesde').addEventListener('change', fechaEditadaManual);
+document.getElementById('fHasta').addEventListener('change', fechaEditadaManual);
 
-cargar();
+aplicarPreset();
 
 return { init: cargar };
 })();
