@@ -3,7 +3,8 @@
  * Helpers de datos para el Estado de Resultados (P&L) — Contabilidad WIP.
  * Ingreso se reconoce al dar VoBo la orden (cotizaciones.vobo_at) — acuerdo
  * con Armando 01-ago-2026: "las ventas son las órdenes que tuvieron acción
- * de VoBo de parte de Lina", no la entrega física.
+ * de VoBo de parte de Lina", no la entrega física. Se usa cotizaciones.subtotal
+ * (neto de IVA), NO cotizaciones.total — el IVA es un pasivo (SAT), no ingreso.
  *
  * Costo de ventas (acuerdo con Armando 01-ago-2026, reemplaza el método por
  * wizard de corte que solo cubría ~44% de las piezas): m² de cada pieza
@@ -55,7 +56,7 @@ const PNL_COSTO_PROM_SUBQUERY = "(
 
 function ingresosPeriodo(PDO $pdo, string $desde, string $hasta): float {
     $stmt = $pdo->prepare("
-        SELECT COALESCE(SUM(c.total), 0) AS ingresos
+        SELECT COALESCE(SUM(c.subtotal), 0) AS ingresos
         FROM ordenes o
         JOIN cotizaciones c ON c.orden_id = o.id
         WHERE o.estado IN ('activa', 'entregada')
@@ -73,7 +74,7 @@ function ingresosPeriodo(PDO $pdo, string $desde, string $hasta): float {
  */
 function ingresosPorTipoPeriodo(PDO $pdo, string $desde, string $hasta): array {
     $stmt = $pdo->prepare("
-        SELECT c.tipo, COALESCE(SUM(c.total), 0) AS total
+        SELECT c.tipo, COALESCE(SUM(c.subtotal), 0) AS total
         FROM ordenes o
         JOIN cotizaciones c ON c.orden_id = o.id
         WHERE o.estado IN ('activa', 'entregada')
