@@ -66,7 +66,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     </div>
   </div>
 
-  <div class="wip-banner">Módulo en construcción — el costo de ventas solo es confiable desde el 21-jul-2026 (fecha en que arrancó el trazo de consumo real por pieza). Rangos anteriores mostrarán costo subestimado y margen falsamente alto.</div>
+  <div class="wip-banner">Módulo en construcción — el costo de ventas se calcula como m² vendidos × precio promedio de compra por tipo/espesor de vidrio (no depende del wizard de corte). Si un tipo de vidrio nunca se ha comprado, esa pieza no se puede costear y baja la cobertura (ver aviso abajo si aplica).</div>
 
   <div class="aviso-cobertura" id="avisoCobertura"></div>
 
