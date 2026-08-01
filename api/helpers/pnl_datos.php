@@ -1,7 +1,9 @@
 <?php
 /**
  * Helpers de datos para el Estado de Resultados (P&L) — Contabilidad WIP.
- * Ingreso se reconoce al entregar la orden (fecha_cierre).
+ * Ingreso se reconoce al dar VoBo la orden (cotizaciones.vobo_at) — acuerdo
+ * con Armando 01-ago-2026: "las ventas son las órdenes que tuvieron acción
+ * de VoBo de parte de Lina", no la entrega física.
  * Costo de ventas es consumo real de material, trazado desde sesiones_corte
  * (wizard de corte). Antes de 2026-07-21 no existe ese trazo — ver
  * costoVentasCobertura() para saber qué tan confiable es un rango dado.
@@ -14,7 +16,8 @@ function ingresosPeriodo(PDO $pdo, string $desde, string $hasta): float {
         JOIN cotizaciones c ON c.orden_id = o.id
         WHERE o.estado IN ('activa', 'entregada')
           AND c.estatus NOT IN ('cancelada', 'rechazada')
-          AND DATE(COALESCE(o.fecha_cierre, o.updated_at)) BETWEEN ? AND ?
+          AND c.vobo_at IS NOT NULL
+          AND DATE(c.vobo_at) BETWEEN ? AND ?
     ");
     $stmt->execute([$desde, $hasta]);
     return (float) $stmt->fetchColumn();
@@ -31,7 +34,8 @@ function ingresosPorTipoPeriodo(PDO $pdo, string $desde, string $hasta): array {
         JOIN cotizaciones c ON c.orden_id = o.id
         WHERE o.estado IN ('activa', 'entregada')
           AND c.estatus NOT IN ('cancelada', 'rechazada')
-          AND DATE(COALESCE(o.fecha_cierre, o.updated_at)) BETWEEN ? AND ?
+          AND c.vobo_at IS NOT NULL
+          AND DATE(c.vobo_at) BETWEEN ? AND ?
         GROUP BY c.tipo
     ");
     $stmt->execute([$desde, $hasta]);
@@ -50,6 +54,7 @@ function costoVentasPeriodo(PDO $pdo, string $desde, string $hasta): float {
         JOIN sesiones_corte_piezas scp ON scp.sesion_id = sc.id AND scp.incluida = 1
         JOIN piezas p ON p.id = scp.pieza_id
         JOIN ordenes o ON o.id = p.orden_id
+        JOIN cotizaciones c ON c.orden_id = o.id
         JOIN (
             SELECT ic.lamina_id,
                    SUM(ic.cantidad_laminas * COALESCE(ic.costo_real_unitario, ic.precio_unitario))
@@ -59,7 +64,9 @@ function costoVentasPeriodo(PDO $pdo, string $desde, string $hasta): float {
             GROUP BY ic.lamina_id
         ) cp ON cp.lamina_id = im.lamina_id
         WHERE o.estado IN ('activa', 'entregada')
-          AND DATE(COALESCE(o.fecha_cierre, o.updated_at)) BETWEEN ? AND ?
+          AND c.estatus NOT IN ('cancelada', 'rechazada')
+          AND c.vobo_at IS NOT NULL
+          AND DATE(c.vobo_at) BETWEEN ? AND ?
     ");
     $stmt->execute([$desde, $hasta]);
     return (float) $stmt->fetchColumn();
@@ -77,9 +84,12 @@ function costoVentasCobertura(PDO $pdo, string $desde, string $hasta): array {
             COUNT(DISTINCT CASE WHEN scp.id IS NOT NULL THEN p.id END) AS piezas_con_costo
         FROM piezas p
         JOIN ordenes o ON o.id = p.orden_id
+        JOIN cotizaciones c ON c.orden_id = o.id
         LEFT JOIN sesiones_corte_piezas scp ON scp.pieza_id = p.id AND scp.incluida = 1
         WHERE o.estado IN ('activa', 'entregada')
-          AND DATE(COALESCE(o.fecha_cierre, o.updated_at)) BETWEEN ? AND ?
+          AND c.estatus NOT IN ('cancelada', 'rechazada')
+          AND c.vobo_at IS NOT NULL
+          AND DATE(c.vobo_at) BETWEEN ? AND ?
     ");
     $stmt->execute([$desde, $hasta]);
     $r = $stmt->fetch(PDO::FETCH_ASSOC);

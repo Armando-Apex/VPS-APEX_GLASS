@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 01 agosto 2026 | Próximo UPD disponible: UPD-437
+# Última actualización: 01 agosto 2026 | Próximo UPD disponible: UPD-438
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -583,4 +583,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-436 | 01-ago-2026 | Armando | Fix de seguimiento a UPD-435: seguía sin poder recibir mercancía en OCs ya pagadas (caso real: APEX-0210, faltaban por recibir 7 láminas Claro 12.00MM de la partida 78 — la OC quedó en `pagada` el 30-jul sin haber recibido esa partida, flujo pagar-antes-de-recibir). Causa: el botón "Registrar entrega" en `app/modulos/inventario.php` línea 1191 solo se mostraba con `oc.estado==='abierta'`, sin contemplar `'pagada'` — aunque `api/ordenes_compra.php` (guard `[C-7]`, línea 368) documenta explícitamente que ese flujo es válido (`in_array($estado_oc, ['abierta','pagada'])`) y que el cierre de OC nunca degrada una `pagada` de vuelta a `cerrada`. Fix: condición del botón ampliada a `(oc.estado==='abierta' \|\| oc.estado==='pagada') && puedeGestionar`. No se tocó el backend (ya soportaba el caso) ni la lógica de cierre. Verificado con `php -l`; pendiente que Armando confirme en el navegador registrando la entrega de las 7 láminas pendientes de APEX-0210. |
 
-**Próximo UPD disponible: UPD-437**
+| UPD-437 | 01-ago-2026 | Armando | Fix criterio de reconocimiento de ingreso en Estado de Resultados (`api/helpers/pnl_datos.php`) — Armando reportó que julio mostraba $2,024,374.96 en Ingresos y no cuadraba; encontramos que el filtro contaba órdenes `activa` (aún sin entregar) cuyo `updated_at` cayó en el rango por cualquier motivo, no por venderse ese mes ($357,580.91 de 48 órdenes así en julio). Acuerdo explícito con Armando: **"las ventas son las órdenes que tuvieron acción de VoBo de parte de Lina"** — no la entrega física. Cambiadas las 4 funciones (`ingresosPeriodo`, `ingresosPorTipoPeriodo`, `costoVentasPeriodo`, `costoVentasCobertura`) para filtrar por `DATE(cotizaciones.vobo_at)` en vez de `COALESCE(o.fecha_cierre, o.updated_at)` — mismo criterio en las 4 para que Ingresos y Costo de Ventas midan el mismo período de cada orden. `costoVentasPeriodo`/`costoVentasCobertura` no tenían JOIN a `cotizaciones`, se agregó. Verificado contra BD real: julio pasa de $2,024,374.96 a **$1,317,476.21** (293 órdenes con VoBo en julio: 244 entregadas + 49 activas). Cobertura de costo trazado también cambia de base (1,306 piezas / 572 con costo = 43.8%) porque ahora incluye piezas de órdenes activas aún no cortadas del todo. |
+
+**Próximo UPD disponible: UPD-438**
