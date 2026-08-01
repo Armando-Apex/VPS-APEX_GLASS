@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 01 agosto 2026 | Próximo UPD disponible: UPD-440
+# Última actualización: 01 agosto 2026 | Próximo UPD disponible: UPD-441
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -589,4 +589,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-439 | 01-ago-2026 | Armando | Fix contable: Ingresos del Estado de Resultados sumaba `cotizaciones.total`, que INCLUYE IVA (16%) — el IVA es un pasivo (dinero que se le debe al SAT), no ingreso. Armando pidió revisar si el P&L seguía reglas contables comúnmente aceptadas; se encontró este error real (los otros 3 puntos revisados — reconocimiento por VoBo en vez de entrega, gastos en base de efectivo, costeo promedio vs FIFO usado en inventario — son decisiones de diseño válidas para un P&L gerencial interno, no bugs). Cambiadas `ingresosPeriodo()` e `ingresosPorTipoPeriodo()` en `api/helpers/pnl_datos.php` para usar `cotizaciones.subtotal` (neto de IVA, ya viene post-descuento) en vez de `cotizaciones.total`. Verificado contra BD real: julio pasa de $1,317,476.21 a **$1,135,410.54** en Ingresos (Utilidad Bruta: $716,844.47). |
 
-**Próximo UPD disponible: UPD-440**
+| UPD-440 | 01-ago-2026 | Armando | Captura manual de precios de compra para completar cobertura de costeo del P&L (catálogo `laminas` + `inventario_compras`, ver hallazgo UPD-438). Se agregaron 3 de los 5 tipos de vidrio sin precio de referencia detectados: **Bronce 6mm** (3.60×2.60m=9.36m², $6,149 neto, Bodega de Vidrios y Cristales de León — requirió `ALTER TABLE laminas MODIFY tipo ENUM(...)` para agregar 'bronce', no estaba en el catálogo cerrado), **Filtrasol 9mm** (3.66×2.14m=7.83m², $5,286.87 neto, mismo proveedor — se creó lámina nueva en vez de usar la existente id=2 de 3.60×2.60m porque el tamaño real es distinto y esa entrada nunca tuvo compras), **Satinado 6mm** (1.80×2.60m=4.68m², $1,869 neto, mismo proveedor). Todos son precios de referencia manuales (no atados a una OC real), marcados así en `notas`. Cobertura histórica de piezas costeables sube de la base anterior a **97.1%** (2,094 de 2,156 piezas, excluyendo maquila). Pendiente (Armando decidió pausar aquí): Bronce 9mm, Claro 5mm, y el precio de INDI GLASS para Satinado 6mm (Armando mencionó que también se lo vende, para promediar entre las 2 fuentes). |
+
+**Próximo UPD disponible: UPD-441**
