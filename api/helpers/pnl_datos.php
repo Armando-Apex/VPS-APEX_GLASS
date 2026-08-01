@@ -20,6 +20,28 @@ function ingresosPeriodo(PDO $pdo, string $desde, string $hasta): float {
     return (float) $stmt->fetchColumn();
 }
 
+/**
+ * Ingresos separados por tipo de cotización (suministro/maquila), para
+ * repartirlos en las cuentas hoja 4.1/4.2 del catálogo en vez de un solo total.
+ */
+function ingresosPorTipoPeriodo(PDO $pdo, string $desde, string $hasta): array {
+    $stmt = $pdo->prepare("
+        SELECT c.tipo, COALESCE(SUM(c.total), 0) AS total
+        FROM ordenes o
+        JOIN cotizaciones c ON c.orden_id = o.id
+        WHERE o.estado IN ('activa', 'entregada')
+          AND c.estatus NOT IN ('cancelada', 'rechazada')
+          AND DATE(COALESCE(o.fecha_cierre, o.updated_at)) BETWEEN ? AND ?
+        GROUP BY c.tipo
+    ");
+    $stmt->execute([$desde, $hasta]);
+    $out = ['suministro' => 0.0, 'maquila' => 0.0];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        if (isset($out[$r['tipo']])) $out[$r['tipo']] = (float) $r['total'];
+    }
+    return $out;
+}
+
 function costoVentasPeriodo(PDO $pdo, string $desde, string $hasta): float {
     $stmt = $pdo->prepare("
         SELECT COALESCE(ROUND(SUM(scp.m2_pieza * cp.costo_prom_m2), 2), 0) AS costo_ventas

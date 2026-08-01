@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
 $user = requirePermiso('ver_inventario');
-$puedeGestionar = in_array($user['rol'], ['dir_admin','administracion','desarrollo']);
+$puedeGestionar = in_array($user['rol'], ['dir_admin','administracion','dueno','desarrollo']);
 $esDirAdmin     = $user['rol'] === 'dir_admin';
 // Asesores (comercial) solo ven la pestaña Stock — solo lectura, sin gestión
 $soloStock      = $user['rol'] === 'comercial';
@@ -1188,7 +1188,7 @@ async function ocVerDetalle(id) {
         '<div style="display:flex;gap:8px">'+
           '<a class="btn btn-ghost btn-sm" href="imprimir_orden_compra.php?id='+oc.id+'" target="_blank" rel="noopener">&#128438; Imprimir OC</a>'+
           (puedeEditarHeader ? '<button class="btn btn-primary btn-sm" onclick="ocAbrirAgregarPartida('+oc.id+')">+ Agregar partida</button>' : '')+
-          (oc.estado==='abierta' && puedeGestionar ? '<button class="btn btn-success btn-sm" onclick="ocAbrirEntrega('+oc.id+')">&#128230; Registrar entrega</button>' : '')+
+          ((oc.estado==='abierta' || oc.estado==='pagada') && puedeGestionar ? '<button class="btn btn-success btn-sm" onclick="ocAbrirEntrega('+oc.id+')">&#128230; Registrar entrega</button>' : '')+
         '</div>'+
       '</div>'+
       '<table class="rd-modal-table" style="margin-bottom:16px">'+

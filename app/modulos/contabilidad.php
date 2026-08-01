@@ -46,6 +46,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <button class="contab-tab-btn" data-tab="contabilidad_mapeo" onclick="ModContabilidad.cargarTab('contabilidad_mapeo', this)">Mapeo Compras</button>
     <button class="contab-tab-btn" data-tab="nomina" onclick="ModContabilidad.cargarTab('nomina', this)">Nómina</button>
     <button class="contab-tab-btn" data-tab="gastos_fijos" onclick="ModContabilidad.cargarTab('gastos_fijos', this)">Gastos Fijos</button>
+    <button class="contab-tab-btn" data-tab="caja_chica" onclick="ModContabilidad.cargarTab('caja_chica', this)">Caja Chica</button>
+    <button class="contab-tab-btn" data-tab="contabilidad_pnl" onclick="ModContabilidad.cargarTab('contabilidad_pnl', this)">Estado de Resultados</button>
   </div>
 
   <div id="contab-content"><div class="empty-loading">Cargando...</div></div>
@@ -57,7 +59,9 @@ var ARCHIVOS = {
   contabilidad_catalogo: 'modulos/contabilidad_catalogo.php',
   contabilidad_mapeo: 'modulos/contabilidad_mapeo.php',
   nomina: 'modulos/nomina.php',
-  gastos_fijos: 'modulos/gastos_fijos.php'
+  gastos_fijos: 'modulos/gastos_fijos.php',
+  caja_chica: 'modulos/caja_chica.php',
+  contabilidad_pnl: 'modulos/contabilidad_pnl.php'
 };
 var scriptsInyectados = [];
 

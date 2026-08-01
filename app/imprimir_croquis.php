@@ -360,6 +360,10 @@ $folioMostrar = $cot['orden_folio'] ?: ($cot['folio'] ?? '');
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96">
+<link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
+<link rel="manifest" href="/favicon/site.webmanifest">
 <meta charset="UTF-8">
 <title>Croquis P<?= (int)$cq['num_partida'] ?> — <?= htmlspecialchars($folioMostrar) ?> — APEX GLASS</title>
 <style>
