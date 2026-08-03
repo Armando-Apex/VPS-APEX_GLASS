@@ -1,6 +1,7 @@
 <?php
 require_once 'config.php';
 require_once 'permisos.php';
+require_once 'helpers/polizas_lib.php';
 
 header('Content-Type: application/json');
 
@@ -58,6 +59,11 @@ if ($method === 'POST') {
         jsonResponse(['error' => 'Datos incompletos o inválidos']); exit;
     }
 
+    $tipoFinanciero = $pdo->prepare("SELECT tipo_financiero FROM cuentas_contables WHERE id = ?");
+    $tipoFinanciero->execute([$cuenta_id]);
+    $tipoFinanciero = $tipoFinanciero->fetchColumn();
+    if (!$tipoFinanciero) { jsonResponse(['error' => 'Cuenta contable no encontrada']); exit; }
+
     $pdo->beginTransaction();
     try {
         $stmt = $pdo->prepare("
@@ -70,9 +76,17 @@ if ($method === 'POST') {
 
         $stmtMov = $pdo->prepare("
             INSERT INTO movimientos_contables (cuenta_id, origen_tabla, origen_id, monto, fecha_movimiento, tipo_financiero, descripcion)
-            VALUES (?, 'caja_chica_movimientos', ?, ?, ?, 'gasto_operativo', ?)
+            VALUES (?, 'caja_chica_movimientos', ?, ?, ?, ?, ?)
         ");
-        $stmtMov->execute([$cuenta_id, $movId, $monto, $fecha, $concepto]);
+        $stmtMov->execute([$cuenta_id, $movId, $monto, $fecha, $tipoFinanciero, $concepto]);
+
+        $bancos = pl_cuentaId($pdo, '1.1');
+        if ($bancos) {
+            pl_generarAutomatica($pdo, 'caja_chica_movimientos', $movId, 'egresos', $fecha,
+                'Caja chica: ' . $concepto,
+                [[$cuenta_id, $monto, 0, $concepto], [$bancos, 0, $monto, $concepto]],
+                (int)$user['id']);
+        }
 
         $pdo->commit();
     } catch (Exception $e) {
@@ -93,6 +107,7 @@ if ($method === 'DELETE') {
     try {
         $pdo->prepare("DELETE FROM movimientos_contables WHERE origen_tabla = 'caja_chica_movimientos' AND origen_id = ?")->execute([$id]);
         $pdo->prepare("DELETE FROM caja_chica_movimientos WHERE id = ?")->execute([$id]);
+        pl_anularPorOrigen($pdo, 'caja_chica_movimientos', $id);
         $pdo->commit();
     } catch (Exception $e) {
         $pdo->rollBack();

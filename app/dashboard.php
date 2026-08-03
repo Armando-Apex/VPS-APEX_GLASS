@@ -832,20 +832,40 @@ window.actualizarBadgeCompras = function() {};
     // Texto visible del elemento
     var texto = (el.textContent || '').replace(/\s+/g,' ').trim().slice(0, 120);
 
-    // Ruta: tag + id/clase del elemento y 2 padres
+    // Ruta: tag + id/atributo-clave/clase del elemento y 2 padres, desambiguado por posición si hace falta
     function _desc(node) {
       if (!node || node === document.body) return '';
       var d = node.tagName.toLowerCase();
-      if (node.id)        d += '#' + node.id;
-      else if (node.className && typeof node.className === 'string') {
+      var especifico = false;
+      if (node.id) {
+        d += '#' + node.id;
+        especifico = true;
+      } else if (node.dataset && node.dataset.modulo) {
+        d += '[data-modulo="' + node.dataset.modulo + '"]';
+        especifico = true;
+      } else if (node.className && typeof node.className === 'string') {
         var cls = node.className.trim().split(/\s+/).filter(function(c){ return c && c !== 'rep-pick-highlight'; }).slice(0,2).join('.');
         if (cls) d += '.' + cls;
+      }
+      // Si no quedó identificado por id/atributo único, desambiguar por posición entre hermanos del mismo tag
+      if (!especifico && node.parentElement) {
+        var hermanos = Array.prototype.filter.call(node.parentElement.children, function(h) { return h.tagName === node.tagName; });
+        if (hermanos.length > 1) d += ':nth-of-type(' + (hermanos.indexOf(node) + 1) + ')';
       }
       return d;
     }
     var ruta = [_desc(el.parentElement && el.parentElement.parentElement), _desc(el.parentElement), _desc(el)].filter(Boolean).join(' > ');
 
     _elemento = { modulo: modulo, texto: texto, ruta: ruta, tag: el.tagName.toLowerCase() };
+
+    // Caso especial: elemento dentro de un mensaje de chat (contenido dinámico, se re-pinta con el polling)
+    // — se guarda el id del mensaje y de la conversación para poder reabrirlo exacto, en vez de un selector CSS frágil.
+    var msgWrap = el.closest && el.closest('[data-msg-id]');
+    if (msgWrap) {
+      var convWrap = el.closest('[data-conv-id]');
+      if (msgWrap.dataset.msgId)  _elemento.msgId  = msgWrap.dataset.msgId;
+      if (convWrap && convWrap.dataset.convId) _elemento.convId = convWrap.dataset.convId;
+    }
 
     // Mostrar preview en modal
     var preview = document.getElementById('rep-elem-preview');

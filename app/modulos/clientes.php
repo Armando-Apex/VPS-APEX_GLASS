@@ -3,8 +3,8 @@ require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
 $user    = requirePermiso('ver_ordenes');
 $esAdmin           = $user['rol'] === 'dir_admin';
-$puedeVerPass      = in_array($user['rol'], ['dir_admin', 'comercial', 'administracion']);
-$puedeGenerar      = in_array($user['rol'], ['dir_admin', 'comercial', 'administracion']);
+$puedeVerPass      = in_array($user['rol'], ['dir_admin', 'comercial', 'administracion', 'desarrollo']);
+$puedeGenerar      = in_array($user['rol'], ['dir_admin', 'comercial', 'administracion', 'desarrollo']);
 $puedeEditarNombre = in_array($user['rol'], ['dir_admin', 'administracion']);
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=clientes'); exit;

@@ -742,10 +742,11 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
     $origName = basename($file['name']);
 
     // Determinar tipo WA
-    $tiposImagen = ['image/jpeg','image/png','image/gif','image/webp'];
+    $tiposImagen    = ['image/jpeg','image/png','image/gif','image/webp'];
+    $tiposDocumento = ['application/pdf','application/xml','text/xml'];
     if (in_array($mime, $tiposImagen)) {
         $waType = 'image';
-    } elseif ($mime === 'application/pdf') {
+    } elseif (in_array($mime, $tiposDocumento)) {
         $waType = 'document';
     } else {
         jsonResponse(['error' => 'Tipo de archivo no soportado'], 415);
@@ -753,9 +754,10 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
 
     // Guardar copia local con nombre único — extensión validada por whitelist + MIME real
     $extAllowed = [
-        'jpg'  => 'image/jpeg', 'jpeg' => 'image/jpeg',
-        'png'  => 'image/png',  'gif'  => 'image/gif',
-        'webp' => 'image/webp', 'pdf'  => 'application/pdf',
+        'jpg'  => ['image/jpeg'], 'jpeg' => ['image/jpeg'],
+        'png'  => ['image/png'],  'gif'  => ['image/gif'],
+        'webp' => ['image/webp'], 'pdf'  => ['application/pdf'],
+        'xml'  => ['application/xml', 'text/xml'],
     ];
     $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
     if (!isset($extAllowed[$ext])) {
@@ -763,7 +765,7 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
     }
     $finfo    = new finfo(FILEINFO_MIME_TYPE);
     $mimeReal = $finfo->file($tmpPath);
-    if ($mimeReal !== $extAllowed[$ext]) {
+    if (!in_array($mimeReal, $extAllowed[$ext])) {
         jsonResponse(['error' => 'Tipo de archivo no coincide con la extensión'], 415);
     }
     $localName = uniqid('wa_', true) . '.' . $ext;

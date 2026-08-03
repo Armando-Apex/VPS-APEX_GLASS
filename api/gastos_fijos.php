@@ -1,6 +1,7 @@
 <?php
 require_once 'config.php';
 require_once 'permisos.php';
+require_once 'helpers/polizas_lib.php';
 
 header('Content-Type: application/json');
 
@@ -91,10 +92,17 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Datos incompletos o inválidos']); exit;
         }
 
-        $cuentaId = $pdo->prepare("SELECT cuenta_id FROM gastos_fijos_conceptos WHERE id = ?");
-        $cuentaId->execute([$concepto_id]);
-        $cuentaId = $cuentaId->fetchColumn();
-        if (!$cuentaId) { jsonResponse(['error' => 'Concepto no encontrado']); exit; }
+        $stmtCuenta = $pdo->prepare("
+            SELECT c.id AS cuenta_id, c.tipo_financiero
+            FROM gastos_fijos_conceptos gfc
+            JOIN cuentas_contables c ON c.id = gfc.cuenta_id
+            WHERE gfc.id = ?
+        ");
+        $stmtCuenta->execute([$concepto_id]);
+        $cuentaRow = $stmtCuenta->fetch(PDO::FETCH_ASSOC);
+        if (!$cuentaRow) { jsonResponse(['error' => 'Concepto no encontrado']); exit; }
+        $cuentaId = $cuentaRow['cuenta_id'];
+        $tipoFinanciero = $cuentaRow['tipo_financiero'];
 
         $pdo->beginTransaction();
         try {
@@ -115,10 +123,18 @@ if ($method === 'POST') {
 
             $stmtMov = $pdo->prepare("
                 INSERT INTO movimientos_contables (cuenta_id, origen_tabla, origen_id, monto, fecha_movimiento, tipo_financiero, descripcion)
-                VALUES (?, 'gastos_fijos_pagos', ?, ?, ?, 'gasto_operativo', ?)
-                ON DUPLICATE KEY UPDATE monto = VALUES(monto), fecha_movimiento = VALUES(fecha_movimiento), descripcion = VALUES(descripcion)
+                VALUES (?, 'gastos_fijos_pagos', ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE cuenta_id = VALUES(cuenta_id), monto = VALUES(monto), fecha_movimiento = VALUES(fecha_movimiento), tipo_financiero = VALUES(tipo_financiero), descripcion = VALUES(descripcion)
             ");
-            $stmtMov->execute([$cuentaId, $pagoId, $monto, $fecha_pago, "$nombreConcepto $periodo"]);
+            $stmtMov->execute([$cuentaId, $pagoId, $monto, $fecha_pago, $tipoFinanciero, "$nombreConcepto $periodo"]);
+
+            $bancos = pl_cuentaId($pdo, '1.1');
+            if ($bancos) {
+                pl_generarAutomatica($pdo, 'gastos_fijos_pagos', (int)$pagoId, 'egresos', $fecha_pago,
+                    "Gasto fijo: $nombreConcepto $periodo",
+                    [[$cuentaId, $monto, 0, $nombreConcepto], [$bancos, 0, $monto, $nombreConcepto]],
+                    (int)$user['id']);
+            }
 
             $pdo->commit();
         } catch (Exception $e) {

@@ -35,6 +35,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .btn-primary { background: #2563eb; color: white; }
 .btn-ghost   { background: #f1f5f9; color: #374151; }
 .btn-success { background: #16a34a; color: white; }
+.btn-danger  { background: #fee2e2; color: #b91c1c; }
 .btn-sm { padding: 6px 12px; font-size: 12px; }
 
 .table-wrap {
@@ -71,9 +72,9 @@ td input { width: 100px; padding: 6px 8px; border: 1.5px solid #e2e8f0; border-r
 .modal h2 { font-size: 18px; font-weight: 800; color: #1e293b; margin-bottom: 20px; }
 .field { margin-bottom: 16px; }
 .field label { display: block; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px; }
-.field input {
+.field input, .field select {
   width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0;
-  border-radius: 8px; font-size: 14px; color: #1e293b;
+  border-radius: 8px; font-size: 14px; color: #1e293b; background: white;
 }
 .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
 </style>
@@ -99,17 +100,18 @@ td input { width: 100px; padding: 6px 8px; border: 1.5px solid #e2e8f0; border-r
         <tr>
           <th>Empleado</th>
           <th>Puesto</th>
+          <th>Área</th>
           <th>Sueldo base</th>
           <th>Sueldo neto</th>
           <th>IMSS patronal</th>
-          <th>Otras prest.</th>
+          <th>Bonos / H. extra / Otras prest.</th>
           <th>Total</th>
           <th>Fecha pago</th>
           <?php if ($puedeEditar): ?><th>Acción</th><?php endif; ?>
         </tr>
       </thead>
       <tbody id="tablaPagos">
-        <tr><td colspan="9" class="empty">Cargando...</td></tr>
+        <tr><td colspan="10" class="empty">Cargando...</td></tr>
       </tbody>
     </table>
   </div>
@@ -128,8 +130,11 @@ td input { width: 100px; padding: 6px 8px; border: 1.5px solid #e2e8f0; border-r
       <input type="text" id="ePuesto" placeholder="Ej: Operador de corte">
     </div>
     <div class="field">
-      <label>Departamento</label>
-      <input type="text" id="eDepartamento" placeholder="Ej: Producción">
+      <label>Área (para el Estado de Resultados)</label>
+      <select id="eArea">
+        <option value="planta">Planta (Costo de Ventas)</option>
+        <option value="oficina">Administración y Ventas (Gastos Operativos)</option>
+      </select>
     </div>
     <div class="field">
       <label>Sueldo base</label>
@@ -176,14 +181,14 @@ async function cargar() {
     render();
   } catch(e) {
     document.getElementById('tablaPagos').innerHTML =
-      '<tr><td colspan="9" class="empty" style="color:#dc2626">Error al cargar</td></tr>';
+      '<tr><td colspan="10" class="empty" style="color:#dc2626">Error al cargar</td></tr>';
   }
 }
 
 function render() {
   if (!filas.length) {
     document.getElementById('tablaPagos').innerHTML =
-      '<tr><td colspan="9" class="empty">No hay empleados activos registrados</td></tr>';
+      '<tr><td colspan="10" class="empty">No hay empleados activos registrados</td></tr>';
     return;
   }
   var html = '';
@@ -201,6 +206,7 @@ function render() {
     html += '<tr>';
     html += '<td>' + esc(f.nombre) + '</td>';
     html += '<td>' + esc(f.puesto || '-') + '</td>';
+    html += '<td>' + (f.area === 'planta' ? 'Planta' : 'Admin/Ventas') + '</td>';
     html += '<td>' + fmt(f.sueldo_base) + '</td>';
     if (window._puedeEditar) {
       html += '<td><input type="number" step="0.01" id="neto_' + idx + '" value="' + esc(neto) + '"></td>';
@@ -212,13 +218,16 @@ function render() {
     html += '<td class="total-cell" id="total_' + idx + '">' + fmt(total) + '</td>';
     if (window._puedeEditar) {
       html += '<td><input type="date" id="fecha_' + idx + '" value="' + esc(fechaPago) + '"></td>';
-      html += '<td><button class="btn btn-success btn-sm" onclick="ModNomina._guardarPago(' + idx + ')">Guardar</button></td>';
+      html += '<td style="display:flex;gap:6px">' +
+        '<button class="btn btn-success btn-sm" onclick="ModNomina._guardarPago(' + idx + ')">Guardar</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="ModNomina._borrarEmpleado(' + idx + ')">Borrar</button>' +
+        '</td>';
     } else {
       html += '<td>' + esc(fechaPago || '-') + '</td>';
     }
     html += '</tr>';
   }
-  html += '<tr class="fila-total"><td colspan="6">TOTAL DEL PERIODO</td><td>' + fmt(totalGeneral) + '</td><td colspan="' + (window._puedeEditar ? 2 : 1) + '"></td></tr>';
+  html += '<tr class="fila-total"><td colspan="7">TOTAL DEL PERIODO</td><td>' + fmt(totalGeneral) + '</td><td colspan="' + (window._puedeEditar ? 2 : 1) + '"></td></tr>';
   document.getElementById('tablaPagos').innerHTML = html;
 }
 
@@ -246,10 +255,24 @@ async function guardarPago(idx) {
   } catch(e) { alert('Error de conexión'); }
 }
 
+async function borrarEmpleado(idx) {
+  var f = filas[idx];
+  if (!confirm('¿Dar de baja a ' + f.nombre + '? Ya no aparecerá en Nómina, pero su historial de pagos se conserva.')) return;
+  try {
+    var res = await fetch(API + '?accion=editar_empleado', {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ id: f.empleado_id, activo: 0 })
+    });
+    var data = await res.json();
+    if (!data.ok) { alert(data.error || 'Error al dar de baja'); return; }
+    cargar();
+  } catch(e) { alert('Error de conexión'); }
+}
+
 function abrirModalEmpleado() {
   document.getElementById('eNombre').value = '';
   document.getElementById('ePuesto').value = '';
-  document.getElementById('eDepartamento').value = '';
+  document.getElementById('eArea').value = 'planta';
   document.getElementById('eSueldoBase').value = '';
   document.getElementById('modalEmpleadoBg').classList.add('open');
 }
@@ -264,7 +287,7 @@ async function guardarEmpleado() {
   var payload = {
     nombre: nombre,
     puesto: document.getElementById('ePuesto').value.trim(),
-    departamento: document.getElementById('eDepartamento').value.trim(),
+    area: document.getElementById('eArea').value,
     sueldo_base: parseFloat(document.getElementById('eSueldoBase').value || 0)
   };
   try {
@@ -290,6 +313,7 @@ cargar();
 return {
   init: cargar,
   _guardarPago: guardarPago,
+  _borrarEmpleado: borrarEmpleado,
   _abrirModalEmpleado: abrirModalEmpleado,
   _cerrarModalEmpleado: cerrarModalEmpleado,
   _guardarEmpleado: guardarEmpleado

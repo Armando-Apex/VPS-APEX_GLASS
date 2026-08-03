@@ -36,6 +36,19 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .rep-elem-chip { display:inline-flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
 .rep-elem-tag { background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; font-size:11px; padding:2px 8px; color:#0284c7; }
 .rep-elem-tag span { color:#0c4a6e; font-family:monospace; }
+.rep-card { cursor: pointer; }
+.rep-card:hover { border-color: #93c5fd; }
+.rep-modal-back { display:none; position:fixed; inset:0; background:rgba(15,23,42,.5); z-index:9999; align-items:center; justify-content:center; padding:20px; }
+.rep-modal-back.open { display:flex; }
+.rep-modal { background:#fff; border-radius:12px; max-width:560px; width:100%; max-height:85vh; overflow-y:auto; padding:22px 24px; }
+.rep-modal-close { float:right; background:none; border:none; font-size:20px; cursor:pointer; color:#94a3b8; line-height:1; }
+.rep-modal h3 { margin:0 0 14px; font-size:16px; color:#1a1a1a; }
+.rep-modal-desc { font-size:13px; color:#1e293b; line-height:1.6; white-space:pre-wrap; background:#f8fafc; border-radius:8px; padding:12px 14px; margin-bottom:14px; }
+.rep-modal-field { font-size:12px; color:#475569; margin-bottom:8px; }
+.rep-modal-field strong { color:#1e293b; display:inline-block; min-width:70px; }
+.rep-modal-field code { font-family:monospace; background:#f1f5f9; border-radius:4px; padding:1px 6px; color:#0c4a6e; word-break:break-all; }
+.rep-btn-ir { display:block; width:100%; margin-top:14px; background:#ea580c; color:#fff; border:none; padding:10px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; }
+.rep-btn-ir:hover { background:#c2410c; }
 </style>
 
 <div class="rep-wrap">
@@ -49,6 +62,14 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
   </div>
   <div id="rep-list" class="rep-list">
     <div class="rep-empty">Cargando&#8230;</div>
+  </div>
+</div>
+
+<div class="rep-modal-back" id="rep-modal-back" onclick="if(event.target===this) ModReportes.cerrarDetalle()">
+  <div class="rep-modal">
+    <button class="rep-modal-close" onclick="ModReportes.cerrarDetalle()">&times;</button>
+    <h3>Detalle del reporte</h3>
+    <div id="rep-modal-body"></div>
   </div>
 </div>
 
@@ -106,7 +127,7 @@ var ModReportes = (function() {
           elemHtml = '<div class="rep-elem-chip">'
             + (el.modulo ? '<span class="rep-elem-tag">Módulo: <span>' + esc(el.modulo) + '</span></span>' : '')
             + (el.ruta   ? '<span class="rep-elem-tag">Ruta: <span>' + esc(el.ruta) + '</span></span>' : '')
-            + (el.texto  ? '<span class="rep-elem-tag">Texto: <span>' + esc(el.texto.slice(0,80)) + '</span></span>' : '')
+            + (el.texto  ? '<span class="rep-elem-tag">Texto: <span>' + esc(el.texto.length > 80 ? el.texto.slice(0,80) + '…' : el.texto) + '</span></span>' : '')
             + '</div>';
         }
       }
@@ -114,9 +135,9 @@ var ModReportes = (function() {
         ? '<div class="rep-completado-por">Completado por ' + esc(r.completado_por) + ' · ' + _fmt(r.completado_at) + '</div>'
         : '';
       var acciones = r.estado === 'pendiente'
-        ? '<button class="rep-btn-comp" onclick="ModReportes.completar(' + r.id + ')">&#10003; Completado</button>'
+        ? '<button class="rep-btn-comp" onclick="event.stopPropagation();ModReportes.completar(' + r.id + ')">&#10003; Completado</button>'
         : '';
-      return '<div class="rep-card ' + r.estado + '" id="rep-card-' + r.id + '">'
+      return '<div class="rep-card ' + r.estado + '" id="rep-card-' + r.id + '" onclick="ModReportes.verDetalle(' + r.id + ')">'
         + '<span class="rep-tipo-badge ' + r.tipo + '">' + (r.tipo === 'bug'
   ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px"><path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>Bug'
   : '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>Mejora'
@@ -137,6 +158,112 @@ var ModReportes = (function() {
         + '</div>'
         + '</div>';
     }).join('');
+  }
+
+  var TAGS = {
+    'a':'Link', 'button':'Botón', 'input':'Campo', 'select':'Selector',
+    'td':'Celda de tabla', 'th':'Encabezado de tabla', 'span':'Texto', 'div':'Bloque'
+  };
+
+  function verDetalle(id) {
+    var r = null;
+    for (var i = 0; i < _todos.length; i++) { if (_todos[i].id === id) { r = _todos[i]; break; } }
+    if (!r) return;
+
+    var rolLabel = ROLES[r.creado_por_rol] || r.creado_por_rol;
+    var html = '<div class="rep-modal-field"><strong>Tipo:</strong> ' + (r.tipo === 'bug' ? 'Bug' : 'Mejora') + '</div>'
+      + '<div class="rep-modal-field"><strong>Reportó:</strong> ' + esc(r.creado_por) + ' (' + esc(rolLabel) + ')</div>'
+      + '<div class="rep-modal-field"><strong>Fecha:</strong> ' + _fmt(r.created_at) + '</div>';
+
+    var el = null;
+    if (r.elemento) { try { el = JSON.parse(r.elemento); } catch(e) { el = null; } }
+    if (el) {
+      if (el.modulo) html += '<div class="rep-modal-field"><strong>Módulo:</strong> <code>' + esc(el.modulo) + '</code></div>';
+      if (el.ruta)   html += '<div class="rep-modal-field"><strong>Ruta:</strong> <code>' + esc(el.ruta) + '</code></div>';
+      if (el.msgId)  html += '<div class="rep-modal-field"><strong>Elemento:</strong> Mensaje de chat</div>';
+      else if (el.tag) html += '<div class="rep-modal-field"><strong>Elemento:</strong> ' + esc(TAGS[el.tag] || el.tag) + '</div>';
+      if (el.texto)  html += '<div class="rep-modal-field"><strong>Se seleccionó:</strong></div><div class="rep-modal-desc">' + esc(el.texto) + '</div>';
+    }
+
+    html += '<div class="rep-modal-field"><strong>Descripción:</strong></div>'
+      + '<div class="rep-modal-desc">' + esc(r.descripcion) + '</div>';
+
+    if (r.estado === 'completado') {
+      html += '<div class="rep-modal-field"><strong>Completado:</strong> ' + esc(r.completado_por) + ' · ' + _fmt(r.completado_at) + '</div>';
+    }
+
+    if (el && el.modulo && (el.ruta || el.msgId)) {
+      html += '<button class="rep-btn-ir" onclick="ModReportes.irAlElemento(' + r.id + ')">&#8594; Ir al elemento</button>';
+    }
+
+    document.getElementById('rep-modal-body').innerHTML = html;
+    document.getElementById('rep-modal-back').className = 'rep-modal-back open';
+  }
+
+  function irAlElemento(id) {
+    var r = null;
+    for (var i = 0; i < _todos.length; i++) { if (_todos[i].id === id) { r = _todos[i]; break; } }
+    if (!r || !r.elemento) return;
+    var el = null;
+    try { el = JSON.parse(r.elemento); } catch(e) { el = null; }
+    if (!el || !el.modulo || typeof window.irA !== 'function') {
+      alert('No se pudo ubicar el módulo de este reporte.');
+      return;
+    }
+    cerrarDetalle();
+    window.irA(el.modulo).then(function() {
+      if (el.msgId) { _abrirChatYResaltar(el.convId, el.msgId, 0); }
+      else { _buscarYResaltar(el.ruta, 0); }
+    });
+  }
+
+  function _abrirChatYResaltar(convId, msgId, intentos) {
+    if (typeof window.cmpTab !== 'function' || typeof window.cmpAbrirConv !== 'function') {
+      if (intentos < 15) { setTimeout(function() { _abrirChatYResaltar(convId, msgId, intentos + 1); }, 200); return; }
+      alert('No se pudo abrir el chat — puede que el módulo Campañas tarde en cargar, intenta de nuevo.');
+      return;
+    }
+    var btnConv = document.getElementById('cmpTabBtnConv');
+    if (btnConv) window.cmpTab('conversaciones', btnConv);
+    if (convId) window.cmpAbrirConv(parseInt(convId, 10));
+    _esperarMensaje(msgId, 0);
+  }
+
+  function _esperarMensaje(msgId, intentos) {
+    var target = document.querySelector('#cmpMsgs [data-msg-id="' + msgId + '"]');
+    if (!target && intentos < 20) {
+      setTimeout(function() { _esperarMensaje(msgId, intentos + 1); }, 250);
+      return;
+    }
+    if (!target) {
+      alert('Se abrió el chat pero no se encontró ese mensaje específico — puede que ya no exista.');
+      return;
+    }
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('rep-pick-highlight');
+    setTimeout(function() { target.classList.remove('rep-pick-highlight'); }, 4000);
+  }
+
+  function _buscarYResaltar(ruta, intentos) {
+    var target = null;
+    if (ruta) {
+      try { target = document.querySelector(ruta); } catch(e) { target = null; }
+    }
+    if (!target && intentos < 15) {
+      setTimeout(function() { _buscarYResaltar(ruta, intentos + 1); }, 200);
+      return;
+    }
+    if (!target) {
+      alert('No se encontró el elemento en la página — puede que haya cambiado desde que se reportó.');
+      return;
+    }
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('rep-pick-highlight');
+    setTimeout(function() { target.classList.remove('rep-pick-highlight'); }, 4000);
+  }
+
+  function cerrarDetalle() {
+    document.getElementById('rep-modal-back').className = 'rep-modal-back';
   }
 
   function filtrar(f) {
@@ -169,6 +296,6 @@ var ModReportes = (function() {
 
   _cargar();
 
-  return { filtrar: filtrar, completar: completar };
+  return { filtrar: filtrar, completar: completar, verDetalle: verDetalle, cerrarDetalle: cerrarDetalle, irAlElemento: irAlElemento };
 })();
 </script>

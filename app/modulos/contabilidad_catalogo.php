@@ -58,6 +58,14 @@ tr:hover td { background: #f8fafc; }
 .tipo-gasto_operativo { background: #fef3c7; color: #b45309; }
 .tipo-financiero { background: #dbeafe; color: #1d4ed8; }
 .tipo-impuesto { background: #f1f5f9; color: #64748b; }
+.tipo-activo  { background: #ede9fe; color: #6d28d9; }
+.tipo-pasivo  { background: #ffedd5; color: #c2410c; }
+.tipo-capital { background: #ccfbf1; color: #0f766e; }
+
+.grupo-tag {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  color: #94a3b8; padding: 14px 16px 4px;
+}
 
 .badge-activo   { background: #dcfce7; color: #16a34a; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
 .badge-inactivo { background: #f1f5f9; color: #94a3b8; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
@@ -95,7 +103,7 @@ tr:hover td { background: #f8fafc; }
     <?php if ($puedeEditar): ?><button class="btn btn-primary" onclick="abrirModalNueva()">+ Nueva cuenta</button><?php endif; ?>
   </div>
 
-  <div class="wip-banner">Módulo en construcción — parte del proyecto de Estado de Resultados (P&amp;L). Aún no afecta ningún otro módulo del sistema.</div>
+  <div class="wip-banner">Módulo en construcción — cuentas de Estado de Resultados (P&amp;L) y de Balance (Activo/Pasivo/Capital, para el proyecto de pólizas). Aún no afecta ningún otro módulo del sistema.</div>
 
   <div class="table-wrap">
     <table>
@@ -136,19 +144,22 @@ tr:hover td { background: #f8fafc; }
     </div>
     <div class="field">
       <label>Tipo financiero</label>
-      <select id="fTipo">
+      <select id="fTipo" onchange="ModCatalogoContable._tipoCambio()">
         <option value="ingreso">Ingreso</option>
         <option value="costo_venta">Costo de venta</option>
         <option value="gasto_operativo">Gasto operativo</option>
         <option value="financiero">Financiero</option>
         <option value="impuesto">Impuesto</option>
+        <option value="activo">Balance — Activo</option>
+        <option value="pasivo">Balance — Pasivo</option>
+        <option value="capital">Balance — Capital</option>
       </select>
     </div>
     <div class="field">
       <label>Naturaleza</label>
       <select id="fNaturaleza">
-        <option value="suma">Suma (ej. ingresos)</option>
-        <option value="resta">Resta (ej. costos/gastos)</option>
+        <option value="suma" id="optSuma">Suma (ej. ingresos)</option>
+        <option value="resta" id="optResta">Resta (ej. costos/gastos)</option>
       </select>
     </div>
     <div class="field field-check">
@@ -190,8 +201,17 @@ function esc(s) {
 
 var TIPO_LABEL = {
   ingreso: 'Ingreso', costo_venta: 'Costo de venta', gasto_operativo: 'Gasto operativo',
-  financiero: 'Financiero', impuesto: 'Impuesto'
+  financiero: 'Financiero', impuesto: 'Impuesto',
+  activo: 'Activo', pasivo: 'Pasivo', capital: 'Capital'
 };
+var TIPOS_BALANCE = ['activo','pasivo','capital'];
+
+function esBalance(c) { return TIPOS_BALANCE.indexOf(c.tipo_financiero) !== -1; }
+
+function naturalezaLabel(c) {
+  if (esBalance(c)) return c.naturaleza == 'suma' ? '+ Deudora' : '&minus; Acreedora';
+  return c.naturaleza == 'suma' ? '+ Suma' : '&minus; Resta';
+}
 
 function renderTabla() {
   if (!cuentasData.length) {
@@ -199,9 +219,10 @@ function renderTabla() {
       '<tr><td colspan="6" class="empty">No hay cuentas registradas</td></tr>';
     return;
   }
-  var html = '';
-  for (var i = 0; i < cuentasData.length; i++) {
-    var c = cuentasData[i];
+  var pnl = cuentasData.filter(function(c){ return !esBalance(c); });
+  var balance = cuentasData.filter(esBalance);
+
+  function filaCuenta(c) {
     var nivelClass = c.nivel == 1 ? 'nivel-1' : 'nivel-2';
     var badgeEstatus = c.activo == 1
       ? '<span class="badge-activo">Activa</span>'
@@ -212,14 +233,23 @@ function renderTabla() {
       var txt = c.activo == 1 ? 'Desactivar' : 'Activar';
       acciones += '<button class="btn btn-sm" onclick="ModCatalogoContable._toggleActivo(' + c.id + ',' + c.activo + ')">' + txt + '</button>';
     }
-    html += '<tr>';
-    html += '<td class="codigo">' + esc(c.codigo) + '</td>';
-    html += '<td class="' + nivelClass + '">' + esc(c.nombre) + '</td>';
-    html += '<td><span class="badge-tipo tipo-' + c.tipo_financiero + '">' + (TIPO_LABEL[c.tipo_financiero] || c.tipo_financiero) + '</span></td>';
-    html += '<td>' + (c.naturaleza == 'suma' ? '+ Suma' : '&minus; Resta') + '</td>';
-    html += '<td>' + badgeEstatus + '</td>';
-    if (window._puedeEditar) html += '<td>' + acciones + '</td>';
-    html += '</tr>';
+    var fila = '<tr>';
+    fila += '<td class="codigo">' + esc(c.codigo) + '</td>';
+    fila += '<td class="' + nivelClass + '">' + esc(c.nombre) + '</td>';
+    fila += '<td><span class="badge-tipo tipo-' + c.tipo_financiero + '">' + (TIPO_LABEL[c.tipo_financiero] || c.tipo_financiero) + '</span></td>';
+    fila += '<td>' + naturalezaLabel(c) + '</td>';
+    fila += '<td>' + badgeEstatus + '</td>';
+    if (window._puedeEditar) fila += '<td>' + acciones + '</td>';
+    fila += '</tr>';
+    return fila;
+  }
+
+  var colspan = window._puedeEditar ? 6 : 5;
+  var html = '<tr><td colspan="' + colspan + '" class="grupo-tag">Estado de Resultados (P&amp;L)</td></tr>';
+  for (var i = 0; i < pnl.length; i++) html += filaCuenta(pnl[i]);
+  if (balance.length) {
+    html += '<tr><td colspan="' + colspan + '" class="grupo-tag">Balance (Activo / Pasivo / Capital)</td></tr>';
+    for (var j = 0; j < balance.length; j++) html += filaCuenta(balance[j]);
   }
   document.getElementById('tablaCuentas').innerHTML = html;
 }
@@ -234,6 +264,12 @@ function renderSelectPadre() {
   sel.innerHTML = html;
 }
 
+function tipoCambio() {
+  var esBal = TIPOS_BALANCE.indexOf(document.getElementById('fTipo').value) !== -1;
+  document.getElementById('optSuma').textContent = esBal ? 'Deudora (ej. activo)' : 'Suma (ej. ingresos)';
+  document.getElementById('optResta').textContent = esBal ? 'Acreedora (ej. pasivo/capital)' : 'Resta (ej. costos/gastos)';
+}
+
 function abrirModalNueva() {
   document.getElementById('modalTitulo').textContent = 'Nueva cuenta';
   document.getElementById('editId').value = '';
@@ -243,6 +279,7 @@ function abrirModalNueva() {
   document.getElementById('fTipo').value = 'gasto_operativo';
   document.getElementById('fNaturaleza').value = 'resta';
   document.getElementById('fAcumulativa').checked = false;
+  tipoCambio();
   document.getElementById('modalBg').classList.add('open');
 }
 
@@ -258,6 +295,7 @@ function abrirModalEditar(id) {
   document.getElementById('fTipo').value = c.tipo_financiero;
   document.getElementById('fNaturaleza').value = c.naturaleza;
   document.getElementById('fAcumulativa').checked = c.es_acumulativa == 1;
+  tipoCambio();
   document.getElementById('modalBg').classList.add('open');
 }
 
@@ -319,7 +357,8 @@ return {
   _abrirModalEditar: abrirModalEditar,
   _cerrarModal: cerrarModal,
   _guardar: guardar,
-  _toggleActivo: toggleActivo
+  _toggleActivo: toggleActivo,
+  _tipoCambio: tipoCambio
 };
 })();
 

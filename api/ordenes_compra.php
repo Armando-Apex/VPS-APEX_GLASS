@@ -9,6 +9,7 @@
 require_once 'config.php';
 require_once 'permisos.php';
 require_once 'mailer.php';
+require_once 'helpers/polizas_lib.php';
 $user = requirePermiso('ver_inventario');
 
 $db     = getDB();
@@ -406,6 +407,9 @@ if ($method === 'POST') {
                 WHERE id = ? AND orden_compra_id = ?
                   AND cantidad_recibida + ? <= cantidad");
 
+            $totalRecepcion = 0;
+            $precioPartidaStmt = $db->prepare("SELECT precio_unitario FROM oc_partidas WHERE id = ? AND orden_compra_id = ?");
+
             foreach ($detalle as $d) {
                 $partida_id = (int)($d['oc_partida_id'] ?? 0);
                 $cant       = (float)($d['cantidad_recibida'] ?? 0);
@@ -414,6 +418,9 @@ if ($method === 'POST') {
                 // [A-3] Cantidades deben ser positivas (un negativo restaba stock)
                 if ($cant <= 0)
                     throw new Exception('La cantidad recibida debe ser mayor a 0 (partida #' . $partida_id . ')', 422);
+
+                $precioPartidaStmt->execute([$partida_id, $oc_id]);
+                $totalRecepcion += (float)$precioPartidaStmt->fetchColumn() * $cant;
 
                 $sd->execute([$entrega_id, $partida_id, $cant]);
                 $su->execute([$cant, $partida_id, $oc_id, $cant]);
@@ -523,6 +530,17 @@ if ($method === 'POST') {
                 ")->execute([$fecha, $oc_id]);
             }
 
+            if ($totalRecepcion > 0) {
+                $inventario = pl_cuentaId($db, '1.3');
+                $cxp        = pl_cuentaId($db, '2.1');
+                if ($inventario && $cxp) {
+                    pl_generarAutomatica($db, 'oc_entregas', (int)$entrega_id, 'diario', $fecha,
+                        'Recepción de mercancía OC #' . $oc_id,
+                        [[$inventario, $totalRecepcion, 0, 'Recepción OC #' . $oc_id], [$cxp, 0, $totalRecepcion, 'Recepción OC #' . $oc_id]],
+                        (int)$user['id']);
+                }
+            }
+
             $db->commit();
             jsonResponse(['ok' => true, 'entrega_id' => $entrega_id, 'cerro_oc' => $cierra]);
         } catch (Exception $e) {
@@ -593,6 +611,16 @@ if ($method === 'POST') {
                 (orden_compra_id, fecha_pago, monto, incluye_iva, referencia, notas, created_by)
                 VALUES (?,?,?,?,?,?,?)")
                ->execute([$oc_id, $fecha, $monto, $inc_iva, $referencia, $notas, $user['id']]);
+            $pagoOcId = $db->lastInsertId();
+
+            $cxp    = pl_cuentaId($db, '2.1');
+            $bancos = pl_cuentaId($db, '1.1');
+            if ($cxp && $bancos) {
+                pl_generarAutomatica($db, 'oc_pagos', (int)$pagoOcId, 'egresos', $fecha,
+                    'Pago a proveedor OC #' . $oc_id,
+                    [[$cxp, $monto_base, 0, 'Pago OC #' . $oc_id], [$bancos, 0, $monto_base, 'Pago OC #' . $oc_id]],
+                    (int)$user['id']);
+            }
 
             // Cierre a 'pagada' solo cuando el saldo queda cubierto y solo
             // desde estados vivos (nunca reabrir/reescribir una cancelada)

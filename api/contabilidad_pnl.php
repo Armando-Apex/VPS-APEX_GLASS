@@ -35,23 +35,23 @@ if (isset($porCodigo['4.2'])) {
 }
 $totalIngresos = array_sum($ingresosPorTipo);
 
-// ── 2) Costo de ventas (consumo real trazado) ──────────────────────────────────
-$costoVentas = costoVentasPeriodo($pdo, $desde, $hasta);
-$cobertura   = costoVentasCobertura($pdo, $desde, $hasta);
+// ── 2) Costo de ventas: 5.1 consumo real trazado (vidrio) + 5.2/5.3 desde movimientos_contables
+//      (mano de obra directa y costos indirectos de planta, capturados en Nómina/Gastos Fijos/Caja Chica) ─
+$costoVentasVidrio = costoVentasPeriodo($pdo, $desde, $hasta);
+$cobertura         = costoVentasCobertura($pdo, $desde, $hasta);
 $costoLineas = [];
 if (isset($porCodigo['5.1'])) {
-    $costoLineas[] = ['codigo' => '5.1', 'nombre' => $porCodigo['5.1']['nombre'], 'monto' => $costoVentas];
+    $costoLineas[] = ['codigo' => '5.1', 'nombre' => $porCodigo['5.1']['nombre'], 'monto' => $costoVentasVidrio];
 }
 
-$utilidadBruta = $totalIngresos - $costoVentas;
-
-// ── 3) Gastos operativos, financieros, impuestos (movimientos_contables + Compras mapeadas) ─
+// ── 3) Gastos/costos por cuenta (movimientos_contables + Compras mapeadas) ─────
 $stmtMov = $pdo->prepare("
     SELECT c.id, c.codigo, c.nombre, c.tipo_financiero, c.cuenta_padre_id, COALESCE(SUM(m.monto), 0) AS monto
     FROM cuentas_contables c
     LEFT JOIN movimientos_contables m ON m.cuenta_id = c.id AND m.fecha_movimiento BETWEEN ? AND ?
     WHERE c.es_acumulativa = 0 AND c.activo = 1
-      AND c.tipo_financiero IN ('gasto_operativo', 'financiero', 'impuesto')
+      AND c.tipo_financiero IN ('costo_venta', 'gasto_operativo', 'financiero', 'impuesto')
+      AND c.codigo != '5.1'
     GROUP BY c.id
     ORDER BY c.orden, c.codigo
 ");
@@ -66,11 +66,15 @@ $impuestos = [];
 $totalGastosOperativos = 0.0;
 $totalFinancieros = 0.0;
 $totalImpuestos = 0.0;
+$totalCostoVentasPlanta = 0.0;
 
 foreach ($movFilas as $f) {
     $monto = (float) $f['monto'] + ($comprasPorCuenta[(int) $f['id']] ?? 0.0);
     $linea = ['codigo' => $f['codigo'], 'nombre' => $f['nombre'], 'monto' => $monto];
-    if ($f['tipo_financiero'] === 'gasto_operativo') {
+    if ($f['tipo_financiero'] === 'costo_venta') {
+        $costoLineas[] = $linea;
+        $totalCostoVentasPlanta += $linea['monto'];
+    } elseif ($f['tipo_financiero'] === 'gasto_operativo') {
         $gastosOperativos[] = $linea;
         $totalGastosOperativos += $linea['monto'];
     } elseif ($f['tipo_financiero'] === 'financiero') {
@@ -81,6 +85,9 @@ foreach ($movFilas as $f) {
         $totalImpuestos += $linea['monto'];
     }
 }
+
+$costoVentas   = $costoVentasVidrio + $totalCostoVentasPlanta;
+$utilidadBruta = $totalIngresos - $costoVentas;
 
 $comprasSinMapear = comprasSinMapearPeriodo($pdo, $desde, $hasta);
 

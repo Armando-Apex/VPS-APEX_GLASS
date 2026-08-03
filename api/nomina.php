@@ -1,6 +1,7 @@
 <?php
 require_once 'config.php';
 require_once 'permisos.php';
+require_once 'helpers/polizas_lib.php';
 
 header('Content-Type: application/json');
 
@@ -29,7 +30,7 @@ if ($method === 'GET') {
             jsonResponse(['error' => 'Periodo inválido']); exit;
         }
         $stmt = $pdo->prepare("
-            SELECT e.id AS empleado_id, e.nombre, e.puesto, e.departamento, e.sueldo_base,
+            SELECT e.id AS empleado_id, e.nombre, e.puesto, e.departamento, e.area, e.sueldo_base,
                    p.id AS pago_id, p.fecha_pago, p.sueldo_neto, p.imss_patronal,
                    p.otras_prestaciones, p.total_pagado
             FROM nomina_empleados e
@@ -60,14 +61,16 @@ if ($method === 'POST') {
         $puesto       = trim($body['puesto'] ?? '');
         $departamento = trim($body['departamento'] ?? '');
         $sueldo_base  = (float)($body['sueldo_base'] ?? 0);
+        $area         = $body['area'] ?? 'oficina';
 
         if (!$nombre) { jsonResponse(['error' => 'El nombre es obligatorio']); exit; }
+        if (!in_array($area, ['planta', 'oficina'])) { jsonResponse(['error' => 'Área inválida']); exit; }
 
         $stmt = $pdo->prepare("
-            INSERT INTO nomina_empleados (nombre, puesto, departamento, sueldo_base)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO nomina_empleados (nombre, puesto, departamento, sueldo_base, area)
+            VALUES (?, ?, ?, ?, ?)
         ");
-        $stmt->execute([$nombre, $puesto ?: null, $departamento ?: null, $sueldo_base]);
+        $stmt->execute([$nombre, $puesto ?: null, $departamento ?: null, $sueldo_base, $area]);
         jsonResponse(['ok' => true, 'id' => $pdo->lastInsertId()]);
         exit;
     }
@@ -84,8 +87,18 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Datos incompletos o inválidos']); exit;
         }
 
-        $cuentaNomina = $pdo->query("SELECT id FROM cuentas_contables WHERE codigo = '6.1'")->fetchColumn();
-        if (!$cuentaNomina) { jsonResponse(['error' => 'No existe la cuenta 6.1 Nómina en el catálogo']); exit; }
+        $empleadoArea = $pdo->prepare("SELECT area FROM nomina_empleados WHERE id = ?");
+        $empleadoArea->execute([$empleado_id]);
+        $empleadoArea = $empleadoArea->fetchColumn();
+        if ($empleadoArea === false) { jsonResponse(['error' => 'Empleado no encontrado']); exit; }
+
+        // Planta → Costo de Ventas (mano de obra directa); Administración/Ventas → Gastos Operativos.
+        $codigoCuenta = $empleadoArea === 'planta' ? '5.2' : '6.1';
+        $cuenta = $pdo->prepare("SELECT id, tipo_financiero FROM cuentas_contables WHERE codigo = ?");
+        $cuenta->execute([$codigoCuenta]);
+        $cuenta = $cuenta->fetch(PDO::FETCH_ASSOC);
+        if (!$cuenta) { jsonResponse(['error' => "No existe la cuenta $codigoCuenta en el catálogo"]); exit; }
+        $cuentaNomina = $cuenta['id'];
 
         $total = round($sueldo_neto + $imss_patronal + $otras_prestaciones, 2);
 
@@ -98,7 +111,7 @@ if ($method === 'POST') {
                 ON DUPLICATE KEY UPDATE
                     fecha_pago = VALUES(fecha_pago), sueldo_neto = VALUES(sueldo_neto),
                     imss_patronal = VALUES(imss_patronal), otras_prestaciones = VALUES(otras_prestaciones),
-                    total_pagado = VALUES(total_pagado)
+                    total_pagado = VALUES(total_pagado), cuenta_id = VALUES(cuenta_id)
             ");
             $stmt->execute([$empleado_id, $periodo, $fecha_pago, $sueldo_neto, $imss_patronal, $otras_prestaciones, $total, $cuentaNomina]);
 
@@ -106,10 +119,18 @@ if ($method === 'POST') {
 
             $stmtMov = $pdo->prepare("
                 INSERT INTO movimientos_contables (cuenta_id, origen_tabla, origen_id, monto, fecha_movimiento, tipo_financiero, descripcion)
-                VALUES (?, 'nomina_pagos', ?, ?, ?, 'gasto_operativo', ?)
-                ON DUPLICATE KEY UPDATE monto = VALUES(monto), fecha_movimiento = VALUES(fecha_movimiento), descripcion = VALUES(descripcion)
+                VALUES (?, 'nomina_pagos', ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE cuenta_id = VALUES(cuenta_id), monto = VALUES(monto), fecha_movimiento = VALUES(fecha_movimiento), tipo_financiero = VALUES(tipo_financiero), descripcion = VALUES(descripcion)
             ");
-            $stmtMov->execute([$cuentaNomina, $pagoId, $total, $fecha_pago, "Nómina $periodo"]);
+            $stmtMov->execute([$cuentaNomina, $pagoId, $total, $fecha_pago, $cuenta['tipo_financiero'], "Nómina $periodo"]);
+
+            $bancos = pl_cuentaId($pdo, '1.1');
+            if ($bancos) {
+                pl_generarAutomatica($pdo, 'nomina_pagos', (int)$pagoId, 'egresos', $fecha_pago,
+                    "Nómina $periodo — empleado #$empleado_id",
+                    [[$cuentaNomina, $total, 0, "Nómina $periodo"], [$bancos, 0, $total, "Nómina $periodo"]],
+                    (int)$user['id']);
+            }
 
             $pdo->commit();
         } catch (Exception $e) {
@@ -134,6 +155,10 @@ if ($method === 'PUT' && $accion === 'editar_empleado') {
     $valores = [];
     foreach (['nombre', 'puesto', 'departamento'] as $campo) {
         if (isset($body[$campo])) { $campos[] = "$campo = ?"; $valores[] = trim($body[$campo]); }
+    }
+    if (isset($body['area'])) {
+        if (!in_array($body['area'], ['planta', 'oficina'])) { jsonResponse(['error' => 'Área inválida']); exit; }
+        $campos[] = 'area = ?'; $valores[] = $body['area'];
     }
     if (isset($body['sueldo_base'])) { $campos[] = 'sueldo_base = ?'; $valores[] = (float)$body['sueldo_base']; }
     if (isset($body['activo']))      { $campos[] = 'activo = ?';      $valores[] = (int)$body['activo']; }

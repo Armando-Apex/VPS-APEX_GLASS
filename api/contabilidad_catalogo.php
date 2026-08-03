@@ -39,7 +39,7 @@ if ($method === 'POST') {
     $nivel           = (int)($body['nivel'] ?? 2);
     $orden           = (int)($body['orden'] ?? 0);
 
-    $tipos_validos = ['ingreso','costo_venta','gasto_operativo','financiero','impuesto'];
+    $tipos_validos = ['ingreso','costo_venta','gasto_operativo','financiero','impuesto','activo','pasivo','capital'];
     if (!$codigo || !$nombre || !in_array($tipo_financiero, $tipos_validos) || !in_array($naturaleza, ['suma','resta'])) {
         jsonResponse(['error' => 'Datos incompletos o inválidos']); exit;
     }

@@ -1172,7 +1172,7 @@ var ModCampanas = (function() {
                 '<button class="reply-bar-close" onclick="window.cmpCancelarReply()" title="Cancelar">&#x2715;</button>' +
                 '</div>' +
                 '<div class="conv-input-row">' +
-                '<input type="file" id="cmpFileInput" accept="image/*,.pdf" style="display:none;" onchange="window.cmpArchivoSeleccionado(this)">' +
+                '<input type="file" id="cmpFileInput" accept="image/*,.pdf,.xml" style="display:none;" onchange="window.cmpArchivoSeleccionado(this)">' +
                 '<div class="conv-actions-wrap">' +
                 '<div class="conv-bubbles hidden" id="cmpBubblesMenu">' +
                 '<div class="conv-bubble-item"><span class="conv-bubble-label">Ubicaci&oacute;n</span><button class="bubble-loc" onclick="window.cmpEnviarUbicacion()" title="Enviar ubicaci&oacute;n">&#128205;</button></div>' +
@@ -1362,12 +1362,13 @@ var ModCampanas = (function() {
                 var replyBtn = (m.tipo !== 'audio' && waId)
                     ? '<button class="msg-reply-btn" onclick="window.cmpSetReply(\'' + waId + '\',\'' + preview + '\')" title="Responder">&#8626;</button>'
                     : '';
-                msgs += '<div class="msg-wrap ' + dir + '">' +
+                msgs += '<div class="msg-wrap ' + dir + '" data-msg-id="' + esc(m.id) + '">' +
                     '<div class="msg-burbuja ' + cls + '">' + replyBtn + quotedHtml + contenidoHtml + meta + '</div>' +
                     '</div>';
             });
             var msgsEl = document.getElementById('cmpMsgs');
             if (msgsEl) {
+                msgsEl.setAttribute('data-conv-id', convId);
                 var cercaAbajo = !preservarScroll || (msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight) < 80;
                 msgsEl.innerHTML = msgs || '<p style="color:#94a3b8;font-size:12px;text-align:center;">Sin mensajes a&uacute;n.</p>';
                 if (cercaAbajo) { msgsEl.scrollTop = msgsEl.scrollHeight; }
