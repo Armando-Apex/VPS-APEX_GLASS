@@ -7,6 +7,49 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=contabilidad'); exit;
 }
 header('Content-Type: text/html; charset=utf-8');
+
+// El resto del módulo (Nómina, Gastos Fijos, Caja Chica, Pólizas, Catálogo,
+// Mapeo Compras) sigue en construcción — visible solo para el rol desarrollo
+// mientras se termina y se valida contra datos reales. El resto de la
+// dirección solo ve el Estado de Resultados, ya con presentación terminada.
+$esDesarrollo = ($user['rol'] === 'desarrollo');
+
+if (!$esDesarrollo) {
+?>
+<div id="contab-content"><div style="text-align:center;padding:48px;color:#94a3b8;font-family:system-ui,-apple-system,sans-serif;">Cargando...</div></div>
+<script>
+var ModContabilidad = (function(){
+  var scriptsInyectados = [];
+  async function cargarTab(tab) {
+    scriptsInyectados.forEach(function(s) { if (s.parentNode) s.parentNode.removeChild(s); });
+    scriptsInyectados = [];
+    var cont = document.getElementById('contab-content');
+    try {
+      var res = await fetch('modulos/contabilidad_pnl.php', { headers: { 'X-SPA-Request': '1' } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var html = await res.text();
+      var tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      var scripts = Array.prototype.slice.call(tmp.querySelectorAll('script'));
+      scripts.forEach(function(s) { s.remove(); });
+      cont.innerHTML = tmp.innerHTML;
+      scripts.forEach(function(oldScript) {
+        var newScript = document.createElement('script');
+        newScript.text = oldScript.textContent;
+        document.body.appendChild(newScript);
+        scriptsInyectados.push(newScript);
+      });
+    } catch(e) {
+      cont.innerHTML = '<div style="text-align:center;padding:48px;color:#9f1239;">Error al cargar</div>';
+    }
+  }
+  cargarTab('contabilidad_pnl');
+  return { cargarTab: cargarTab };
+})();
+</script>
+<?php
+    return;
+}
 ?>
 <meta charset="UTF-8">
 <style>

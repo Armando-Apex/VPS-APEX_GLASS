@@ -9,117 +9,149 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 header('Content-Type: text/html; charset=utf-8');
 ?>
 <meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; }
+#pnlRoot { font-family: 'Outfit', system-ui, -apple-system, sans-serif; }
 
-.main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+#pnlRoot .main { padding: 28px 32px 48px; max-width: 980px; margin: 0 auto; }
 
-.top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px; }
-.section-title { font-size: 18px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; }
-.wip-badge { font-size: 10px; background: #f59e0b; color: #000; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
-.wip-banner {
-  background: #fef3c7; color: #92400e; font-size: 13px; padding: 10px 16px;
-  border-radius: 8px; margin-bottom: 20px;
+/* ── Hero: el número que importa, primero ── */
+.pnl-hero {
+  display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap;
+  gap: 20px; padding-bottom: 24px; margin-bottom: 24px; border-bottom: 1px solid #e2e8f0;
 }
-.aviso-cobertura {
-  background: #fee2e2; color: #991b1b; font-size: 13px; padding: 10px 16px;
-  border-radius: 8px; margin-bottom: 20px; display: none;
-}
-.aviso-cobertura.leve { background: #fef3c7; color: #92400e; }
+.pnl-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #64748b; margin-bottom: 6px; }
+.pnl-hero-periodo { font-size: 15px; font-weight: 500; color: #334155; }
+.pnl-hero-numero-wrap { text-align: right; }
+.pnl-hero-label { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
+.pnl-hero-numero { font-size: 38px; font-weight: 700; letter-spacing: -.01em; color: #0f172a; font-variant-numeric: tabular-nums; line-height: 1; }
+.pnl-hero-numero.positivo { color: #0f766e; }
+.pnl-hero-numero.negativo { color: #9f1239; }
+.pnl-hero-delta { font-size: 12.5px; font-weight: 600; margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; }
+.pnl-hero-delta.up { color: #0f766e; }
+.pnl-hero-delta.down { color: #9f1239; }
 
-.rango-selector { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.rango-selector select { padding: 8px 10px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; background: white; }
-.rango-selector .sep { color: #94a3b8; font-size: 13px; }
-.rango-selector label.chk { font-size: 12.5px; color: #64748b; display: flex; align-items: center; gap: 5px; margin-left: 4px; cursor: pointer; padding: 4px 2px; }
-.rango-selector label.chk input { cursor: pointer; }
+/* ── Barra de controles: discreta, no compite con el hero ── */
+.pnl-controls { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 22px; }
+.pnl-controls select {
+  padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12.5px;
+  font-family: inherit; background: #fff; color: #334155; cursor: pointer;
+}
+.pnl-controls select:focus-visible { outline: 2px solid #0f766e; outline-offset: 1px; }
+.pnl-controls .sep { color: #cbd5e1; font-size: 12.5px; }
+.pnl-controls label.chk { font-size: 12px; color: #64748b; display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 4px 2px; white-space: nowrap; }
+.pnl-controls label.chk input { cursor: pointer; accent-color: #0f766e; }
+
+/* ── Avisos de calidad de datos: nota discreta, no alarma ── */
+.pnl-aviso {
+  display: none; align-items: flex-start; gap: 9px; font-size: 12.5px; line-height: 1.55;
+  color: #78716c; background: #fafaf9; border: 1px solid #e7e5e4; border-left: 3px solid #d97706;
+  padding: 11px 14px; border-radius: 6px; margin-bottom: 20px;
+}
+.pnl-aviso.critico { border-left-color: #9f1239; color: #57534e; }
+.pnl-aviso svg { flex-shrink: 0; margin-top: 1px; color: #d97706; }
+.pnl-aviso.critico svg { color: #9f1239; }
 
 .spinner {
-  width: 22px; height: 22px; margin: 0 auto 10px; border-radius: 50%;
-  border: 3px solid #e2e8f0; border-top-color: #64748b;
+  width: 20px; height: 20px; margin: 0 auto 10px; border-radius: 50%;
+  border: 2.5px solid #e2e8f0; border-top-color: #64748b;
   animation: girar .7s linear infinite;
 }
 @keyframes girar { to { transform: rotate(360deg); } }
 
-/* Estado financiero clásico: tabla con columnas por período */
-.pnl-wrap { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.06); overflow-x: auto; }
-.pnl-table { border-collapse: collapse; width: 100%; font-size: 14.5px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
-.pnl-table th, .pnl-table td { padding: 8px 16px; white-space: nowrap; }
-.pnl-table th { text-align: right; font-weight: 700; color: #1e293b; border-bottom: 2px solid #1e293b; font-size: 13px; }
+/* ── Estado financiero ── */
+.pnl-wrap { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow-x: auto; }
+.pnl-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.pnl-table th, .pnl-table td { padding: 9px 20px; white-space: nowrap; }
+.pnl-table th { text-align: right; font-weight: 600; color: #64748b; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding-top: 18px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0; }
 .pnl-table th:first-child, .pnl-table td:first-child { text-align: left; white-space: normal; min-width: 260px; }
 .pnl-table td { text-align: right; font-variant-numeric: tabular-nums; color: #1e293b; }
 .pnl-table td.concepto { color: #334155; }
 
-.fila-seccion td.concepto { font-weight: 700; padding-top: 14px; }
-.fila-seccion:first-child td.concepto { padding-top: 7px; }
-.fila-seccion.suma td:not(.concepto) { color: #15803d; font-weight: 700; }
-.fila-seccion.resta td:not(.concepto) { color: #b91c1c; font-weight: 700; }
+.fila-seccion td.concepto { font-weight: 600; padding-top: 18px; color: #0f172a; font-size: 13px; }
+.fila-seccion:first-child td.concepto { padding-top: 14px; }
 
-.fila-linea td.concepto { color: #64748b; padding-left: 32px; font-size: 13.5px; }
-.fila-linea td { font-size: 13.5px; }
-.fila-linea.suma td:not(.concepto) { color: #16a34a; }
-.fila-linea.resta td:not(.concepto) { color: #dc2626; }
+.fila-linea td.concepto { color: #78716c; padding-left: 28px; font-size: 13px; }
+.fila-linea td { font-size: 13px; color: #57534e; }
 
-.fila-vacio td { color: #94a3b8; font-style: italic; padding-left: 32px; font-size: 13px; }
+.fila-vacio td { color: #cbd5e1; font-style: italic; padding-left: 28px; font-size: 12.5px; }
 
-.fila-total td { font-weight: 700; border-top: 1px solid #e2e8f0; padding-top: 8px; padding-bottom: 10px; }
-.fila-total.suma td:not(.concepto) { color: #15803d; }
-.fila-total.resta td:not(.concepto) { color: #b91c1c; }
+.fila-total td { font-weight: 600; border-top: 1px solid #f1f5f9; padding-top: 8px; padding-bottom: 14px; color: #334155; }
 
-.fila-subtotal td { font-weight: 700; border-top: 1px solid #94a3b8; padding-top: 9px; }
-.fila-subtotal td:not(.concepto) { color: #1e293b; }
+.fila-subtotal td { font-weight: 600; border-top: 1px solid #cbd5e1; padding-top: 11px; font-size: 14.5px; }
+.fila-subtotal td:not(.concepto) { color: #0f172a; }
 
-.fila-final td { font-weight: 800; font-size: 15.5px; border-top: 3px double #1e293b; padding-top: 10px; padding-bottom: 12px; }
-.fila-final.positivo td:not(.concepto) { color: #15803d; }
-.fila-final.negativo td:not(.concepto) { color: #b91c1c; }
+.fila-final td { font-weight: 700; font-size: 16px; border-top: 2px solid #0f172a; padding-top: 14px; padding-bottom: 18px; }
+.fila-final.positivo td:not(.concepto) { color: #0f766e; }
+.fila-final.negativo td:not(.concepto) { color: #9f1239; }
 
-.empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
+.empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 14px; }
+
+@media (max-width: 640px) {
+  #pnlRoot .main { padding: 20px 16px 36px; }
+  .pnl-hero { flex-direction: column; align-items: flex-start; }
+  .pnl-hero-numero-wrap { text-align: left; }
+  .pnl-hero-numero { font-size: 30px; }
+  .pnl-controls { justify-content: flex-start; }
+}
 </style>
 
+<div id="pnlRoot">
 <div class="main">
 
-  <div class="top-bar">
-    <div class="section-title"><?= icono('bar-chart-2') ?> Estado de Resultados (P&amp;L) <span class="wip-badge">WIP</span></div>
-    <div class="rango-selector">
-      <select id="granularidad" aria-label="Granularidad del período">
-        <option value="mensual" selected>Mensual</option>
-        <option value="trimestral">Trimestral</option>
-        <option value="semestral">Semestral</option>
-        <option value="anual">Anual</option>
-      </select>
-
-      <span id="individualWrap">
-        <span id="individualPeriodoWrap"><select id="individualPeriodo" aria-label="Período a mostrar"></select></span>
-        <select id="individualAnio" aria-label="Año del período a mostrar"></select>
-      </span>
-
-      <span id="comparacionWrap" style="display:none">
-        <span class="sep">de</span>
-        <span id="desdePeriodoWrap"><select id="desdePeriodo" aria-label="Período inicial"></select></span>
-        <select id="desdeAnio" aria-label="Año inicial"></select>
-        <span class="sep">a</span>
-        <span id="hastaPeriodoWrap"><select id="hastaPeriodo" aria-label="Período final"></select></span>
-        <select id="hastaAnio" aria-label="Año final"></select>
-        <label class="chk"><input type="checkbox" id="soloExtremos"> Solo comparar estos dos (sin los intermedios)</label>
-      </span>
-
-      <label class="chk"><input type="checkbox" id="modoComparacion"> Comparación</label>
+  <div class="pnl-hero">
+    <div>
+      <div class="pnl-hero-eyebrow">Estado de Resultados</div>
+      <div class="pnl-hero-periodo" id="heroPeriodo">&mdash;</div>
+    </div>
+    <div class="pnl-hero-numero-wrap">
+      <div class="pnl-hero-label">Utilidad Neta</div>
+      <div class="pnl-hero-numero" id="heroUtilidad">&mdash;</div>
+      <div class="pnl-hero-delta" id="heroDelta" style="display:none"></div>
     </div>
   </div>
 
-  <div class="wip-banner">Módulo en construcción — el costo de ventas se calcula como m² vendidos × precio promedio de compra por tipo/espesor de vidrio (no depende del wizard de corte). Si un tipo de vidrio nunca se ha comprado, esa pieza no se puede costear y baja la cobertura (ver aviso abajo si aplica).</div>
+  <div class="pnl-controls">
+    <select id="granularidad" aria-label="Granularidad del período">
+      <option value="mensual" selected>Mensual</option>
+      <option value="trimestral">Trimestral</option>
+      <option value="semestral">Semestral</option>
+      <option value="anual">Anual</option>
+    </select>
 
-  <div class="aviso-cobertura" id="avisoCobertura"></div>
+    <span id="individualWrap">
+      <span id="individualPeriodoWrap"><select id="individualPeriodo" aria-label="Período a mostrar"></select></span>
+      <select id="individualAnio" aria-label="Año del período a mostrar"></select>
+    </span>
+
+    <span id="comparacionWrap" style="display:none">
+      <span class="sep">de</span>
+      <span id="desdePeriodoWrap"><select id="desdePeriodo" aria-label="Período inicial"></select></span>
+      <select id="desdeAnio" aria-label="Año inicial"></select>
+      <span class="sep">a</span>
+      <span id="hastaPeriodoWrap"><select id="hastaPeriodo" aria-label="Período final"></select></span>
+      <select id="hastaAnio" aria-label="Año final"></select>
+      <label class="chk"><input type="checkbox" id="soloExtremos"> Solo extremos</label>
+    </span>
+
+    <label class="chk"><input type="checkbox" id="modoComparacion"> Comparar períodos</label>
+  </div>
+
+  <div class="pnl-aviso" id="avisoCobertura"></div>
 
   <div class="pnl-wrap" id="pnlContent">
     <div class="empty">Cargando...</div>
   </div>
 
 </div>
+</div>
 
 <script>
 var ModContabilidadPnl = (function(){
 var API = '../api/contabilidad_pnl.php';
+var ICONO_ALERTA = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
 
 function fmt(n) {
   n = parseFloat(n || 0);
@@ -131,6 +163,11 @@ function fmtMonto(n, esResta) {
   if (esResta && v > 0) return '(' + fmt(v) + ')';
   if (v < 0) return '(' + fmt(v) + ')';
   return fmt(v);
+}
+
+function fmtDinero(n) {
+  var v = parseFloat(n || 0);
+  return (v < 0 ? '-$' : '$') + fmt(v);
 }
 
 function esc(s) {
@@ -295,11 +332,6 @@ function granularidadCambio() {
   cargar();
 }
 
-function pct(parte, base) {
-  if (!base) return '—';
-  return (parte / base * 100).toFixed(1) + '%';
-}
-
 // Une los códigos de cuenta presentes en cualquiera de los períodos, preservando el orden de aparición.
 function unirLineas(datas, seccion) {
   var vistos = {};
@@ -323,8 +355,7 @@ function montoDeLinea(data, seccion, codigo) {
 }
 
 function filaSeccion(titulo, datas, seccion, esResta) {
-  var signo = esResta ? 'resta' : 'suma';
-  var html = '<tr class="fila-seccion ' + signo + '"><td class="concepto">' + esc(titulo) + '</td>';
+  var html = '<tr class="fila-seccion"><td class="concepto">' + esc(titulo) + '</td>';
   for (var i = 0; i < datas.length; i++) html += '<td></td>';
   html += '</tr>';
 
@@ -335,7 +366,7 @@ function filaSeccion(titulo, datas, seccion, esResta) {
     html += '</tr>';
   } else {
     for (var j = 0; j < lineas.length; j++) {
-      html += '<tr class="fila-linea ' + signo + '"><td class="concepto">' + esc(lineas[j].codigo) + ' — ' + esc(lineas[j].nombre) + '</td>';
+      html += '<tr class="fila-linea"><td class="concepto">' + esc(lineas[j].codigo) + ' — ' + esc(lineas[j].nombre) + '</td>';
       for (var m = 0; m < datas.length; m++) {
         html += '<td>' + fmtMonto(montoDeLinea(datas[m], seccion, lineas[j].codigo), esResta) + '</td>';
       }
@@ -343,7 +374,7 @@ function filaSeccion(titulo, datas, seccion, esResta) {
     }
   }
 
-  html += '<tr class="fila-total ' + signo + '"><td class="concepto">Total ' + esc(titulo) + '</td>';
+  html += '<tr class="fila-total"><td class="concepto">Total ' + esc(titulo) + '</td>';
   for (var i2 = 0; i2 < datas.length; i2++) {
     html += '<td>' + fmtMonto(datas[i2][seccion].total, esResta) + '</td>';
   }
@@ -388,6 +419,9 @@ async function cargar() {
 
   if (!periodos.length) {
     document.getElementById('pnlContent').innerHTML = '<div class="empty">No hay períodos disponibles para ese año</div>';
+    document.getElementById('heroPeriodo').textContent = '—';
+    document.getElementById('heroUtilidad').textContent = '—';
+    document.getElementById('heroDelta').style.display = 'none';
     return;
   }
 
@@ -398,22 +432,50 @@ async function cargar() {
       return fetch(API + '?desde=' + p.desde + '&hasta=' + p.hasta).then(function(r) { return r.json(); });
     }));
     for (var i = 0; i < datas.length; i++) {
-      if (datas[i].error) { document.getElementById('pnlContent').innerHTML = '<div class="empty" style="color:#dc2626">' + esc(datas[i].error) + '</div>'; return; }
+      if (datas[i].error) { document.getElementById('pnlContent').innerHTML = '<div class="empty" style="color:#9f1239">' + esc(datas[i].error) + '</div>'; return; }
     }
     render(periodos, datas);
   } catch (e) {
-    document.getElementById('pnlContent').innerHTML = '<div class="empty" style="color:#dc2626">Error al cargar</div>';
+    document.getElementById('pnlContent').innerHTML = '<div class="empty" style="color:#9f1239">Error al cargar</div>';
+  }
+}
+
+function renderHero(periodos, datas) {
+  var ultimo = datas[datas.length - 1];
+  var esComparacion = datas.length > 1;
+
+  document.getElementById('heroPeriodo').textContent = esComparacion
+    ? (periodos[0].label + ' → ' + periodos[periodos.length - 1].label)
+    : periodos[0].label;
+
+  var un = parseFloat(ultimo.utilidad_neta || 0);
+  var elNum = document.getElementById('heroUtilidad');
+  elNum.textContent = fmtDinero(un);
+  elNum.className = 'pnl-hero-numero ' + (un >= 0 ? 'positivo' : 'negativo');
+
+  var elDelta = document.getElementById('heroDelta');
+  if (esComparacion) {
+    var primero = parseFloat(datas[0].utilidad_neta || 0);
+    var diff = un - primero;
+    var subio = diff >= 0;
+    elDelta.style.display = 'inline-flex';
+    elDelta.className = 'pnl-hero-delta ' + (subio ? 'up' : 'down');
+    elDelta.textContent = (subio ? '↑ ' : '↓ ') + (subio ? '+' : '-') + fmt(Math.abs(diff)) + ' vs ' + periodos[0].label;
+  } else {
+    elDelta.style.display = 'none';
   }
 }
 
 function render(periodos, datas) {
+  renderHero(periodos, datas);
+
   // Avisos: se muestran solo si el ÚLTIMO período (el más reciente/relevante) los presenta.
   var d = datas[datas.length - 1];
   var cob = d.costo_ventas.cobertura;
   var avisosCriticos = [];
   var avisosLeves = [];
   if (cob && !cob.confiable) {
-    avisosCriticos.push('Aviso: en "' + esc(periodos[periodos.length - 1].label) + '" solo ' + cob.pct_cobertura + '% de las piezas entregadas tienen costo real trazado (' + cob.piezas_con_costo + ' de ' + cob.piezas_total + '). El costo de ventas está subestimado y el margen mostrado no es confiable.');
+    avisosCriticos.push('En "' + esc(periodos[periodos.length - 1].label) + '" solo ' + cob.pct_cobertura + '% de las piezas entregadas tienen costo real trazado (' + cob.piezas_con_costo + ' de ' + cob.piezas_total + '). El margen mostrado puede estar sobrestimado.');
   }
   var comprasSinMapear = [];
   for (var di = 0; di < datas.length; di++) {
@@ -425,17 +487,17 @@ function render(periodos, datas) {
       totalSinMapear += parseFloat(comprasSinMapear[si].monto);
       nombres[comprasSinMapear[si].categoria] = true;
     }
-    avisosLeves.push('Aviso: hay $' + fmt(totalSinMapear) + ' en pagos de Compras (' + Object.keys(nombres).join(', ') + ') sin cuenta contable asignada en el rango mostrado — no están incluidos en Gastos Operativos. Asígnalas en Contabilidad → Mapeo Compras.');
+    avisosLeves.push('$' + fmt(totalSinMapear) + ' en Compras (' + Object.keys(nombres).join(', ') + ') sin cuenta contable asignada — no incluidos en Gastos Operativos. Asígnalas en Mapeo Compras.');
   }
   var avisoEl = document.getElementById('avisoCobertura');
   if (avisosCriticos.length) {
-    avisoEl.className = 'aviso-cobertura';
-    avisoEl.style.display = 'block';
-    avisoEl.innerHTML = avisosCriticos.concat(avisosLeves).join('<br>');
+    avisoEl.className = 'pnl-aviso critico';
+    avisoEl.style.display = 'flex';
+    avisoEl.innerHTML = ICONO_ALERTA + '<span>' + avisosCriticos.concat(avisosLeves).join('<br>') + '</span>';
   } else if (avisosLeves.length) {
-    avisoEl.className = 'aviso-cobertura leve';
-    avisoEl.style.display = 'block';
-    avisoEl.innerHTML = avisosLeves.join('<br>');
+    avisoEl.className = 'pnl-aviso';
+    avisoEl.style.display = 'flex';
+    avisoEl.innerHTML = ICONO_ALERTA + '<span>' + avisosLeves.join('<br>') + '</span>';
   } else {
     avisoEl.style.display = 'none';
   }
@@ -449,10 +511,10 @@ function render(periodos, datas) {
 
   html += filaSeccion('Ingresos', datas, 'ingresos', false);
   html += filaSeccion('(-) Costo de Ventas', datas, 'costo_ventas', true);
-  html += filaSubtotal('fila-subtotal ' + claseSigno(datas, 'utilidad_bruta'), 'Utilidad Bruta', datas, 'utilidad_bruta');
+  html += filaSubtotal('fila-subtotal', 'Utilidad Bruta', datas, 'utilidad_bruta');
 
   html += filaSeccion('(-) Gastos Operativos', datas, 'gastos_operativos', true);
-  html += filaSubtotal('fila-subtotal ' + claseSigno(datas, 'utilidad_operativa'), 'Utilidad Operativa', datas, 'utilidad_operativa');
+  html += filaSubtotal('fila-subtotal', 'Utilidad Operativa', datas, 'utilidad_operativa');
 
   if (hayFinancieros) html += filaSeccion('(-) Gastos Financieros', datas, 'financieros', true);
   if (hayImpuestos) html += filaSeccion('(-) Impuestos', datas, 'impuestos', true);

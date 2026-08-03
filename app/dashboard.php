@@ -348,7 +348,7 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       <?php endif; ?>
       <?php if (tienePermiso($_rol, 'ver_contabilidad')): ?>
       <button class="sidebar-link" data-modulo="contabilidad" onclick="cargarModulo('contabilidad')">
-        <span class="sidebar-icon"><?= icono('layers') ?></span>Contabilidad <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px">WIP</span>
+        <span class="sidebar-icon"><?= icono('layers') ?></span>Contabilidad<?php if ($_rol === 'desarrollo'): ?> <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px">WIP</span><?php endif; ?>
       </button>
       <?php endif; ?>
     </div>
