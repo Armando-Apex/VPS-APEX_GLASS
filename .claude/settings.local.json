@@ -181,7 +181,8 @@
       "Bash(command -v php84)",
       "Read(//opt/remi/php84/root/usr/bin/**)",
       "Read(//usr/bin/**)",
-      "Bash(awk '/<script>/,/<\\\\/script>/' app/modulos/finanzas_cobranza.php)"
+      "Bash(awk '/<script>/,/<\\\\/script>/' app/modulos/finanzas_cobranza.php)",
+      "Bash(zcat backup_pre_referidos_2026-08-03_18-56.sql.gz)"
     ]
   },
   "hooks": {

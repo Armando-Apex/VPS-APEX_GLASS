@@ -19,7 +19,8 @@ $puede_editar = in_array($rol, ['dir_admin', 'dueno', 'comercial', 'desarrollo']
 $es_admin     = in_array($rol, ['dir_admin', 'dueno', 'desarrollo']);
 
 require_once 'cotizacion_helpers.php';
-require_once __DIR__ . '/helpers/totales.php'; // A-2: fórmula canónica de totales
+require_once __DIR__ . '/helpers/totales.php';    // A-2: fórmula canónica de totales
+require_once __DIR__ . '/helpers/referidos_lib.php'; // Esquema de Referidos (promo agosto 2026)
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
 if ($method === 'GET') {
@@ -437,6 +438,7 @@ if ($method === 'POST') {
     $alerta       = trim($body['alerta']           ?? '');
     $partidas     = $body['partidas']              ?? [];
     $fecha_entrega_manual = trim($body['fecha_entrega'] ?? '');
+    $referido_ctn = trim($body['referido_ctn']     ?? '');
 
     if (!$cliente_id) { jsonResponse(['error' => 'Cliente requerido']); exit; }
     if (empty($partidas)) { jsonResponse(['error' => 'Se requiere al menos una partida']); exit; }
@@ -447,6 +449,24 @@ if ($method === 'POST') {
     $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$cliente) { jsonResponse(['error' => 'Cliente no encontrado']); exit; }
     $cliente_nombre = $cliente['razon_social'] ?: $cliente['nombre'];
+
+    // Esquema de Referidos (promo agosto 2026, ver api/helpers/referidos_lib.php):
+    // 1) si el cliente YA tiene un referente registrado de una cotización previa
+    //    de este mismo mes, se aplica automático sin pedir código de nuevo.
+    // 2) si no, y el asesor capturó un CTN nuevo, se valida aquí (antes de crear
+    //    la cotización, todavía no hay cot_id) y se registra la relación después
+    //    del INSERT, ya con el id.
+    $descuento_referido    = referidosDescuentoAutomatico($db, $cliente_id);
+    $referido_referente_id = null;
+    if ($descuento_referido <= 0 && $referido_ctn !== '') {
+        $valRef = referidosValidar($db, $cliente_id, $referido_ctn);
+        if ($valRef['error']) { jsonResponse(['error' => $valRef['error']]); exit; }
+        $descuento_referido     = REFERIDOS_PCT;
+        $referido_referente_id  = $valRef['referente_id'];
+    }
+    // Suma con el descuento manual (no cascada); el candado de autorización >10%
+    // sigue evaluando solo $descuento (manual), no $descuento_efectivo.
+    $descuento_efectivo = $descuento + $descuento_referido;
 
     // Calcular fecha entrega
     $fecha_hoy    = date('Y-m-d');
@@ -473,7 +493,7 @@ if ($method === 'POST') {
 
         $m2             = round(($ancho / 1000) * ($alto / 1000), 6);
         $precio_m2      = (float)$cristal['precio_m2'];
-        $precio_unit    = round($m2 * $precio_m2 * (1 - $descuento / 100), 4);
+        $precio_unit    = round($m2 * $precio_m2 * (1 - $descuento_efectivo / 100), 4);
         $subtotal       = round($precio_unit * $cantidad, 2);
         $iva            = round($subtotal * 0.16, 2);
         $total_p        = round($subtotal + $iva, 2);
@@ -507,7 +527,7 @@ if ($method === 'POST') {
 
     // A-2: totales de encabezado con la fórmula canónica
     // (los subtotales por renglón se conservan solo para despliegue)
-    $tots          = apexTotales($bruto_total, $descuento, 0); // al crear aún no hay servicios
+    $tots          = apexTotales($bruto_total, $descuento_efectivo, 0); // al crear aún no hay servicios
     $subtotal_neto = $tots['subtotal'];
     $iva_total     = $tots['iva'];
     $total_final   = $tots['total'];
@@ -521,14 +541,14 @@ if ($method === 'POST') {
 
         $db->prepare("INSERT INTO cotizaciones
             (folio, fecha, cliente_id, cliente_nombre, asesor_id, asesor_nombre,
-             proyecto, descuento, credito, condicion_pago, tipo_entrega,
+             proyecto, descuento, descuento_referido, credito, condicion_pago, tipo_entrega,
              localidad, ciudad_destino, factura_tipo, fecha_entrega, fecha_entrega_manual,
              alerta, subtotal, iva, total, saldo_pendiente, entrega_bloqueada, estatus)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ")->execute([
             $folio, $fecha_hoy, $cliente_id, $cliente_nombre,
             $usuario_id, $usuario_nombre,
-            $proyecto, $descuento, $credito, $condicion, $tipo_entrega,
+            $proyecto, $descuento, $descuento_referido, $credito, $condicion, $tipo_entrega,
             $localidad, $ciudad, $factura_tipo, $fecha_entrega, $es_manual,
             $alerta, $subtotal_neto, $iva_total, $total_final,
             $saldo,
@@ -554,6 +574,13 @@ if ($method === 'POST') {
                 $p['precio_unitario'], $p['subtotal'], $p['iva'], $p['total'],
                 $p['comentarios_etiqueta']
             ]);
+        }
+
+        // Esquema de Referidos: registrar la relación solo si se validó un CTN
+        // nuevo en este request (si ya venía de una cotización previa del mismo
+        // cliente, no hay nada que registrar de nuevo).
+        if ($referido_referente_id) {
+            referidosRegistrar($db, $cliente_id, $referido_referente_id, $referido_ctn, $usuario_nombre, $cot_id);
         }
 
         $db->commit();
@@ -588,7 +615,7 @@ if ($method === 'PUT') {
         if (!$puede_editar) { jsonResponse(['error' => 'Sin permiso']); exit; }
 
         // Verificar que existe y está en estatus cotizacion
-        $stmt = $db->prepare("SELECT estatus, asesor_id, COALESCE(saldo_pagado,0) AS saldo_pagado FROM cotizaciones WHERE id = ?");
+        $stmt = $db->prepare("SELECT estatus, asesor_id, COALESCE(saldo_pagado,0) AS saldo_pagado, COALESCE(descuento_referido,0) AS descuento_referido FROM cotizaciones WHERE id = ?");
         $stmt->execute([$id]);
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
@@ -601,6 +628,10 @@ if ($method === 'PUT') {
         $cliente_id   = (int)($body['cliente_id']    ?? 0);
         $proyecto     = trim($body['proyecto']        ?? '');
         $descuento    = max(0, min(100, (float)($body['descuento'] ?? 0)));
+        // Referidos: descuento_referido queda fijo desde que se registró — no es
+        // editable aquí, solo se preserva y se suma para recalcular el total.
+        $descuento_referido = (float)$cot['descuento_referido'];
+        $descuento_efectivo = $descuento + $descuento_referido;
         $credito      = ($body['credito'] ?? 'no') === 'si' ? 'si' : 'no';
         $condicion    = in_array($body['condicion_pago'] ?? '', ['anticipo','pago_total']) ? $body['condicion_pago'] : 'anticipo';
         $tipo_entrega = in_array($body['tipo_entrega'] ?? '', ['domicilio','planta']) ? $body['tipo_entrega'] : 'domicilio';
@@ -661,7 +692,7 @@ if ($method === 'PUT') {
             $precio_m2 = $preciosVigentes[(count($partidas_data) + 1) . '|' . $cristal_id]
                          ?? (float)$cristal['precio_m2'];
 
-            $precio_unit  = round($m2 * $precio_m2 * (1 - $descuento / 100), 4);
+            $precio_unit  = round($m2 * $precio_m2 * (1 - $descuento_efectivo / 100), 4);
             $subtotal     = round($precio_unit * $cantidad, 2);
             $iva          = round($subtotal * 0.16, 2);
             $total_p      = round($subtotal + $iva, 2);
@@ -705,7 +736,7 @@ if ($method === 'PUT') {
         $servicios_estimados = (float)$stSrvEst->fetchColumn();
 
         // A-2: fórmula canónica — c.total incluye servicios
-        $tots          = apexTotales($bruto_total, $descuento, $servicios_estimados);
+        $tots          = apexTotales($bruto_total, $descuento_efectivo, $servicios_estimados);
         $subtotal_neto = $tots['subtotal'];
         $iva_total     = $tots['iva'];
         $total_final   = $tots['total'];

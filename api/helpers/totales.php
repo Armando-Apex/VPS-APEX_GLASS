@@ -27,7 +27,7 @@ function apexTotales($bruto_partidas, $descuento_pct, $servicios_subtotal) {
 // ─── Totales de una cotización ya guardada (lee BD, ramifica por tipo) ───────
 // Devuelve null si la cotización no existe.
 function apexTotalesCotizacion(PDO $db, $cotizacion_id) {
-    $stmt = $db->prepare("SELECT tipo, descuento, COALESCE(servicios_subtotal,0) AS servicios_subtotal
+    $stmt = $db->prepare("SELECT tipo, descuento, COALESCE(descuento_referido,0) AS descuento_referido, COALESCE(servicios_subtotal,0) AS servicios_subtotal
                           FROM cotizaciones WHERE id = ?");
     $stmt->execute([(int)$cotizacion_id]);
     $cot = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -35,13 +35,22 @@ function apexTotalesCotizacion(PDO $db, $cotizacion_id) {
 
     if (($cot['tipo'] ?? '') === 'maquila') {
         // Maquila: las partidas viven en cotizaciones_maquila_partidas y
-        // ya traen su subtotal calculado por api/maquila.php (sin descuento).
+        // ya traen su subtotal calculado por api/maquila.php (sin descuento,
+        // ni siquiera el manual — el descuento de maquila se aplica distinto,
+        // a nivel partida en api/maquila.php). Referidos: mismo criterio,
+        // no aplica por esta vía para maquila.
         $st = $db->prepare("SELECT COALESCE(SUM(subtotal),0) FROM cotizaciones_maquila_partidas WHERE cotizacion_id = ?");
         $st->execute([(int)$cotizacion_id]);
         return apexTotales((float)$st->fetchColumn(), 0, (float)$cot['servicios_subtotal']);
     }
 
+    // Descuento efectivo = manual (asesor) + automático de cliente referido (suma, no cascada).
+    // El candado de autorización dir_admin >10% (autorizaciones_descuento) evalúa
+    // solo `cotizaciones.descuento` — descuento_referido queda fuera de ese cálculo
+    // a propósito, es automático y no requiere aprobación.
+    $descuento_efectivo = (float)$cot['descuento'] + (float)$cot['descuento_referido'];
+
     $st = $db->prepare("SELECT COALESCE(SUM(precio_m2_usado*m2*cantidad),0) FROM cotizaciones_partidas WHERE cotizacion_id = ?");
     $st->execute([(int)$cotizacion_id]);
-    return apexTotales((float)$st->fetchColumn(), (float)$cot['descuento'], (float)$cot['servicios_subtotal']);
+    return apexTotales((float)$st->fetchColumn(), $descuento_efectivo, (float)$cot['servicios_subtotal']);
 }

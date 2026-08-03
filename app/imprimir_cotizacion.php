@@ -70,7 +70,9 @@ $asesor_email  = isset($asesores_excel[$asesor_nombre]) ? $asesores_excel[$aseso
 $tel_empresa = '+52 81 1180 5078';
 $tel_fijo    = '81 1180 5078';
 
-$descuento = (float)($c['descuento'] ?? 0);
+$descuento          = (float)($c['descuento'] ?? 0);
+$descuento_referido = (float)($c['descuento_referido'] ?? 0); // Esquema de Referidos (promo agosto 2026)
+$descuento_efectivo = $descuento + $descuento_referido;
 
 // Calcular bruto desde precio_m2_usado × m2 × cantidad — misma fórmula que la pantalla.
 // precio_unitario en registros viejos almacenaba precio bruto (sin descuento aplicado),
@@ -104,8 +106,8 @@ function fmtM2Exacto($v) {
     return $s;
 }
 
-$subtotal_neto = ($descuento > 0 && $descuento < 100)
-    ? round($subtotal * (1 - $descuento / 100), 2)
+$subtotal_neto = ($descuento_efectivo > 0 && $descuento_efectivo < 100)
+    ? round($subtotal * (1 - $descuento_efectivo / 100), 2)
     : $subtotal;
 $base_gravable = round($subtotal_neto + $servicios_subtotal, 2);
 $iva   = round($base_gravable * 0.16, 2);
@@ -529,6 +531,12 @@ function waEnviar() {
       <div class="totales-row descuento">
         <span class="label">Descuento</span>
         <span class="val">-$<?= number_format($subtotal * $descuento / 100, 2) ?></span>
+      </div>
+      <?php endif; ?>
+      <?php if ($descuento_referido > 0): ?>
+      <div class="totales-row descuento">
+        <span class="label">Descuento cliente referido (<?= number_format($descuento_referido, 0) ?>%)</span>
+        <span class="val">-$<?= number_format($subtotal * $descuento_referido / 100, 2) ?></span>
       </div>
       <?php endif; ?>
       <?php if ($servicios_subtotal > 0): ?>

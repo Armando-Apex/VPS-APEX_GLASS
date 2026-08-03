@@ -5,7 +5,9 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
-require_once __DIR__ . '/helpers/totales.php'; // A-2
+require_once __DIR__ . '/helpers/totales.php';    // A-2
+require_once __DIR__ . '/helpers/referidos_lib.php'; // Esquema de Referidos (promo agosto 2026)
+require_once __DIR__ . '/wa_helper.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -514,6 +516,41 @@ if ($method === 'PUT') {
                     $asesor_row['id'] ?? null
                 ]);
             } catch (Exception $ignored) {}
+
+            // Esquema de Referidos: si el cliente de esta orden tiene un referente
+            // registrado, abonar 5% de saldo a favor y avisar por WhatsApp. Nunca
+            // debe bloquear el VoBo — ya se hizo commit arriba, esto es un bono
+            // aparte (mismo patrón que la notificación al asesor de arriba).
+            if ($orden['cot_id']) {
+                try {
+                    $bono = referidosAcreditarVoBo($db, $orden['cot_id']);
+                    if ($bono) {
+                        $telRaw = preg_replace('/\D/', '', $bono['referente_telefono'] ?? '');
+                        if ($telRaw && strlen($telRaw) >= 10) {
+                            if (strlen($telRaw) === 10) $telRaw = '52' . $telRaw;
+                            enviarMensajeWA([
+                                'messaging_product' => 'whatsapp',
+                                'to'   => $telRaw,
+                                'type' => 'template',
+                                'template' => [
+                                    'name'     => 'referido_saldo_abonado',
+                                    'language' => ['code' => 'es_MX'],
+                                    'components' => [[
+                                        'type' => 'body',
+                                        'parameters' => [
+                                            ['type' => 'text', 'text' => substr(strip_tags($bono['referente_nombre']), 0, 60)],
+                                            ['type' => 'text', 'text' => number_format($bono['monto'], 2)],
+                                            ['type' => 'text', 'text' => substr(strip_tags($bono['cliente_referido_nombre']), 0, 60)],
+                                        ]
+                                    ]]
+                                ]
+                            ]);
+                            // No se valida la respuesta de Meta ni se reintenta — el saldo
+                            // ya quedó abonado en BD (lo importante); el WA es solo cortesía.
+                        }
+                    }
+                } catch (Exception $ignored) {}
+            }
 
             jsonResponse([
                 'ok'            => true,

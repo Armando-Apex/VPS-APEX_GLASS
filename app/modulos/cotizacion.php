@@ -423,6 +423,18 @@ function renderFormulario(data) {
   html += '<div class="field"><label>Descuento %</label>';
   html += '<input type="number" id="fDescuento" min="0" max="100" step="0.5" value="' + (data ? (data.descuento || '0') : '0') + '" ' + (!editable ? 'readonly' : '') + ' onchange="ModCotizacion._recalcular()"></div>';
 
+  // Código de referido (CTN) — promo agosto 2026, solo aplica al crear la
+  // primera cotización de un cliente nuevo. En ediciones el 5% ya quedó fijo
+  // en el servidor (descuento_referido), no se vuelve a pedir el código.
+  if (esNuevo) {
+    html += '<div class="field"><label>C&oacute;digo de Referido (CTN)</label>';
+    html += '<input type="text" id="fReferidoCtn" placeholder="Ej: CTN-259" maxlength="20" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
+    html += '<small style="color:#64748b;">Opcional, solo cliente nuevo referido por otro. Da 5% de descuento autom&aacute;tico (agosto 2026).</small></div>';
+  } else if (data && parseFloat(data.descuento_referido || 0) > 0) {
+    html += '<div class="field"><label>Descuento por Referido</label>';
+    html += '<input type="text" readonly value="' + parseFloat(data.descuento_referido) + '% (ya aplicado)"></div>';
+  }
+
   // Condición de pago
   html += '<div class="field"><label>Condición de pago</label>';
   if (editable) {
@@ -807,7 +819,10 @@ function recalcular() {
     subtotal  += cantidad * m2 * precio;
   }
   var pctDesc   = parseFloat(document.getElementById('fDescuento')?.value || 0);
-  var descuento = subtotal * pctDesc / 100;
+  // Preview del 5% de referido (solo visual — el servidor valida y calcula el real al guardar)
+  var refCtnEl  = document.getElementById('fReferidoCtn');
+  var pctRef    = (refCtnEl && refCtnEl.value.trim()) ? 5 : (_dataCot ? parseFloat(_dataCot.descuento_referido || 0) : 0);
+  var descuento = subtotal * (pctDesc + pctRef) / 100;
   var baseNeta  = subtotal - descuento;
   var srvTotal  = _dataCot ? parseFloat(_dataCot.servicios_subtotal || 0) : 0;
   var base      = baseNeta + srvTotal;
@@ -1001,6 +1016,7 @@ function armarPayload(clienteId) {
     fecha_entrega:  document.getElementById('fFechaEntrega')?.value || '',
     factura_tipo:   (document.getElementById('fFacturaGenerica')?.checked ? 'generica' : ''),
     alerta:         document.getElementById('fAlerta')?.value       || '',
+    referido_ctn:   (document.getElementById('fReferidoCtn')?.value || '').trim(),
     partidas:       partidasPayload,
   };
 }
