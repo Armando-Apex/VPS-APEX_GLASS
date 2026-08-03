@@ -179,6 +179,13 @@ if ($pieza['orden_tipo'] === 'maquila') {
 
 
 
+// Marcar entregado requiere el permiso específico 'registrar_entrega' (chofer, comercial,
+// dir_admin, administracion, dueno, desarrollo) — jefe_piso puede mover el flujo de producción
+// pero no puede cerrar la entrega.
+if ($estatus === 'entregado' && !tienePermiso($usuario['rol'], 'registrar_entrega')) {
+    jsonResponse(['error' => 'No tienes permiso para marcar una pieza como entregada'], 403);
+}
+
 $estatusAnterior = $pieza['estatus'];
 
 $FLUJO_ORDEN = ['pendiente','en_corte','cortado','canteado','trazo','taladro','en_horno','terminado','entregado'];
