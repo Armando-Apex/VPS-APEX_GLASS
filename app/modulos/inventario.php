@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../api/permisos.php';
 $user = requirePermiso('ver_inventario');
 $puedeGestionar = in_array($user['rol'], ['dir_admin','administracion','dueno','desarrollo']);
 $esDirAdmin     = $user['rol'] === 'dir_admin';
+$puedeAjustarStock = in_array($user['rol'], ['dir_admin','administracion','desarrollo']);
 // Asesores (comercial) solo ven la pestaña Stock — solo lectura, sin gestión
 $soloStock      = $user['rol'] === 'comercial';
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
@@ -413,6 +414,37 @@ tr:hover td { background: #f8fafc; }
   </div>
 </div>
 
+<!-- ── MODAL AJUSTE STOCK ───────────────────────────────────── -->
+<div class="modal-overlay" id="modalAjusteStock">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Ajustar stock</div>
+      <button class="modal-close" onclick="invCerrarModal('modalAjusteStock')">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ajusteLaminaId">
+      <div id="ajusteLaminaInfo" style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:4px"></div>
+      <div id="ajusteStockActual" style="font-size:13px;color:#64748b;margin-bottom:14px"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Stock correcto (l&#225;minas) *</label>
+          <input type="number" id="ajusteCantidad" class="form-input" min="0" placeholder="ej: 12" oninput="ajusteActualizarPreview()">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Motivo *</label>
+          <input type="text" id="ajusteMotivo" class="form-input" placeholder="ej: rotura, conteo f&#237;sico, faltante">
+        </div>
+      </div>
+      <div id="ajustePreview" style="margin-top:6px;font-size:13px;font-weight:600"></div>
+      <div style="margin-top:10px;font-size:12px;color:#94a3b8">Esto registra un movimiento de salida en el inventario (no borra ni edita compras existentes). Solo puede corregir el stock hacia abajo — para aumentarlo usa "Registrar compra". No se puede deshacer desde aqu&#237;.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="invCerrarModal('modalAjusteStock')">Cancelar</button>
+      <button class="btn btn-primary" onclick="invGuardarAjusteStock()">Ajustar stock</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── MODAL COMPRA ─────────────────────────────────────────── -->
 <div class="modal-overlay" id="modalCompra">
   <div class="modal" style="max-width:600px">
@@ -720,6 +752,7 @@ var ModInventario = (function(){
 
 var puedeGestionar = <?= $puedeGestionar ? 'true' : 'false' ?>;
 var esDirAdmin     = <?= $esDirAdmin ? 'true' : 'false' ?>;
+var puedeAjustarStock = <?= $puedeAjustarStock ? 'true' : 'false' ?>;
 var soloStock      = <?= $soloStock ? 'true' : 'false' ?>;
 var _tabActual = 'stock';
 var _laminas   = [];
@@ -805,6 +838,9 @@ async function cargarStock() {
         ? '<span class="badge badge-alerta">&#9888;&#65039; Stock bajo</span>'
         : '<span class="badge badge-ok">&#10003; OK</span>';
       var acciones = puedeGestionar ? '<button class="btn-icon" title="Editar" onclick="invEditarLamina('+l.id+')">&#9998;</button>' : '';
+      if (puedeAjustarStock) {
+        acciones += '<button class="btn-icon" title="Ajustar stock" onclick="invAbrirAjusteStock('+l.id+')">&#128295;</button>';
+      }
       return '<tr>'+
         '<td><strong>'+(tipoLabel[l.tipo]||l.tipo)+'</strong></td>'+
         '<td>'+l.espesor_mm+' mm</td>'+
@@ -1713,6 +1749,79 @@ async function invRegistrarConsumo() {
   }
 }
 
+// ── Ajuste manual de stock (dir_admin / administracion) ────────
+// El usuario captura el stock CORRECTO (lo que hay físicamente), no la
+// cantidad a descontar — el sistema calcula la diferencia con el stock
+// actual y registra un movimiento de salida por esa diferencia.
+var _ajusteStockActual = 0;
+
+function invAbrirAjusteStock(id) {
+  var l = _laminas.find(function(x){ return x.id == id; });
+  if (!l) return;
+  document.getElementById('ajusteLaminaId').value = l.id;
+  document.getElementById('ajusteLaminaInfo').textContent =
+    (tipoLabel[l.tipo]||l.tipo) + ' ' + l.espesor_mm + 'mm — ' + (l.ancho_mm/10).toFixed(0) + '×' + (l.alto_mm/10).toFixed(0) + 'cm';
+  _ajusteStockActual = parseInt(l.stock_laminas)||0;
+  document.getElementById('ajusteStockActual').textContent = 'Stock actual en sistema: ' + _ajusteStockActual + ' lámina' + (_ajusteStockActual !== 1 ? 's' : '');
+  document.getElementById('ajusteCantidad').value = '';
+  document.getElementById('ajusteMotivo').value = '';
+  document.getElementById('ajustePreview').textContent = '';
+  invAbrirModal('modalAjusteStock');
+}
+
+function ajusteActualizarPreview() {
+  var el = document.getElementById('ajustePreview');
+  var val = document.getElementById('ajusteCantidad').value;
+  if (val === '') { el.textContent = ''; return; }
+  var destino = parseInt(val);
+  var dif = _ajusteStockActual - destino;
+  if (isNaN(destino) || destino < 0) { el.textContent = ''; return; }
+  if (dif > 0) {
+    el.textContent = 'Se registrará una salida de ' + dif + ' lámina(s) (' + _ajusteStockActual + ' → ' + destino + ')';
+    el.style.color = '#ca8a04';
+  } else if (dif === 0) {
+    el.textContent = 'Sin cambio — ya coincide con el stock actual';
+    el.style.color = '#64748b';
+  } else {
+    el.textContent = 'No se puede aumentar el stock desde aquí — usa "Registrar compra"';
+    el.style.color = '#dc2626';
+  }
+}
+
+async function invGuardarAjusteStock() {
+  var laminaId = parseInt(document.getElementById('ajusteLaminaId').value);
+  var destino  = parseInt(document.getElementById('ajusteCantidad').value);
+  var motivo   = document.getElementById('ajusteMotivo').value.trim();
+
+  if (isNaN(destino) || destino < 0) return alert('Ingresa el stock correcto');
+  if (!motivo) return alert('El motivo es obligatorio');
+  var dif = _ajusteStockActual - destino;
+  if (dif <= 0) return alert(dif === 0 ? 'Ya coincide con el stock actual, no hay nada que ajustar' : 'No se puede aumentar el stock desde aquí — usa "Registrar compra"');
+  if (!confirm('¿Ajustar stock de ' + _ajusteStockActual + ' a ' + destino + ' lámina(s)? Esta acción no se puede deshacer desde aquí.')) return;
+
+  var btn = document.querySelector('#modalAjusteStock .btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+
+  try {
+    var r = await fetch('../api/inventario.php', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'ajustar_stock', lamina_id:laminaId, cantidad:dif, motivo:motivo})
+    });
+    var d = await r.json();
+    if (d.error) { alert(d.error); return; }
+    invCerrarModal('modalAjusteStock');
+    cargarStock();
+    alert('✅ Stock ajustado a ' + destino + ' lámina(s)');
+  } catch(e) {
+    alert('Error de conexión');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Ajustar stock';
+  }
+}
+
 // ── Init ─────────────────────────────────────────────────────
 cargarStock();
 
@@ -1750,6 +1859,9 @@ window.ocAbrirDistribuir    = ocAbrirDistribuir;
 window.dfPreview            = dfPreview;
 window.dfConfirmar          = dfConfirmar;
 window.invAbrirModalConsumo = invAbrirModalConsumo;
+window.invAbrirAjusteStock  = invAbrirAjusteStock;
+window.ajusteActualizarPreview = ajusteActualizarPreview;
+window.invGuardarAjusteStock = invGuardarAjusteStock;
 window.consumoActualizarStock = consumoActualizarStock;
 window.invRegistrarConsumo  = invRegistrarConsumo;
 

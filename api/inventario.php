@@ -315,6 +315,64 @@ if ($method === 'POST') {
         jsonResponse(['ok' => true, 'id' => $db->lastInsertId()]);
     }
 
+    // ── Ajustar stock (corrección manual, solo dir_admin/administracion) ──
+    // Rebaja stock fuera del flujo normal de consumo de corte (rotura, faltante
+    // en conteo físico, etc.) — mismo mecanismo que registrar_uso (un movimiento
+    // en inventario_movimientos), pero con permiso más estricto y motivo obligatorio.
+    if ($accion === 'ajustar_stock') {
+        if (!in_array($user['rol'], ['dir_admin', 'administracion', 'desarrollo'])) {
+            jsonResponse(['error' => 'Sin permiso'], 403);
+        }
+        $lamina_id = (int)($body['lamina_id']  ?? 0);
+        $cantidad  = (int)($body['cantidad']   ?? 0);
+        $motivo    = trim($body['motivo']      ?? '');
+
+        if ($lamina_id <= 0 || $cantidad <= 0)
+            jsonResponse(['error' => 'Lámina y cantidad (mayor a 0) son requeridas'], 422);
+        if ($motivo === '')
+            jsonResponse(['error' => 'El motivo es obligatorio'], 422);
+
+        $db->beginTransaction();
+        try {
+            $sl = $db->prepare("SELECT id FROM laminas WHERE id = ? FOR UPDATE");
+            $sl->execute([$lamina_id]);
+            if (!$sl->fetch())
+                throw new Exception('La lámina no existe', 422);
+
+            $s = $db->prepare("
+                SELECT
+                    COALESCE(SUM(c.cantidad_laminas),0) -
+                    COALESCE((SELECT SUM(m.cantidad_laminas)
+                              FROM inventario_movimientos m
+                              WHERE m.lamina_id = ?), 0) AS stock
+                FROM inventario_compras c
+                WHERE c.lamina_id = ?
+            ");
+            $s->execute([$lamina_id, $lamina_id]);
+            $stock = (int)$s->fetchColumn();
+
+            if ($stock < $cantidad)
+                throw new Exception('Stock insuficiente. Disponible: '.$stock.' láminas', 422);
+
+            $s = $db->prepare("INSERT INTO inventario_movimientos
+                (lamina_id, cantidad_laminas, ordenes, operador_id, fecha, notas)
+                VALUES (?,?,?,?,?,?)");
+            $s->execute([
+                $lamina_id, $cantidad,
+                json_encode([], JSON_UNESCAPED_UNICODE),
+                $user['id'], date('Y-m-d'),
+                'Ajuste manual de stock por ' . $user['nombre'] . ': ' . $motivo
+            ]);
+            $mov_id = $db->lastInsertId();
+            $db->commit();
+            jsonResponse(['ok' => true, 'id' => $mov_id]);
+        } catch (Exception $e) {
+            $db->rollBack();
+            $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
+            jsonResponse(['error' => $e->getMessage()], $code);
+        }
+    }
+
     // ── Registrar uso (operador corte) ────────────────────────
     if ($accion === 'registrar_uso') {
         // operador de corte puede registrar uso
