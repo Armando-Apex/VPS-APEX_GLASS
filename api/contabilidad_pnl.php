@@ -39,9 +39,13 @@ $totalIngresos = array_sum($ingresosPorTipo);
 //      (mano de obra directa y costos indirectos de planta, capturados en Nómina/Gastos Fijos/Caja Chica) ─
 $costoVentasVidrio = costoVentasPeriodo($pdo, $desde, $hasta);
 $cobertura         = costoVentasCobertura($pdo, $desde, $hasta);
+$mermaNeta         = mermaNetaPeriodo($pdo, $desde, $hasta);
 $costoLineas = [];
 if (isset($porCodigo['5.1'])) {
     $costoLineas[] = ['codigo' => '5.1', 'nombre' => $porCodigo['5.1']['nombre'], 'monto' => $costoVentasVidrio];
+}
+if (isset($porCodigo['5.4'])) {
+    $costoLineas[] = ['codigo' => '5.4', 'nombre' => $porCodigo['5.4']['nombre'], 'monto' => $mermaNeta];
 }
 
 // ── 3) Gastos/costos por cuenta (movimientos_contables + Compras mapeadas) ─────
@@ -51,7 +55,7 @@ $stmtMov = $pdo->prepare("
     LEFT JOIN movimientos_contables m ON m.cuenta_id = c.id AND m.fecha_movimiento BETWEEN ? AND ?
     WHERE c.es_acumulativa = 0 AND c.activo = 1
       AND c.tipo_financiero IN ('costo_venta', 'gasto_operativo', 'financiero', 'impuesto')
-      AND c.codigo != '5.1'
+      AND c.codigo NOT IN ('5.1', '5.4')
     GROUP BY c.id
     ORDER BY c.orden, c.codigo
 ");
@@ -86,7 +90,7 @@ foreach ($movFilas as $f) {
     }
 }
 
-$costoVentas   = $costoVentasVidrio + $totalCostoVentasPlanta;
+$costoVentas   = $costoVentasVidrio + $mermaNeta + $totalCostoVentasPlanta;
 $utilidadBruta = $totalIngresos - $costoVentas;
 
 $comprasSinMapear = comprasSinMapearPeriodo($pdo, $desde, $hasta);

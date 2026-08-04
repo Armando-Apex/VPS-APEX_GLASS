@@ -113,6 +113,46 @@ function costoVentasPeriodo(PDO $pdo, string $desde, string $hasta): float {
 }
 
 /**
+ * Merma neta de corte (acuerdo con Armando 04-ago-2026): m² de merma de
+ * lámina nueva (sesiones_corte con es_pedaceria=0, m2_disponible-m2_aprovechado)
+ * MENOS los m² que después se recuperaron vía pedacería (es_pedaceria=1,
+ * seleccionados por el operador en el mismo wizard de corte) — evita cobrar
+ * dos veces el mismo m² (una como pérdida, otra como costo normal de la
+ * pieza hecha con el sobrante). El costo de la pieza reutilizada ya se cobra
+ * aparte en costoVentasPeriodo() igual que cualquier otra pieza; esta función
+ * solo aporta el desperdicio que NO se recuperó.
+ *
+ * Se carga el 100% de la merma neta a Costo de Ventas sin separar una
+ * porción como "anormal": el rango observado (23-27% de la lámina) cae
+ * dentro del 20-25% que Armando espera como normal/inherente al proceso de
+ * corte, así que no aplica la distinción NIF C-4 entre merma normal (va a
+ * costo) y anormal (se separaría como gasto de operación aparte).
+ *
+ * Arranca desde el 1-ago-2026 (fecha del acuerdo) — un rango que termine
+ * antes de esa fecha regresa 0 sin tocar julio, ya reportado con el método
+ * anterior; un rango que la cruce solo cuenta los cortes desde el 1-ago.
+ */
+function mermaNetaPeriodo(PDO $pdo, string $desde, string $hasta): float {
+    $corte = '2026-08-01';
+    if ($hasta < $corte) return 0.0;
+    $efectivoDesde = max($desde, $corte);
+    $costoProm = PNL_COSTO_PROM_SUBQUERY;
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(ROUND(SUM(
+            (
+                (CASE WHEN sc.es_pedaceria = 0 THEN sc.m2_disponible - sc.m2_aprovechado ELSE 0 END)
+                - (CASE WHEN sc.es_pedaceria = 1 THEN sc.m2_aprovechado ELSE 0 END)
+            ) * COALESCE(cp.costo_prom_m2, 0)
+        ), 2), 0) AS merma_neta
+        FROM sesiones_corte sc
+        LEFT JOIN $costoProm cp ON cp.tipo = LOWER(sc.tipo) AND cp.espesor_mm = sc.espesor_mm
+        WHERE DATE(sc.created_at) BETWEEN ? AND ?
+    ");
+    $stmt->execute([$efectivoDesde, $hasta]);
+    return (float) $stmt->fetchColumn();
+}
+
+/**
  * Gastos de Compras (OCs tipo 'suministro' — Mantenimiento, Herramienta,
  * Limpieza, etc.) que ya tienen regla de mapeo a una cuenta contable
  * (cuenta_mapeo_reglas, origen_tipo='oc_categoria'). Reconocido en base a
