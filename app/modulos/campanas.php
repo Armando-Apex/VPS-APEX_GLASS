@@ -1238,15 +1238,8 @@ var ModCampanas = (function() {
         }
 
         cargarMensajes(convId);
-
-        // Marcar como leído y refrescar badge sidebar
-        fetch('/produccion/api/campanas.php?accion=marcar_leido', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({conversacion_id: convId})
-        }).then(function() {
-            if (typeof window.actualizarBadgeWA === 'function') window.actualizarBadgeWA();
-        });
+        // El badge de "sin leer" ya no se limpia solo por abrir/leer la conversación —
+        // se limpia hasta que se le contesta al cliente (ver enviarMensaje/enviarTemplateInbox/accion=enviar_media/enviar_ubicacion).
     }
 
     function cargarMensajes(convId, preservarScroll) {
@@ -1449,7 +1442,7 @@ var ModCampanas = (function() {
         var menu = document.createElement('div');
         menu.id = 'cmpCtxMenu';
         menu.className = 'conv-ctx-menu';
-        menu.innerHTML = '<button onclick="window.cmpMarcarNoLeido(' + convId + ')">&#128140; Marcar como no leído</button>';
+        menu.innerHTML = '<button onclick="window.cmpMarcarLeido(' + convId + ')">&#128140; Marcar como leído</button>';
         document.body.appendChild(menu);
         var rect = e.target.getBoundingClientRect();
         menu.style.top  = (rect.bottom + 4) + 'px';
@@ -1463,10 +1456,10 @@ var ModCampanas = (function() {
         }, 10);
     }
 
-    function marcarNoLeido(convId) {
+    function marcarLeido(convId) {
         var m = document.getElementById('cmpCtxMenu');
         if (m) m.remove();
-        fetch('/produccion/api/campanas.php?accion=marcar_no_leido', {
+        fetch('/produccion/api/campanas.php?accion=marcar_leido', {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'X-CSRF-Token': (window._csrfToken || '')},
             body: JSON.stringify({conversacion_id: convId})
@@ -1845,7 +1838,7 @@ var ModCampanas = (function() {
     window.cmpSetReply            = setReply;
     window.cmpCancelarReply       = cancelarReply;
     window.cmpMenuConv            = menuConv;
-    window.cmpMarcarNoLeido       = marcarNoLeido;
+    window.cmpMarcarLeido         = marcarLeido;
     window.cmpToggleBurbujas      = toggleBurbujas;
     window.cmpCerrarBurbujas      = cerrarBurbujas;
     window.cmpToggleEmojis        = toggleEmojis;

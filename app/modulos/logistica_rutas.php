@@ -410,6 +410,7 @@ var LR = (function() {
   var API_RUTAS    = '../api/rutas.php';
   var API_GPS      = '../api/gps_proxy.php';
   var PUEDE_BORRAR_RUTA = <?= in_array($user['rol'], ['dir_admin','desarrollo']) ? 'true' : 'false' ?>;
+  var PUEDE_LIBERAR_PEND = <?= in_array($user['rol'], ['dir_admin','administracion','dueno','desarrollo']) ? 'true' : 'false' ?>;
   var _fecha       = new Date().toISOString().slice(0,10);
   var _rutas       = [];
   var _pendientes  = [];
@@ -650,7 +651,9 @@ var LR = (function() {
         + '<td>'+(o.localidad||'Local')+(o.ciudad_destino?' — '+escH(o.ciudad_destino):'')+'</td>'
         + '<td><span class="estado-chip '+eCls+'">'+o.estado+'</span></td>'
         + '<td><span class="peso-chip">'+fmtKg(o.peso_kg)+'</span></td>'
-        + '<td><button class="btn-asignar" onclick="LR.abrirModalAsignar('+o.id+')">Asignar</button></td>'
+        + '<td><button class="btn-asignar" onclick="LR.abrirModalAsignar('+o.id+')">Asignar</button>'
+        + (PUEDE_LIBERAR_PEND && o.estado === 'entregada' ? ' <button class="btn-asignar" style="background:#64748b" onclick="LR.liberarPendiente('+o.id+',\''+escH(o.folio)+'\')">Liberar</button>' : '')
+        + '</td>'
         + '</tr>';
     });
     tbody.innerHTML = rows;
@@ -673,6 +676,22 @@ var LR = (function() {
   function irAPendPagina(n) {
     _pendPagina = n;
     renderPendientes();
+  }
+
+  async function liberarPendiente(orden_id, folio) {
+    if (!PUEDE_LIBERAR_PEND) return;
+    var nota = prompt('Liberar '+folio+' de la cola de rutas (ya entregada fuera del flujo formal).\nNota opcional (motivo):', '');
+    if (nota === null) return;
+    var r = await fetch(API_RUTAS, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'liberar_pendiente', orden_id:orden_id, nota:nota})
+    });
+    var d = await r.json();
+    if (d.ok) {
+      cargarPendientes();
+    } else {
+      alert(d.error || 'No se pudo liberar');
+    }
   }
 
   function escH(s) {
@@ -1672,6 +1691,7 @@ var LR = (function() {
     abrirModalCarga:abrirModalCarga, cerrarModalCarga:cerrarModalCarga,
     usarCoordenadas:usarCoordenadas,
     pendPagina:irAPendPagina,
+    liberarPendiente:liberarPendiente,
   };
 })();
 </script>

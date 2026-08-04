@@ -664,7 +664,7 @@ if ($metodo === 'POST' && $accion === 'responder') {
         VALUES (?, 'outbound', ?, 'texto', ?, ?, ?, ?)")
        ->execute([$convId, $mensaje, $waId, $replyToWaId ?: null, $replyPreview ?: null, $user['nombre']]);
 
-    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
+    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW(), mensajes_sin_leer=0 WHERE id=?")
        ->execute([$convId]);
     jsonResponse(['ok' => true, 'wa_message_id' => $waId]);
     exit;
@@ -716,7 +716,7 @@ if ($metodo === 'POST' && $accion === 'template_inbox') {
         (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por)
         VALUES (?, 'outbound', ?, 'texto', ?, ?)")
        ->execute([$convId, $contenido, $waId, $user['nombre']]);
-    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
+    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW(), mensajes_sin_leer=0 WHERE id=?")
        ->execute([$convId]);
     jsonResponse(['ok' => true]);
     exit;
@@ -827,7 +827,7 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
         VALUES (?, 'outbound', ?, ?, ?, ?)")
        ->execute([$convId, $contenido, $tipoMsg, $waId, $user['nombre']]);
 
-    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
+    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW(), mensajes_sin_leer=0 WHERE id=?")
        ->execute([$convId]);
 
     jsonResponse(['ok' => true, 'wa_message_id' => $waId, 'tipo' => $tipoMsg]);
@@ -889,7 +889,7 @@ if ($metodo === 'POST' && $accion === 'enviar_ubicacion') {
         (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por)
         VALUES (?, 'outbound', ?, 'ubicacion', ?, ?)")
        ->execute([$convId, $contenido, $waId, $user['nombre']]);
-    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
+    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW(), mensajes_sin_leer=0 WHERE id=?")
        ->execute([$convId]);
     jsonResponse(['ok' => true]);
     exit;

@@ -257,6 +257,39 @@ if ($method === 'GET') {
 if ($method === 'POST') {
     $accion = $body['accion'] ?? '';
 
+    if ($accion === 'liberar_pendiente') {
+        // Quita una orden de la cola de "pendientes de rutear" sin crear una ruta
+        // falsa — para órdenes que ya se entregaron físicamente fuera del flujo
+        // formal de rutas (entrega informal/directa) y se quedaron atoradas para
+        // siempre porque requiere_ruta nunca se apaga solo. Solo dir_admin/dueno
+        // (o administracion — Lina) pueden usarla; deja rastro de quién y cuándo.
+        if (!in_array($rol, ['dir_admin', 'dueno', 'administracion', 'desarrollo'])) {
+            jsonResponse(['error' => 'Sin permiso']); exit;
+        }
+        $orden_id = (int)($body['orden_id'] ?? 0);
+        $nota     = trim($body['nota'] ?? '');
+        if (!$orden_id) { jsonResponse(['error' => 'Falta orden_id']); exit; }
+
+        $stmtOrd = $db->prepare("SELECT id, folio, estado, requiere_ruta FROM ordenes WHERE id = ?");
+        $stmtOrd->execute([$orden_id]);
+        $ordenRow = $stmtOrd->fetch(PDO::FETCH_ASSOC);
+        if (!$ordenRow) { jsonResponse(['error' => 'Orden no encontrada']); exit; }
+        if (!$ordenRow['requiere_ruta']) { jsonResponse(['error' => 'Esta orden ya no está en la cola de pendientes']); exit; }
+
+        $stmtChk = $db->prepare("SELECT COUNT(*) FROM ruta_entregas WHERE orden_id = ? AND estado = 'pendiente'");
+        $stmtChk->execute([$orden_id]);
+        if ((int)$stmtChk->fetchColumn() > 0) {
+            jsonResponse(['error' => 'Esta orden ya tiene una parada pendiente en una ruta activa; complétala o cancélala desde ahí']); exit;
+        }
+
+        $db->prepare("UPDATE ordenes SET requiere_ruta = 0 WHERE id = ?")->execute([$orden_id]);
+        $obs = 'Liberada de cola de rutas por ' . $nombre . ' (' . date('Y-m-d H:i') . ')' . ($nota !== '' ? ': ' . $nota : '');
+        $db->prepare("UPDATE ordenes SET observaciones = TRIM(CONCAT(COALESCE(observaciones,''), '\n', ?)) WHERE id = ?")
+           ->execute([$obs, $orden_id]);
+
+        jsonResponse(['ok' => true, 'folio' => $ordenRow['folio']]); exit;
+    }
+
     if ($accion === 'crear_ruta') {
         if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
         $fecha  = $body['fecha']  ?? date('Y-m-d');

@@ -916,7 +916,10 @@ function setupButton(p) {
 
   if (esAdmin) {
     const next = nextEstatus(p);
-    if (next) {
+    // registrar_entrega (api/permisos.php) NO lo tienen jefe_piso ni director —
+    // el backend rechazaría el avance a "entregado" con 403, así que ni se ofrece.
+    const puedeEntregar = ['admin','dir_admin'].includes(est);
+    if (next && (next !== 'entregado' || puedeEntregar)) {
       btn.textContent = '▶ Avanzar → ' + (ESTATUS[next]?.label || next);
       btn.className   = 'btn-action go';
       btn.onclick     = () => doUpdate(next);
@@ -1120,6 +1123,23 @@ function setupButton(p) {
 }
 
 function nextEstatus(p) {
+  // Maquila: mismo cálculo de estaciones aplicables que api/actualizar_estatus.php
+  // (requiere_corte / cpb / tp+ta / requiere_templado) — evita sugerir una estación
+  // que esta pieza no necesita (el backend la rechazaría con 400).
+  if (p.tipo === 'maquila') {
+    const requiereCorte    = parseInt(p.requiere_corte || 0) === 1;
+    const requiereCanteado = (p.cpb || 'No') !== 'No' && (p.cpb || '') !== '';
+    const requiereTaladro  = (parseInt(p.tp || 0) + parseInt(p.ta || 0)) > 0;
+    const requiereHorno    = parseInt(p.requiere_templado || 0) === 1;
+    const aplicables = ['pendiente'];
+    if (requiereCorte)    aplicables.push('en_corte', 'cortado');
+    if (requiereCanteado) aplicables.push('canteado');
+    if (requiereTaladro)  aplicables.push('trazo', 'taladro');
+    if (requiereHorno)    aplicables.push('en_horno');
+    aplicables.push('terminado', 'entregado');
+    const idx = aplicables.indexOf(p.estatus);
+    return (idx === -1 || idx === aplicables.length - 1) ? null : aplicables[idx + 1];
+  }
   const ag = (p.tp > 0 || p.ta > 0 || p.resaques > 0);
   const re = !p.requiere_templado;
   switch(p.estatus) {
