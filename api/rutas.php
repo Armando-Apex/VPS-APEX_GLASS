@@ -622,16 +622,13 @@ if ($method === 'POST') {
 
             $ruta_completada = false;
             if ($estado === 'no_entregado') {
-                // Mismo cierre automático que marcarEntregaComoEntregada() cuando la parada
-                // entregada era la última pendiente — antes esta rama nunca lo revisaba, así que
-                // una orden que no se pudo entregar dejaba la ruta 'en_ruta' para siempre sin
-                // botón "Finalizar" posible (reportado por Armando con S-375, ruta 44).
+                // Ya no cierra la ruta aquí — se queda 'en_ruta' hasta que el GPS confirme
+                // el regreso a planta (scripts/gps_tracker.php). $ruta_completada solo indica
+                // "sin paradas pendientes" para el mensaje al usuario (ver S-375, ruta 44).
                 $pend = $db->prepare("SELECT SUM(estado='pendiente') as p FROM ruta_entregas WHERE ruta_id=?");
                 $pend->execute([$reAntes['ruta_id']]);
                 $pend = $pend->fetch(PDO::FETCH_ASSOC);
                 if ((int)($pend['p'] ?? 0) === 0) {
-                    $db->prepare("UPDATE rutas SET estado='completada', updated_at=NOW() WHERE id=?")
-                       ->execute([$reAntes['ruta_id']]);
                     $ruta_completada = true;
                 }
             }
@@ -642,6 +639,34 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Error al actualizar la entrega'], 500); exit;
         }
         jsonResponse(['ok' => true, 'etas' => [], 'ruta_completada' => $ruta_completada]); exit;
+    }
+
+    if ($accion === 'confirmar_regreso') {
+        // Respaldo manual: la ruta se cierra sola cuando el GPS detecta al chofer a
+        // <= RADIO_LLEGADA_M de la planta (scripts/gps_tracker.php, corre cada minuto).
+        // Si el GPS falla/no responde (ProTrack365 sin Open API oficial, ver CLAUDE.md),
+        // esto evita que la ruta quede 'en_ruta' para siempre sin poder Finalizarse.
+        if (!$esLogistica) { jsonResponse(['error' => 'Sin permiso']); exit; }
+        $ruta_id = (int)($body['ruta_id'] ?? 0);
+        if (!$ruta_id) { jsonResponse(['error' => 'ID requerido']); exit; }
+
+        $stmt = $db->prepare("SELECT estado FROM rutas WHERE id=?");
+        $stmt->execute([$ruta_id]);
+        $estadoActual = $stmt->fetchColumn();
+        if ($estadoActual === false) { jsonResponse(['error' => 'Ruta no encontrada']); exit; }
+        if ($estadoActual !== 'en_ruta') { jsonResponse(['error' => 'Solo aplica a una ruta en curso']); exit; }
+
+        $pend = $db->prepare("SELECT COUNT(*) FROM ruta_entregas WHERE ruta_id=? AND estado='pendiente'");
+        $pend->execute([$ruta_id]);
+        if ((int)$pend->fetchColumn() > 0) {
+            jsonResponse(['error' => 'Todavía hay paradas pendientes de entregar']); exit;
+        }
+
+        // archivada=1 de una vez — un solo clic de respaldo, sin pedir un segundo clic en
+        // "Finalizar" (mismo criterio que el cierre automático de scripts/gps_tracker.php).
+        $db->prepare("UPDATE rutas SET estado='completada', regreso_planta_at=NOW(), archivada=1, updated_at=NOW() WHERE id=?")
+           ->execute([$ruta_id]);
+        jsonResponse(['ok' => true]); exit;
     }
 
     if ($accion === 'marcar_pieza') {
@@ -735,18 +760,8 @@ if ($method === 'POST') {
                 }
             }
 
-            // Verificar si la ruta se completa
-            $re2 = $db->prepare("SELECT ruta_id FROM ruta_entregas WHERE id=?");
-            $re2->execute([$entrega_id]);
-            $re2 = $re2->fetch(PDO::FETCH_ASSOC);
-            if ($re2) {
-                $pendRuta = $db->prepare("SELECT COUNT(*) FROM ruta_entregas WHERE ruta_id=? AND estado='pendiente'");
-                $pendRuta->execute([$re2['ruta_id']]);
-                if ((int)$pendRuta->fetchColumn() === 0) {
-                    $db->prepare("UPDATE rutas SET estado='completada', updated_at=NOW() WHERE id=?")
-                       ->execute([$re2['ruta_id']]);
-                }
-            }
+            // Ya no cierra la ruta aquí aunque no queden paradas pendientes — se queda 'en_ruta'
+            // hasta que el GPS confirme el regreso a planta (scripts/gps_tracker.php).
         }
 
         jsonResponse($respuesta); exit;

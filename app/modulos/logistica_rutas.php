@@ -81,12 +81,14 @@ $maps_key = defined('GOOGLE_MAPS_KEY') ? GOOGLE_MAPS_KEY : '';
 
 /* Pendientes */
 .lr-pendientes-head { font-size:14px; font-weight:700; color:#0f172a; margin-bottom:10px; }
-.lr-tbl-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
-table.lr-tbl { width:100%; border-collapse:collapse; font-size:13px; }
-.lr-tbl thead th { background:#f8fafc; padding:10px 14px; text-align:left; font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid #e2e8f0; }
+.lr-tbl-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:12px; overflow-x:auto; }
+table.lr-tbl { width:100%; min-width:820px; border-collapse:collapse; font-size:13px; }
+.lr-tbl thead th { background:#f8fafc; padding:10px 14px; text-align:left; font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
 .lr-tbl tbody td { padding:10px 14px; border-bottom:1px solid #f8fafc; vertical-align:middle; }
 .lr-tbl tbody tr:last-child td { border-bottom:none; }
 .lr-tbl tbody tr:hover td { background:#f8fafc; }
+.lr-tbl thead th:last-child, .lr-tbl tbody td:last-child { width:1%; white-space:nowrap; }
+.lr-actions { display:flex; align-items:center; gap:6px; }
 .peso-chip { font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px; background:#f1f5f9; color:#475569; }
 .estado-chip { font-size:11px; font-weight:600; padding:2px 8px; border-radius:99px; }
 .ec-activa    { background:#eff6ff; color:#2563eb; }
@@ -215,6 +217,7 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
   .lr-tbl thead th { padding: 8px 10px; font-size: 10px; }
   .lr-tbl tbody td { padding: 9px 10px; font-size: 12px; }
   .btn-asignar { font-size: 11px; padding: 4px 8px; }
+  .lr-actions { flex-direction: column; align-items: stretch; }
 
   /* Modales: full width */
   .lr-modal { padding: 20px 16px; max-width: 100% !important; }
@@ -584,6 +587,14 @@ var LR = (function() {
     var btnFinalizar = (ruta.estado === 'completada')
       ? '<button class="btn-iniciar" onclick="LR.finalizarRuta('+ruta.id+')">✅ Finalizar</button>'
       : '';
+    // La ruta se cierra sola cuando el GPS detecta al chofer de vuelta en planta. Si no
+    // quedan paradas pendientes y el GPS no ha confirmado el regreso, se ofrece un botón
+    // manual de respaldo (falla conocida de ProTrack365, ver CLAUDE.md) para no dejarla
+    // atorada en 'en_ruta' sin poder Finalizarse.
+    var sinPendientes = tieneEntregas && !ruta.entregas.some(function(e){ return e.entrega_estado === 'pendiente'; });
+    var btnConfirmarRegreso = (PUEDE_LIBERAR_PEND && ruta.estado === 'en_ruta' && sinPendientes)
+      ? '<button class="btn-planificar" onclick="LR.confirmarRegreso('+ruta.id+')">🏁 Confirmar regreso a planta</button>'
+      : '';
 
     return '<div class="unit-card">'
       + '<div class="unit-card-head">'
@@ -605,6 +616,7 @@ var LR = (function() {
       +   btnImprimirRuta
       +   btnCarga
       +   btnFinalizar
+      +   btnConfirmarRegreso
       +   (PUEDE_BORRAR_RUTA ? '<button class="btn-borrar-ruta" title="Borrar ruta" onclick="LR.eliminarRuta('+ruta.id+')">🗑️</button>' : '')
       + '</div>'
       + tiempoEstimadoHtml
@@ -651,9 +663,9 @@ var LR = (function() {
         + '<td>'+(o.localidad||'Local')+(o.ciudad_destino?' — '+escH(o.ciudad_destino):'')+'</td>'
         + '<td><span class="estado-chip '+eCls+'">'+o.estado+'</span></td>'
         + '<td><span class="peso-chip">'+fmtKg(o.peso_kg)+'</span></td>'
-        + '<td><button class="btn-asignar" onclick="LR.abrirModalAsignar('+o.id+')">Asignar</button>'
-        + (PUEDE_LIBERAR_PEND && o.estado === 'entregada' ? ' <button class="btn-asignar" style="background:#64748b" onclick="LR.liberarPendiente('+o.id+',\''+escH(o.folio)+'\')">Liberar</button>' : '')
-        + '</td>'
+        + '<td><div class="lr-actions"><button class="btn-asignar" onclick="LR.abrirModalAsignar('+o.id+')">Asignar</button>'
+        + (PUEDE_LIBERAR_PEND && o.estado === 'entregada' ? '<button class="btn-asignar" style="background:#64748b" onclick="LR.liberarPendiente('+o.id+',\''+escH(o.folio)+'\')">Liberar</button>' : '')
+        + '</div></td>'
         + '</tr>';
     });
     tbody.innerHTML = rows;
@@ -691,6 +703,22 @@ var LR = (function() {
       cargarPendientes();
     } else {
       alert(d.error || 'No se pudo liberar');
+    }
+  }
+
+  async function confirmarRegreso(ruta_id) {
+    if (!PUEDE_LIBERAR_PEND) return;
+    if (!confirm('¿Confirmar que el chofer ya regresó a planta y cerrar esta ruta?')) return;
+    var r = await fetch(API_RUTAS, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'confirmar_regreso', ruta_id:ruta_id})
+    });
+    var d = await r.json();
+    if (d.ok) {
+      toast('Ruta cerrada');
+      await cargar();
+    } else {
+      toast(d.error || 'No se pudo cerrar la ruta', true);
     }
   }
 
@@ -972,7 +1000,7 @@ var LR = (function() {
     });
     var d = await r.json();
     if (d.ok) {
-      toast(d.ruta_completada ? 'Marcada como no entregada — ruta completada, ya puedes Finalizarla' : 'Marcada como no entregada — la orden se liberó para reprogramarla');
+      toast(d.ruta_completada ? 'Marcada como no entregada — sin paradas pendientes, la ruta se cerrará sola cuando el chofer regrese a planta' : 'Marcada como no entregada — la orden se liberó para reprogramarla');
       await cargar();
     } else {
       toast(d.error||'Error', true);
@@ -1692,6 +1720,7 @@ var LR = (function() {
     usarCoordenadas:usarCoordenadas,
     pendPagina:irAPendPagina,
     liberarPendiente:liberarPendiente,
+    confirmarRegreso:confirmarRegreso,
   };
 })();
 </script>

@@ -13,6 +13,17 @@ require_once __DIR__ . '/gps_lib.php';
 // para activar los envíos reales.
 define('RUTA_WA_AVISOS_ACTIVO', false);
 
+// ── Mapa cuenta de chofer (operador.php) → nombre guardado en rutas.chofer ──
+// rutas.chofer se llena con el selector de "Nueva Ruta" (ROBERTO GARCIA /
+// VICTOR BAUTISTA, ver UPD-406), pero la sesión de operador.php no guarda ese
+// mismo texto — usuarios.nombre trae el nombre completo real ("Juan Roberto
+// García"), que nunca hace match exacto contra el valor del selector. Con solo
+// 2 choferes reales, se resuelve por usuario_id en vez de comparar nombres.
+define('CHOFER_LABEL_POR_USUARIO_ID', [
+    12 => 'ROBERTO GARCIA', // usuario chofer1
+    13 => 'VICTOR BAUTISTA', // usuario chofer2
+]);
+
 // ── Helper: llamar a Google Routes API (computeRoutes) ────────
 // $origen/$destino aceptan un string de dirección o un array ['lat'=>x,'lng'=>y] (posición GPS
 // real del camión, ver calcularYGuardarEtas). Si no se pasa $destino, se usa $origen también
@@ -290,12 +301,14 @@ function marcarEntregaComoEntregada($db, $entrega_id, $notas = '', $piezaIdsRech
                ->execute([$re['orden_id']]);
         }
 
+        // Ya no cierra la ruta aquí solo porque no queden paradas pendientes — la ruta se
+        // queda 'en_ruta' hasta que el GPS confirme que el chofer regresó a planta
+        // (scripts/gps_tracker.php, radio RADIO_LLEGADA_M). $ruta_completada aquí solo
+        // significa "sin paradas pendientes" para el mensaje al usuario, no el cierre real.
         $pend2 = $db->prepare("SELECT SUM(estado='pendiente') as p FROM ruta_entregas WHERE ruta_id=?");
         $pend2->execute([$re['ruta_id']]);
         $pend2 = $pend2->fetch(PDO::FETCH_ASSOC);
         if ((int)($pend2['p'] ?? 0) === 0) {
-            $db->prepare("UPDATE rutas SET estado='completada', updated_at=NOW() WHERE id=?")
-               ->execute([$re['ruta_id']]);
             $ruta_completada = true;
         }
 

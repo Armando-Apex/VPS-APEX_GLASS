@@ -66,12 +66,16 @@ if (!$ACCOUNT || !$PASSWORD) {
 
 $hoy = date('Y-m-d');
 
-$stmt = $db->prepare("SELECT id, unidad FROM rutas WHERE fecha = ? AND estado = 'en_ruta'");
-$stmt->execute([$hoy]);
+// Sin filtro de fecha: una ruta 'en_ruta' de un día anterior que nunca cerró (chofer
+// regresó a planta pero el cron no la vio porque ya no era "hoy") debe seguir
+// revisándose hasta que el GPS confirme el regreso — no solo la del día actual
+// (bug real detectado 05-ago-2026: ruta #68 del 04-ago se quedó abierta para siempre).
+$stmt = $db->prepare("SELECT id, unidad FROM rutas WHERE estado = 'en_ruta'");
+$stmt->execute();
 $rutasActivas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if (!$rutasActivas) {
-    echo "Sin rutas en_ruta hoy — nada que hacer.\n";
+    echo "Sin rutas en_ruta — nada que hacer.\n";
     exit(0);
 }
 
@@ -112,9 +116,12 @@ foreach ($rutasActivas as $ruta) {
         if ($ru && $ru['regreso_planta_at'] === null) {
             $dist = distMetros($pos['lat'], $pos['lng'], PLANTA_LAT, PLANTA_LNG);
             if ($dist <= RADIO_LLEGADA_M) {
-                $db->prepare("UPDATE rutas SET regreso_planta_at=NOW(), estado='completada', updated_at=NOW() WHERE id=?")
+                // archivada=1 de una vez: el cierre automático no debe requerir que alguien
+                // le dé clic manual a "Finalizar" — eso solo aplica al flujo manual de respaldo
+                // (accion=confirmar_regreso en api/rutas.php), no a este.
+                $db->prepare("UPDATE rutas SET regreso_planta_at=NOW(), estado='completada', archivada=1, updated_at=NOW() WHERE id=?")
                    ->execute([$ruta['id']]);
-                echo "Ruta {$ruta['id']} ({$ruta['unidad']}): regreso a planta detectado, ruta cerrada\n";
+                echo "Ruta {$ruta['id']} ({$ruta['unidad']}): regreso a planta detectado, ruta cerrada y archivada\n";
             }
         }
         continue;

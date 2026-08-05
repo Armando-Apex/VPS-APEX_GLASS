@@ -174,6 +174,64 @@ body {
 }
 .cam-flash.show { opacity: .45; }
 
+/* ── Modo chofer: pantalla dividida cámara / lista de ruta ── */
+body.chofer-mode .camera-wrap,
+body.chofer-mode .btn-activar-cam { height: 42vh; min-height: 210px; max-height: 320px; }
+body.chofer-mode #emptyState,
+body.chofer-mode .manual-wrap,
+body.chofer-mode #busquedaPanel,
+body.chofer-mode #btnFotoQR,
+body.chofer-mode #compatNote:empty { display: none !important; }
+body.chofer-mode .result-panel { padding: 0; display: flex; flex-direction: column; min-height: 0; }
+
+.route-half { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.route-head {
+  padding: 12px 14px 8px; display: flex; align-items: baseline;
+  justify-content: space-between; flex-shrink: 0;
+}
+.route-title { font-size: 13px; font-weight: 800; letter-spacing: .3px; color: var(--muted); text-transform: uppercase; }
+.route-progress { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.route-list { flex: 1; overflow-y: auto; padding: 2px 12px 20px; display: flex; flex-direction: column; gap: 7px; }
+.route-empty { text-align: center; padding: 30px 20px; color: var(--muted); font-size: 13px; }
+
+.stop {
+  display: flex; align-items: center; gap: 11px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 11px; padding: 10px 12px;
+}
+.stop.next { border-color: rgba(245,166,35,.5); background: linear-gradient(180deg, rgba(245,166,35,.09), rgba(245,166,35,.03)); }
+.stop-num {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; background: var(--border); color: var(--muted);
+}
+.stop.ok .stop-num   { background: rgba(34,212,122,.16); color: var(--green); }
+.stop.next .stop-num { background: var(--accent); color: #000; }
+.stop-body { flex: 1; min-width: 0; }
+.stop-name { font-size: 13.5px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stop-meta { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.stop-pill {
+  font-size: 10px; font-weight: 800; letter-spacing: .4px; flex-shrink: 0;
+  padding: 4px 8px; border-radius: 20px; text-transform: uppercase;
+}
+.stop-pill.ok      { background: rgba(34,212,122,.15); color: var(--green); }
+.stop-pill.pend    { background: rgba(255,71,87,.15); color: var(--red); }
+.stop-pill.current { background: var(--accent); color: #000; }
+
+.warn-icon-wrap {
+  width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 10px;
+  background: rgba(255,71,87,.14); border: 2px solid var(--red);
+  display: flex; align-items: center; justify-content: center; font-size: 26px;
+}
+.warn-client { color: var(--accent); }
+.warn-list {
+  background: rgba(0,0,0,.25); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; margin-bottom: 16px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.warn-list-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #dcdce2; }
+.warn-list-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
+
 /* Panel resultado */
 .result-panel { flex: 1; overflow-y: auto; padding: 14px 14px 30px; }
 .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
@@ -370,6 +428,14 @@ body {
   <div class="result-panel">
     <div class="compat-note" id="compatNote"></div>
 
+    <div class="route-half" id="routeHalf" style="display:none">
+      <div class="route-head">
+        <div class="route-title">Ruta de hoy</div>
+        <div class="route-progress" id="routeProgress">—</div>
+      </div>
+      <div class="route-list" id="routeList"></div>
+    </div>
+
     <div class="empty-state" id="emptyState">
       <div class="empty-icon">📷</div>
       <div class="empty-text">Escanea el QR de una pieza<br>para registrar el avance</div>
@@ -472,6 +538,19 @@ body {
     <textarea class="modal-notas" id="modalNotas" rows="2" placeholder="Notas adicionales (opcional)"></textarea>
     <button class="btn-confirmar" id="btnConfirmarRet" disabled onclick="confirmarRetrabajo()">Confirmar Retrabajo</button>
     <button class="btn-cancelar" onclick="cerrarModalRetrabajo()">Cancelar</button>
+  </div>
+</div>
+
+<!-- ── Modal Advertencia: orden de escaneo (chofer) ─────── -->
+<div class="modal-bg" id="modalOrdenRuta">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="warn-icon-wrap">&#9888;&#65039;</div>
+    <div class="modal-title" id="ordenRutaTitulo" style="color:#fff">—</div>
+    <div class="modal-sub" id="ordenRutaSub">—</div>
+    <div class="warn-list" id="ordenRutaLista"></div>
+    <button class="btn-confirmar" onclick="confirmarEntregaFueraDeOrden()">Continuar de todos modos</button>
+    <button class="btn-confirmar" style="background:var(--blue);margin-top:10px" onclick="cerrarModalOrdenRuta()">Cancelar y escanear en orden</button>
   </div>
 </div>
 
@@ -606,6 +685,12 @@ function iniciarScanner() {
   startCamera();
   actualizarUiSesionCorte();
   restaurarSesionCorteAbierta();
+
+  if (session.rol === 'chofer') {
+    document.body.classList.add('chofer-mode');
+    document.getElementById('routeHalf').style.display = 'flex';
+    cargarMiRuta();
+  }
 }
 
 function activarCamara() {
@@ -1774,18 +1859,24 @@ async function loadSalida(ordenId) {
 // El chofer escanea el QR de la hoja de ruta (imprimir_ruta.php, una sección por parada)
 // al ENTREGAR el pedido en casa del cliente — ya no al salir hacia allá. Mismo efecto que el
 // botón manual "Entregado" del chofer en Logística Rutas.
-async function loadSalidaRuta(ordenId) {
+async function loadSalidaRuta(ordenId, forzar) {
   try {
     const r = await fetch(API + 'salidas.php?accion=scan_qr_ruta', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orden_id: ordenId })
+      body: JSON.stringify({ orden_id: ordenId, forzar: !!forzar })
     });
     const d = await r.json();
     if (d.error) { showFeedback('err', '❌', 'Error', d.error); return; }
 
+    if (d.requiere_confirmacion) {
+      mostrarAdvertenciaOrdenRuta(d);
+      return;
+    }
+
     if (d.ya_escaneado) {
       showFeedback('ok', '⏱', 'Ya registrada', 'Esta orden ya estaba marcada como entregada');
+      cargarMiRuta();
       return;
     }
 
@@ -1794,9 +1885,98 @@ async function loadSalidaRuta(ordenId) {
     } else {
       showFeedback('ok', '✅', 'Entrega confirmada — ' + d.folio, 'Siguiente parada notificada');
     }
+    cargarMiRuta();
   } catch(e) {
     toast('Error de conexión', 'error');
   }
+}
+
+// ── Advertencia: escaneo fuera de orden de la ruta ─────────────────────────
+// No bloquea — solo pregunta. "Continuar de todos modos" reintenta el mismo
+// escaneo con forzar:true (ver api/salidas.php, accion=scan_qr_ruta).
+let _ordenRutaPendiente = null;
+
+function mostrarAdvertenciaOrdenRuta(d) {
+  _ordenRutaPendiente = d.orden_id;
+  const primero = d.pendientes_antes[0];
+  document.getElementById('ordenRutaTitulo').innerHTML =
+    'Falta escanear la orden de<br><span class="warn-client">' + escHtml(primero.cliente_nombre) + '</span>';
+  document.getElementById('ordenRutaSub').textContent =
+    'Escaneaste ' + d.folio + ', pero hay ' + d.pendientes_antes.length +
+    ' parada' + (d.pendientes_antes.length !== 1 ? 's' : '') + ' anterior' +
+    (d.pendientes_antes.length !== 1 ? 'es' : '') + ' sin confirmar en esta ruta.';
+  document.getElementById('ordenRutaLista').innerHTML = d.pendientes_antes.map(function(p) {
+    return '<div class="warn-list-item"><span class="dot"></span>' +
+      escHtml(p.cliente_nombre) + ' — ' + escHtml(p.folio) + (p.colonia ? ' — ' + escHtml(p.colonia) : '') + '</div>';
+  }).join('');
+  document.getElementById('modalOrdenRuta').classList.add('open');
+}
+
+function cerrarModalOrdenRuta() {
+  document.getElementById('modalOrdenRuta').classList.remove('open');
+  _ordenRutaPendiente = null;
+}
+
+function confirmarEntregaFueraDeOrden() {
+  const ordenId = _ordenRutaPendiente;
+  document.getElementById('modalOrdenRuta').classList.remove('open');
+  _ordenRutaPendiente = null;
+  if (ordenId) loadSalidaRuta(ordenId, true);
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Lista de ruta (mitad inferior de la pantalla del chofer) ──────────────
+async function cargarMiRuta() {
+  try {
+    const r = await fetch(API + 'salidas.php?accion=mi_ruta');
+    const d = await r.json();
+    renderRutaList(d.ruta, d.paradas || []);
+  } catch(e) {
+    document.getElementById('routeList').innerHTML =
+      '<div class="route-empty">No se pudo cargar la ruta</div>';
+  }
+}
+
+function renderRutaList(ruta, paradas) {
+  const listEl = document.getElementById('routeList');
+  const progEl = document.getElementById('routeProgress');
+
+  if (!ruta || !paradas.length) {
+    progEl.textContent = '—';
+    listEl.innerHTML = '<div class="route-empty">Sin ruta activa asignada</div>';
+    return;
+  }
+
+  const total = paradas.length;
+  const ok    = paradas.filter(function(p){ return p.estado === 'entregado'; }).length;
+  progEl.textContent = ok + ' / ' + total;
+
+  const siguienteIdx = paradas.findIndex(function(p){ return p.estado === 'pendiente'; });
+
+  listEl.innerHTML = paradas.map(function(p, i) {
+    const esOk    = p.estado === 'entregado';
+    const esNoEnt = p.estado === 'no_entregado';
+    const esSig   = i === siguienteIdx;
+    const cls = esOk ? 'ok' : (esSig ? 'next' : '');
+    const num = esOk ? '&#10003;' : (i + 1);
+    let pill;
+    if (esOk)      pill = '<span class="stop-pill ok">OK</span>';
+    else if (esNoEnt) pill = '<span class="stop-pill pend">No entreg.</span>';
+    else if (esSig)   pill = '<span class="stop-pill current">Siguiente</span>';
+    else              pill = '<span class="stop-pill pend">Pendiente</span>';
+
+    return '<div class="stop ' + cls + '">' +
+      '<div class="stop-num">' + num + '</div>' +
+      '<div class="stop-body">' +
+        '<div class="stop-name">' + escHtml(p.cliente_nombre) + '</div>' +
+        '<div class="stop-meta">' + escHtml(p.folio) + (p.colonia ? ' &middot; ' + escHtml(p.colonia) : '') + '</div>' +
+      '</div>' +
+      pill +
+    '</div>';
+  }).join('');
 }
 
 // ── Manual ────────────────────────────────────────────────

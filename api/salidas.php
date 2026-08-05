@@ -15,6 +15,37 @@ $metodo = $_SERVER['REQUEST_METHOD'];
 $accion = $_GET['accion'] ?? '';
 $db     = getDB();
 
+// ── GET: ruta activa del chofer en sesión, para la mitad inferior de la pantalla
+// del escáner (app/operador.php) — lista completa de paradas en orden de secuencia,
+// con nombre de cliente y estado, sin exponer rutas de otros choferes.
+if ($metodo === 'GET' && $accion === 'mi_ruta') {
+    $usuario_id    = (int)($_SESSION['user_id'] ?? 0);
+    $chofer_nombre = CHOFER_LABEL_POR_USUARIO_ID[$usuario_id] ?? '';
+    if ($chofer_nombre === '') { jsonResponse(['ok' => true, 'ruta' => null, 'paradas' => []]); exit; }
+
+    $stmtR = $db->prepare("
+        SELECT id, unidad, chofer FROM rutas
+        WHERE chofer = ? AND estado = 'en_ruta' AND archivada = 0
+        ORDER BY fecha DESC, id DESC LIMIT 1
+    ");
+    $stmtR->execute([$chofer_nombre]);
+    $ruta = $stmtR->fetch(PDO::FETCH_ASSOC);
+    if (!$ruta) { jsonResponse(['ok' => true, 'ruta' => null, 'paradas' => []]); exit; }
+
+    $stmtP = $db->prepare("
+        SELECT re.id, re.orden_id, re.secuencia, re.estado, re.colonia,
+               o.folio, o.cliente_nombre
+        FROM ruta_entregas re
+        JOIN ordenes o ON o.id = re.orden_id
+        WHERE re.ruta_id = ?
+        ORDER BY re.secuencia ASC
+    ");
+    $stmtP->execute([$ruta['id']]);
+    $paradas = $stmtP->fetchAll(PDO::FETCH_ASSOC);
+
+    jsonResponse(['ok' => true, 'ruta' => $ruta, 'paradas' => $paradas]); exit;
+}
+
 // ── GET: piezas terminadas agrupadas por partida ──────────────────────────────
 if ($metodo === 'GET' && $accion === 'piezas_terminadas') {
     $orden_id = (int)($_GET['orden_id'] ?? 0);
@@ -167,14 +198,9 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
             $db->prepare("UPDATE ruta_entregas SET estado='entregado', entregado_at=NOW(), notas_entrega=? WHERE id=?")
                ->execute([$notaRE, $re['id']]);
 
-            // Si ya no quedan paradas pendientes en esa ruta, se marca completada (mismo
-            // criterio que api/rutas.php, accion=marcar_estado)
-            $pendRuta = $db->prepare("SELECT COUNT(*) FROM ruta_entregas WHERE ruta_id=? AND estado='pendiente'");
-            $pendRuta->execute([$re['ruta_id']]);
-            if ((int)$pendRuta->fetchColumn() === 0) {
-                $db->prepare("UPDATE rutas SET estado='completada', updated_at=NOW() WHERE id=?")
-                   ->execute([$re['ruta_id']]);
-            }
+            // Ya no se marca 'completada' aquí aunque no queden paradas pendientes — la ruta
+            // se queda 'en_ruta' hasta que el GPS confirme el regreso a planta
+            // (scripts/gps_tracker.php, mismo criterio que api/rutas.php).
         }
 
         // Registrar evento de salida
@@ -370,13 +396,14 @@ if ($metodo === 'POST' && $accion === 'scan_qr') {
 if ($metodo === 'POST' && $accion === 'scan_qr_ruta') {
     $body     = json_decode(file_get_contents('php://input'), true) ?? [];
     $orden_id = (int)($body['orden_id'] ?? 0);
+    $forzar   = (bool)($body['forzar'] ?? false);
     if (!$orden_id) jsonResponse(['error' => 'orden_id requerido'], 400);
 
     $chofer_id     = (int)($_SESSION['user_id'] ?? 0);
     $chofer_nombre = trim($_SESSION['user_name'] ?? 'Chofer');
 
     $stmt = $db->prepare("
-        SELECT re.id as entrega_id, o.folio
+        SELECT re.id as entrega_id, re.ruta_id, re.secuencia, o.folio
         FROM ruta_entregas re
         JOIN ordenes o ON o.id = re.orden_id
         WHERE re.orden_id = ? AND re.estado = 'pendiente'
@@ -391,7 +418,32 @@ if ($metodo === 'POST' && $accion === 'scan_qr_ruta') {
         jsonResponse(['ok' => true, 'ya_escaneado' => true]); exit;
     }
 
-    $r = marcarEntregaComoEntregada($db, $re['entrega_id'], 'Entrega confirmada por QR — ' . $chofer_nombre);
+    // Advertencia de orden de escaneo (no bloquea): si hay paradas pendientes con secuencia
+    // menor en la MISMA ruta, se pregunta al chofer en vez de confirmar directo — cubre el
+    // caso normal (se saltó una entrega por error) sin impedir el caso real (el cliente no
+    // estaba y hay que reordenar en la calle). El chofer decide con "forzar":true.
+    if (!$forzar) {
+        $chkOrden = $db->prepare("
+            SELECT o.cliente_nombre, o.folio, re2.colonia
+            FROM ruta_entregas re2
+            JOIN ordenes o ON o.id = re2.orden_id
+            WHERE re2.ruta_id = ? AND re2.estado = 'pendiente' AND re2.secuencia < ?
+            ORDER BY re2.secuencia ASC
+        ");
+        $chkOrden->execute([$re['ruta_id'], $re['secuencia']]);
+        $pendientesAntes = $chkOrden->fetchAll(PDO::FETCH_ASSOC);
+        if ($pendientesAntes) {
+            jsonResponse([
+                'ok'                => false,
+                'requiere_confirmacion' => true,
+                'orden_id'          => $orden_id,
+                'folio'             => $re['folio'],
+                'pendientes_antes'  => $pendientesAntes,
+            ]); exit;
+        }
+    }
+
+    $r = marcarEntregaComoEntregada($db, $re['entrega_id'], 'Entrega confirmada por QR — ' . $chofer_nombre . ($forzar ? ' (fuera de orden, confirmado)' : ''));
 
     // ON DUPLICATE KEY UPDATE en vez de INSERT simple: orden_id es UNIQUE (un registro por
     // orden), pero una parada se puede regresar a "pendiente" para corregir y volver a
