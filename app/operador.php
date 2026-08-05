@@ -2091,11 +2091,21 @@ const ESTATUS_A_ESTACION = {
   terminado: 'terminado',
 };
 
-const ESTACIONES_JEFE = ['corte', 'canteado', 'trazo', 'taladro', 'templado'];
 const ESTACION_NOMBRE = {
   corte: '✂️ Corte', canteado: '🔩 Canteado',
   trazo: '✏️ Trazo', taladro: '🔧 Taladro', templado: '🔥 Templado',
 };
+
+// Roles de supervisión que pueden reportar retrabajo de CUALQUIER pieza sin
+// importar en qué estación esté — se detecta la estación correcta por el
+// estatus real de la pieza (ESTATUS_A_ESTACION), no por su propia sesión.
+// Antes solo se activaba si session.estacion === 'jefe_piso' (coincidencia
+// frágil con el valor que tiene esa cuenta en la BD) — con eso, cualquier
+// variación de sesión hacía que se usara la estación/rol propio en vez del
+// estatus de la pieza (bug real: "no importa la estación de la pieza, solo
+// sale Roto en corte", reportado 05-ago-2026). Ahora se checa el ROL, que es
+// la señal correcta y no depende de qué se haya guardado en `estacion`.
+const ROLES_SUPERVISION = ['jefe_piso', 'director', 'dir_admin', 'desarrollo'];
 
 let _razonSeleccionada = null;
 let _estacionRetrabajo = null;
@@ -2106,7 +2116,7 @@ function reportarError() {
   const est = session.estacion || session.rol || '';
   let estacionFinal;
 
-  if (est === 'jefe_piso') {
+  if (ROLES_SUPERVISION.includes(session.rol)) {
     // Detectar estación automáticamente por el estatus de la pieza
     estacionFinal = ESTATUS_A_ESTACION[pieza.estatus];
     if (!estacionFinal) {
@@ -2129,7 +2139,7 @@ function reportarError() {
   document.getElementById('modalNotas').value = '';
   document.getElementById('modalRetSub').textContent =
     pieza.folio + ' · P' + pieza.partida + ' · Pieza ' + pieza.pieza_num + '/' + pieza.pieza_total +
-    (est === 'jefe_piso' ? ' · ' + ESTACION_NOMBRE[estacionFinal] : '');
+    (ROLES_SUPERVISION.includes(session.rol) ? ' · ' + ESTACION_NOMBRE[estacionFinal] : '');
 
   document.getElementById('razonesGrid').innerHTML = razones.map(r => `
     <button class="btn-razon" onclick="seleccionarRazon(this, '${r}')">${r}</button>

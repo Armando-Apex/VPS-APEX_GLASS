@@ -28,7 +28,7 @@ $db = getDB();
 
 // Datos de la orden
 $stmt = $db->prepare('
-    SELECT o.*, c.vobo_at, c.vobo_por,
+    SELECT o.*, c.vobo_at, c.vobo_por, c.id AS cotizacion_id, c.folio AS cotizacion_folio,
            COALESCE(DATE(c.vobo_at), o.fecha_pedido) AS fecha_pedido_portal
     FROM ordenes o
     LEFT JOIN cotizaciones c ON c.orden_id = o.id
@@ -37,6 +37,11 @@ $stmt = $db->prepare('
 $stmt->execute([$folio]);
 $orden = $stmt->fetch();
 if (!$orden) jsonResponse(['error' => 'Orden no encontrada'], 404);
+
+// El botón "Ver remisión" del portal aparece desde que existe la orden (sin esperar a
+// que se imprima una salida real) — portal/remision.php ya sabe mostrar "PENDIENTE" en
+// cada partida cuando todavía no hay ninguna salida registrada.
+$orden['tiene_remision'] = true;
 
 // Si es portal (y NO es usuario interno), verificar que la orden pertenece al cliente de la sesión
 if ($esPortal && !$esInterno) {

@@ -143,6 +143,19 @@ body {
   font-size: 15px; font-weight: 700;
   letter-spacing: 3px; color: var(--text-1);
 }
+.orden-cot-folio {
+  font-size: 11px; font-weight: 500; letter-spacing: .5px;
+  color: var(--text-2); margin-top: 4px;
+}
+
+.btn-remision {
+  font-size: 9.5px; font-weight: 600; letter-spacing: 1.8px; text-transform: uppercase;
+  color: #0F1117; background: var(--amber); border: none;
+  border-radius: 2px; padding: 7px 14px; cursor: pointer;
+  text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+  transition: filter .15s;
+}
+.btn-remision:hover { filter: brightness(1.07); }
 
 /* status tags */
 .tag {
@@ -370,10 +383,16 @@ function render(data) {
   let html = `
     <div class="orden-header">
       <div class="orden-folio-row">
-        <span class="orden-folio">${orden.folio}</span>
-        <span class="tag ${pct === 100 ? 'tag-entregada' : 'tag-activa'}">
-          <span class="tag-dot"></span>${pct === 100 ? 'Completa' : 'En producción'}
-        </span>
+        <div>
+          <span class="orden-folio">${orden.folio}</span>
+          ${orden.cotizacion_folio ? `<div class="orden-cot-folio">Cotización ${orden.cotizacion_folio}</div>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="tag ${pct === 100 ? 'tag-entregada' : 'tag-activa'}">
+            <span class="tag-dot"></span>${pct === 100 ? 'Completa' : 'En producción'}
+          </span>
+          ${orden.tiene_remision ? `<a class="btn-remision" href="remision.php?folio=${encodeURIComponent(orden.folio)}">Ver remisión</a>` : ''}
+        </div>
       </div>
       <div class="orden-meta">
         <div><span class="meta-label">Fecha pedido</span><span class="meta-val">${fechaPedido}</span></div>

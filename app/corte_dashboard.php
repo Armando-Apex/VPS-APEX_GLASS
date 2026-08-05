@@ -76,6 +76,19 @@ body {
 .total-num   { font-size: 36px; font-weight: 900; color: var(--accent); line-height: 1; }
 .total-sub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
+/* BONO PEDACERÍA */
+.bono-badge {
+  background: linear-gradient(155deg, rgba(34,212,122,.12), var(--surface) 65%);
+  border: 1.5px solid rgba(34,212,122,.35); border-radius: 14px;
+  padding: 16px; margin-bottom: 20px;
+}
+.bono-eyebrow { font-size: 11px; font-weight: 700; color: var(--green); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+.bono-num { font-size: 30px; font-weight: 900; color: var(--text); line-height: 1.1; }
+.bono-num small { font-size: 14px; font-weight: 700; color: var(--muted); }
+.bono-track { height: 7px; border-radius: 99px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; margin-top: 12px; }
+.bono-fill  { height: 100%; background: var(--green); border-radius: 99px 0 0 99px; }
+.bono-hint  { font-size: 11.5px; color: var(--green); font-weight: 700; margin-top: 6px; }
+
 /* SECCIÓN */
 .section { margin-bottom: 24px; }
 .section-title {
@@ -340,6 +353,15 @@ body {
 
 <div class="content">
 
+  <?php if ($estacion === 'corte'): ?>
+  <div class="bono-badge" id="bonoCard" style="display:none">
+    <div class="bono-eyebrow">Bono de esta semana</div>
+    <div class="bono-num" id="bonoMonto">$0<small>.00</small></div>
+    <div class="bono-track"><div class="bono-fill" id="bonoFill" style="width:0%"></div></div>
+    <div class="bono-hint" id="bonoHint">—</div>
+  </div>
+  <?php endif; ?>
+
   <div class="refresh-row">
     <span class="ts-label" id="tsLabel">Cargando...</span>
     <button class="btn-refresh" onclick="cargar()">↻</button>
@@ -395,6 +417,33 @@ async function cargar() {
   } catch(e) {
     document.getElementById('mainContent').innerHTML =
       '<div class="empty"><div class="empty-icon">⚠️</div>Error de conexión</div>';
+  }
+  cargarBono();
+}
+
+// Tarjeta de bono de pedacería — fetch independiente (api/bono_pedaceria.php),
+// no toca la respuesta de api/corte_dashboard.php. Si falla, se oculta en silencio
+// (no debe romper el resto del tablero de corte).
+async function cargarBono() {
+  const el = document.getElementById('bonoCard');
+  if (!el) return;
+  try {
+    const r = await fetch(API + 'bono_pedaceria.php?accion=mi_bono&t=' + Date.now());
+    const d = await r.json();
+    if (!d.ok) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    document.getElementById('bonoMonto').innerHTML =
+      '$' + d.monto.toFixed(2).split('.')[0] + '<small>.' + d.monto.toFixed(2).split('.')[1] + '</small>';
+    const dentroDelTramo = d.m2_elegible % 18;
+    const pct = Math.min(100, Math.round(dentroDelTramo / 18 * 100));
+    document.getElementById('bonoFill').style.width = pct + '%';
+    const falta = (18 - dentroDelTramo).toFixed(1);
+    const tramos = Math.floor(d.m2_elegible / 18);
+    document.getElementById('bonoHint').textContent = tramos > 0
+      ? ('$' + (tramos * 150).toFixed(2) + ' asegurados — faltan ' + falta + ' m² para los siguientes $150')
+      : ('Faltan ' + falta + ' m² para tu primer $150');
+  } catch (e) {
+    el.style.display = 'none';
   }
 }
 

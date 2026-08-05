@@ -153,6 +153,27 @@ function mermaNetaPeriodo(PDO $pdo, string $desde, string $hasta): float {
 }
 
 /**
+ * Bono de Corte por Pedacería (Angel, ver bono_pedaceria_pagos) — mano de obra
+ * directa variable de planta: escala con m² de pedacería realmente aprovechados,
+ * no es un sueldo fijo, así que va a Costo de Ventas (5.2) y no a Gastos
+ * Operativos junto con la Nómina regular (decisión confirmada con Armando
+ * 05-ago-2026: mismo criterio que ya se usa para 5.4 Merma Neta de Corte —
+ * costo variable de producción, no gasto fijo de operar el negocio).
+ * Reconocido en base a efectivo (aprobado_at = cuando se marcó "pagado"), igual
+ * que Nómina/Gastos Fijos/Caja Chica — no la semana en que se ganó.
+ */
+function bonoManoObraPeriodo(PDO $pdo, string $desde, string $hasta): float {
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(SUM(monto), 0)
+        FROM bono_pedaceria_pagos
+        WHERE estado = 'pagado'
+          AND DATE(aprobado_at) BETWEEN ? AND ?
+    ");
+    $stmt->execute([$desde, $hasta]);
+    return (float) $stmt->fetchColumn();
+}
+
+/**
  * Gastos de Compras (OCs tipo 'suministro' — Mantenimiento, Herramienta,
  * Limpieza, etc.) que ya tienen regla de mapeo a una cuenta contable
  * (cuenta_mapeo_reglas, origen_tipo='oc_categoria'). Reconocido en base a

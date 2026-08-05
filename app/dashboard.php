@@ -293,9 +293,10 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       </button>
     </div>
     <?php endif; ?>
-    <?php if ($esAdmin): ?>
+    <?php if ($esAdmin || tienePermiso($_rol, 'ver_contabilidad')): ?>
     <div class="sidebar-section">
       <div class="sidebar-label">Administraci&oacute;n</div>
+      <?php if ($esAdmin): ?>
       <button class="sidebar-link" data-modulo="admin_ordenes" onclick="cargarModulo('admin_ordenes')">
         <span class="sidebar-icon"><?= icono('settings') ?></span>Admin &Oacute;rdenes
       </button>
@@ -305,10 +306,19 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       <button class="sidebar-link" data-modulo="maquila_precios" onclick="cargarModulo('maquila_precios')">
         <span class="sidebar-icon"><?= icono('settings') ?></span>Precios Maquila
       </button>
+      <?php endif; ?>
       <?php if ($esDesarrollo || $esAdmin): ?>
       <button class="sidebar-link" data-modulo="reportes" onclick="cargarModulo('reportes')">
         <span class="sidebar-icon"><?= icono('flag') ?></span>Reportes
         <span id="reportesBadge" style="display:none;background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;margin-left:auto;"></span>
+      </button>
+      <?php endif; ?>
+      <?php if (tienePermiso($_rol, 'ver_contabilidad')): ?>
+      <button class="sidebar-link" data-modulo="bitacora_desechos" onclick="cargarModulo('bitacora_desechos')">
+        <span class="sidebar-icon"><?= icono('truck') ?></span>Bit&aacute;cora de Desechos
+      </button>
+      <button class="sidebar-link" data-modulo="bono_corte" onclick="cargarModulo('bono_corte')">
+        <span class="sidebar-icon"><?= icono('trending-up') ?></span>Bono Corte
       </button>
       <?php endif; ?>
       <?php if ($esDesarrollo): ?>
@@ -402,11 +412,13 @@ const MODULOS = {
   cristales:'modulos/cristales.php', optimizador:'modulos/optimizador.php',
   reporte_direccion:'modulos/reporte_direccion.php', productividad:'modulos/productividad.php',
   admin_ordenes:'modulos/admin_ordenes.php', admin_comunicados:'modulos/admin_comunicados.php', reportes:'modulos/reportes.php',
+  bitacora_desechos:'modulos/bitacora_desechos.php',
   inventario:'modulos/inventario.php', compras:'modulos/compras.php',
   finanzas_vobo:'modulos/finanzas_vobo.php',
   finanzas_cobranza:'modulos/finanzas_cobranza.php',
   facturacion:'modulos/facturacion.php',
   contabilidad:'modulos/contabilidad.php',
+  bono_corte:'modulos/bono_corte.php',
   logistica_rutas:'modulos/logistica_rutas.php', chofer_ruta:'modulos/chofer_ruta.php',
   omisiones:'modulos/omisiones.php',
   campanas:'modulos/campanas.php',
