@@ -1133,7 +1133,7 @@ async function cargarOC() {
         '<td style="min-width:120px"><div class="stock-bar-wrap"><div class="stock-bar"><div class="stock-fill '+barCls+'" style="width:'+pct+'%"></div></div><div class="stock-pct">'+pct+'%</div></div></td>'+
         '<td style="color:'+pagoClr+';font-weight:600;font-size:12px">'+(o.fecha_pago_programada ? fmtFecha(o.fecha_pago_programada)+'<br><small>'+pagoTxt+'</small>' : '&#8212;')+'</td>'+
         '<td><span class="badge '+(estadoClr[o.estado]||'badge-gray')+'">'+(estadoLbl[o.estado]||o.estado)+'</span></td>'+
-        (puedeGestionar ? '<td style="white-space:nowrap"><button class="btn-icon" title="Ver detalle" onclick="ocVerDetalle('+o.id+')">&#128203;</button>'+(o.estado==='cerrada' ? '<button class="btn-icon" title="Registrar pago" onclick="ocAbrirPago('+o.id+')">&#128176;</button>' : '')+(o.es_solo_flete && o.estado==='abierta' ? '<button class="btn-icon" title="Distribuir flete a inventario" style="color:#f59e0b" data-df-id="'+escAttr(o.id)+'" data-df-oc="'+escAttr(o.numero_oc)+'" onclick="ocAbrirDistribuir(this.dataset.dfId,this.dataset.dfOc)">&#128666;</button>' : '')+'</td>' : '<td></td>')+
+        (puedeGestionar ? '<td style="white-space:nowrap"><button class="btn-icon" title="Ver detalle" onclick="ocVerDetalle('+o.id+')">&#128203;</button>'+((o.estado==='cerrada' || o.estado==='abierta') ? '<button class="btn-icon" title="Registrar pago" onclick="ocAbrirPago('+o.id+')">&#128176;</button>' : '')+(o.es_solo_flete && o.estado==='abierta' ? '<button class="btn-icon" title="Distribuir flete a inventario" style="color:#f59e0b" data-df-id="'+escAttr(o.id)+'" data-df-oc="'+escAttr(o.numero_oc)+'" onclick="ocAbrirDistribuir(this.dataset.dfId,this.dataset.dfOc)">&#128666;</button>' : '')+'</td>' : '<td></td>')+
         '</tr>';
     }).join('');
   } catch(e) { console.error(e); }
@@ -1183,7 +1183,7 @@ async function cargarCalendario() {
         '<td>'+fmtFecha(p.fecha_pago_programada)+'</td>'+
         '<td style="color:'+clr+';font-weight:700">'+lbl+'</td>'+
         '<td><span class="badge '+(p.estado==='pagada'?'badge-ok':'badge-warn')+'">'+p.estado+'</span></td>'+
-        (puedeGestionar ? '<td>'+(p.estado==='cerrada' ? '<button class="btn-icon" title="Registrar pago" onclick="ocAbrirPago('+p.id+')">&#128176;</button>' : '')+'</td>' : '<td></td>')+
+        (puedeGestionar ? '<td>'+((p.estado==='cerrada' || p.estado==='abierta') ? '<button class="btn-icon" title="Registrar pago" onclick="ocAbrirPago('+p.id+')">&#128176;</button>' : '')+'</td>' : '<td></td>')+
         '</tr>';
     }).join('');
   } catch(e) { console.error(e); }

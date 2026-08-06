@@ -506,6 +506,25 @@ if ($method === 'POST') {
                 }
             }
 
+            // [flete/otro auto-completo] El flete (y ajustes tipo 'otro') son
+            // servicios, no mercancía física — la UI de "Registrar entrega"
+            // solo ofrece partidas tipo 'lamina' para recibir (no hay forma de
+            // marcarlos a mano). Regla de negocio: se dan por completados al
+            // 100% en el momento en que TODO el material (partidas 'lamina')
+            // de la OC ya se recibió; sin esto la OC nunca cerraba y el pago
+            // nunca se desbloqueaba.
+            $sLamPend = $db->prepare("
+                SELECT COALESCE(SUM(cantidad),0) - COALESCE(SUM(cantidad_recibida),0)
+                FROM oc_partidas WHERE orden_compra_id = ? AND tipo = 'lamina'
+            ");
+            $sLamPend->execute([$oc_id]);
+            if ((float)$sLamPend->fetchColumn() <= 0) {
+                $db->prepare("
+                    UPDATE oc_partidas SET cantidad_recibida = cantidad
+                    WHERE orden_compra_id = ? AND tipo IN ('flete','otro') AND cantidad_recibida < cantidad
+                ")->execute([$oc_id]);
+            }
+
             // [A-11] Verificar si la OC quedo completa evaluando TODAS las
             // partidas (lámina, flete y otro). Antes, si existía CUALQUIER
             // partida de flete, la OC entera se trataba como flete: cerraba
