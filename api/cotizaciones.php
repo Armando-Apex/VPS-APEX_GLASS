@@ -36,12 +36,29 @@ if ($method === 'GET') {
     if ($accionGet === 'retrabajo_buscar_orden') {
         $folioBuscado = trim($_GET['folio'] ?? '');
         if (!$folioBuscado) { jsonResponse(['error' => 'Folio requerido']); exit; }
-        $stmtOB = $db->prepare("SELECT id, folio, cliente_id, cliente_nombre, estado
-                               FROM ordenes WHERE folio = ? AND estado != 'cancelada'");
-        $stmtOB->execute([$folioBuscado]);
-        $ordenBuscada = $stmtOB->fetch(PDO::FETCH_ASSOC);
-        if (!$ordenBuscada) { jsonResponse(['error' => 'Orden no encontrada o cancelada']); exit; }
-        jsonResponse(['ok' => true, 'orden' => $ordenBuscada]); exit;
+        // LIKE (no exacto) — mismo criterio que la búsqueda global de api/ordenes.php,
+        // así "397" encuentra "S-397" sin que el asesor tenga que teclear el prefijo.
+        $stmtOB = $db->prepare("SELECT id, folio, cliente_id, cliente_nombre, estado, tipo
+                               FROM ordenes WHERE folio LIKE ? AND estado != 'cancelada'
+                               ORDER BY id DESC LIMIT 10");
+        $stmtOB->execute(['%' . $folioBuscado . '%']);
+        $todas = $stmtOB->fetchAll(PDO::FETCH_ASSOC);
+
+        // v1: retrabajo desde Cotización solo aplica a órdenes de Suministro
+        // (ver CLAUDE.md UPD-467/plan) — filtrar maquila con mensaje claro en vez
+        // de un "no encontrada" genérico cuando la única coincidencia es de maquila.
+        $soloSuministro = array_values(array_filter($todas, function ($o) { return $o['tipo'] === 'suministro'; }));
+
+        if (!$soloSuministro) {
+            if ($todas) {
+                jsonResponse(['error' => 'La(s) orden(es) que coinciden con "' . $folioBuscado . '" son de Maquila — por ahora el retrabajo desde Cotización solo aplica a órdenes de Suministro.']); exit;
+            }
+            jsonResponse(['error' => 'Orden no encontrada o cancelada']); exit;
+        }
+        if (count($soloSuministro) > 1) {
+            jsonResponse(['error' => 'Varias órdenes coinciden con "' . $folioBuscado . '": ' . implode(', ', array_column($soloSuministro, 'folio')) . ' — escribe el folio completo']); exit;
+        }
+        jsonResponse(['ok' => true, 'orden' => $soloSuministro[0]]); exit;
     }
 
     // Retrabajo: piezas de la orden original, para elegir partida + pieza específica
@@ -492,13 +509,14 @@ if ($method === 'POST') {
         if (count($partidas) !== 1) { jsonResponse(['error' => 'Una cotización de retrabajo solo admite 1 partida (1 pieza original)']); exit; }
         $pieza_origen_id = (int)($partidas[0]['pieza_origen_id'] ?? 0);
         if (!$pieza_origen_id) { jsonResponse(['error' => 'Falta seleccionar la pieza original a reprocesar']); exit; }
-        $stmtPzOrig = $db->prepare("SELECT p.id, o.cliente_id, o.estado
+        $stmtPzOrig = $db->prepare("SELECT p.id, o.cliente_id, o.estado, o.tipo
                                      FROM piezas p JOIN ordenes o ON o.id = p.orden_id
                                      WHERE p.id = ?");
         $stmtPzOrig->execute([$pieza_origen_id]);
         $pzOrig = $stmtPzOrig->fetch(PDO::FETCH_ASSOC);
         if (!$pzOrig) { jsonResponse(['error' => 'Pieza original no encontrada']); exit; }
         if ($pzOrig['estado'] === 'cancelada') { jsonResponse(['error' => 'La orden original está cancelada']); exit; }
+        if ($pzOrig['tipo'] === 'maquila') { jsonResponse(['error' => 'La orden original es de Maquila — por ahora el retrabajo desde Cotización solo aplica a órdenes de Suministro']); exit; }
         if ((int)$pzOrig['cliente_id'] !== $cliente_id) { jsonResponse(['error' => 'El cliente debe ser el mismo de la orden original']); exit; }
     }
 
