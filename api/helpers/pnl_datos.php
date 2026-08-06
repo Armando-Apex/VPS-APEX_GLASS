@@ -62,6 +62,7 @@ function ingresosPeriodo(PDO $pdo, string $desde, string $hasta): float {
         WHERE o.estado IN ('activa', 'entregada')
           AND c.estatus NOT IN ('cancelada', 'rechazada')
           AND c.vobo_at IS NOT NULL
+          AND c.es_retrabajo = 0
           AND DATE(c.vobo_at) BETWEEN ? AND ?
     ");
     $stmt->execute([$desde, $hasta]);
@@ -80,6 +81,7 @@ function ingresosPorTipoPeriodo(PDO $pdo, string $desde, string $hasta): array {
         WHERE o.estado IN ('activa', 'entregada')
           AND c.estatus NOT IN ('cancelada', 'rechazada')
           AND c.vobo_at IS NOT NULL
+          AND c.es_retrabajo = 0
           AND DATE(c.vobo_at) BETWEEN ? AND ?
         GROUP BY c.tipo
     ");

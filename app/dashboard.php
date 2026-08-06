@@ -320,6 +320,9 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       <button class="sidebar-link" data-modulo="bono_corte" onclick="cargarModulo('bono_corte')">
         <span class="sidebar-icon"><?= icono('trending-up') ?></span>Bono Corte
       </button>
+      <button class="sidebar-link" data-modulo="comisiones" onclick="cargarModulo('comisiones')">
+        <span class="sidebar-icon"><?= icono('credit-card') ?></span>Comisiones
+      </button>
       <?php endif; ?>
       <?php if ($esDesarrollo): ?>
       <a class="sidebar-link" href="operador.php" target="_blank" style="text-decoration:none">
@@ -419,6 +422,7 @@ const MODULOS = {
   facturacion:'modulos/facturacion.php',
   contabilidad:'modulos/contabilidad.php',
   bono_corte:'modulos/bono_corte.php',
+  comisiones:'modulos/comisiones.php',
   logistica_rutas:'modulos/logistica_rutas.php', chofer_ruta:'modulos/chofer_ruta.php',
   omisiones:'modulos/omisiones.php',
   campanas:'modulos/campanas.php',

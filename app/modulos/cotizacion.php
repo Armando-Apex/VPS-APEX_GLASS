@@ -243,6 +243,8 @@ var _dataCot            = null;
 var _authStatus         = null;
 var _srvCatalogo        = [];
 var _canAddSrv          = false;
+var _retrabajoOrden     = null; // {id, folio, cliente_id, cliente_nombre}
+var _retrabajoPiezas    = [];   // piezas de la orden original encontrada
 
 // ── Inicializar ────────────────────────────────────────────────────────────────
 async function init() {
@@ -400,6 +402,29 @@ function renderFormulario(data) {
 
   // ── Campos ──
   html += '<div class="form-grid">';
+
+  // Retrabajo (error comercial) — solo al crear una cotización nueva. Ver
+  // CLAUDE.md sección 12 / api/helpers/comisiones_lib.php.
+  if (esNuevo) {
+    html += '<div class="field span-3" style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 14px;">';
+    html += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:#991b1b;margin-bottom:0;">';
+    html += '<input type="checkbox" id="fEsRetrabajo" onchange="ModCotizacion._toggleRetrabajo()"> Es retrabajo (correcci&oacute;n de una orden ya existente)';
+    html += '</label>';
+    html += '<div id="retrabajoPanel" style="display:none;margin-top:12px;">';
+    html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">';
+    html += '<div style="flex:1;min-width:160px;"><label style="font-size:11px;color:#64748b;display:block;margin-bottom:4px;">Folio de la orden original</label>';
+    html += '<input type="text" id="rtFolio" placeholder="Ej: S-123" style="text-transform:uppercase;width:100%;padding:8px;border:1.5px solid #e2e8f0;border-radius:6px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();ModCotizacion._retrabajoBuscarOrden();}"></div>';
+    html += '<button type="button" class="btn btn-ghost btn-sm" onclick="ModCotizacion._retrabajoBuscarOrden()">Buscar orden</button>';
+    html += '</div>';
+    html += '<div id="rtOrdenInfo" style="font-size:12.5px;margin-top:8px;"></div>';
+    html += '<div id="rtPartidaWrap" style="display:none;margin-top:10px;"><label style="font-size:11px;color:#64748b;display:block;margin-bottom:4px;">Partida</label>';
+    html += '<select id="rtPartida" style="width:100%;padding:8px;border:1.5px solid #e2e8f0;border-radius:6px;" onchange="ModCotizacion._retrabajoPartidaChange()"></select></div>';
+    html += '<div id="rtPiezaWrap" style="display:none;margin-top:10px;"><label style="font-size:11px;color:#64748b;display:block;margin-bottom:4px;">Pieza a reprocesar</label>';
+    html += '<select id="rtPieza" style="width:100%;padding:8px;border:1.5px solid #e2e8f0;border-radius:6px;" onchange="ModCotizacion._retrabajoPiezaChange()"></select></div>';
+    html += '<div style="font-size:11.5px;color:#7f1d1d;margin-top:10px;">El precio que le pongas a esta pieza es el valor de la p&eacute;rdida a absorber. Se descuenta el 50% de tu comisi&oacute;n salvo que el cliente pague al menos el 50% de ese valor.</div>';
+    html += '</div>'; // retrabajoPanel
+    html += '</div>';
+  }
 
   // Cliente
   html += '<div class="field span-2"><label>Cliente *</label>';
@@ -899,6 +924,130 @@ function seleccionarCliente(id, nombre, localidad, ciudad) {
   actualizarFechaEntrega();
 }
 
+// ── Retrabajo (error comercial) ────────────────────────────────────────────────
+function toggleRetrabajo() {
+  var chk   = document.getElementById('fEsRetrabajo');
+  var panel = document.getElementById('retrabajoPanel');
+  if (panel) panel.style.display = (chk && chk.checked) ? 'block' : 'none';
+  if (!chk || !chk.checked) {
+    _retrabajoOrden  = null;
+    _retrabajoPiezas = [];
+    if (partidas[0]) partidas[0].pieza_origen_id = null;
+    var clienteInput = document.getElementById('clienteBusqueda');
+    if (clienteInput) clienteInput.readOnly = false;
+  }
+}
+
+async function retrabajoBuscarOrden() {
+  var folio = (document.getElementById('rtFolio')?.value || '').trim().toUpperCase();
+  var info  = document.getElementById('rtOrdenInfo');
+  if (!folio || !info) return;
+  info.innerHTML = 'Buscando...';
+  document.getElementById('rtPartidaWrap').style.display = 'none';
+  document.getElementById('rtPiezaWrap').style.display   = 'none';
+  try {
+    var r = await fetch(API_COT + '?accion=retrabajo_buscar_orden&folio=' + encodeURIComponent(folio));
+    var d = await r.json();
+    if (!d.ok) {
+      info.innerHTML = '<span style="color:#dc2626">' + escHtml(d.error || 'No encontrada') + '</span>';
+      _retrabajoOrden = null;
+      return;
+    }
+    _retrabajoOrden = d.orden;
+    info.innerHTML = '<span style="color:#166534">Orden encontrada — Cliente: ' + escHtml(d.orden.cliente_nombre) + '</span>';
+    await retrabajoCargarPiezas(d.orden.id);
+  } catch (e) {
+    info.innerHTML = '<span style="color:#dc2626">Error de conexión</span>';
+  }
+}
+
+async function retrabajoCargarPiezas(ordenId) {
+  var r = await fetch(API_COT + '?accion=retrabajo_piezas_orden&orden_id=' + ordenId);
+  var d = await r.json();
+  _retrabajoPiezas = d.ok ? d.piezas : [];
+
+  var partidasNums = [];
+  for (var i = 0; i < _retrabajoPiezas.length; i++) {
+    if (partidasNums.indexOf(_retrabajoPiezas[i].partida) === -1) partidasNums.push(_retrabajoPiezas[i].partida);
+  }
+  partidasNums.sort(function(a, b) { return a - b; });
+
+  var sel = document.getElementById('rtPartida');
+  var html = '<option value="">-- Selecciona partida --</option>';
+  for (var j = 0; j < partidasNums.length; j++) {
+    var numPartida = partidasNums[j];
+    var ejemplo = null;
+    for (var k = 0; k < _retrabajoPiezas.length; k++) {
+      if (_retrabajoPiezas[k].partida === numPartida) { ejemplo = _retrabajoPiezas[k]; break; }
+    }
+    html += '<option value="' + numPartida + '">P' + numPartida + ' — ' + escHtml((ejemplo && (ejemplo.cristal_corto || ejemplo.cristal)) || '') + '</option>';
+  }
+  sel.innerHTML = html;
+  document.getElementById('rtPartidaWrap').style.display = 'block';
+  document.getElementById('rtPiezaWrap').style.display   = 'none';
+}
+
+function retrabajoPartidaChange() {
+  var numPartida = document.getElementById('rtPartida')?.value;
+  var sel  = document.getElementById('rtPieza');
+  var wrap = document.getElementById('rtPiezaWrap');
+  if (!numPartida) { wrap.style.display = 'none'; return; }
+  var html = '<option value="">-- Selecciona pieza --</option>';
+  for (var i = 0; i < _retrabajoPiezas.length; i++) {
+    var p = _retrabajoPiezas[i];
+    if (String(p.partida) !== String(numPartida)) continue;
+    html += '<option value="' + p.id + '">P' + p.partida + ' - ' + p.pieza_num + ' de ' + p.pieza_total
+      + ' (' + p.ancho_mm + '×' + p.alto_mm + 'mm, ' + escHtml(p.estatus) + ')</option>';
+  }
+  sel.innerHTML = html;
+  wrap.style.display = 'block';
+}
+
+function retrabajoPiezaChange() {
+  var piezaId = document.getElementById('rtPieza')?.value;
+  if (!piezaId || !_retrabajoOrden) return;
+  var pieza = null;
+  for (var i = 0; i < _retrabajoPiezas.length; i++) {
+    if (String(_retrabajoPiezas[i].id) === String(piezaId)) { pieza = _retrabajoPiezas[i]; break; }
+  }
+  if (!pieza) return;
+
+  // Cliente queda fijo al de la orden original (server también lo valida)
+  seleccionarCliente(_retrabajoOrden.cliente_id, _retrabajoOrden.cliente_nombre, 'local', '');
+  var clienteInput = document.getElementById('clienteBusqueda');
+  if (clienteInput) clienteInput.readOnly = true;
+
+  // piezas.cristal es texto libre (sin FK a cristales) — mejor esfuerzo por
+  // encontrar el cristal del catálogo que coincida; si no matchea, el asesor
+  // lo elige a mano en la partida.
+  var textoCristal = (pieza.cristal_corto || pieza.cristal || '').toLowerCase();
+  var cristalMatch = null;
+  for (var j = 0; j < cristales.length; j++) {
+    var nom = (cristales[j].nombre || '').toLowerCase();
+    if (nom && textoCristal && (textoCristal.indexOf(nom) !== -1 || nom.indexOf(textoCristal) !== -1)) { cristalMatch = cristales[j]; break; }
+  }
+
+  partidas[0] = {
+    cristal_id:           cristalMatch ? cristalMatch.id : '',
+    cantidad:              1,
+    ancho:                 pieza.ancho_mm,
+    alto:                  pieza.alto_mm,
+    cpb:                   pieza.cpb || '',
+    resaques:              0,
+    taladros_pasados:      pieza.tp || 0,
+    taladros_avellanados:  pieza.ta || 0,
+    requiere_templado:     pieza.requiere_templado,
+    comentarios_etiqueta:  '',
+    pieza_origen_id:       pieza.id,
+  };
+  renderPartidas(true);
+  recalcular();
+
+  if (!cristalMatch) {
+    alert('No se pudo emparejar automáticamente el cristal ("' + (pieza.cristal_corto || pieza.cristal) + '") con el catálogo. Selecciónalo manualmente en la partida.');
+  }
+}
+
 // ── Localidad / Ciudad ────────────────────────────────────────────────────────
 function toggleCiudad() {
   var esForaneo = (document.getElementById('fLocalidad')?.value === 'foraneo');
@@ -924,8 +1073,15 @@ async function guardarCotizacion() {
   var clienteId = document.getElementById('clienteId')?.value;
   if (!clienteId) { alert('Selecciona un cliente'); return; }
 
+  var esRetrabajo = !!document.getElementById('fEsRetrabajo')?.checked;
+  if (esRetrabajo && (!partidas[0] || !partidas[0].pieza_origen_id)) {
+    alert('Selecciona la orden, partida y pieza original a reprocesar');
+    return;
+  }
+
   var payload = armarPayload(clienteId);
   if (!payload) return;
+  if (esRetrabajo) payload.es_retrabajo = 1;
 
   if (payload.descuento > 10 && !ES_DIR_ADMIN) {
     var motivo = await pedirMotivoDescuento(payload.descuento);
@@ -1000,6 +1156,7 @@ function armarPayload(clienteId) {
       taladros_avellanados: parseInt(document.getElementById('p_ta_'  + i)?.value || 0),
       comentarios_etiqueta: document.getElementById('p_com_' + i)?.value || '',
       requiere_templado:    parseInt(document.getElementById('p_templ_' + i)?.value ?? 1),
+      pieza_origen_id:      partidas[i] ? (partidas[i].pieza_origen_id || null) : null,
     });
   }
   if (!partidasPayload.length) { alert('Agrega al menos una partida válida (cristal + medidas)'); return null; }
@@ -1841,6 +1998,10 @@ return {
   _abrirRechazo:       abrirRechazo,
   _cerrarRechazo:      cerrarRechazo,
   _confirmarRechazo:   confirmarRechazo,
+  _toggleRetrabajo:        toggleRetrabajo,
+  _retrabajoBuscarOrden:   retrabajoBuscarOrden,
+  _retrabajoPartidaChange: retrabajoPartidaChange,
+  _retrabajoPiezaChange:   retrabajoPiezaChange,
 };
 })();
 </script>

@@ -28,6 +28,34 @@ if ($method === 'GET') {
     $estatus = $_GET['estatus']    ?? '';
     $q       = trim($_GET['q']     ?? '');
     $limit   = min((int)($_GET['limit'] ?? 50), 1000);
+    $accionGet = $_GET['accion'] ?? '';
+
+    // Retrabajo (error comercial): buscar la orden original por folio para poder
+    // referenciarla desde una cotización nueva. Cualquier estado salvo cancelada —
+    // el error puede detectarse hasta después de entregada.
+    if ($accionGet === 'retrabajo_buscar_orden') {
+        $folioBuscado = trim($_GET['folio'] ?? '');
+        if (!$folioBuscado) { jsonResponse(['error' => 'Folio requerido']); exit; }
+        $stmtOB = $db->prepare("SELECT id, folio, cliente_id, cliente_nombre, estado
+                               FROM ordenes WHERE folio = ? AND estado != 'cancelada'");
+        $stmtOB->execute([$folioBuscado]);
+        $ordenBuscada = $stmtOB->fetch(PDO::FETCH_ASSOC);
+        if (!$ordenBuscada) { jsonResponse(['error' => 'Orden no encontrada o cancelada']); exit; }
+        jsonResponse(['ok' => true, 'orden' => $ordenBuscada]); exit;
+    }
+
+    // Retrabajo: piezas de la orden original, para elegir partida + pieza específica
+    // (mismo criterio de numeración que ya usa el QR: partida / pieza_num de pieza_total).
+    if ($accionGet === 'retrabajo_piezas_orden') {
+        $ordenIdBuscada = (int)($_GET['orden_id'] ?? 0);
+        if (!$ordenIdBuscada) { jsonResponse(['error' => 'orden_id requerido']); exit; }
+        $stmtPzs = $db->prepare("SELECT id, partida, pieza_num, pieza_total, cristal, cristal_corto,
+                                      ancho_mm, alto_mm, cpb, tp, ta, requiere_templado, estatus
+                               FROM piezas WHERE orden_id = ?
+                               ORDER BY partida ASC, pieza_num ASC");
+        $stmtPzs->execute([$ordenIdBuscada]);
+        jsonResponse(['ok' => true, 'piezas' => $stmtPzs->fetchAll(PDO::FETCH_ASSOC)]); exit;
+    }
 
     // Detalle completo con partidas
     if ($id) {
@@ -271,12 +299,13 @@ if ($method === 'POST') {
             $orden_id = $db->lastInsertId();
 
             // Crear piezas individuales
-            $stmtPieza = $db->prepare("INSERT INTO piezas 
+            $stmtPieza = $db->prepare("INSERT INTO piezas
                 (orden_id, partida, pieza_num, pieza_total,
                  cristal, cristal_corto, requiere_templado,
                  ancho_mm, alto_mm, m2,
-                 cpb, detalles, resaques, tp, ta, comentarios, qr_code, estatus)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                 cpb, detalles, resaques, tp, ta, comentarios, qr_code, estatus,
+                 es_retrabajo, pieza_origen_id)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ");
 
             foreach ($partidas as $p) {
@@ -300,7 +329,9 @@ if ($method === 'POST') {
                         $p['taladros_avellanados'] ?? 0,
                         $p['comentarios_etiqueta'] ?? '',
                         $qr,
-                        'pendiente'
+                        'pendiente',
+                        (int)($cot['es_retrabajo'] ?? 0),
+                        $p['pieza_origen_id'] ?? null
                     ]);
                 }
             }
@@ -439,6 +470,7 @@ if ($method === 'POST') {
     $partidas     = $body['partidas']              ?? [];
     $fecha_entrega_manual = trim($body['fecha_entrega'] ?? '');
     $referido_ctn = trim($body['referido_ctn']     ?? '');
+    $es_retrabajo = !empty($body['es_retrabajo']) ? 1 : 0;
 
     if (!$cliente_id) { jsonResponse(['error' => 'Cliente requerido']); exit; }
     if (empty($partidas)) { jsonResponse(['error' => 'Se requiere al menos una partida']); exit; }
@@ -449,6 +481,26 @@ if ($method === 'POST') {
     $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$cliente) { jsonResponse(['error' => 'Cliente no encontrado']); exit; }
     $cliente_nombre = $cliente['razon_social'] ?: $cliente['nombre'];
+
+    // Retrabajo (error comercial — ver CLAUDE.md sección 12/UPD): la cotización nace
+    // ligada a UNA pieza original de una orden ya existente. El cliente queda fijo al
+    // de esa orden (no se puede facturar el retrabajo a alguien más) y se valida
+    // server-side que la pieza realmente pertenezca a esa orden — nunca se confía
+    // solo en lo que manda el frontend. v1: siempre 1 sola partida por retrabajo.
+    $pieza_origen_id = null;
+    if ($es_retrabajo) {
+        if (count($partidas) !== 1) { jsonResponse(['error' => 'Una cotización de retrabajo solo admite 1 partida (1 pieza original)']); exit; }
+        $pieza_origen_id = (int)($partidas[0]['pieza_origen_id'] ?? 0);
+        if (!$pieza_origen_id) { jsonResponse(['error' => 'Falta seleccionar la pieza original a reprocesar']); exit; }
+        $stmtPzOrig = $db->prepare("SELECT p.id, o.cliente_id, o.estado
+                                     FROM piezas p JOIN ordenes o ON o.id = p.orden_id
+                                     WHERE p.id = ?");
+        $stmtPzOrig->execute([$pieza_origen_id]);
+        $pzOrig = $stmtPzOrig->fetch(PDO::FETCH_ASSOC);
+        if (!$pzOrig) { jsonResponse(['error' => 'Pieza original no encontrada']); exit; }
+        if ($pzOrig['estado'] === 'cancelada') { jsonResponse(['error' => 'La orden original está cancelada']); exit; }
+        if ((int)$pzOrig['cliente_id'] !== $cliente_id) { jsonResponse(['error' => 'El cliente debe ser el mismo de la orden original']); exit; }
+    }
 
     // Esquema de Referidos (promo agosto 2026, ver api/helpers/referidos_lib.php):
     // 1) si el cliente YA tiene un referente registrado de una cotización previa
@@ -480,7 +532,7 @@ if ($method === 'POST') {
 
     foreach ($partidas as $p) {
         $cristal_id = (int)($p['cristal_id'] ?? 0);
-        $cantidad   = max(1, (int)($p['cantidad'] ?? 1));
+        $cantidad   = $es_retrabajo ? 1 : max(1, (int)($p['cantidad'] ?? 1)); // v1: retrabajo siempre 1 pieza
         $ancho      = (int)($p['ancho'] ?? 0);
         $alto       = (int)($p['alto']  ?? 0);
 
@@ -520,6 +572,7 @@ if ($method === 'POST') {
             'total'                => $total_p,
             'comentarios_etiqueta' => trim($p['comentarios_etiqueta']  ?? ''),
             'requiere_templado'    => isset($p['requiere_templado']) ? (int)$p['requiere_templado'] : 1,
+            'pieza_origen_id'      => $es_retrabajo ? $pieza_origen_id : null,
         ];
     }
 
@@ -543,8 +596,8 @@ if ($method === 'POST') {
             (folio, fecha, cliente_id, cliente_nombre, asesor_id, asesor_nombre,
              proyecto, descuento, descuento_referido, credito, condicion_pago, tipo_entrega,
              localidad, ciudad_destino, factura_tipo, fecha_entrega, fecha_entrega_manual,
-             alerta, subtotal, iva, total, saldo_pendiente, entrega_bloqueada, estatus)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             alerta, subtotal, iva, total, saldo_pendiente, entrega_bloqueada, estatus, es_retrabajo)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ")->execute([
             $folio, $fecha_hoy, $cliente_id, $cliente_nombre,
             $usuario_id, $usuario_nombre,
@@ -553,7 +606,8 @@ if ($method === 'POST') {
             $alerta, $subtotal_neto, $iva_total, $total_final,
             $saldo,
             0,
-            'cotizacion'
+            'cotizacion',
+            $es_retrabajo
         ]);
         $cot_id = $db->lastInsertId();
 
@@ -561,8 +615,8 @@ if ($method === 'POST') {
             (cotizacion_id, num_partida, cristal_id, cristal_nombre, cristal_etiqueta,
              precio_m2_usado, cantidad, ancho, alto, m2, detalles, cpb,
              resaques, taladros_pasados, taladros_avellanados, requiere_templado,
-             precio_unitario, subtotal, iva, total, comentarios_etiqueta)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ");
         foreach ($partidas_data as $i => $p) {
             $stmtP->execute([
@@ -572,7 +626,7 @@ if ($method === 'POST') {
                 $p['detalles'], $p['cpb'], $p['resaques'],
                 $p['taladros_pasados'], $p['taladros_avellanados'], $p['requiere_templado'],
                 $p['precio_unitario'], $p['subtotal'], $p['iva'], $p['total'],
-                $p['comentarios_etiqueta']
+                $p['comentarios_etiqueta'], $p['pieza_origen_id']
             ]);
         }
 
@@ -666,6 +720,16 @@ if ($method === 'PUT') {
             $preciosVigentes[$pv['num_partida'] . '|' . $pv['cristal_id']] = (float)$pv['precio_m2_usado'];
         }
 
+        // Retrabajo: preservar pieza_origen_id por num_partida a través de la edición
+        // (el frontend no lo vuelve a mandar, igual que precio_m2_usado — nunca se
+        // confía en el cliente para un dato que ya quedó fijado al crear la cotización).
+        $stmtPzVigente = $db->prepare("SELECT num_partida, pieza_origen_id FROM cotizaciones_partidas WHERE cotizacion_id = ?");
+        $stmtPzVigente->execute([$id]);
+        $piezaOrigenVigente = [];
+        foreach ($stmtPzVigente->fetchAll(PDO::FETCH_ASSOC) as $pv) {
+            $piezaOrigenVigente[(int)$pv['num_partida']] = $pv['pieza_origen_id'];
+        }
+
         // Calcular totales y validar partidas
         $subtotal_total = 0;
         $bruto_total    = 0; // A-2
@@ -719,6 +783,7 @@ if ($method === 'PUT') {
                 'total'                => $total_p,
                 'comentarios_etiqueta' => trim($p['comentarios_etiqueta']  ?? ''),
             'requiere_templado'    => isset($p['requiere_templado']) ? (int)$p['requiere_templado'] : 1,
+            'pieza_origen_id'      => $piezaOrigenVigente[count($partidas_data) + 1] ?? null,
             ];
         }
 
@@ -782,8 +847,8 @@ if ($method === 'PUT') {
                 (cotizacion_id, num_partida, cristal_id, cristal_nombre, cristal_etiqueta,
                  precio_m2_usado, cantidad, ancho, alto, m2, detalles, cpb,
                  resaques, taladros_pasados, taladros_avellanados, requiere_templado,
-                 precio_unitario, subtotal, iva, total, comentarios_etiqueta)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                 precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ");
             $nuevosIdsPorNumPartida = [];
             foreach ($partidas_data as $i => $p) {
@@ -795,7 +860,7 @@ if ($method === 'PUT') {
                     $p['detalles'], $p['cpb'], $p['resaques'],
                     $p['taladros_pasados'], $p['taladros_avellanados'], $p['requiere_templado'],
                     $p['precio_unitario'], $p['subtotal'], $p['iva'], $p['total'],
-                    $p['comentarios_etiqueta']
+                    $p['comentarios_etiqueta'], $p['pieza_origen_id']
                 ]);
                 $nuevosIdsPorNumPartida[$numPart] = (int)$db->lastInsertId();
             }
