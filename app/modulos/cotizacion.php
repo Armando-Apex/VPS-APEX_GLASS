@@ -211,6 +211,28 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .arch-modal-close { background:none; border:none; color:#94a3b8; font-size:20px; cursor:pointer; line-height:1; padding:2px 6px; }
 .arch-modal-close:hover { color:white; }
 .arch-modal-body { padding:28px; max-height:75vh; overflow-y:auto; }
+/* Selector tipo de cotización (normal / retrabajo) — reemplaza el checkbox suelto */
+.type-toggle { display:flex; gap:8px; margin-bottom:20px; }
+.type-pill { border:1.5px solid #e2e8f0; background:white; color:#64748b; padding:9px 16px; border-radius:99px; font-size:12.5px; font-weight:700; cursor:pointer; }
+.type-pill.on { border-color:#2563eb; background:#eff6ff; color:#1d4ed8; }
+.type-pill.warn.on { border-color:#b91c1c; background:#fef2f2; color:#b91c1c; }
+.retrabajo-panel { display:none; background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:16px 18px; margin-bottom:20px; }
+.retrabajo-panel.show { display:block; }
+.rt-row { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:12px; }
+.rt-field { flex:1; min-width:160px; }
+.rt-field label { font-size:10.5px; color:#b91c1c; font-weight:700; display:block; margin-bottom:4px; text-transform:uppercase; letter-spacing:.4px; }
+.rt-field input, .rt-field select { width:100%; padding:9px 12px; border:1.5px solid #fecaca; border-radius:7px; font-size:13px; background:white; }
+.rt-field input:focus, .rt-field select:focus { outline:none; border-color:#b91c1c; }
+.rt-note { font-size:11.5px; color:#b91c1c; line-height:1.5; margin-top:2px; }
+/* Grupos del encabezado: Proyecto / Condiciones comerciales / Entrega */
+.grp { margin-top:22px; padding-top:16px; border-top:1px solid #f1f5f9; }
+.grp:first-of-type { margin-top:0; padding-top:0; border-top:none; }
+.grp-label { font-size:11px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:.7px; margin-bottom:12px; }
+/* Partidas: franja alterna explícita (evita depender de nth-child con srv-wrap intercalado) */
+.partida-row.zebra { background:#f8fafc; }
+.partida-row:hover { background:#eff6ff; }
+.p-subhead { display:grid; grid-template-columns: 34px 190px 54px 72px 72px 115px 145px 50px 50px 50px 70px 125px 34px; gap:5px; padding:0 8px; margin-bottom:3px; }
+.p-subhead span { font-size:8px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:.4px; text-align:center; }
 /* Autocomplete cliente */
 .autocomplete-wrap { position: relative; }
 .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 100; max-height: 240px; overflow-y: auto; }
@@ -401,30 +423,34 @@ function renderFormulario(data) {
   }
 
   // ── Campos ──
-  html += '<div class="form-grid">';
 
   // Retrabajo (error comercial) — solo al crear una cotización nueva. Ver
-  // CLAUDE.md sección 12 / api/helpers/comisiones_lib.php.
+  // CLAUDE.md sección 12 / api/helpers/comisiones_lib.php. Selector de tipo
+  // (pill) en vez de checkbox suelto — el checkbox sigue existiendo oculto,
+  // solo lo mueve el toggle, para no tocar la lógica de guardarCotizacion().
   if (esNuevo) {
-    html += '<div class="field span-3" style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 14px;">';
-    html += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;color:#991b1b;margin-bottom:0;">';
-    html += '<input type="checkbox" id="fEsRetrabajo" onchange="ModCotizacion._toggleRetrabajo()"> Es retrabajo (correcci&oacute;n de una orden ya existente)';
-    html += '</label>';
-    html += '<div id="retrabajoPanel" style="display:none;margin-top:12px;">';
-    html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">';
-    html += '<div style="flex:1;min-width:160px;"><label style="font-size:11px;color:#64748b;display:block;margin-bottom:4px;">Folio de la orden original</label>';
-    html += '<input type="text" id="rtFolio" placeholder="Ej: S-123" style="text-transform:uppercase;width:100%;padding:8px;border:1.5px solid #e2e8f0;border-radius:6px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();ModCotizacion._retrabajoBuscarOrden();}"></div>';
-    html += '<button type="button" class="btn btn-ghost btn-sm" onclick="ModCotizacion._retrabajoBuscarOrden()">Buscar orden</button>';
+    html += '<div class="type-toggle">';
+    html += '<button type="button" class="type-pill on" id="pillNormal" onclick="ModCotizacion._setTipoCotizacion(\'normal\')">Cotizaci&oacute;n normal</button>';
+    html += '<button type="button" class="type-pill warn" id="pillRetrabajo" onclick="ModCotizacion._setTipoCotizacion(\'retrabajo\')">Retrabajo (correcci&oacute;n)</button>';
     html += '</div>';
-    html += '<div id="rtOrdenInfo" style="font-size:12.5px;margin-top:8px;"></div>';
-    html += '<div id="rtPartidaWrap" style="display:none;margin-top:10px;"><label style="font-size:11px;color:#64748b;display:block;margin-bottom:4px;">Partida</label>';
-    html += '<select id="rtPartida" style="width:100%;padding:8px;border:1.5px solid #e2e8f0;border-radius:6px;" onchange="ModCotizacion._retrabajoPartidaChange()"></select></div>';
-    html += '<div id="rtPiezaWrap" style="display:none;margin-top:10px;"><label style="font-size:11px;color:#64748b;display:block;margin-bottom:4px;">Pieza a reprocesar</label>';
-    html += '<select id="rtPieza" style="width:100%;padding:8px;border:1.5px solid #e2e8f0;border-radius:6px;" onchange="ModCotizacion._retrabajoPiezaChange()"></select></div>';
-    html += '<div style="font-size:11.5px;color:#7f1d1d;margin-top:10px;">El precio que le pongas a esta pieza es el valor de la p&eacute;rdida a absorber. Se descuenta el 50% de tu comisi&oacute;n salvo que el cliente pague al menos el 50% de ese valor.</div>';
+    html += '<input type="checkbox" id="fEsRetrabajo" style="display:none">';
+
+    html += '<div id="retrabajoPanel" class="retrabajo-panel">';
+    html += '<div class="rt-row">';
+    html += '<div class="rt-field"><label>Folio de la orden original</label>';
+    html += '<input type="text" id="rtFolio" placeholder="Ej: S-123" style="text-transform:uppercase" onkeydown="if(event.key===\'Enter\'){event.preventDefault();ModCotizacion._retrabajoBuscarOrden();}"></div>';
+    html += '<button type="button" class="btn btn-sm" style="background:#b91c1c;color:#fff;" onclick="ModCotizacion._retrabajoBuscarOrden()">Buscar orden</button>';
+    html += '</div>';
+    html += '<div id="rtOrdenInfo" style="font-size:12.5px;margin-bottom:8px;"></div>';
+    html += '<div id="rtPartidaWrap" style="display:none;margin-bottom:10px;"><label style="font-size:10.5px;color:#b91c1c;font-weight:700;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px;">Partida</label>';
+    html += '<select id="rtPartida" style="width:100%;padding:9px 12px;border:1.5px solid #fecaca;border-radius:7px;font-size:13px;" onchange="ModCotizacion._retrabajoPartidaChange()"></select></div>';
+    html += '<div id="rtPiezaWrap" style="display:none;margin-bottom:10px;"><label style="font-size:10.5px;color:#b91c1c;font-weight:700;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px;">Pieza a reprocesar</label>';
+    html += '<select id="rtPieza" style="width:100%;padding:9px 12px;border:1.5px solid #fecaca;border-radius:7px;font-size:13px;" onchange="ModCotizacion._retrabajoPiezaChange()"></select></div>';
+    html += '<div class="rt-note">El precio que le pongas a esta pieza es el valor de la p&eacute;rdida a absorber. Se descuenta el 50% de tu comisi&oacute;n salvo que el cliente pague al menos el 50% de ese valor.</div>';
     html += '</div>'; // retrabajoPanel
-    html += '</div>';
   }
+
+  html += '<div class="form-grid">';
 
   // Cliente
   html += '<div class="field span-2"><label>Cliente *</label>';
@@ -439,14 +465,12 @@ function renderFormulario(data) {
   }
   html += '</div>';
   html += '<div class="banner-saldo-favor" id="bannerSaldoFavor">&#128176; <span id="bannerSaldoTexto"></span></div>';
+  html += '</div>'; // form-grid (cliente)
 
-  // Proyecto
+  // ── Proyecto ──
+  html += '<div class="grp"><div class="grp-label">Proyecto</div><div class="form-grid">';
   html += '<div class="field"><label>Proyecto / Referencia</label>';
   html += '<input type="text" id="fProyecto" placeholder="Ej: Casa Lomas" ' + (!editable ? 'readonly' : '') + ' value="' + escHtml(data ? data.proyecto : '') + '"></div>';
-
-  // Descuento
-  html += '<div class="field"><label>Descuento %</label>';
-  html += '<input type="number" id="fDescuento" min="0" max="100" step="0.5" value="' + (data ? (data.descuento || '0') : '0') + '" ' + (!editable ? 'readonly' : '') + ' onchange="ModCotizacion._recalcular()"></div>';
 
   // Código de referido (CTN) — promo agosto 2026, solo aplica al crear la
   // primera cotización de un cliente nuevo. En ediciones el 5% ya quedó fijo
@@ -454,11 +478,23 @@ function renderFormulario(data) {
   if (esNuevo) {
     html += '<div class="field"><label>C&oacute;digo de Referido (CTN)</label>';
     html += '<input type="text" id="fReferidoCtn" placeholder="Ej: CTN-259" maxlength="20" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
-    html += '<small style="color:#64748b;">Opcional, solo cliente nuevo referido por otro. Da 5% de descuento autom&aacute;tico (agosto 2026).</small></div>';
+    html += '<small style="color:#64748b;">Opcional, 5% de descuento autom&aacute;tico (agosto 2026).</small></div>';
   } else if (data && parseFloat(data.descuento_referido || 0) > 0) {
     html += '<div class="field"><label>Descuento por Referido</label>';
     html += '<input type="text" readonly value="' + parseFloat(data.descuento_referido) + '% (ya aplicado)"></div>';
   }
+
+  // Alerta
+  html += '<div class="field span-3"><label>Alerta / Nota especial</label>';
+  html += '<input type="text" id="fAlerta" ' + (!editable?'readonly':'') + ' value="' + escHtml(data ? (data.alerta||'') : '') + '" placeholder="Ej: Urgente, cliente espera..."></div>';
+  html += '</div></div>'; // form-grid, grp Proyecto
+
+  // ── Condiciones comerciales ──
+  html += '<div class="grp"><div class="grp-label">Condiciones comerciales</div><div class="form-grid">';
+
+  // Descuento
+  html += '<div class="field"><label>Descuento %</label>';
+  html += '<input type="number" id="fDescuento" min="0" max="100" step="0.5" value="' + (data ? (data.descuento || '0') : '0') + '" ' + (!editable ? 'readonly' : '') + ' onchange="ModCotizacion._recalcular()"></div>';
 
   // Condición de pago
   html += '<div class="field"><label>Condición de pago</label>';
@@ -468,6 +504,32 @@ function renderFormulario(data) {
     html += '<input type="text" readonly value="' + (data && data.condicion_pago === 'pago_total' ? 'Pago Total' : '50% Anticipo') + '">';
   }
   html += '</div>';
+
+  // Crédito
+  html += '<div class="field"><label>Crédito</label>';
+  if (editable) {
+    html += '<select id="fCredito"><option value="no"' + (data && data.credito==='no'?' selected':'') + '>No</option><option value="si"' + (data && data.credito==='si'?' selected':'') + '>Sí</option></select>';
+  } else {
+    html += '<input type="text" readonly value="' + (data && data.credito === 'si' ? 'Sí' : 'No') + '">';
+  }
+  html += '</div>';
+
+  // Factura tipo
+  var ftVal = data ? (data.factura_tipo || '') : '';
+  var ftEsGenerica = (ftVal === 'generica');
+  html += '<div class="field"><label>Factura genérica</label>';
+  if (editable) {
+    html += '<label class="fact-toggle' + (ftEsGenerica ? ' is-on' : '') + '" id="fFacturaToggleWrap">';
+    html += '<input type="checkbox" id="fFacturaGenerica" ' + (ftEsGenerica ? 'checked' : '') + ' onchange="document.getElementById(\'fFacturaToggleWrap\').classList.toggle(\'is-on\', this.checked)">';
+    html += '&#128196; Público en general</label>';
+  } else {
+    html += '<div class="fact-toggle' + (ftEsGenerica ? ' is-on' : '') + '" style="cursor:default">' + (ftEsGenerica ? '&#128196; Público en general' : '— No genérica —') + '</div>';
+  }
+  html += '</div>';
+  html += '</div></div>'; // form-grid, grp Condiciones
+
+  // ── Entrega ──
+  html += '<div class="grp"><div class="grp-label">Entrega</div><div class="form-grid">';
 
   // Tipo entrega
   html += '<div class="field"><label>Tipo de entrega</label>';
@@ -495,36 +557,9 @@ function renderFormulario(data) {
   // Fecha entrega
   html += '<div class="field"><label>Fecha de entrega</label>';
   html += '<input type="date" id="fFechaEntrega" ' + (!editable?'readonly':'') + ' value="' + (data ? ((data.fecha_entrega||'').substring(0,10)) : '') + '">';
-  html += '<div class="hint">Se calcula automáticamente (5 días hábiles)</div>';
+  html += '<div class="hint">Se calcula automáticamente</div>';
   html += '</div>';
-
-  // Crédito
-  html += '<div class="field"><label>Crédito</label>';
-  if (editable) {
-    html += '<select id="fCredito"><option value="no"' + (data && data.credito==='no'?' selected':'') + '>No</option><option value="si"' + (data && data.credito==='si'?' selected':'') + '>Sí</option></select>';
-  } else {
-    html += '<input type="text" readonly value="' + (data && data.credito === 'si' ? 'Sí' : 'No') + '">';
-  }
-  html += '</div>';
-
-  // Factura tipo
-  var ftVal = data ? (data.factura_tipo || '') : '';
-  var ftEsGenerica = (ftVal === 'generica');
-  html += '<div class="field"><label>Factura genérica</label>';
-  if (editable) {
-    html += '<label class="fact-toggle' + (ftEsGenerica ? ' is-on' : '') + '" id="fFacturaToggleWrap">';
-    html += '<input type="checkbox" id="fFacturaGenerica" ' + (ftEsGenerica ? 'checked' : '') + ' onchange="document.getElementById(\'fFacturaToggleWrap\').classList.toggle(\'is-on\', this.checked)">';
-    html += '&#128196; Público en general</label>';
-  } else {
-    html += '<div class="fact-toggle' + (ftEsGenerica ? ' is-on' : '') + '" style="cursor:default">' + (ftEsGenerica ? '&#128196; Público en general' : '— No genérica —') + '</div>';
-  }
-  html += '</div>';
-
-  // Alerta
-  html += '<div class="field span-3"><label>Alerta / Nota especial</label>';
-  html += '<input type="text" id="fAlerta" ' + (!editable?'readonly':'') + ' value="' + escHtml(data ? (data.alerta||'') : '') + '" placeholder="Ej: Urgente, cliente espera..."></div>';
-
-  html += '</div>'; // form-grid
+  html += '</div></div>'; // form-grid, grp Entrega
   html += '</div>'; // card encabezado
 
   // Banner autorización descuento (se rellena async)
@@ -543,6 +578,7 @@ function renderFormulario(data) {
   }
   html += '</div>';
 
+  html += '<div class="p-subhead"><span style="grid-column:8/11">Taladros y resaques</span></div>';
   html += '<div class="partidas-header">';
   html += '<span>#</span><span>Cristal</span><span>Cant</span><span>Ancho mm</span><span>Alto mm</span><span>Detalles</span><span>CPB</span><span>Res</span><span>TP</span><span>TA</span><span>Templado</span><span>Comentarios</span><span></span>';
   html += '</div>';
@@ -627,7 +663,7 @@ function renderPartidas(editable) {
   var html = '';
   for (var i = 0; i < partidas.length; i++) {
     var p = partidas[i];
-    html += '<div class="partida-row" id="prow-' + i + '">';
+    html += '<div class="partida-row' + (i % 2 === 1 ? ' zebra' : '') + '" id="prow-' + i + '">';
     html += '<span class="num-partida">' + (i+1) + '</span>';
 
     // Precio bloqueado (se preserva al editar; solo cambia si el usuario elige otro cristal)
@@ -651,11 +687,11 @@ function renderPartidas(editable) {
     html += '</select>';
 
     // Cantidad
-    html += '<input type="number" id="p_cant_' + i + '" value="' + (p.cantidad||1) + '" min="1" ' + (!editable?'readonly':'') + ' onchange="ModCotizacion._recalcular()">';
+    html += '<input type="number" id="p_cant_' + i + '" style="text-align:center" value="' + (p.cantidad||1) + '" min="1" ' + (!editable?'readonly':'') + ' onchange="ModCotizacion._recalcular()">';
     // Ancho
-    html += '<input type="number" id="p_ancho_' + i + '" value="' + (p.ancho||'') + '" placeholder="mm" ' + (!editable?'readonly':'') + ' onchange="ModCotizacion._recalcular()">';
+    html += '<input type="number" id="p_ancho_' + i + '" style="text-align:center" value="' + (p.ancho||'') + '" placeholder="mm" ' + (!editable?'readonly':'') + ' onchange="ModCotizacion._recalcular()">';
     // Alto
-    html += '<input type="number" id="p_alto_' + i + '" value="' + (p.alto||'') + '" placeholder="mm" ' + (!editable?'readonly':'') + ' onchange="ModCotizacion._recalcular()">';
+    html += '<input type="number" id="p_alto_' + i + '" style="text-align:center" value="' + (p.alto||'') + '" placeholder="mm" ' + (!editable?'readonly':'') + ' onchange="ModCotizacion._recalcular()">';
     // Detalles
     var detOpts = ['NO','Plantilla','Descuadre','Forma','Di\u00e1metro'];
     if (editable) {
@@ -681,11 +717,11 @@ function renderPartidas(editable) {
       html += '<input type="text" readonly value="' + escHtml(p.cpb||'') + '">';
     }
     // Resaques
-    html += '<input type="number" id="p_res_' + i + '" value="' + (p.resaques||0) + '" min="0" ' + (!editable?'readonly':'') + '>';
+    html += '<input type="number" id="p_res_' + i + '" style="text-align:center" value="' + (p.resaques||0) + '" min="0" ' + (!editable?'readonly':'') + '>';
     // Taladros pasados
-    html += '<input type="number" id="p_tp_' + i + '" value="' + (p.taladros_pasados||0) + '" min="0" ' + (!editable?'readonly':'') + '>';
+    html += '<input type="number" id="p_tp_' + i + '" style="text-align:center" value="' + (p.taladros_pasados||0) + '" min="0" ' + (!editable?'readonly':'') + '>';
     // Taladros avellanados
-    html += '<input type="number" id="p_ta_' + i + '" value="' + (p.taladros_avellanados||0) + '" min="0" ' + (!editable?'readonly':'') + '>';
+    html += '<input type="number" id="p_ta_' + i + '" style="text-align:center" value="' + (p.taladros_avellanados||0) + '" min="0" ' + (!editable?'readonly':'') + '>';
     // Templado
     var templVal = (p.requiere_templado === 0 || p.requiere_templado === '0') ? 0 : 1;
     if (editable) {
@@ -925,10 +961,20 @@ function seleccionarCliente(id, nombre, localidad, ciudad) {
 }
 
 // ── Retrabajo (error comercial) ────────────────────────────────────────────────
+function setTipoCotizacion(tipo) {
+  var chk = document.getElementById('fEsRetrabajo');
+  if (chk) chk.checked = (tipo === 'retrabajo');
+  var pillNormal    = document.getElementById('pillNormal');
+  var pillRetrabajo = document.getElementById('pillRetrabajo');
+  if (pillNormal)    pillNormal.classList.toggle('on', tipo === 'normal');
+  if (pillRetrabajo) pillRetrabajo.classList.toggle('on', tipo === 'retrabajo');
+  toggleRetrabajo();
+}
+
 function toggleRetrabajo() {
   var chk   = document.getElementById('fEsRetrabajo');
   var panel = document.getElementById('retrabajoPanel');
-  if (panel) panel.style.display = (chk && chk.checked) ? 'block' : 'none';
+  if (panel) panel.classList.toggle('show', !!(chk && chk.checked));
   if (!chk || !chk.checked) {
     _retrabajoOrden  = null;
     _retrabajoPiezas = [];
@@ -1999,6 +2045,7 @@ return {
   _cerrarRechazo:      cerrarRechazo,
   _confirmarRechazo:   confirmarRechazo,
   _toggleRetrabajo:        toggleRetrabajo,
+  _setTipoCotizacion:      setTipoCotizacion,
   _retrabajoBuscarOrden:   retrabajoBuscarOrden,
   _retrabajoPartidaChange: retrabajoPartidaChange,
   _retrabajoPiezaChange:   retrabajoPiezaChange,
