@@ -427,7 +427,7 @@ if ($method === 'PUT') {
         // condicion_pago: 'anticipo' = 50% del total; 'pago_total' = 100%.
         $vobo_override = false;
         if ($orden['cot_id']) {
-            $stmtCP = $db->prepare("SELECT condicion_pago, COALESCE(saldo_pagado,0) AS saldo_pagado, folio
+            $stmtCP = $db->prepare("SELECT condicion_pago, COALESCE(saldo_pagado,0) AS saldo_pagado, folio, es_retrabajo
                                     FROM cotizaciones WHERE id = ?");
             $stmtCP->execute([$orden['cot_id']]);
             $cp = $stmtCP->fetch(PDO::FETCH_ASSOC);
@@ -439,7 +439,16 @@ if ($method === 'PUT') {
                 : round($totalCot * 0.5, 2);
             $pagado        = (float)$cp['saldo_pagado'];
 
-            if ($pagado + 0.99 < $anticipo_req) {
+            // Retrabajo (error comercial, ver CLAUDE.md UPD-467/470): el cliente casi
+            // nunca paga nada — la empresa ya sabe que absorbe esa pérdida, no es una
+            // excepción que Lina deba justificar cada vez. Exento del anticipo
+            // requerido; el VoBo lo sigue dando Lina a mano (nada cambia en eso), solo
+            // ya no se le fuerza a escribir motivo. Queda igual registrado en bitácora
+            // para trazabilidad, con nota automática (no la escribe ella).
+            if (!empty($cp['es_retrabajo']) && $pagado + 0.99 < $anticipo_req) {
+                $vobo_override = true;
+                $notaOv = 'VoBo sin anticipo — orden de retrabajo, pérdida absorbida por la empresa';
+            } elseif ($pagado + 0.99 < $anticipo_req) {
                 $pctTxt = ($cp['condicion_pago'] === 'pago_total') ? '100%' : '50%';
                 // C-12: dir_admin/desarrollo pasan directo sin anticipo — no necesitan mandar
                 // nada extra — pero queda registrado en bitácora automáticamente (nota_vobo
