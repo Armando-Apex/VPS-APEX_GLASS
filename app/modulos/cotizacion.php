@@ -223,7 +223,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .rt-field label { font-size:10.5px; color:#b91c1c; font-weight:700; display:block; margin-bottom:4px; text-transform:uppercase; letter-spacing:.4px; }
 .rt-field input, .rt-field select { width:100%; padding:9px 12px; border:1.5px solid #fecaca; border-radius:7px; font-size:13px; background:white; }
 .rt-field input:focus, .rt-field select:focus { outline:none; border-color:#b91c1c; }
-.rt-note { font-size:11.5px; color:#b91c1c; line-height:1.5; margin-top:2px; }
 /* Grupos del encabezado: Proyecto / Condiciones comerciales / Entrega */
 .grp { margin-top:22px; padding-top:16px; border-top:1px solid #f1f5f9; }
 .grp:first-of-type { margin-top:0; padding-top:0; border-top:none; }
@@ -446,7 +445,6 @@ function renderFormulario(data) {
     html += '<select id="rtPartida" style="width:100%;padding:9px 12px;border:1.5px solid #fecaca;border-radius:7px;font-size:13px;" onchange="ModCotizacion._retrabajoPartidaChange()"></select></div>';
     html += '<div id="rtPiezaWrap" style="display:none;margin-bottom:10px;"><label style="font-size:10.5px;color:#b91c1c;font-weight:700;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px;">Pieza a reprocesar</label>';
     html += '<select id="rtPieza" style="width:100%;padding:9px 12px;border:1.5px solid #fecaca;border-radius:7px;font-size:13px;" onchange="ModCotizacion._retrabajoPiezaChange()"></select></div>';
-    html += '<div class="rt-note">El precio que le pongas a esta pieza es el valor de la p&eacute;rdida a absorber. Se descuenta el 50% de tu comisi&oacute;n salvo que el cliente pague al menos el 50% de ese valor.</div>';
     html += '</div>'; // retrabajoPanel
   }
 
