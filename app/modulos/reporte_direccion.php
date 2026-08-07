@@ -657,16 +657,17 @@ function rdRenderEfectividadCorte(ef) {
   if (porTipo.length) {
     html += '<div class="table-card"><table>' +
       '<thead><tr><th>Tipo</th><th>Espesor</th><th style="text-align:right">L&#225;minas</th><th style="text-align:right">% Efectividad</th>' +
-      '<th style="text-align:right">Efectividad &gt;85%</th><th style="text-align:right">Efectividad &lt;85%</th><th style="text-align:right">Pedacer&#237;a (m&#178;)</th></tr></thead><tbody>';
+      '<th style="text-align:right">Efectividad &gt;85%</th><th style="text-align:right">Efectividad &lt;85%</th><th style="text-align:right">Pedacer&#237;a (pzas)</th><th style="text-align:right">Pedacer&#237;a (m&#178;)</th></tr></thead><tbody>';
     porTipo.forEach(function(t) {
       var tPct = t.efectividad_pct !== null ? parseFloat(t.efectividad_pct) : null;
       html += '<tr>' +
         '<td>' + esc(t.tipo) + '</td>' +
         '<td>' + t.espesor_mm + ' mm</td>' +
-        '<td style="text-align:right">' + t.sesiones + '</td>' +
+        '<td style="text-align:right">' + (t.sesiones_completas || 0) + '</td>' +
         '<td style="text-align:right;font-weight:700">' + (tPct !== null ? tPct.toFixed(1) + '%' : '&#8212;') + '</td>' +
         '<td style="text-align:right;color:var(--green)">' + (t.sesiones_efectivas || 0) + '</td>' +
         '<td style="text-align:right;color:var(--red)">' + (t.sesiones_no_efectivas || 0) + '</td>' +
+        '<td style="text-align:right;color:var(--amber)">' + (t.sesiones_pedaceria || 0) + '</td>' +
         '<td style="text-align:right;color:var(--amber)">' + parseFloat(t.m2_pedaceria || 0).toFixed(1) + '</td>' +
       '</tr>';
     });

@@ -173,6 +173,8 @@ if ($accion === 'efectividad_corte') {
     $s2 = $pdo->prepare("
         SELECT tipo, espesor_mm,
                COUNT(*)                                                    AS sesiones,
+               SUM(CASE WHEN es_pedaceria=0 THEN 1 ELSE 0 END)             AS sesiones_completas,
+               SUM(CASE WHEN es_pedaceria=1 THEN 1 ELSE 0 END)             AS sesiones_pedaceria,
                SUM(m2_disponible)                                          AS m2_disponible,
                SUM(m2_aprovechado)                                         AS m2_aprovechado,
                ROUND(SUM(m2_aprovechado)/NULLIF(SUM(m2_disponible),0)*100,2) AS efectividad_pct,
