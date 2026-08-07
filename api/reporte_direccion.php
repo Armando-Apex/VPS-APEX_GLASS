@@ -156,14 +156,17 @@ if ($accion === 'efectividad_corte') {
     $s = $pdo->prepare("
         SELECT
             COUNT(*)                                                            AS total_sesiones,
-            SUM(m2_disponible)                                                  AS m2_disponible_total,
-            SUM(m2_aprovechado)                                                 AS m2_aprovechado_total,
-            ROUND(SUM(m2_aprovechado)/NULLIF(SUM(m2_disponible),0)*100, 2)      AS efectividad_pct_global,
+            -- Efectividad y m2 usados: SOLO laminas completas (es_pedaceria=0). La pedaceria es reuso
+            -- de sobrante y diluye la merma real del corte de lamina completa; se reporta aparte.
+            SUM(CASE WHEN es_pedaceria=0 THEN m2_disponible ELSE 0 END)         AS m2_disponible_total,
+            SUM(CASE WHEN es_pedaceria=0 THEN m2_aprovechado ELSE 0 END)        AS m2_aprovechado_total,
+            ROUND(SUM(CASE WHEN es_pedaceria=0 THEN m2_aprovechado ELSE 0 END)
+                  /NULLIF(SUM(CASE WHEN es_pedaceria=0 THEN m2_disponible ELSE 0 END),0)*100, 2) AS efectividad_pct_global,
             SUM(CASE WHEN es_pedaceria=1 THEN 1 ELSE 0 END)                     AS sesiones_pedaceria,
             SUM(CASE WHEN es_pedaceria=0 THEN 1 ELSE 0 END)                     AS sesiones_catalogo,
             SUM(CASE WHEN es_pedaceria=1 THEN m2_disponible ELSE 0 END)         AS m2_pedaceria,
-            SUM(CASE WHEN efectividad_pct >= 85 THEN 1 ELSE 0 END)              AS sesiones_efectivas,
-            SUM(CASE WHEN efectividad_pct < 85 THEN 1 ELSE 0 END)               AS sesiones_no_efectivas
+            SUM(CASE WHEN es_pedaceria=0 AND efectividad_pct >= 85 THEN 1 ELSE 0 END) AS sesiones_efectivas,
+            SUM(CASE WHEN es_pedaceria=0 AND efectividad_pct < 85 THEN 1 ELSE 0 END)  AS sesiones_no_efectivas
         FROM sesiones_corte
         WHERE created_at >= ? AND created_at <= ?
     ");
@@ -175,11 +178,12 @@ if ($accion === 'efectividad_corte') {
                COUNT(*)                                                    AS sesiones,
                SUM(CASE WHEN es_pedaceria=0 THEN 1 ELSE 0 END)             AS sesiones_completas,
                SUM(CASE WHEN es_pedaceria=1 THEN 1 ELSE 0 END)             AS sesiones_pedaceria,
-               SUM(m2_disponible)                                          AS m2_disponible,
-               SUM(m2_aprovechado)                                         AS m2_aprovechado,
-               ROUND(SUM(m2_aprovechado)/NULLIF(SUM(m2_disponible),0)*100,2) AS efectividad_pct,
-               SUM(CASE WHEN efectividad_pct >= 85 THEN 1 ELSE 0 END)      AS sesiones_efectivas,
-               SUM(CASE WHEN efectividad_pct < 85 THEN 1 ELSE 0 END)       AS sesiones_no_efectivas,
+               SUM(CASE WHEN es_pedaceria=0 THEN m2_disponible ELSE 0 END)  AS m2_disponible,
+               SUM(CASE WHEN es_pedaceria=0 THEN m2_aprovechado ELSE 0 END) AS m2_aprovechado,
+               ROUND(SUM(CASE WHEN es_pedaceria=0 THEN m2_aprovechado ELSE 0 END)
+                     /NULLIF(SUM(CASE WHEN es_pedaceria=0 THEN m2_disponible ELSE 0 END),0)*100,2) AS efectividad_pct,
+               SUM(CASE WHEN es_pedaceria=0 AND efectividad_pct >= 85 THEN 1 ELSE 0 END) AS sesiones_efectivas,
+               SUM(CASE WHEN es_pedaceria=0 AND efectividad_pct < 85 THEN 1 ELSE 0 END)  AS sesiones_no_efectivas,
                SUM(CASE WHEN es_pedaceria=1 THEN m2_disponible ELSE 0 END) AS m2_pedaceria
         FROM sesiones_corte
         WHERE created_at >= ? AND created_at <= ?
