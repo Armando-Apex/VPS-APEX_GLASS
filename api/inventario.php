@@ -200,8 +200,13 @@ if ($method === 'GET') {
         // Precio real ponderado por m2 vendido (reemplaza el precio de catalogo x0.90 usado antes en
         // Rentabilidad por m2 de vidrio). A peticion de Armando (10-jul-2026): los costos de cristal
         // subieron fuerte en los ultimos dias, quiere ver el precio REAL cobrado, no una suposicion.
-        // Ventana fija desde que empezaron los cambios de precio, no un rango movil.
-        $FECHA_INICIO_PRECIO_REAL = '2026-07-01 00:00:00';
+        // [UPD-472] Mes calendario en curso (rolling), no ventana fija — a peticion de Armando
+        // (07-ago-2026): el analisis es por mes, y una ventana fija desde jul-01 mezclaba ventas de
+        // antes y despues del incremento de precios de UPD-448 (03-ago) en un solo promedio, dejando
+        // el "precio real" por debajo del precio de catalogo vigente. Mismo criterio que ya usa el
+        // costo de compra de laminas (MES_ACTUAL_INICIO, UPD-389) - ahora ambos lados del cuadro usan
+        // la misma ventana movil.
+        $FECHA_INICIO_PRECIO_REAL = $MES_ACTUAL_INICIO;
         $tipoLbl = [
             'claro' => 'Claro', 'claro_zafiro' => 'Claro Zafiro', 'filtrasol' => 'Filtrasol',
             'espejo' => 'Espejo', 'espejo_aluminio' => 'Espejo Aluminio', 'laminado_claro' => 'Laminado Claro',
