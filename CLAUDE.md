@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 07 agosto 2026 | Próximo UPD disponible: UPD-478
+# Última actualización: 07 agosto 2026 | Próximo UPD disponible: UPD-479
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -664,4 +664,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-477 | 07-ago-2026 | Armando | Columna nueva "Bono" en la tabla de estaciones del Tablero de Omisiones (`app/modulos/omisiones.php`) — badge "CON BONO" (verde) si el % de omisión de esa estación es menor a 5.00%, "SIN BONO" (rojo) si es igual o mayor. Regla de negocio dada directo por Armando, calculada 100% en frontend sobre `pct_omision` que ya regresaba el API (sin cambios en `api/omisiones.php`). Nota pendiente de confirmar con Armando: por ahora es solo visual/informativo, no está ligado a ningún cálculo real de nómina/bono de piso — si más adelante se requiere que efectivamente pague o descuente algo, hay que definir a quién se le aplica (¿todo el piso? ¿el operador de esa estación específica?) y conectarlo con un mecanismo real de pago. |
 
-**Próximo UPD disponible: UPD-478**
+| UPD-478 | 07-ago-2026 | Armando | Corrección de datos (no código): orden **S-518** (COT-1120 id=1037, partida 1, pieza id=5869, QR `COT-1120-01-001-001`) cambiada de **Filtrasol 9mm a Filtrasol 6mm** a petición de Armando — el cliente necesita el vidrio de 6mm pero ya se le cotizó/cobró al precio de 9mm, así que el precio NO se tocó a propósito (queda igual que si fuera 9mm: `precio_m2_usado`=$1,883.43, subtotal/iva/total sin cambio). `UPDATE cotizaciones_partidas` (cristal_id 7→17, cristal_nombre/cristal_etiqueta) + `UPDATE piezas` (cristal/cristal_corto, es lo que imprime la etiqueta QR) dentro de una transacción con SELECT antes/después. Verificado que la pieza seguía en `pendiente` (sin sesión de corte) antes de tocarla — sin riesgo de que ya se hubiera cortado con la medida/tipo equivocado. |
+
+**Próximo UPD disponible: UPD-479**
