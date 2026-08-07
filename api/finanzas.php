@@ -7,6 +7,7 @@ require_once 'config.php';
 require_once 'permisos.php';
 require_once __DIR__ . '/helpers/totales.php';    // A-2
 require_once __DIR__ . '/helpers/referidos_lib.php'; // Esquema de Referidos (promo agosto 2026)
+require_once __DIR__ . '/helpers/polizas_lib.php'; // Fase 6.2 — pólizas automáticas (VoBo + pagos)
 require_once __DIR__ . '/wa_helper.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -307,6 +308,7 @@ if ($method === 'POST') {
                 (cotizacion_id, fecha_pago, hora_pago, monto, forma_pago, notas, registrado_por)
                 VALUES (?,?,?,?,?,?,?)
             ")->execute([$cot_id, $fecha, $hora, $monto_aplicar, $forma, $notas, $usuario_nombre]);
+            $pagoId = (int)$db->lastInsertId();
 
             // Actualizar saldo_pagado en cotizaciones
             $db->prepare("UPDATE cotizaciones SET
@@ -355,6 +357,30 @@ if ($method === 'POST') {
                     (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
                     VALUES (?, 'deposito', ?, ?, ?, ?, ?, ?)
                 ")->execute([$cliente_id_dep, $depositar_favor, $fecha, $ref_dep, $notas, $cot_id, $usuario_nombre]);
+            }
+
+            // Fase 6.2 — póliza automática de cobro real (Debe Bancos / Haber CxC), por el
+            // monto que efectivamente se aplicó a la cotización. Pagos con saldo_favor NO
+            // generan póliza aquí a propósito: ese dinero ya entró (o no) al banco cuando se
+            // hizo el depósito original, mecanismo que todavía no está conectado a Pólizas
+            // (proyecto de Saldo a Favor sigue en diseño) — conectarlo aquí también duplicaría
+            // el ingreso de efectivo. Efecto conocido: Cuentas por Cobrar en el Balance queda
+            // sobreestimada en órdenes pagadas con saldo a favor, hasta que se conecte ese flujo.
+            if ($forma !== 'saldo_favor' && $monto_aplicar > 0) {
+                $bancosCta = pl_cuentaId($db, '1.1');
+                $cxcCta    = pl_cuentaId($db, '1.2');
+                if ($bancosCta && $cxcCta) {
+                    $stmt_fpol = $db->prepare("SELECT o.folio FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id WHERE c.id = ?");
+                    $stmt_fpol->execute([$cot_id]);
+                    $folioPago = $stmt_fpol->fetchColumn() ?: ('cot. #' . $cot_id);
+                    pl_generarAutomatica($db, 'finanzas_pago', $pagoId, 'ingresos', $fecha,
+                        'Cobro — Orden ' . $folioPago,
+                        [
+                            [$bancosCta, $monto_aplicar, 0, 'Cobro (' . $forma . ') — ' . $folioPago],
+                            [$cxcCta, 0, $monto_aplicar, 'Cobro (' . $forma . ') — ' . $folioPago],
+                        ],
+                        (int)$user['id']);
+                }
             }
 
             $db->commit();
@@ -427,7 +453,8 @@ if ($method === 'PUT') {
         // condicion_pago: 'anticipo' = 50% del total; 'pago_total' = 100%.
         $vobo_override = false;
         if ($orden['cot_id']) {
-            $stmtCP = $db->prepare("SELECT condicion_pago, COALESCE(saldo_pagado,0) AS saldo_pagado, folio, es_retrabajo
+            $stmtCP = $db->prepare("SELECT condicion_pago, COALESCE(saldo_pagado,0) AS saldo_pagado, folio, es_retrabajo,
+                                    tipo, subtotal, iva, total AS total_cot
                                     FROM cotizaciones WHERE id = ?");
             $stmtCP->execute([$orden['cot_id']]);
             $cp = $stmtCP->fetch(PDO::FETCH_ASSOC);
@@ -505,6 +532,27 @@ if ($method === 'PUT') {
                            'Cobrado $' . number_format($pagado, 2) . ' de anticipo requerido $' . number_format($anticipo_req, 2),
                            $notaOv, $usuario_nombre
                        ]);
+                }
+
+                // Fase 6.2 — póliza automática de reconocimiento de venta, en el MISMO
+                // momento y con los MISMOS montos que ya usa el Estado de Resultados para
+                // Ingresos (cotizaciones.subtotal/iva/total, criterio vobo_at). Retrabajo
+                // (es_retrabajo=1) no genera venta — igual que el P&L, que lo excluye de
+                // Ingresos porque el cliente casi nunca paga (UPD-467/470).
+                if (!$cp['es_retrabajo']) {
+                    $cxcCta    = pl_cuentaId($db, '1.2');
+                    $ivaCta    = pl_cuentaId($db, '2.2');
+                    $ventasCta = pl_cuentaId($db, $cp['tipo'] === 'maquila' ? '4.2' : '4.1');
+                    if ($cxcCta && $ivaCta && $ventasCta && (float)$cp['total_cot'] > 0) {
+                        pl_generarAutomatica($db, 'finanzas_vobo', (int)$orden['cot_id'], 'ingresos',
+                            date('Y-m-d'), 'Venta reconocida — Orden ' . $orden['folio'],
+                            [
+                                [$cxcCta, (float)$cp['total_cot'], 0, 'CxC — ' . $orden['folio']],
+                                [$ventasCta, 0, (float)$cp['subtotal'], 'Venta — ' . $orden['folio']],
+                                [$ivaCta, 0, (float)$cp['iva'], 'IVA — ' . $orden['folio']],
+                            ],
+                            (int)$user['id']);
+                    }
                 }
             }
 
