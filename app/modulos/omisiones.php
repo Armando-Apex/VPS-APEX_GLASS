@@ -161,10 +161,10 @@ var ModOmisiones = (function() {
     tb.innerHTML = html;
   }
 
-  return { init: init };
+  return { init: init, cargar: cargar };
 })();
 
-window.omCargar = function() { ModOmisiones.init(); };
+window.omCargar = function() { ModOmisiones.cargar(); };
 
 ModOmisiones.init();
 </script>
