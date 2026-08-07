@@ -216,7 +216,7 @@ async function rdCargar() {
     const [r1, r2, r3, r4] = await Promise.all([
       fetch('../api/reporte_direccion.php?periodo=' + periodo),
       fetch('../api/dashboard.php'),
-      fetch('../api/inventario.php?accion=costo_promedio'),
+      fetch('../api/inventario.php?accion=costo_promedio&periodo=' + periodo),
       fetch('../api/reporte_direccion.php?accion=efectividad_corte&periodo=' + periodo)
     ]);
     const rep  = await r1.json();

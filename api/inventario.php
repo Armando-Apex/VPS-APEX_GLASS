@@ -89,6 +89,34 @@ if ($method === 'GET') {
     }
 
     if ($accion === 'costo_promedio') {
+        // [UPD-473] Resuelve el mismo selector de período que el resto de Reporte Dirección
+        // (mismos valores/lógica que api/reporte_direccion.php) — antes esta acción ignoraba
+        // el período seleccionado y siempre calculaba "mes calendario en curso" a fuerza,
+        // así que cambiar el reporte a "Mes anterior" nunca movía el cuadro de Rentabilidad.
+        $periodo_rd = $_GET['periodo'] ?? 'mes_actual';
+        $hoy_rd     = new DateTime();
+        switch ($periodo_rd) {
+            case 'mes_actual':
+                $desde_rd = (clone $hoy_rd)->modify('first day of this month')->format('Y-m-01 00:00:00');
+                $hasta_rd = $hoy_rd->format('Y-m-d 23:59:59'); break;
+            case 'mes_anterior':
+                $desde_rd = (clone $hoy_rd)->modify('first day of last month')->format('Y-m-01 00:00:00');
+                $hasta_rd = (clone $hoy_rd)->modify('last day of last month')->format('Y-m-t 23:59:59'); break;
+            case '3meses':
+                $desde_rd = (clone $hoy_rd)->modify('-3 months')->format('Y-m-d 00:00:00');
+                $hasta_rd = $hoy_rd->format('Y-m-d 23:59:59'); break;
+            case '6meses':
+                $desde_rd = (clone $hoy_rd)->modify('-6 months')->format('Y-m-d 00:00:00');
+                $hasta_rd = $hoy_rd->format('Y-m-d 23:59:59'); break;
+            case 'año':
+            case 'anio':
+                $desde_rd = $hoy_rd->format('Y-01-01 00:00:00');
+                $hasta_rd = $hoy_rd->format('Y-m-d 23:59:59'); break;
+            default:
+                $desde_rd = '2020-01-01 00:00:00';
+                $hasta_rd = $hoy_rd->format('Y-m-d 23:59:59');
+        }
+
         // Costo promedio ponderado por lamina (tipo + espesor + dimensiones)
         $s = $db->query("
             SELECT
@@ -159,14 +187,13 @@ if ($method === 'GET') {
                 'prom_lamina'   => $g['en_stock'] > 0 ? round($g['sum_valor'] / $g['en_stock'], 2) : null,
             ];
         }
-        // [UPD-389] Costo ponderado SOLO por las compras del mes calendario en curso, a peticion
+        // [UPD-389] Costo ponderado SOLO por las compras del período seleccionado, a peticion
         // de Armando (23-jul-2026): el stock actual puede incluir laminas que ya no existen
         // fisicamente en almacen (ver UPD-388, Claro 9mm 3050x2140) y arrastran el promedio hacia
-        // abajo con precios viejos — para Rentabilidad quiere el costo de comprar HOY, no lo que
-        // ya no es representativo. Es un rango movil (mes calendario actual), a diferencia de la
-        // ventana fija del precio de venta real (UPD-314) — aqui explicitamente se pidio "el mes
-        // actual en este momento", no un ancla fija.
-        $MES_ACTUAL_INICIO = date('Y-m-01 00:00:00');
+        // abajo con precios viejos — para Rentabilidad quiere el costo de comprar en ESE periodo, no
+        // lo que ya no es representativo. [UPD-473] Antes era un rango movil fijo al "mes calendario
+        // de hoy" sin importar el selector del reporte — Armando reporto que cambiar a "Mes anterior"
+        // no movia este cuadro. Ahora usa el mismo $desde_rd/$hasta_rd resuelto arriba desde ?periodo=.
         $sMes = $db->prepare("
             SELECT l.tipo, l.espesor_mm,
                    SUM(ic.cantidad_laminas) AS cantidad_mes,
@@ -174,10 +201,10 @@ if ($method === 'GET') {
                      / SUM(ic.cantidad_laminas * l.m2) AS costo_prom_m2_mes
             FROM inventario_compras ic
             JOIN laminas l ON l.id = ic.lamina_id
-            WHERE ic.fecha_compra >= ?
+            WHERE ic.fecha_compra >= ? AND ic.fecha_compra <= ?
             GROUP BY l.tipo, l.espesor_mm
         ");
-        $sMes->execute([$MES_ACTUAL_INICIO]);
+        $sMes->execute([$desde_rd, $hasta_rd]);
         $costoMesPorTipo = [];
         foreach ($sMes->fetchAll() as $r) {
             $costoMesPorTipo[$r['tipo'] . '|' . $r['espesor_mm']] = [
@@ -200,13 +227,14 @@ if ($method === 'GET') {
         // Precio real ponderado por m2 vendido (reemplaza el precio de catalogo x0.90 usado antes en
         // Rentabilidad por m2 de vidrio). A peticion de Armando (10-jul-2026): los costos de cristal
         // subieron fuerte en los ultimos dias, quiere ver el precio REAL cobrado, no una suposicion.
-        // [UPD-472] Mes calendario en curso (rolling), no ventana fija — a peticion de Armando
-        // (07-ago-2026): el analisis es por mes, y una ventana fija desde jul-01 mezclaba ventas de
-        // antes y despues del incremento de precios de UPD-448 (03-ago) en un solo promedio, dejando
-        // el "precio real" por debajo del precio de catalogo vigente. Mismo criterio que ya usa el
-        // costo de compra de laminas (MES_ACTUAL_INICIO, UPD-389) - ahora ambos lados del cuadro usan
-        // la misma ventana movil.
-        $FECHA_INICIO_PRECIO_REAL = $MES_ACTUAL_INICIO;
+        // [UPD-472/473] Mismo período seleccionado en el reporte (no ventana fija ni "mes de hoy" a
+        // fuerza) — a peticion de Armando (07-ago-2026): el analisis es por mes/periodo, y una ventana
+        // fija desde jul-01 mezclaba ventas de antes y despues del incremento de precios de UPD-448
+        // (03-ago) en un solo promedio. Ademas, antes esta accion ignoraba el selector del reporte
+        // (Mes anterior/3 meses/etc no cambiaban nada aqui) — ahora usa $desde_rd/$hasta_rd, igual que
+        // el costo de compra de laminas arriba.
+        $FECHA_INICIO_PRECIO_REAL = $desde_rd;
+        $FECHA_FIN_PRECIO_REAL    = $hasta_rd;
         $tipoLbl = [
             'claro' => 'Claro', 'claro_zafiro' => 'Claro Zafiro', 'filtrasol' => 'Filtrasol',
             'espejo' => 'Espejo', 'espejo_aluminio' => 'Espejo Aluminio', 'laminado_claro' => 'Laminado Claro',
@@ -223,10 +251,10 @@ if ($method === 'GET') {
             JOIN ordenes o ON o.id = c.orden_id
             WHERE cp.cristal_id IS NOT NULL
               AND o.estado IN ('activa','entregada')
-              AND c.vobo_at >= ? AND c.vobo_at <= NOW()
+              AND c.vobo_at >= ? AND c.vobo_at <= ?
             GROUP BY cp.cristal_id
         ");
-        $sv->execute([$FECHA_INICIO_PRECIO_REAL]);
+        $sv->execute([$FECHA_INICIO_PRECIO_REAL, $FECHA_FIN_PRECIO_REAL]);
         $ventasPorCristal = [];
         foreach ($sv->fetchAll() as $v) {
             $ventasPorCristal[(int)$v['cristal_id']] = ['ingreso' => (float)$v['ingreso_neto'], 'm2' => (float)$v['m2_total']];
@@ -275,7 +303,7 @@ if ($method === 'GET') {
         }
         unset($g);
 
-        jsonResponse(['por_lamina' => $por_lamina, 'por_tipo' => $por_tipo, 'cristales' => $cristales, 'precio_real_desde' => $FECHA_INICIO_PRECIO_REAL, 'costo_mes_desde' => $MES_ACTUAL_INICIO]);
+        jsonResponse(['por_lamina' => $por_lamina, 'por_tipo' => $por_tipo, 'cristales' => $cristales, 'precio_real_desde' => $FECHA_INICIO_PRECIO_REAL, 'precio_real_hasta' => $FECHA_FIN_PRECIO_REAL, 'costo_mes_desde' => $desde_rd, 'costo_mes_hasta' => $hasta_rd]);
     }
 
     jsonResponse(['error' => 'Accion no valida'], 400);
