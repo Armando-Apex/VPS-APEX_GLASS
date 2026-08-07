@@ -9,12 +9,13 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 header('Content-Type: text/html; charset=utf-8');
 
 // El resto del módulo (Nómina, Gastos Fijos, Caja Chica, Pólizas, Catálogo,
-// Mapeo Compras) sigue en construcción — visible solo para el rol desarrollo
-// mientras se termina y se valida contra datos reales. El resto de la
-// dirección solo ve el Estado de Resultados, ya con presentación terminada.
-$esDesarrollo = ($user['rol'] === 'desarrollo');
+// Mapeo Compras) sigue en construcción — visible solo para desarrollo y
+// dir_admin (Armando, a petición explícita suya el 07-ago-2026: NI dueño,
+// NI administracion/Lina, NI ningún otro rol). El resto de la dirección
+// solo ve el Estado de Resultados, ya con presentación terminada.
+$puedeVerCaptura = in_array($user['rol'], ['desarrollo', 'dir_admin']);
 
-if (!$esDesarrollo) {
+if (!$puedeVerCaptura) {
 ?>
 <div id="contab-content"><div style="text-align:center;padding:48px;color:#94a3b8;font-family:system-ui,-apple-system,sans-serif;">Cargando...</div></div>
 <script>

@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 07 agosto 2026 | Próximo UPD disponible: UPD-479
+# Última actualización: 07 agosto 2026 | Próximo UPD disponible: UPD-480
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -666,4 +666,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-478 | 07-ago-2026 | Armando | Corrección de datos (no código): orden **S-518** (COT-1120 id=1037, partida 1, pieza id=5869, QR `COT-1120-01-001-001`) cambiada de **Filtrasol 9mm a Filtrasol 6mm** a petición de Armando — el cliente necesita el vidrio de 6mm pero ya se le cotizó/cobró al precio de 9mm, así que el precio NO se tocó a propósito (queda igual que si fuera 9mm: `precio_m2_usado`=$1,883.43, subtotal/iva/total sin cambio). `UPDATE cotizaciones_partidas` (cristal_id 7→17, cristal_nombre/cristal_etiqueta) + `UPDATE piezas` (cristal/cristal_corto, es lo que imprime la etiqueta QR) dentro de una transacción con SELECT antes/después. Verificado que la pieza seguía en `pendiente` (sin sesión de corte) antes de tocarla — sin riesgo de que ya se hubiera cortado con la medida/tipo equivocado. |
 
-**Próximo UPD disponible: UPD-479**
+| UPD-479 | 07-ago-2026 | Armando | Reabiertas las pestañas de captura de Contabilidad (Nómina, Gastos Fijos, Caja Chica, Pólizas, Catálogo, Mapeo Compras, Balance General) **solo para el rol `dir_admin`** (Armando) — pidió explícitamente que NI dueño, NI administracion/Lina, NI ningún otro rol las vea, solo desarrollo (como ya estaba) y él. `app/modulos/contabilidad.php`: el gate que UPD-452 dejó como `$user['rol'] === 'desarrollo'` ahora es `in_array($user['rol'], ['desarrollo','dir_admin'])`. dir_admin ya tenía el permiso `gestionar_contabilidad` de fondo desde que existen esos módulos (no fue necesario tocar `api/permisos.php`), así que Armando ya puede capturar (no solo ver) en cuanto entre. Motivo: Armando quiere empezar a cargar bonos de nómina (columna "Bonos / H. extra / Otras prest." en Nómina) y el cargo variable diario de la terminal bancaria (como concepto en Gastos Fijos, capturando el total real cada mes en vez de un monto fijo). |
+
+**Próximo UPD disponible: UPD-480**
