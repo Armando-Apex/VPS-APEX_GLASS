@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 07 agosto 2026 | Próximo UPD disponible: UPD-483
+# Última actualización: 07 agosto 2026 | Próximo UPD disponible: UPD-484
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -441,7 +441,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-483**
+Próximo UPD disponible: **UPD-484**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -674,4 +674,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-482 | 07-ago-2026 | Armando | Separado el conteo de la tabla "Efectividad de Corte" (Reporte Dirección) — la columna **"Láminas"** contaba `COUNT(*)` de TODAS las sesiones de `sesiones_corte`, mezclando láminas completas con reúsos de pedacería (ej. Claro 9mm de agosto mostraba 58 = 24 completas + 34 pedacería, confundía "láminas cortadas" con "sesiones de corte"). Fix: (1) "Láminas" ahora cuenta solo completas (`es_pedaceria=0`); (2) columna nueva **"Pedacería (pzas)"** antes de "Pedacería (m²)" con el conteo de sesiones de pedacería (`es_pedaceria=1`). API `api/reporte_direccion.php` (`accion=efectividad_corte`, query `por_tipo`): agregados `sesiones_completas`/`sesiones_pedaceria` (se dejó el `COUNT(*)` viejo `sesiones` intacto por si algo más lo consume, pero el reporte ya no lo lee). Frontend `app/modulos/reporte_direccion.php` (`rdRenderEfectividadCorte`): encabezado + fila. NO se tocó % Efectividad ni las columnas Efectividad >85%/<85% — siguen midiéndose sobre todas las sesiones (correcto para eficiencia de corte). Verificado con `php -l` en ambos archivos y con la query nueva contra BD real (Claro 9mm agosto: 24 láminas / 34 pedacería pzas / 34.8 m²). Sin prueba visual en navegador — pendiente que Armando lo confirme viéndolo en vivo. |
 
-**Próximo UPD disponible: UPD-483**
+| UPD-483 | 07-ago-2026 | Armando | Seguimiento a UPD-482: el **% Efectividad** de la tabla "Efectividad de Corte" (Reporte Dirección) seguía promediando pedacería junto con láminas completas, diluyendo la merma real del corte de lámina completa. Fix en `api/reporte_direccion.php` (`accion=efectividad_corte`): tanto el bloque `global` como `por_tipo` calculan ahora `efectividad_pct` = `m²_aprovechado / m²_disponible` contando **solo `es_pedaceria=0`**; `m2_disponible_total`/`m2_aprovechado_total` (KPIs globales "m² aprovechados / usados") y `sesiones_efectivas`/`sesiones_no_efectivas` (columnas Efectividad >85%/<85%) también quedaron restringidos a láminas completas. La pedacería se sigue reportando aparte (tarjeta "Láminas de pedacería usadas" + columnas "Pedacería (pzas)/(m²)" de UPD-482). Sin cambio en el frontend (los campos ya se leían por nombre). Verificado con BD real (Claro 9mm agosto: % efectividad 79.99%→78.82%; Timeless 9mm queda en "—" por ser 3 sesiones de pura pedacería, 0 completas — correcto). `php -l` OK. Sin prueba visual en navegador — pendiente que Armando lo confirme en vivo. |
+
+**Próximo UPD disponible: UPD-484**
