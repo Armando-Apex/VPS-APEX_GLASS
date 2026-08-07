@@ -52,6 +52,10 @@ require_once __DIR__ . '/../../api/helpers/icons.php';
 .om-pct.media { color: #b45309; }
 .om-pct.alta  { color: #9f1239; }
 
+.om-bono { display: inline-block; padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: .03em; }
+.om-bono.con { background: #f0fdfa; color: #0f766e; }
+.om-bono.sin { background: #fef2f2; color: #9f1239; }
+
 .om-detalle td { white-space: normal; }
 .om-detalle .col-fecha { color: #78716c; font-size: 12.5px; white-space: nowrap; }
 .om-detalle .col-orden strong { color: #1e293b; font-weight: 600; }
@@ -109,6 +113,7 @@ require_once __DIR__ . '/../../api/helpers/icons.php';
           <th>Omitidas</th>
           <th>Total que pasó por la estación</th>
           <th>% Omisión</th>
+          <th>Bono</th>
         </tr>
       </thead>
       <tbody id="omTablaEstaciones"></tbody>
@@ -173,13 +178,13 @@ var ModOmisiones = (function() {
     var hasta = document.getElementById('omHasta').value;
     var tbEst = document.getElementById('omTablaEstaciones');
     var tbDet = document.getElementById('omTablaDetalle');
-    tbEst.innerHTML = '<tr><td colspan="5"><div class="om-empty"><div class="om-spinner"></div>Cargando...</div></td></tr>';
+    tbEst.innerHTML = '<tr><td colspan="6"><div class="om-empty"><div class="om-spinner"></div>Cargando...</div></td></tr>';
     tbDet.innerHTML = '';
     fetch('../api/omisiones.php?accion=lista&desde=' + desde + '&hasta=' + hasta)
       .then(function(r) { return r.json(); })
       .then(function(d) { if (d.ok) render(d, desde, hasta); })
       .catch(function() {
-        tbEst.innerHTML = '<tr><td colspan="5"><div class="om-empty" style="color:#9f1239">Error al cargar</div></td></tr>';
+        tbEst.innerHTML = '<tr><td colspan="6"><div class="om-empty" style="color:#9f1239">Error al cargar</div></td></tr>';
       });
   }
 
@@ -210,18 +215,20 @@ var ModOmisiones = (function() {
   function renderEstaciones(rows) {
     var tb = document.getElementById('omTablaEstaciones');
     if (!rows.length) {
-      tb.innerHTML = '<tr><td colspan="5"><div class="om-empty">Sin piezas terminadas en el período seleccionado</div></td></tr>';
+      tb.innerHTML = '<tr><td colspan="6"><div class="om-empty">Sin piezas terminadas en el período seleccionado</div></td></tr>';
       return;
     }
     var html = '';
     rows.forEach(function(r) {
       var omitClass = parseInt(r.omitidas) > 0 ? 'om-val-omit' : 'om-val-cero';
+      var conBono = r.pct_omision < 5;
       html += '<tr>' +
         '<td class="om-estacion">' + esc(r.label) + '</td>' +
         '<td>' + r.escaneadas + '</td>' +
         '<td class="' + omitClass + '">' + r.omitidas + '</td>' +
         '<td>' + r.total + '</td>' +
         '<td><span class="om-pct ' + pctClass(r.pct_omision) + '">' + r.pct_omision.toFixed(1) + '%</span></td>' +
+        '<td><span class="om-bono ' + (conBono ? 'con' : 'sin') + '">' + (conBono ? 'CON BONO' : 'SIN BONO') + '</span></td>' +
         '</tr>';
     });
     tb.innerHTML = html;

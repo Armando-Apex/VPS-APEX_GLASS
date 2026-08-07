@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 07 agosto 2026 | Próximo UPD disponible: UPD-477
+# Última actualización: 07 agosto 2026 | Próximo UPD disponible: UPD-478
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -662,4 +662,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-476 | 07-ago-2026 | Armando | **Rediseño visual del Tablero de Omisiones** (`app/modulos/omisiones.php`), a petición explícita de Armando ("más profesional y minimalista") tras UPD-474/475. Sin cambios de lógica/API — se reutilizó el mismo lenguaje visual ya aprobado en el Estado de Resultados (`contabilidad_pnl.php`, UPD-452): tipografía Outfit (Google Fonts, mismo CSP ya permitido), tokens `#0f172a`/`#64748b`/`#e2e8f0`, patrón de "hero" (eyebrow + número grande) en vez de header+KPIs sueltos — el número principal ahora es "Piezas terminadas" con una línea secundaria de "% de omisión global" coloreada (teal si <5%, ámbar 5-20%, rosa ≥20%, mismos umbrales que ya traía el módulo). Tablas reestilizadas a juego con el patrón `pnl-table` (encabezado gris pequeño mayúsculas, números tabulares alineados a la derecha, líneas finas en vez de zebra). Los pills ámbar de "estación omitida" se cambiaron a tags planos rosa pálido (menos "alerta de juguete", más acorde a reporte financiero serio). Los 2 inputs de fecha ahora aplican solo con `change` (auto-apply, sin botón "Filtrar") — mismo patrón que ya usan los selects de `contabilidad_pnl.php`. Verificado con `php -l`; sin prueba visual en navegador (no hay Chrome DevTools/Playwright MCP en este entorno) — pendiente que Armando lo confirme viéndolo en vivo. |
 
-**Próximo UPD disponible: UPD-477**
+| UPD-477 | 07-ago-2026 | Armando | Columna nueva "Bono" en la tabla de estaciones del Tablero de Omisiones (`app/modulos/omisiones.php`) — badge "CON BONO" (verde) si el % de omisión de esa estación es menor a 5.00%, "SIN BONO" (rojo) si es igual o mayor. Regla de negocio dada directo por Armando, calculada 100% en frontend sobre `pct_omision` que ya regresaba el API (sin cambios en `api/omisiones.php`). Nota pendiente de confirmar con Armando: por ahora es solo visual/informativo, no está ligado a ningún cálculo real de nómina/bono de piso — si más adelante se requiere que efectivamente pague o descuente algo, hay que definir a quién se le aplica (¿todo el piso? ¿el operador de esa estación específica?) y conectarlo con un mecanismo real de pago. |
+
+**Próximo UPD disponible: UPD-478**
