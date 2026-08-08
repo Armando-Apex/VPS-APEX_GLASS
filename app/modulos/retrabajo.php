@@ -29,11 +29,33 @@ tbody td       { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
 .badge-ret     { background: #fef3c7; color: #92400e; }
 .ret-razones   { font-size: 11px; color: #94a3b8; margin-top: 3px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .loading-msg   { text-align: center; padding: 48px; color: #9ca3af; font-size: 14px; cursor: default; }
+.ret-stats     { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.ret-card      { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; min-width: 190px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+.ret-card-label{ font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #94a3b8; margin-bottom: 6px; }
+.ret-card-num  { font-size: 22px; font-weight: 700; color: #1e293b; line-height: 1; }
+.ret-card-cost { color: #b45309; }
+.ret-card-hint { font-size: 11px; color: #94a3b8; margin-top: 6px; }
+.ret-costo     { font-weight: 700; color: #b45309; font-size: 13px; text-align: right; white-space: nowrap; }
+th.num, td.num { text-align: right; }
 </style>
 
 <div class="ret-wrap">
   <div class="page-title">Retrabajo</div>
   <div class="page-sub" id="ret-sub">Cargando&#8230;</div>
+
+  <div class="ret-stats">
+    <div class="ret-card">
+      <div class="ret-card-label">&#9888; Órdenes con retrabajo</div>
+      <div class="ret-card-num" id="ret-stat-ordenes">&#8212;</div>
+      <div class="ret-card-hint" id="ret-stat-activas">&nbsp;</div>
+    </div>
+    <div class="ret-card">
+      <div class="ret-card-label">Costo total de retrabajo</div>
+      <div class="ret-card-num ret-card-cost" id="ret-stat-costo">&#8212;</div>
+      <div class="ret-card-hint">Vidrio desperdiciado &#183; histórico de estas órdenes</div>
+    </div>
+  </div>
+
   <div class="ret-toolbar">
     <input type="text" class="ret-search" id="ret-q" placeholder="&#128269; Buscar folio o cliente&#8230;" oninput="retFiltrar()">
   </div>
@@ -43,10 +65,11 @@ tbody td       { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
         <th>Folio</th>
         <th>Estado</th>
         <th>Piezas retrabajo</th>
+        <th class="num">Costo retrabajo</th>
         <th>Fecha entrega</th>
         <th>Asesor</th>
       </tr></thead>
-      <tbody id="ret-tbody"><tr><td colspan="5" class="loading-msg">Cargando&#8230;</td></tr></tbody>
+      <tbody id="ret-tbody"><tr><td colspan="6" class="loading-msg">Cargando&#8230;</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -56,15 +79,23 @@ window.ModRetrabajo = (function(){
 
 let _data = [];
 
+function retMoneda(n) {
+  return '$' + (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 async function cargar() {
   try {
     const r = await fetch('../api/retrabajo.php?t=' + Date.now());
     const d = await r.json();
     _data = d.data || [];
     retFiltrar();
-    const activas = _data.filter(o => o.estado === 'activa').length;
+    const activas    = _data.filter(o => o.estado === 'activa').length;
+    const costoTotal = _data.reduce((s, o) => s + (Number(o.costo_retrabajo) || 0), 0);
     document.getElementById('ret-sub').textContent =
       _data.length + ' orden(es) con retrabajo — ' + activas + ' activa(s)';
+    document.getElementById('ret-stat-ordenes').textContent = _data.length;
+    document.getElementById('ret-stat-activas').textContent  = activas + ' activa(s)';
+    document.getElementById('ret-stat-costo').textContent    = retMoneda(costoTotal);
   } catch(e) {
     document.getElementById('ret-sub').textContent = 'Error al cargar';
   }
@@ -80,7 +111,7 @@ window.retFiltrar = function() {
 
   if (!lista.length) {
     document.getElementById('ret-tbody').innerHTML =
-      '<tr><td colspan="5" class="loading-msg">Sin resultados</td></tr>';
+      '<tr><td colspan="6" class="loading-msg">Sin resultados</td></tr>';
     return;
   }
 
@@ -113,6 +144,7 @@ window.retFiltrar = function() {
         <span class="badge badge-ret">&#9888; ${o.piezas_retrabajo} pieza(s)</span>
         <div style="font-size:11px;color:#94a3b8;margin-top:3px">de ${o.total_piezas} total</div>
       </td>
+      <td class="num"><span class="ret-costo">${retMoneda(o.costo_retrabajo)}</span></td>
       <td><span style="color:${fechaColor};font-weight:600;font-size:13px">${fechaEnt}</span></td>
       <td style="color:#64748b;font-size:12px">${o.asesor || '—'}</td>
     </tr>`;

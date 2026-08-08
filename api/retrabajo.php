@@ -12,6 +12,53 @@ $user = requirePermiso('ver_ordenes');
 $rol  = $user['rol'];
 $pdo  = getDB();
 
+// Costo de retrabajo por orden — mismo costeo que la cuenta 5.5 del Estado de
+// Resultados (ver costoRetrabajoPisoPeriodo() en api/helpers/pnl_datos.php):
+// UN cargo por CADA evento de retrabajo (marcador historial_estatus con
+// estatus_nuevo='pendiente' y notas LIKE 'Retrabajo:%'), costo = m² de la pieza
+// × costo promedio de compra por tipo/espesor. Excluye maquila (vidrio del
+// cliente). A diferencia del P&L, aquí NO se aplica el corte 1-ago-2026: es una
+// vista operativa que muestra el costo histórico completo de cada orden viva
+// con retrabajo, no un reporte contable por período.
+$costoRetrabajoSub = "(
+    SELECT COALESCE(ROUND(SUM(pp.m2 * cp.costo_prom_m2), 2), 0)
+    FROM historial_estatus h
+    JOIN piezas pp ON pp.id = h.pieza_id
+    LEFT JOIN (
+        SELECT l.tipo, l.espesor_mm,
+               SUM(ic.cantidad_laminas * COALESCE(ic.costo_real_unitario, ic.precio_unitario))
+                 / SUM(ic.cantidad_laminas * l.m2) AS costo_prom_m2
+        FROM inventario_compras ic
+        JOIN laminas l ON l.id = ic.lamina_id
+        GROUP BY l.tipo, l.espesor_mm
+    ) cp
+      ON cp.tipo = (CASE
+            WHEN pp.cristal REGEXP 'zafiro' THEN 'claro_zafiro'
+            WHEN pp.cristal REGEXP 'claro' THEN 'claro'
+            WHEN pp.cristal REGEXP 'filtra' THEN 'filtrasol'
+            WHEN pp.cristal REGEXP 'bronce' THEN 'bronce'
+            WHEN pp.cristal REGEXP 'tintex' THEN 'tintex'
+            WHEN pp.cristal REGEXP 'satinado' THEN 'satinado'
+            WHEN pp.cristal REGEXP 'espejo' THEN 'espejo'
+            WHEN pp.cristal REGEXP 'evo' THEN 'evo_50'
+            WHEN pp.cristal REGEXP 'cliente' THEN 'cliente_maquila'
+            WHEN pp.cristal REGEXP 'laminado' THEN 'laminado'
+            ELSE 'otro' END)
+     AND cp.espesor_mm = (CASE
+            WHEN pp.cristal REGEXP '12' THEN 12.00
+            WHEN pp.cristal REGEXP '9' THEN 9.00
+            WHEN pp.cristal REGEXP '6' THEN 6.00
+            WHEN pp.cristal REGEXP '5' THEN 5.00
+            ELSE NULL END)
+    WHERE pp.orden_id = o.id
+      AND h.estatus_nuevo = 'pendiente'
+      AND h.notas LIKE 'Retrabajo:%'
+      AND (CASE
+            WHEN pp.cristal REGEXP 'cliente' THEN 'cliente_maquila'
+            WHEN pp.cristal REGEXP 'laminado' THEN 'laminado'
+            ELSE 'otro' END) NOT IN ('cliente_maquila','laminado')
+)";
+
 // Órdenes con al menos una pieza en retrabajo
 // Activas primero, luego entregadas
 // dir_admin ve todo; comercial solo ve sus órdenes
@@ -27,6 +74,7 @@ $baseQuery = "
         o.fecha_cierre,
         COUNT(p.id)                          AS total_piezas,
         SUM(p.es_retrabajo = 1)              AS piezas_retrabajo,
+        $costoRetrabajoSub                   AS costo_retrabajo,
         GROUP_CONCAT(DISTINCT p.razon_retrabajo
             ORDER BY p.updated_at DESC
             SEPARATOR ' | ')                 AS razones
