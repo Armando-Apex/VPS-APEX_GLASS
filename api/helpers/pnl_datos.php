@@ -176,6 +176,51 @@ function bonoManoObraPeriodo(PDO $pdo, string $desde, string $hasta): float {
 }
 
 /**
+ * Retrabajo de Corte de piso (cuenta 5.5). Cuando el piso reporta una pieza
+ * mala (api/reproceso.php marca piezas.es_retrabajo=1 y la regresa a
+ * 'pendiente'), esa pieza se vuelve a cortar: se desperdicia un vidrio
+ * completo del tamaño de la pieza que NO lo cuenta nadie más —
+ * costoVentasPeriodo() cuenta la pieza UNA sola vez por su m² final (el bueno),
+ * y la merma 5.4 solo mide el desperdicio de orilla de la lámina en el wizard
+ * de corte, no la pieza entera re-cortada.
+ *
+ * Se cuenta UN cargo por CADA evento de retrabajo (no por pieza) — el marcador
+ * es una fila en historial_estatus con estatus_nuevo='pendiente' y
+ * notas LIKE 'Retrabajo:%' (mismo patrón que ya usa el KPI de Reproceso en
+ * Reporte Dirección, UPD-432). Una pieza retrabajada 2 veces desperdició 2
+ * vidrios, así que cuenta 2 veces. Costo = m² de la pieza × costo promedio de
+ * compra por tipo/espesor, exactamente el mismo costeo que 5.1/5.4.
+ *
+ * Se fecha por el día del retrabajo (historial_estatus.created_at), no por el
+ * VoBo — es un evento físico de producción, mismo criterio que la merma 5.4.
+ * Arranca el 1-ago-2026: un rango que termine antes regresa 0 (junio/julio ya
+ * reportados no se tocan); uno que la cruce solo cuenta desde el 1-ago.
+ * Excluye maquila (el vidrio es del cliente, no es costo nuestro), igual que
+ * costoVentasPeriodo().
+ */
+function costoRetrabajoPisoPeriodo(PDO $pdo, string $desde, string $hasta): float {
+    $corte = '2026-08-01';
+    if ($hasta < $corte) return 0.0;
+    $efectivoDesde = max($desde, $corte);
+    $tipoNorm = PNL_TIPO_NORM_SQL;
+    $espesorNorm = PNL_ESPESOR_NORM_SQL;
+    $sinCosto = PNL_TIPOS_SIN_COSTO;
+    $costoProm = PNL_COSTO_PROM_SUBQUERY;
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(ROUND(SUM(p.m2 * cp.costo_prom_m2), 2), 0) AS costo_retrabajo
+        FROM historial_estatus h
+        JOIN piezas p ON p.id = h.pieza_id
+        LEFT JOIN $costoProm cp ON cp.tipo = $tipoNorm AND cp.espesor_mm = $espesorNorm
+        WHERE h.estatus_nuevo = 'pendiente'
+          AND h.notas LIKE 'Retrabajo:%'
+          AND DATE(h.created_at) BETWEEN ? AND ?
+          AND $tipoNorm NOT IN $sinCosto
+    ");
+    $stmt->execute([$efectivoDesde, $hasta]);
+    return (float) $stmt->fetchColumn();
+}
+
+/**
  * Gastos de Compras (OCs tipo 'suministro' — Mantenimiento, Herramienta,
  * Limpieza, etc.) que ya tienen regla de mapeo a una cuenta contable
  * (cuenta_mapeo_reglas, origen_tipo='oc_categoria'). Reconocido en base a

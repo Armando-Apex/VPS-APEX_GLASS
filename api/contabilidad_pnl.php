@@ -41,6 +41,7 @@ $costoVentasVidrio = costoVentasPeriodo($pdo, $desde, $hasta);
 $cobertura         = costoVentasCobertura($pdo, $desde, $hasta);
 $mermaNeta         = mermaNetaPeriodo($pdo, $desde, $hasta);
 $bonoManoObra      = bonoManoObraPeriodo($pdo, $desde, $hasta);
+$costoRetrabajo    = costoRetrabajoPisoPeriodo($pdo, $desde, $hasta);
 $costoLineas = [];
 if (isset($porCodigo['5.1'])) {
     $costoLineas[] = ['codigo' => '5.1', 'nombre' => $porCodigo['5.1']['nombre'], 'monto' => $costoVentasVidrio];
@@ -51,6 +52,9 @@ if (isset($porCodigo['5.2'])) {
 if (isset($porCodigo['5.4'])) {
     $costoLineas[] = ['codigo' => '5.4', 'nombre' => $porCodigo['5.4']['nombre'], 'monto' => $mermaNeta];
 }
+if (isset($porCodigo['5.5'])) {
+    $costoLineas[] = ['codigo' => '5.5', 'nombre' => $porCodigo['5.5']['nombre'], 'monto' => $costoRetrabajo];
+}
 
 // ── 3) Gastos/costos por cuenta (movimientos_contables + Compras mapeadas) ─────
 $stmtMov = $pdo->prepare("
@@ -59,7 +63,7 @@ $stmtMov = $pdo->prepare("
     LEFT JOIN movimientos_contables m ON m.cuenta_id = c.id AND m.fecha_movimiento BETWEEN ? AND ?
     WHERE c.es_acumulativa = 0 AND c.activo = 1
       AND c.tipo_financiero IN ('costo_venta', 'gasto_operativo', 'financiero', 'impuesto')
-      AND c.codigo NOT IN ('5.1', '5.2', '5.4')
+      AND c.codigo NOT IN ('5.1', '5.2', '5.4', '5.5')
     GROUP BY c.id
     ORDER BY c.orden, c.codigo
 ");
@@ -94,7 +98,7 @@ foreach ($movFilas as $f) {
     }
 }
 
-$costoVentas   = $costoVentasVidrio + $bonoManoObra + $mermaNeta + $totalCostoVentasPlanta;
+$costoVentas   = $costoVentasVidrio + $bonoManoObra + $mermaNeta + $costoRetrabajo + $totalCostoVentasPlanta;
 $utilidadBruta = $totalIngresos - $costoVentas;
 
 $comprasSinMapear = comprasSinMapearPeriodo($pdo, $desde, $hasta);
