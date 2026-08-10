@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 08 agosto 2026 | Próximo UPD disponible: UPD-486
+# Última actualización: 10 agosto 2026 | Próximo UPD disponible: UPD-487
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -441,7 +441,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-486**
+Próximo UPD disponible: **UPD-487**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -680,4 +680,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-485 | 08-ago-2026 | Armando | **Módulo Retrabajo (`?m=retrabajo`) — ahora muestra el costo de retrabajo por orden + total** (seguimiento de UPD-484, a petición de Armando). `api/retrabajo.php`: agregada columna `costo_retrabajo` por orden vía subquery correlacionado con el **mismo costeo que la cuenta 5.5** del Estado de Resultados (`costoRetrabajoPisoPeriodo`): UN cargo por cada evento de retrabajo (`historial_estatus` con `estatus_nuevo='pendiente'` y `notas LIKE 'Retrabajo:%'`) × `m² de la pieza × costo promedio de compra` por tipo/espesor, excluyendo maquila. **Diferencia deliberada vs. el P&L:** esta vista NO aplica el corte 1-ago-2026 — es operativa, muestra el costo histórico completo de cada orden viva con retrabajo (activa/entregada), no un reporte por período. Por eso el total de la página (hoy $3,586.63 en 8 órdenes) NO coincide con la cifra de Contabilidad de agosto ($2,085.72): distinto alcance (todo el histórico + órdenes vivas vs. mes con corte). `app/modulos/retrabajo.php`: 2 tarjetas nuevas arriba (Órdenes con retrabajo / Costo total de retrabajo) + columna "Costo retrabajo" en la tabla (formato moneda es-MX, ámbar), `colspan` de filas vacías 5→6, helper `retMoneda()`. Verificado con `php -l` en ambos archivos y con la query real contra BD (8 órdenes, total $3,586.63, S-483=$336.54 cuadra con el evento de agosto de la pieza 5748). Sin prueba visual en navegador (no hay Chrome DevTools/Playwright MCP en este entorno) — pendiente que Armando lo confirme en vivo. |
 
-**Próximo UPD disponible: UPD-486**
+| UPD-486 | 10-ago-2026 | Armando | Corrección de datos + envío WA (no cambio de código): **referido no acreditado por omisión del asesor.** El asesor registró a **CTN-483** (GABINO MARTINEZ SANCHEZ, id 341) como cliente nuevo pero NO capturó el código de referido — el referente era **CTN-400** (IVONNE ESMERALDA REYES ARREOZOLA, id 257). Resultado: en su única cotización **COT-1171** (id 1090, ya orden S-* con VoBo 08-ago y pagada) el 5% se aplicó como `descuento` manual (no `descuento_referido`), así que el cliente nuevo sí obtuvo su 5%, pero al no existir registro en `clientes_referidos`, el VoBo nunca acreditó el bono al referente. Corregido reusando las **funciones reales del sistema** (`referidosRegistrar` + `referidosAcreditarVoBo` de `api/helpers/referidos_lib.php`) vía script CLI (`php84`, MCP MySQL es solo-lectura) dentro de una transacción con SELECT antes/después, primero dry-run con ROLLBACK y luego commit: (1) INSERT en `clientes_referidos` (id=3, GABINO ← referente IVONNE, CTN-400, mes_promo 2026-08, cotizacion_origen 1090, registrado_por "Correccion manual (asesor omitio codigo)"); (2) bono en `clientes_saldo_favor` (id=125, tipo `referido`, **$230.30** = 5% del subtotal neto $4,606.07, cotizacion_id 1090) — saldo a favor de IVONNE pasó de $55.61 a $285.91. NO se tocó la cotización COT-1171 (el neto es idéntico con el 5% en `descuento` o `descuento_referido`, y es orden ya pagada/convertida). WhatsApp al referente enviado con la plantilla `referido_saldo_abonado` (Armando la dio de alta hoy en Meta, quedó APPROVED como categoría MARKETING, idioma es_MX — no UTILITY como se había previsto en UPD-450, sin efecto práctico), replicando exacto el payload de `api/finanzas.php` (params: IVONNE / 230.30 / GABINO, tel 528135543098) — Meta aceptó el mensaje (wamid...D4EEE6B845). Scripts CLI puntuales en scratchpad, borrados al terminar, no viven en el repo. **Nota para el flujo:** el sistema ya soporta esto de fábrica al capturar el CTN del referente en la cotización nueva; este caso fue error de captura del asesor, no un bug de código. |
+
+**Próximo UPD disponible: UPD-487**
