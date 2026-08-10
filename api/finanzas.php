@@ -585,7 +585,7 @@ if ($method === 'PUT') {
                         $telRaw = preg_replace('/\D/', '', $bono['referente_telefono'] ?? '');
                         if ($telRaw && strlen($telRaw) >= 10) {
                             if (strlen($telRaw) === 10) $telRaw = '52' . $telRaw;
-                            enviarMensajeWA([
+                            $waResp = enviarMensajeWA([
                                 'messaging_product' => 'whatsapp',
                                 'to'   => $telRaw,
                                 'type' => 'template',
@@ -604,6 +604,31 @@ if ($method === 'PUT') {
                             ]);
                             // No se valida la respuesta de Meta ni se reintenta — el saldo
                             // ya quedó abonado en BD (lo importante); el WA es solo cortesía.
+                            // Registrar el mensaje en la conversación del referente para que
+                            // aparezca en el hilo de chat del inbox (mismo patrón que api/campanas.php).
+                            $waId = $waResp['data']['messages'][0]['id'] ?? null;
+                            if ($waId) {
+                                try {
+                                    $contenidoWA = 'Hola ' . $bono['referente_nombre'] . ', ¡gracias por recomendarnos! 🙌' . "\n\n"
+                                        . 'Tu referido ' . $bono['cliente_referido_nombre'] . ' realizó su compra con APEX GLASS, y como agradecimiento te abonamos $'
+                                        . number_format($bono['monto'], 2) . ' de saldo a favor en tu cuenta.' . "\n\n"
+                                        . 'Puedes usar este saldo en tu próxima compra. Sigue recomendándonos y sigue acumulando. ¡Gracias por tu confianza!';
+                                    $stmtConvRef = $db->prepare("SELECT id FROM whatsapp_conversaciones WHERE RIGHT(REGEXP_REPLACE(telefono,'[^0-9]',''),10) = ?");
+                                    $stmtConvRef->execute([substr($telRaw, -10)]);
+                                    $convRef = $stmtConvRef->fetch(PDO::FETCH_ASSOC);
+                                    if (!$convRef) {
+                                        $db->prepare("INSERT INTO whatsapp_conversaciones (cliente_id, telefono, ultima_actividad) VALUES (?,?,NOW())")
+                                           ->execute([(int)$bono['referente_cliente_id'] ?: null, $telRaw]);
+                                        $convRefId = $db->lastInsertId();
+                                    } else {
+                                        $convRefId = $convRef['id'];
+                                    }
+                                    $db->prepare("INSERT INTO whatsapp_mensajes (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por) VALUES (?,'outbound',?,'template',?,?)")
+                                       ->execute([$convRefId, $contenidoWA, $waId, 'Sistema (Referidos)']);
+                                    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
+                                       ->execute([$convRefId]);
+                                } catch (Exception $ignored2) {}
+                            }
                         }
                     }
                 } catch (Exception $ignored) {}
