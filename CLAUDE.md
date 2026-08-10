@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 10 agosto 2026 | Próximo UPD disponible: UPD-488
+# Última actualización: 10 agosto 2026 | Próximo UPD disponible: UPD-489
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -441,7 +441,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-488**
+Próximo UPD disponible: **UPD-489**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -684,4 +684,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-487 | 10-ago-2026 | Armando | **Aviso WA de bono de referido ahora se registra en la conversación del referente** (seguimiento de UPD-486). Armando notó que el mensaje de bono no aparecía en el hilo de chat del inbox de Campañas — causa: el flujo de referidos en `api/finanzas.php` (acción `vobo`) enviaba con `enviarMensajeWA()` directo, sin escribir en `whatsapp_conversaciones`/`whatsapp_mensajes` (a diferencia de `api/campanas.php`, que sí registra). El envío nunca fallaba, solo no quedaba archivado en la conversación. Fix de código: tras enviar, se captura el `wa_message_id` de la respuesta de Meta y se registra el mensaje saliente en la conversación del referente (busca la conversación por los últimos 10 dígitos del teléfono con `RIGHT(REGEXP_REPLACE(...),10)`, la crea si no existe, inserta en `whatsapp_mensajes` con `tipo='template'`, `enviado_por='Sistema (Referidos)'`, y actualiza `ultima_actividad`) — mismo patrón exacto que `api/campanas.php`, envuelto en su propio try/catch para nunca bloquear el VoBo. `contenido` guarda el texto renderizado del mensaje. Verificado con `php -l`. Además, registro **retroactivo** del mensaje ya enviado a IVONNE en UPD-486: insertado en su conversación existente (conv 227, cliente 257) con su `wamid` real (`wamid...D4EEE6B845`), vía script CLI con guard anti-duplicado por `wa_message_id`, dry-run + commit, verificado en BD (mensaje id=8108). Scripts CLI puntuales en scratchpad, borrados al terminar. **Nota:** el texto de `contenido` que se archiva es la versión que se diseñó/aprobó en Meta; si la plantilla real difiere, es solo cosmético en la copia archivada, el envío usa la plantilla de Meta tal cual. |
 
-**Próximo UPD disponible: UPD-488**
+| UPD-488 | 10-ago-2026 | Armando | **Auditoría de todos los avisos WA de utilería + fix del último que no se archivaba** (seguimiento de UPD-487). Armando pidió revisar TODOS los mensajes transaccionales que envía el sistema para ver cuáles no quedaban registrados en la conversación del cliente (inbox de Campañas). Revisados los 6 puntos de envío vía `enviarMensajeWA()`: `orden_lista` (`actualizar_estatus.php`), `salida_*` (`salidas.php`), avisos de ruta (`rutas_lib.php`, hoy apagados por `RUTA_WA_AVISOS_ACTIVO=false` pero ya con el registro listo), `referido_saldo_abonado` (`finanzas.php`, arreglado en UPD-487) y los del módulo Campañas (`campanas.php`) — **todos ya registran** en `whatsapp_conversaciones`/`whatsapp_mensajes`. El único que NO lo hacía era **`acceso_portal`** (`api/portal_clientes.php`, envío de contraseña del portal). Fix aplicado con la contraseña **OMITIDA a propósito** del contenido archivado (el mensaje real lleva la clave en texto claro; guardarla en el inbox la expondría a todo el equipo con acceso a Campañas — Armando aprobó ocultarla): tras enviar, se registra el mensaje en la conversación del cliente (mismo patrón que los demás: busca/crea conversación por últimos 10 dígitos, inserta `tipo='template'` con contenido `[Plantilla acceso_portal] Se envió acceso al portal — contraseña oculta`, actualiza `ultima_actividad`), envuelto en try/catch para nunca romper la respuesta del endpoint. Verificado con `php -l`. Sin prueba visual en navegador — pendiente que Armando confirme generando un acceso de portal y viéndolo en el inbox. |
+
+**Próximo UPD disponible: UPD-489**

@@ -150,6 +150,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'enviar_acceso_wa') {
         echo json_encode(['error' => 'Error al enviar WA', 'detalle' => $res['data']]);
         exit;
     }
+
+    // Registrar en la conversación del cliente para que aparezca en el inbox.
+    // IMPORTANTE: la contraseña se OMITE del contenido a propósito — el mensaje real
+    // lleva la clave en texto claro y no debe quedar visible en el inbox de Campañas.
+    try {
+        $tel10  = substr(preg_replace('/[^0-9]/', '', $telefono), -10);
+        $stmtCv = $pdo->prepare("SELECT id FROM whatsapp_conversaciones WHERE RIGHT(REGEXP_REPLACE(telefono,'[^0-9]',''),10)=?");
+        $stmtCv->execute([$tel10]);
+        $convRow = $stmtCv->fetch(PDO::FETCH_ASSOC);
+        if (!$convRow) {
+            $pdo->prepare("INSERT INTO whatsapp_conversaciones (cliente_id,telefono,ultima_actividad) VALUES (?,?,NOW())")
+                ->execute([$id, $telefono]);
+            $convId = (int)$pdo->lastInsertId();
+        } else {
+            $convId = (int)$convRow['id'];
+        }
+        $pdo->prepare("INSERT INTO whatsapp_mensajes (conversacion_id,direccion,contenido,tipo,wa_message_id,enviado_por) VALUES (?,'outbound',?,'template',?,'sistema')")
+            ->execute([$convId, '[Plantilla acceso_portal] Se envió acceso al portal — contraseña oculta', $waId]);
+        $pdo->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")->execute([$convId]);
+    } catch (Exception $ignored) {}
+
     echo json_encode(['ok' => true, 'password' => $pass, 'wa_message_id' => $waId]);
     exit;
 }
