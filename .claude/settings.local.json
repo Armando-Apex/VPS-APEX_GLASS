@@ -191,7 +191,12 @@
       "Bash(chown -R apexglass2025:apexglass2025 /home/apexglass2025/herramientas/video-marketing/media)",
       "Bash(chmod 750 /home/apexglass2025/herramientas/video-marketing/media /home/apexglass2025/herramientas/video-marketing/media/.tmp_uploads)",
       "Bash(sudo -u apexglass2025 bash -c 'touch /home/apexglass2025/herramientas/video-marketing/media/.perm_test && echo '\\\\''ESCRITURA OK'\\\\'' && rm -f /home/apexglass2025/herramientas/video-marketing/media/.perm_test')",
-      "Bash(awk '{print $1, $3, $4, $9}')"
+      "Bash(awk '{print $1, $3, $4, $9}')",
+      "Bash(cp \"media/Logos/LOGO - 2 lineas.png\" public/apex-logo.png)",
+      "Bash(cp \"media/Logos/logo apex.png\" public/apex-logo-h.png)",
+      "Bash(ffmpeg -y -i \"media/Logos/LOGO - 2 lineas.png\" -vf \"colorkey=0xFFFFFF:0.10:0.02,format=rgba\" public/apex-logo-t.png)",
+      "Bash(ffmpeg -y -i \"media/Logos/logo apex.png\" -vf \"colorkey=0xFFFFFF:0.10:0.02,format=rgba\" public/apex-logo-h-t.png)",
+      "Bash(ffmpeg -y -f lavfi -i color=c=0x0B1220:s=700x760 -i public/apex-logo-t.png -filter_complex '[1]negate[l];[0][l]overlay=\\(W-w\\)/2:\\(H-h\\)/2' -frames:v 1 __TRACKED_VAR__/logo_white_on_dark.png)"
     ]
   },
   "hooks": {
