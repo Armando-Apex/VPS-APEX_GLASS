@@ -306,6 +306,9 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       <button class="sidebar-link" data-modulo="maquila_precios" onclick="cargarModulo('maquila_precios')">
         <span class="sidebar-icon"><?= icono('settings') ?></span>Precios Maquila
       </button>
+      <button class="sidebar-link" data-modulo="media_manager" onclick="cargarModulo('media_manager')">
+        <span class="sidebar-icon"><?= icono('package') ?></span>Archivos de Video
+      </button>
       <?php endif; ?>
       <?php if ($esDesarrollo || $esAdmin): ?>
       <button class="sidebar-link" data-modulo="reportes" onclick="cargarModulo('reportes')">
@@ -431,6 +434,7 @@ const MODULOS = {
   maquila_nueva:'modulos/maquila.php?vista=nueva',
   maquila_detalle:'modulos/maquila.php?vista=detalle',
   maquila_precios:'modulos/maquila_precios.php',
+  media_manager:'modulos/media_manager.php',
 };
 
 let _moduloActivo = null;

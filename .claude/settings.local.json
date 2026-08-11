@@ -186,7 +186,12 @@
       "Bash(rpm -ql php84-cli)",
       "Bash(rm -f /tmp/claude-0/-home-apexglass2025-apex-glass-public-html-produccion/6692f30c-53eb-4429-9359-5548ae3388bf/scratchpad/enviar_campana_40.php)",
       "Bash(git tag *)",
-      "Bash(rm -f /tmp/claude-0/-home-apexglass2025-apex-glass-public-html-produccion/64efa0df-53f7-49ca-8d28-815b9fc6bbb6/scratchpad/cancelar_s540.php)"
+      "Bash(rm -f /tmp/claude-0/-home-apexglass2025-apex-glass-public-html-produccion/64efa0df-53f7-49ca-8d28-815b9fc6bbb6/scratchpad/cancelar_s540.php)",
+      "Bash(mkdir -p /home/apexglass2025/herramientas/video-marketing/media/.tmp_uploads)",
+      "Bash(chown -R apexglass2025:apexglass2025 /home/apexglass2025/herramientas/video-marketing/media)",
+      "Bash(chmod 750 /home/apexglass2025/herramientas/video-marketing/media /home/apexglass2025/herramientas/video-marketing/media/.tmp_uploads)",
+      "Bash(sudo -u apexglass2025 bash -c 'touch /home/apexglass2025/herramientas/video-marketing/media/.perm_test && echo '\\\\''ESCRITURA OK'\\\\'' && rm -f /home/apexglass2025/herramientas/video-marketing/media/.perm_test')",
+      "Bash(awk '{print $1, $3, $4, $9}')"
     ]
   },
   "hooks": {
