@@ -185,7 +185,8 @@
       "Bash(zcat backup_pre_referidos_2026-08-03_18-56.sql.gz)",
       "Bash(rpm -ql php84-cli)",
       "Bash(rm -f /tmp/claude-0/-home-apexglass2025-apex-glass-public-html-produccion/6692f30c-53eb-4429-9359-5548ae3388bf/scratchpad/enviar_campana_40.php)",
-      "Bash(git tag *)"
+      "Bash(git tag *)",
+      "Bash(rm -f /tmp/claude-0/-home-apexglass2025-apex-glass-public-html-produccion/64efa0df-53f7-49ca-8d28-815b9fc6bbb6/scratchpad/cancelar_s540.php)"
     ]
   },
   "hooks": {
