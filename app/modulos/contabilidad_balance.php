@@ -55,6 +55,15 @@ table.contab tr.total td { font-weight: 800; border-top: 2px solid #1e293b; colo
   <div class="top-bar">
     <div class="section-title"><?= icono('activity') ?> Balance General <span class="wip-badge">WIP</span></div>
     <div class="corte-selector">
+      <label>Periodo</label>
+      <select id="fPeriodo">
+        <option value="hoy">Hoy</option>
+        <option value="mes_anterior">Cierre mes anterior</option>
+        <option value="trimestre">Cierre trimestre anterior</option>
+        <option value="semestre">Cierre semestre anterior</option>
+        <option value="anual">Cierre año anterior</option>
+        <option value="custom">Fecha personalizada</option>
+      </select>
       <label>Corte al</label>
       <input type="date" id="fCorte">
     </div>
@@ -84,8 +93,48 @@ function fmt(n) {
 }
 
 function hoy() {
-  var d = new Date();
+  return fechaISO(new Date());
+}
+
+function fechaISO(d) {
   return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+}
+
+// El Balance General es una foto a una fecha (no un rango como el P&L) — cada opción
+// de período fija el "corte" al último día de ESE período ya cerrado, para poder
+// comparar snapshots (hoy vs. cierre de mes/trimestre/semestre/año anterior).
+function fechaCorteParaPeriodo(periodo) {
+  var hoyD = new Date();
+  var anio = hoyD.getFullYear();
+  var mes0 = hoyD.getMonth(); // 0-indexado
+
+  if (periodo === 'mes_anterior') {
+    return fechaISO(new Date(anio, mes0, 0)); // día 0 del mes actual = último día del mes anterior
+  }
+  if (periodo === 'trimestre') {
+    var qStartMonth = Math.floor(mes0 / 3) * 3;
+    return fechaISO(new Date(anio, qStartMonth, 0)); // último día del trimestre calendario anterior
+  }
+  if (periodo === 'semestre') {
+    var sStartMonth = mes0 < 6 ? 0 : 6;
+    return fechaISO(new Date(anio, sStartMonth, 0)); // último día del semestre calendario anterior
+  }
+  if (periodo === 'anual') {
+    return fechaISO(new Date(anio - 1, 11, 31)); // 31-dic del año anterior
+  }
+  return hoy(); // 'hoy' (default)
+}
+
+function onPeriodoChange() {
+  var periodo = document.getElementById('fPeriodo').value;
+  if (periodo === 'custom') return; // deja la fecha tal cual, el usuario la va a picar a mano
+  document.getElementById('fCorte').value = fechaCorteParaPeriodo(periodo);
+  cargar();
+}
+
+function onCorteChange() {
+  document.getElementById('fPeriodo').value = 'custom';
+  cargar();
 }
 
 async function cargar() {
@@ -156,7 +205,9 @@ function render(data) {
 }
 
 document.getElementById('fCorte').value = hoy();
-document.getElementById('fCorte').addEventListener('change', cargar);
+document.getElementById('fPeriodo').value = 'hoy';
+document.getElementById('fPeriodo').addEventListener('change', onPeriodoChange);
+document.getElementById('fCorte').addEventListener('change', onCorteChange);
 cargar();
 
 return { init: cargar };
