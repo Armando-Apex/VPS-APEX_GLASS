@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
+require_once __DIR__ . '/../../api/helpers/icons.php';
 $user       = requirePermiso('ver_ordenes');
 $_rol       = $user['rol'];
 $id_php     = (int)($_GET['id']    ?? 0);
@@ -20,11 +21,28 @@ $modo         = $id_php ? 'ver' : 'nuevo';
 $id_cot       = $id_php;
 ?>
 <meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; }
 .main { padding: 24px; max-width: 1400px; margin: 0 auto; }
 .card { background: white; border-radius: 14px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 20px; }
+/* Hero "Nueva Cotización" — banda de identidad al abrir el formulario en blanco,
+   mismo lenguaje visual que los headers oscuros de los modales de este archivo
+   (cat-head/corr-head), no un estilo nuevo. Solo aparece en modo "nuevo": la
+   vista de edición conserva su encabezado de siempre (folio + acciones). */
+.cot-hero { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: #f8fafc; margin: -24px -24px 24px -24px; padding: 28px 28px 26px; border-radius: 14px 14px 0 0; }
+.cot-hero-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.cot-hero-eyebrow { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #93c5fd; }
+.cot-hero-eyebrow svg { flex-shrink: 0; }
+.cot-hero-title { font-family: 'Outfit', system-ui, -apple-system, sans-serif; font-size: 30px; font-weight: 600; letter-spacing: -.3px; margin-top: 14px; }
+.cot-hero-sub { font-size: 13px; color: #93a5c4; margin-top: 5px; }
+.cot-hero-toggle.type-toggle { margin-bottom: 0; }
+.cot-hero-toggle .type-pill { border-color: rgba(255,255,255,.22); background: rgba(255,255,255,.06); color: #cbd5e1; }
+.cot-hero-toggle .type-pill:hover { background: rgba(255,255,255,.12); }
+.cot-hero-toggle .type-pill.on { border-color: #3b82f6; background: #2563eb; color: #fff; }
+.cot-hero-toggle .type-pill.warn.on { border-color: #ef4444; background: #dc2626; color: #fff; }
 .card-title { font-size: 15px; font-weight: 800; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
 .folio-badge { background: var(--c-dark-2); color: white; font-size: 22px; font-weight: 800; padding: 8px 20px; border-radius: var(--r-sm); font-family: 'Syncopate', sans-serif; letter-spacing: 2px; }
 .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
@@ -250,6 +268,7 @@ var ModCotizacion = (function() {
 var API_COT      = '../api/cotizaciones.php';
 var API_CLI      = '../api/clientes.php';
 var API_CRIS     = '../api/cristales.php';
+var ICONO_COT    = <?= json_encode(icono('file-text', 18)) ?>;
 var ES_ADMIN     = <?= $es_admin ? 'true' : 'false' ?>;
 var PUEDE_EDITAR = <?= $puede_editar ? 'true' : 'false' ?>;
 var ES_DIR_ADMIN = <?= $es_dir_admin ? 'true' : 'false' ?>;
@@ -328,24 +347,34 @@ function renderFormulario(data) {
   }
 
   // ── Encabezado ──
-  html += '<div class="card">';
-  html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">';
-  html += '<div>';
-  if (!esNuevo) {
+  // Modo "nuevo": banda de identidad (.cot-hero) en vez del header plano de
+  // siempre — ver .cot-hero en el <style>. La vista de edición/detalle de una
+  // cotización ya existente NO se toca, conserva el folio-badge + acciones.
+  html += '<div class="card' + (esNuevo ? ' card-hero' : '') + '">';
+  if (esNuevo) {
+    html += '<div class="cot-hero">';
+    html += '<div class="cot-hero-top">';
+    html += '<div class="cot-hero-eyebrow">' + ICONO_COT + ' Cotizaci&oacute;n</div>';
+    html += '<div class="type-toggle cot-hero-toggle">';
+    html += '<button type="button" class="type-pill on" id="pillNormal" onclick="ModCotizacion._setTipoCotizacion(\'normal\')">Cotizaci&oacute;n normal</button>';
+    html += '<button type="button" class="type-pill warn" id="pillRetrabajo" onclick="ModCotizacion._setTipoCotizacion(\'retrabajo\')">Retrabajo (correcci&oacute;n)</button>';
+    html += '</div>'; // cot-hero-toggle
+    html += '</div>'; // cot-hero-top
+    html += '<div class="cot-hero-title">Nueva cotizaci&oacute;n</div>';
+    html += '<div class="cot-hero-sub">El folio se asigna autom&aacute;ticamente al guardar</div>';
+    html += '</div>'; // cot-hero
+  } else {
+    html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">';
+    html += '<div>';
     var folioDisplay = (data.orden_folio && estatus !== 'cotizacion') ? data.orden_folio : data.folio;
     html += '<div class="folio-badge">' + escHtml(folioDisplay) + '</div>';
     if (data.orden_folio && estatus !== 'cotizacion') {
       html += '<div style="margin-top:4px;font-size:11px;color:#94a3b8">COT: ' + escHtml(data.folio) + '</div>';
     }
     html += '<div style="margin-top:8px"><span class="badge badge-' + estatus + '">' + etiquetaEstatus(estatus) + '</span></div>';
-  } else {
-    html += '<div style="font-size:15px;font-weight:700;color:#1e293b">Nueva Cotización</div>';
-    html += '<div style="font-size:13px;color:#94a3b8;margin-top:4px">El folio se generará al guardar</div>';
-  }
-  html += '</div>';
+    html += '</div>';
 
-  // Acciones
-  if (!esNuevo) {
+    // Acciones
     html += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">';
 
     // ── Fila 1: botones visibles a asesores ──
@@ -400,8 +429,8 @@ function renderFormulario(data) {
     }
 
     html += '</div>'; // columna acciones
+    html += '</div>'; // flex header
   }
-  html += '</div>'; // flex header
 
   // ── Banner rechazo por calidad ──
   if (estatus === 'rechazada' && data.rechazo) {
@@ -424,14 +453,10 @@ function renderFormulario(data) {
   // ── Campos ──
 
   // Retrabajo (error comercial) — solo al crear una cotización nueva. Ver
-  // CLAUDE.md sección 12 / api/helpers/comisiones_lib.php. Selector de tipo
-  // (pill) en vez de checkbox suelto — el checkbox sigue existiendo oculto,
-  // solo lo mueve el toggle, para no tocar la lógica de guardarCotizacion().
+  // CLAUDE.md sección 12 / api/helpers/comisiones_lib.php. El selector de tipo
+  // (pill) ya se renderizó dentro de .cot-hero, arriba; aquí solo va el checkbox
+  // oculto (que sigue leyendo guardarCotizacion()) y el panel de detalle.
   if (esNuevo) {
-    html += '<div class="type-toggle">';
-    html += '<button type="button" class="type-pill on" id="pillNormal" onclick="ModCotizacion._setTipoCotizacion(\'normal\')">Cotizaci&oacute;n normal</button>';
-    html += '<button type="button" class="type-pill warn" id="pillRetrabajo" onclick="ModCotizacion._setTipoCotizacion(\'retrabajo\')">Retrabajo (correcci&oacute;n)</button>';
-    html += '</div>';
     html += '<input type="checkbox" id="fEsRetrabajo" style="display:none">';
 
     html += '<div id="retrabajoPanel" class="retrabajo-panel">';
