@@ -203,7 +203,8 @@
       "Bash(cp out/tiempos-respuesta.mp4 media/tiempos_respuesta_julio_v1.mp4)",
       "Bash(chmod 640 media/tiempos_respuesta_julio_v1.mp4)",
       "Bash(fail2ban-client set *)",
-      "Bash(nft list *)"
+      "Bash(nft list *)",
+      "Bash(xargs ls -lt)"
     ]
   },
   "hooks": {
