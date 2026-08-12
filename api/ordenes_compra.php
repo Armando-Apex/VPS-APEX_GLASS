@@ -407,8 +407,16 @@ if ($method === 'POST') {
                 WHERE id = ? AND orden_compra_id = ?
                   AND cantidad_recibida + ? <= cantidad");
 
+            // [IVA-1] totalRecepcion sigue siendo el valor SIN IVA (va a 1.3
+            // Inventario, nunca debe llevar impuesto capitalizado). totalIva
+            // es el crédito fiscal (1.4 IVA Acreditable) y totalConIva es lo
+            // que realmente se le debe al proveedor (2.1 CxP) — antes CxP se
+            // abonaba sin IVA en la recepción pero se cargaba con IVA en el
+            // pago, dejando un residuo permanente del 16% sin cuadrar.
             $totalRecepcion = 0;
-            $precioPartidaStmt = $db->prepare("SELECT precio_unitario FROM oc_partidas WHERE id = ? AND orden_compra_id = ?");
+            $totalIva       = 0;
+            $totalConIva    = 0;
+            $precioPartidaStmt = $db->prepare("SELECT precio_unitario, iva_incluido FROM oc_partidas WHERE id = ? AND orden_compra_id = ?");
 
             foreach ($detalle as $d) {
                 $partida_id = (int)($d['oc_partida_id'] ?? 0);
@@ -420,7 +428,18 @@ if ($method === 'POST') {
                     throw new Exception('La cantidad recibida debe ser mayor a 0 (partida #' . $partida_id . ')', 422);
 
                 $precioPartidaStmt->execute([$partida_id, $oc_id]);
-                $totalRecepcion += (float)$precioPartidaStmt->fetchColumn() * $cant;
+                $pInfo   = $precioPartidaStmt->fetch();
+                $importe = (float)($pInfo['precio_unitario'] ?? 0) * $cant;
+                if (!empty($pInfo['iva_incluido'])) {
+                    $importeSinIva = $importe / 1.16;
+                    $importeConIva = $importe;
+                } else {
+                    $importeSinIva = $importe;
+                    $importeConIva = $importe * 1.16;
+                }
+                $totalRecepcion += $importeSinIva;
+                $totalConIva    += $importeConIva;
+                $totalIva       += $importeConIva - $importeSinIva;
 
                 $sd->execute([$entrega_id, $partida_id, $cant]);
                 $su->execute([$cant, $partida_id, $oc_id, $cant]);
@@ -550,13 +569,30 @@ if ($method === 'POST') {
             }
 
             if ($totalRecepcion > 0) {
-                $inventario = pl_cuentaId($db, '1.3');
-                $cxp        = pl_cuentaId($db, '2.1');
-                if ($inventario && $cxp) {
+                $inventario     = pl_cuentaId($db, '1.3');
+                $cxp            = pl_cuentaId($db, '2.1');
+                $ivaAcreditable = pl_cuentaId($db, '1.4');
+                if ($inventario && $cxp && $ivaAcreditable) {
+                    // [IVA-1] 3 líneas: Inventario sin IVA + IVA Acreditable (crédito
+                    // fiscal) = CxP con IVA (lo que realmente se le debe al proveedor).
+                    // Antes CxP se abonaba sin IVA aquí pero se cargaba con IVA al
+                    // pagar (registrar_pago usa monto_base homologado con IVA) — la
+                    // cuenta nunca cuadraba a $0 en una OC ya pagada por completo.
+                    // Redondeo: IVA se calcula como diferencia entre los otros dos
+                    // YA redondeados, para que Debe=Haber exacto y pl_crearPoliza
+                    // nunca rechace la póliza por un centavo de residuo.
+                    $rSinIva  = round($totalRecepcion, 2);
+                    $rConIva  = round($totalConIva, 2);
+                    $rIva     = round($rConIva - $rSinIva, 2);
+                    $lineas = [
+                        [$inventario, $rSinIva, 0, 'Recepción OC #' . $oc_id . ' (sin IVA)'],
+                    ];
+                    if ($rIva > 0) {
+                        $lineas[] = [$ivaAcreditable, $rIva, 0, 'IVA acreditable OC #' . $oc_id];
+                    }
+                    $lineas[] = [$cxp, 0, $rConIva, 'Recepción OC #' . $oc_id . ' (con IVA)'];
                     pl_generarAutomatica($db, 'oc_entregas', (int)$entrega_id, 'diario', $fecha,
-                        'Recepción de mercancía OC #' . $oc_id,
-                        [[$inventario, $totalRecepcion, 0, 'Recepción OC #' . $oc_id], [$cxp, 0, $totalRecepcion, 'Recepción OC #' . $oc_id]],
-                        (int)$user['id']);
+                        'Recepción de mercancía OC #' . $oc_id, $lineas, (int)$user['id']);
                 }
             }
 
