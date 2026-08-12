@@ -28,24 +28,23 @@ $id_cot       = $id_php;
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; }
 .main { padding: 24px; max-width: 1400px; margin: 0 auto; }
 .card { background: white; border-radius: 14px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 20px; }
-/* Hero "Nueva Cotización" — banda de identidad al abrir el formulario en blanco,
-   mismo lenguaje visual que los headers oscuros de los modales de este archivo
-   (cat-head/corr-head), no un estilo nuevo. Solo aparece en modo "nuevo": la
-   vista de edición conserva su encabezado de siempre (folio + acciones). */
-.cot-hero { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: #f8fafc; margin: -24px -24px 24px -24px; padding: 28px 28px 26px; border-radius: 14px 14px 0 0; }
-.cot-hero-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
-.cot-hero-eyebrow { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #93c5fd; }
-.cot-hero-eyebrow svg { flex-shrink: 0; }
-.cot-hero-title { font-family: 'Outfit', system-ui, -apple-system, sans-serif; font-size: 30px; font-weight: 600; letter-spacing: -.3px; margin-top: 14px; }
-.cot-hero-sub { font-size: 13px; color: #93a5c4; margin-top: 5px; }
-.cot-hero-toggle.type-toggle { margin-bottom: 0; }
-.cot-hero-toggle .type-pill { border-color: rgba(255,255,255,.22); background: rgba(255,255,255,.06); color: #cbd5e1; }
-.cot-hero-toggle .type-pill:hover { background: rgba(255,255,255,.12); }
-.cot-hero-toggle .type-pill.on { border-color: #3b82f6; background: #2563eb; color: #fff; }
-.cot-hero-toggle .type-pill.warn.on { border-color: #ef4444; background: #dc2626; color: #fff; }
+/* Encabezado "Nueva Cotización" — minimalista a propósito (feedback de Armando,
+   12-ago-2026: nada de bloque de color, solo jerarquía tipográfica). Una regla
+   fina separa el título de los campos, sin fondo ni acento — no aparece en la
+   vista de edición, que conserva su encabezado de siempre (folio + acciones). */
+.cot-head-min { padding-bottom: 16px; margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; }
+.cot-head-min-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+.cot-head-min-eyebrow { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #2563eb; }
+.cot-head-min-eyebrow svg { flex-shrink: 0; }
+.cot-head-min-title { font-family: 'Outfit', system-ui, -apple-system, sans-serif; font-size: 23px; font-weight: 600; letter-spacing: -.2px; color: #0f172a; }
+.cot-head-min-sub { font-size: 12.5px; color: #94a3b8; margin-top: 3px; }
+.cot-head-min-top .type-toggle { margin-bottom: 0; }
 .card-title { font-size: 15px; font-weight: 800; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
 .folio-badge { background: var(--c-dark-2); color: white; font-size: 22px; font-weight: 800; padding: 8px 20px; border-radius: var(--r-sm); font-family: 'Syncopate', sans-serif; letter-spacing: 2px; }
 .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+/* Variante más densa: 4 columnas, para grupos con campos angostos (ej. Condiciones
+   comerciales) que en 3 columnas dejaban una fila casi vacía por un solo campo suelto. */
+.form-grid-4 { grid-template-columns: repeat(4, 1fr); }
 .span-2 { grid-column: span 2; }
 .span-3 { grid-column: span 3; }
 .field { display: flex; flex-direction: column; gap: 6px; }
@@ -350,19 +349,19 @@ function renderFormulario(data) {
   // Modo "nuevo": banda de identidad (.cot-hero) en vez del header plano de
   // siempre — ver .cot-hero en el <style>. La vista de edición/detalle de una
   // cotización ya existente NO se toca, conserva el folio-badge + acciones.
-  html += '<div class="card' + (esNuevo ? ' card-hero' : '') + '">';
+  html += '<div class="card">';
   if (esNuevo) {
-    html += '<div class="cot-hero">';
-    html += '<div class="cot-hero-top">';
-    html += '<div class="cot-hero-eyebrow">' + ICONO_COT + ' Cotizaci&oacute;n</div>';
-    html += '<div class="type-toggle cot-hero-toggle">';
+    html += '<div class="cot-head-min">';
+    html += '<div class="cot-head-min-top">';
+    html += '<div class="cot-head-min-eyebrow">' + ICONO_COT + ' Cotizaci&oacute;n</div>';
+    html += '<div class="type-toggle">';
     html += '<button type="button" class="type-pill on" id="pillNormal" onclick="ModCotizacion._setTipoCotizacion(\'normal\')">Cotizaci&oacute;n normal</button>';
     html += '<button type="button" class="type-pill warn" id="pillRetrabajo" onclick="ModCotizacion._setTipoCotizacion(\'retrabajo\')">Retrabajo (correcci&oacute;n)</button>';
-    html += '</div>'; // cot-hero-toggle
-    html += '</div>'; // cot-hero-top
-    html += '<div class="cot-hero-title">Nueva cotizaci&oacute;n</div>';
-    html += '<div class="cot-hero-sub">El folio se asigna autom&aacute;ticamente al guardar</div>';
-    html += '</div>'; // cot-hero
+    html += '</div>'; // type-toggle
+    html += '</div>'; // cot-head-min-top
+    html += '<div class="cot-head-min-title">Nueva cotizaci&oacute;n</div>';
+    html += '<div class="cot-head-min-sub">El folio se asigna autom&aacute;ticamente al guardar</div>';
+    html += '</div>'; // cot-head-min
   } else {
     html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">';
     html += '<div>';
@@ -507,13 +506,15 @@ function renderFormulario(data) {
     html += '<input type="text" readonly value="' + parseFloat(data.descuento_referido) + '% (ya aplicado)"></div>';
   }
 
-  // Alerta
-  html += '<div class="field span-3"><label>Alerta / Nota especial</label>';
+  // Alerta — sin span-3: con Proyecto + Referido/Descuento ya son 3 campos,
+  // así entra en el mismo renglón en vez de brincar a una fila propia vacía.
+  html += '<div class="field"><label>Alerta / Nota especial</label>';
   html += '<input type="text" id="fAlerta" ' + (!editable?'readonly':'') + ' value="' + escHtml(data ? (data.alerta||'') : '') + '" placeholder="Ej: Urgente, cliente espera..."></div>';
   html += '</div></div>'; // form-grid, grp Proyecto
 
-  // ── Condiciones comerciales ──
-  html += '<div class="grp"><div class="grp-label">Condiciones comerciales</div><div class="form-grid">';
+  // ── Condiciones comerciales ── (4 columnas: Descuento/Condición/Crédito/Factura
+  // son campos angostos — en 3 columnas dejaban un cuarto campo solo en su propia fila)
+  html += '<div class="grp"><div class="grp-label">Condiciones comerciales</div><div class="form-grid form-grid-4">';
 
   // Descuento
   html += '<div class="field"><label>Descuento %</label>';
@@ -528,12 +529,16 @@ function renderFormulario(data) {
   }
   html += '</div>';
 
-  // Crédito
+  // Crédito — toggle compacto (antes un <select> Sí/No que ocupaba una columna
+  // entera para una respuesta binaria); mismo patrón visual que Factura genérica.
+  var esCredito = !!(data && data.credito === 'si');
   html += '<div class="field"><label>Crédito</label>';
   if (editable) {
-    html += '<select id="fCredito"><option value="no"' + (data && data.credito==='no'?' selected':'') + '>No</option><option value="si"' + (data && data.credito==='si'?' selected':'') + '>Sí</option></select>';
+    html += '<label class="fact-toggle' + (esCredito ? ' is-on' : '') + '" id="fCreditoToggleWrap">';
+    html += '<input type="checkbox" id="fCredito" ' + (esCredito ? 'checked' : '') + ' onchange="document.getElementById(\'fCreditoToggleWrap\').classList.toggle(\'is-on\', this.checked)">';
+    html += 'Cr&eacute;dito</label>';
   } else {
-    html += '<input type="text" readonly value="' + (data && data.credito === 'si' ? 'Sí' : 'No') + '">';
+    html += '<div class="fact-toggle' + (esCredito ? ' is-on' : '') + '" style="cursor:default">' + (esCredito ? 'Cr&eacute;dito: S&iacute;' : 'Sin cr&eacute;dito') + '</div>';
   }
   html += '</div>';
 
@@ -1234,7 +1239,7 @@ function armarPayload(clienteId) {
     cliente_id:     parseInt(clienteId),
     proyecto:       document.getElementById('fProyecto')?.value     || '',
     descuento:      parseFloat(document.getElementById('fDescuento')?.value || 0),
-    credito:        document.getElementById('fCredito')?.value      || 'no',
+    credito:        (document.getElementById('fCredito')?.checked ? 'si' : 'no'),
     condicion_pago: document.getElementById('fCondicion')?.value    || 'anticipo',
     tipo_entrega:   document.getElementById('fTipoEntrega')?.value  || 'domicilio',
     localidad:      document.getElementById('fLocalidad')?.value    || 'local',
