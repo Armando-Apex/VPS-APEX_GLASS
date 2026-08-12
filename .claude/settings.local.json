@@ -199,7 +199,9 @@
       "Bash(ffmpeg -y -f lavfi -i color=c=0x0B1220:s=700x760 -i public/apex-logo-t.png -filter_complex '[1]negate[l];[0][l]overlay=\\(W-w\\)/2:\\(H-h\\)/2' -frames:v 1 __TRACKED_VAR__/logo_white_on_dark.png)",
       "Bash(shred -u /tmp/claude-0/-home-apexglass2025-apex-glass-public-html-produccion/bda2a9e6-8a1a-4539-895d-0d7cb9e265aa/scratchpad/my.cnf)",
       "Bash(rm -f out/still-*.png)",
-      "Bash(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 out/tiempos-respuesta.mp4)"
+      "Bash(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 out/tiempos-respuesta.mp4)",
+      "Bash(cp out/tiempos-respuesta.mp4 media/tiempos_respuesta_julio_v1.mp4)",
+      "Bash(chmod 640 media/tiempos_respuesta_julio_v1.mp4)"
     ]
   },
   "hooks": {
