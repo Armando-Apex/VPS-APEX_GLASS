@@ -65,11 +65,11 @@ table.contab tr.total td { font-weight: 800; border-top: 2px solid #1e293b; colo
         <option value="custom">Fecha personalizada</option>
       </select>
       <label>Corte al</label>
-      <input type="date" id="fCorte">
+      <input type="date" id="fCorte" min="2026-08-01">
     </div>
   </div>
 
-  <div class="wip-banner">Se calcula 100% desde las Pólizas (nunca se captura a mano) — es la prueba de que el sistema cuadra solo. Hoy las pólizas automáticas solo cubren Compras, Nómina, Gastos Fijos y Caja Chica; Ventas/Cobros todavía no generan póliza, así que Ingresos y Cuentas por Cobrar pueden verse bajos o en $0 hasta que se conecte esa parte.</div>
+  <div class="wip-banner">Se calcula 100% desde las Pólizas (nunca se captura a mano) — es la prueba de que el sistema cuadra solo. Los libros arrancan el <strong>01-ago-2026</strong> (decisión de Armando: los datos de Compras/Ventas de antes de agosto no son lo bastante completos ni precisos) — cualquier corte antes de esa fecha se ajusta automáticamente al 01-ago. Por eso "Cierre mes anterior/trimestre/semestre/año anterior" van a verse vacíos o casi vacíos mientras estemos dentro de agosto — se vuelven útiles a partir de que haya un período completo cerrado después de la apertura.</div>
 
   <div id="contenido"><div class="empty">Cargando...</div></div>
 
@@ -78,6 +78,7 @@ table.contab tr.total td { font-weight: 800; border-top: 2px solid #1e293b; colo
 <script>
 var ModContabilidadBalance = (function(){
 var API = '../api/contabilidad_balance.php';
+var FECHA_APERTURA = '2026-08-01'; // igual que $FECHA_APERTURA en api/contabilidad_balance.php
 
 function esc(s) {
   var d = document.createElement('div');
@@ -125,10 +126,14 @@ function fechaCorteParaPeriodo(periodo) {
   return hoy(); // 'hoy' (default)
 }
 
+function clampApertura(fecha) {
+  return fecha < FECHA_APERTURA ? FECHA_APERTURA : fecha;
+}
+
 function onPeriodoChange() {
   var periodo = document.getElementById('fPeriodo').value;
   if (periodo === 'custom') return; // deja la fecha tal cual, el usuario la va a picar a mano
-  document.getElementById('fCorte').value = fechaCorteParaPeriodo(periodo);
+  document.getElementById('fCorte').value = clampApertura(fechaCorteParaPeriodo(periodo));
   cargar();
 }
 

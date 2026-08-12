@@ -19,6 +19,17 @@ $DEUDORA = ['activo', 'costo_venta', 'gasto_operativo', 'financiero', 'impuesto'
 
 $corte = $_GET['corte'] ?? date('Y-m-d');
 
+// [Apertura de libros] Armando decidió (12-ago-2026) que los datos de Compras/Ventas
+// de antes de agosto no son lo bastante completos ni precisos como para respaldar un
+// Balance real — en vez de backfillear años de historia poco confiable, los libros
+// "abren" el 01-ago-2026. Coincide con la póliza manual D-000018 "Saldo inicial de
+// bancos — agosto 2026" (Debe 1.1 Bancos / Haber 3.1 Capital Social, $50,054.90) que
+// ya sirve de saldo de apertura. Cualquier póliza con fecha anterior (ej. el backfill
+// de Compras hasta jun-2026, UPD-492) sigue existiendo como registro histórico pero
+// se excluye de este reporte a propósito.
+$FECHA_APERTURA = '2026-08-01';
+if ($corte < $FECHA_APERTURA) $corte = $FECHA_APERTURA;
+
 // [Bug corte/estado] La condición de fecha/estado NO puede ir en el ON del LEFT JOIN
 // a `polizas`: al ser LEFT JOIN, una línea de `polizas_lineas` se sigue sumando aunque
 // su póliza no cumpla la condición (p.* solo queda en NULL, la fila de pl no se descarta)
@@ -33,13 +44,13 @@ $stmt = $pdo->prepare("
     LEFT JOIN (
         SELECT pll.cuenta_id, pll.debe, pll.haber
         FROM polizas_lineas pll
-        JOIN polizas pp ON pp.id = pll.poliza_id AND pp.estado = 'activa' AND pp.fecha <= ?
+        JOIN polizas pp ON pp.id = pll.poliza_id AND pp.estado = 'activa' AND pp.fecha BETWEEN ? AND ?
     ) pl ON pl.cuenta_id = c.id
     WHERE c.es_acumulativa = 0
     GROUP BY c.id
     ORDER BY c.orden ASC, c.codigo ASC
 ");
-$stmt->execute([$corte]);
+$stmt->execute([$FECHA_APERTURA, $corte]);
 $cuentas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $comprobacion = [];
@@ -82,6 +93,7 @@ $cuadra = abs($activoTotal - $pasivoMasCapital) < 0.01;
 
 jsonResponse([
     'corte' => $corte,
+    'fecha_apertura' => $FECHA_APERTURA,
     'comprobacion' => $comprobacion,
     'balance' => [
         'activo' => array_values(array_filter($porTipo['activo'], fn($c) => $c['saldo'] != 0)),
