@@ -19,12 +19,22 @@ $DEUDORA = ['activo', 'costo_venta', 'gasto_operativo', 'financiero', 'impuesto'
 
 $corte = $_GET['corte'] ?? date('Y-m-d');
 
+// [Bug corte/estado] La condición de fecha/estado NO puede ir en el ON del LEFT JOIN
+// a `polizas`: al ser LEFT JOIN, una línea de `polizas_lineas` se sigue sumando aunque
+// su póliza no cumpla la condición (p.* solo queda en NULL, la fila de pl no se descarta)
+// — el filtro de fecha era cosmético y las pólizas 'anulada' (ej. las que se regeneran al
+// corregir IVA) también se sumaban de más. Se filtra ANTES, en una subquery, y esa
+// subquery ya filtrada es la que se hace LEFT JOIN contra el catálogo completo (para
+// conservar las cuentas sin movimiento con debe/haber=0 vía COALESCE).
 $stmt = $pdo->prepare("
     SELECT c.id, c.codigo, c.nombre, c.tipo_financiero, c.cuenta_padre_id, c.nivel,
            COALESCE(SUM(pl.debe), 0) AS debe, COALESCE(SUM(pl.haber), 0) AS haber
     FROM cuentas_contables c
-    LEFT JOIN polizas_lineas pl ON pl.cuenta_id = c.id
-    LEFT JOIN polizas p ON p.id = pl.poliza_id AND p.estado = 'activa' AND p.fecha <= ?
+    LEFT JOIN (
+        SELECT pll.cuenta_id, pll.debe, pll.haber
+        FROM polizas_lineas pll
+        JOIN polizas pp ON pp.id = pll.poliza_id AND pp.estado = 'activa' AND pp.fecha <= ?
+    ) pl ON pl.cuenta_id = c.id
     WHERE c.es_acumulativa = 0
     GROUP BY c.id
     ORDER BY c.orden ASC, c.codigo ASC
