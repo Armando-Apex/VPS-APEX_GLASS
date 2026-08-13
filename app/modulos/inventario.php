@@ -387,6 +387,10 @@ tr:hover td { background: #f8fafc; }
             <option value="satinado">Satinado</option>
             <option value="tintex">Tintex</option>
             <option value="evo_50">EVO 50</option>
+            <option value="bronce">Bronce</option>
+            <option value="timeless">Timeless</option>
+            <option value="bioclean">BioClean</option>
+            <option value="espejo_filtra">Espejo Filtra</option>
           </select>
         </div>
         <div class="form-group">
@@ -787,7 +791,8 @@ var $ = function(id){ return document.getElementById(id); };
 var tipoLabel = {
   claro:'Claro', claro_zafiro:'Claro Zafiro', filtrasol:'Filtrasol',
   espejo:'Espejo', espejo_aluminio:'Espejo Aluminio', laminado_claro:'Laminado Claro',
-  reflecta:'Reflecta', satinado:'Satinado', tintex:'Tintex', evo_50:'EVO 50'
+  reflecta:'Reflecta', satinado:'Satinado', tintex:'Tintex', evo_50:'EVO 50',
+  bronce:'Bronce', timeless:'Timeless', bioclean:'BioClean', espejo_filtra:'Espejo Filtra'
 };
 var fleteLabel = {
   incluido:'<span class="flete-incluido">&#10003; Incluido</span>',
