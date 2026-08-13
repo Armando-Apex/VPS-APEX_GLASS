@@ -30,7 +30,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 }
 .header h1 { font-size: 20px; font-weight: 800; letter-spacing: 1px; font-family: 'Syncopate', sans-serif; }
 .header .right { display: flex; gap: 16px; align-items: center; }
-.header a { color: #94a3b8; font-size: 13px; text-decoration: none; }
+.header a { color:var(--c-muted); font-size: 13px; text-decoration: none; }
 
 .main { padding: 24px; max-width: 1200px; margin: 0 auto; }
 .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -62,22 +62,22 @@ tr:hover td { background: #f8fafc; }
 .badge-local    { background: #dbeafe; color: #1d4ed8; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
 .badge-foraneo  { background: #fef3c7; color: #d97706; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
 .badge-activo   { background: #dcfce7; color: #16a34a; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
-.badge-inactivo { background: #f1f5f9; color: #94a3b8; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+.badge-inactivo { background: #f1f5f9; color:var(--c-muted); font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
 .codigo { font-weight: 800; color: #2563eb; font-size: 13px; }
-.empty  { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
-.count  { font-size: 13px; color: #94a3b8; }
+.empty  { text-align: center; padding: 48px; color:var(--c-muted); font-size: 15px; }
+.count  { font-size: 13px; color:var(--c-muted); }
 
 .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; align-items: flex-start; justify-content: center; padding-top: 40px; }
 .modal-bg.open { display: flex; }
 .modal { background: white; border-radius: 16px; padding: 28px; width: 100%; max-width: 560px; box-shadow: 0 20px 60px rgba(0,0,0,.2); max-height: 85vh; overflow-y: auto; }
 .modal h2 { font-size: 18px; font-weight: 800; color: #1e293b; margin-bottom: 6px; }
-.modal .codigo-display { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
+.modal .codigo-display { font-size: 13px; color:var(--c-muted); margin-bottom: 20px; }
 
 .field { margin-bottom: 16px; }
 .field label { display: block; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px; }
 .field input, .field select { width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 14px; color: #1e293b; background: white; }
 .field input:focus, .field select:focus { outline: none; border-color: #2563eb; }
-.field .hint { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+.field .hint { font-size: 11px; color:var(--c-muted); margin-top: 4px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; border-top: 1px solid #f1f5f9; padding-top: 20px; }
 
@@ -87,8 +87,8 @@ tr:hover td { background: #f8fafc; }
 .panel.open { right: 0; }
 .panel-header { background: #1a1a2e; color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
 .panel-header h3 { font-size: 16px; font-weight: 800; }
-.panel-header p  { font-size: 12px; color: #94a3b8; margin-top: 4px; }
-.panel-close { background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; }
+.panel-header p  { font-size: 12px; color:var(--c-muted); margin-top: 4px; }
+.panel-close { background: none; border: none; color:var(--c-muted); font-size: 20px; cursor: pointer; }
 .panel-body { padding: 24px; }
 
 .bit-item { display: flex; gap: 14px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
@@ -101,8 +101,8 @@ tr:hover td { background: #f8fafc; }
 .bit-valores { font-size: 12px; color: #64748b; margin-top: 3px; }
 .bit-valores .ant { color: #dc2626; text-decoration: line-through; }
 .bit-valores .nvo { color: #16a34a; }
-.bit-meta { font-size: 11px; color: #94a3b8; margin-top: 4px; }
-.bit-empty { text-align: center; padding: 40px; color: #94a3b8; }
+.bit-meta { font-size: 11px; color:var(--c-muted); margin-top: 4px; }
+.bit-empty { text-align: center; padding: 40px; color:var(--c-muted); }
 </style>
 </head>
 <body>

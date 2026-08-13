@@ -34,6 +34,8 @@ require_once __DIR__ . '/../api/helpers/icons.php';
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>">
+<script src="csrf_fetch.js"></script>
 <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96">
 <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
@@ -46,13 +48,46 @@ require_once __DIR__ . '/../api/helpers/icons.php';
 :root { --sidebar-w:220px; --topbar-h:56px; --c-bg:#f8fafc; --c-white:#fff; --c-border:#e2e8f0; --c-text:#1e293b; --c-muted:#64748b; --c-blue:#2563eb; --c-blue-dark:#1d4ed8; --c-blue-light:#eff6ff; --c-red:#dc2626; --c-red-light:#fee2e2; --c-green:#16a34a; --c-green-light:#dcfce7; --c-amber:#d97706; --c-amber-light:#fef9c3; --c-dark:#0f172a; --c-dark-2:#1a1a2e; --r-sm:8px; --r-md:12px; --r-lg:16px; --r-pill:99px; }
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;overflow:hidden;}
+/* S3-01 Toast global */
+#apex-toast-host{position:fixed;right:20px;bottom:20px;display:flex;flex-direction:column;gap:8px;z-index:9999;}
+.apex-toast{background:var(--c-dark);color:#fff;font-size:13px;padding:10px 16px;border-radius:var(--r-sm);box-shadow:0 4px 16px rgba(15,23,42,.25);opacity:0;transform:translateY(8px);transition:all .25s;max-width:340px;}
+.apex-toast.show{opacity:1;transform:none;}
+.apex-toast-ok{border-left:3px solid var(--c-green);}
+.apex-toast-error{background:var(--c-red);}
+.apex-toast-warn{background:var(--c-amber);}
+/* S3-01 Modal confirmar */
+.apex-confirm-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:9998;}
+.apex-confirm{background:var(--c-white);border-radius:var(--r-md);padding:20px 24px;max-width:380px;width:90%;box-shadow:0 12px 40px rgba(15,23,42,.3);}
+.apex-confirm-title{font-size:15px;font-weight:700;color:var(--c-text);margin-bottom:8px;}
+.apex-confirm-msg{font-size:13px;color:var(--c-muted);margin-bottom:16px;}
+.apex-confirm-btns{display:flex;justify-content:flex-end;gap:8px;}
+.apex-btn-ghost{padding:8px 14px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:#fff;cursor:pointer;font-size:13px;}
+.apex-btn-danger{padding:8px 14px;border:none;border-radius:var(--r-sm);background:var(--c-red);color:#fff;font-weight:600;cursor:pointer;font-size:13px;}
+.apex-btn-danger:hover{background:#b91c1c;}
+/* S3-07 Estado de error */
+.state-error{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:48px 20px;text-align:center;}
+.state-error-icon{color:var(--c-red);display:flex;}
+.state-error-msg{font-size:13px;color:var(--c-text);font-weight:600;}
+.state-error-detail{font-size:12px;color:var(--c-muted);max-width:420px;}
+.state-error-retry{padding:8px 16px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:var(--c-white);color:var(--c-blue);font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+.state-error-retry:hover{background:var(--c-blue-light);border-color:var(--c-blue);}
+/* S3-08 Estado vacío */
+.state-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:48px 20px;text-align:center;color:var(--c-muted);}
+.state-empty-icon{color:var(--c-muted);opacity:.6;display:flex;}
+.state-empty-txt{font-size:13px;}
+/* S3-06 Validación visual */
+.campo-error input, .campo-error select, .campo-error textarea,
+input.campo-error, select.campo-error{border-color:var(--c-red)!important;background:#fef2f2;}
+.campo-error label{color:var(--c-red);}
+.campo-error .error-msg{display:block;}
+.error-msg{display:none;font-size:11px;color:var(--c-red);margin-top:3px;}
 body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color:var(--c-text);display:flex;flex-direction:column;}
 .topbar{height:var(--topbar-h);background:#0f172a;display:flex;align-items:center;padding:0 20px;gap:16px;flex-shrink:0;z-index:100;}
 .topbar-logo{font-family:'Syncopate',sans-serif;font-size:16px;font-weight:700;color:white;letter-spacing:2px;cursor:pointer;}
 .topbar-sep{width:1px;height:24px;background:#334155;}
 .topbar-sub{font-size:11px;color:#64748b;letter-spacing:1px;text-transform:uppercase;}
 .topbar-right{margin-left:auto;display:flex;align-items:center;gap:14px;}
-.topbar-user{font-size:12px;color:#94a3b8;}
+.topbar-user{font-size:12px;color:var(--c-muted);}
 .topbar-rol{font-size:11px;background:#1e3a5f;color:#93c5fd;padding:2px 8px;border-radius:99px;}
 #reloj{font-size:12px;color:#64748b;font-variant-numeric:tabular-nums;min-width:70px;}
 .topbar-logout{font-size:12px;color:#64748b;text-decoration:none;}
@@ -60,7 +95,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
 .layout{display:flex;flex:1;overflow:hidden;}
 .sidebar{width:var(--sidebar-w);background:var(--c-white);border-right:1px solid var(--c-border);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0;}
 .sidebar-section{padding:4px 0;border-bottom:1px solid #f1f5f9;}
-.sidebar-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;padding:10px 16px 4px;}
+.sidebar-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--c-muted);padding:10px 16px 4px;}
 .sidebar-link{display:flex;align-items:center;gap:10px;padding:9px 16px;font-size:13px;font-weight:500;color:var(--c-muted);cursor:pointer;transition:all .15s;position:relative;border:none;background:none;width:100%;text-align:left;}
 .sidebar-link:hover{background:#f8fafc;color:var(--c-text);}
 .sidebar-link.active{background:#eff6ff;color:var(--c-blue);font-weight:600;}
@@ -81,7 +116,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
 .spa-loading-txt{font-size:13px;color:var(--c-muted);}
 
 /* ── Móvil ────────────────────────────────────────────────────────────────── */
-.topbar-hamburger{display:none;background:none;border:none;cursor:pointer;color:#94a3b8;font-size:22px;padding:4px 6px;line-height:1;flex-shrink:0;}
+.topbar-hamburger{display:none;background:none;border:none;cursor:pointer;color:var(--c-muted);font-size:22px;padding:4px 6px;line-height:1;flex-shrink:0;}
 .topbar-hamburger:hover{color:white;}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:149;}
 .sidebar-overlay.open{display:block;}
@@ -142,7 +177,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
 .rep-modal{background:#fff;border-radius:14px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden;}
 .rep-head{background:#0f172a;color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;}
 .rep-head h3{font-size:14px;font-weight:700;}
-.rep-close{background:none;border:none;color:#94a3b8;font-size:20px;cursor:pointer;line-height:1;}
+.rep-close{background:none;border:none;color:var(--c-muted);font-size:20px;cursor:pointer;line-height:1;}
 .rep-close:hover{color:#fff;}
 .rep-body{padding:20px;}
 .rep-tipos{display:flex;gap:10px;margin-bottom:16px;}
@@ -167,7 +202,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
 .rep-elem-lbl{color:#0284c7;font-weight:700;min-width:64px;font-size:11px;text-transform:uppercase;}
 .rep-elem-val{color:#0c4a6e;word-break:break-all;}
 .rep-elem-ruta{font-family:monospace;font-size:11px;}
-.rep-elem-clear{background:none;border:none;color:#94a3b8;font-size:11px;cursor:pointer;padding:0;margin-top:4px;}
+.rep-elem-clear{background:none;border:none;color:var(--c-muted);font-size:11px;cursor:pointer;padding:0;margin-top:4px;}
 .rep-elem-clear:hover{color:#dc2626;}
 /* Pick mode */
 body.rep-pick-mode *{cursor:crosshair !important;}
@@ -198,7 +233,7 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
 .notif-item-body{flex:1;min-width:0;}
 .notif-item-titulo{font-size:13px;font-weight:600;color:var(--c-text);}
 .notif-item-msg{font-size:11px;color:var(--c-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.notif-item-tiempo{font-size:10px;color:#94a3b8;margin-top:3px;}
+.notif-item-tiempo{font-size:10px;color:var(--c-muted);margin-top:3px;}
 .notif-empty{padding:32px;text-align:center;color:var(--c-muted);font-size:13px;}
 </style>
 <script src="utils.js"></script>
@@ -946,6 +981,9 @@ window.actualizarBadgeCompras = function() {};
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/produccion/api/reportes.php?accion=crear');
     xhr.setRequestHeader('Content-Type', 'application/json');
+    // S2-11: XMLHttpRequest no pasa por el wrapper global de fetch.
+    var _metaTokRep = document.querySelector('meta[name="csrf-token"]');
+    xhr.setRequestHeader('X-CSRF-Token', _metaTokRep ? _metaTokRep.content : '');
     xhr.onload = function() {
       btn.disabled = false; btn.textContent = 'Enviar';
       var res;

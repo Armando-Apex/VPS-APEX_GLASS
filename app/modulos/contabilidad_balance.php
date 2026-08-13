@@ -11,9 +11,9 @@ header('Content-Type: text/html; charset=utf-8');
 <meta charset="UTF-8">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; }
-
-.main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+/* S3-03: antes era `body{}` — pisaba el fondo de TODO el dashboard mientras
+   este módulo estaba cargado en el SPA. Retargeteado a .main (raíz del módulo). */
+.main { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--c-bg, #f8fafc); padding: 24px; max-width: 1100px; margin: 0 auto; }
 
 .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px; }
 .section-title { font-size: 18px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; }
@@ -47,7 +47,7 @@ table.contab tr.total td { font-weight: 800; border-top: 2px solid #1e293b; colo
 @media (max-width: 760px) { .balance-grid { grid-template-columns: 1fr; } }
 .balance-col-h { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: #64748b; margin-bottom: 8px; }
 
-.empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
+.empty { text-align: center; padding: 48px; color:var(--c-muted); font-size: 15px; }
 </style>
 
 <div class="main">
@@ -160,7 +160,7 @@ function columnaCuentas(titulo, cuentas, total) {
   var html = '<div class="balance-col-h">' + esc(titulo) + '</div>';
   html += '<div class="tabla-wrap"><table class="contab"><tbody>';
   if (!cuentas.length) {
-    html += '<tr><td class="concepto" style="color:#94a3b8;font-style:italic">Sin movimientos</td><td></td></tr>';
+    html += '<tr><td class="concepto" style="color:var(--c-muted);font-style:italic">Sin movimientos</td><td></td></tr>';
   } else {
     for (var i = 0; i < cuentas.length; i++) {
       html += '<tr><td class="concepto">' + esc(cuentas[i].codigo) + ' — ' + esc(cuentas[i].nombre) + '</td><td>' + fmt(cuentas[i].saldo) + '</td></tr>';
@@ -178,7 +178,7 @@ function render(data) {
   var html = '<div class="section-h">Balance de Comprobación</div>';
   html += '<div class="tabla-wrap"><table class="contab"><thead><tr><th style="text-align:left">Cuenta</th><th>Debe</th><th>Haber</th><th>Saldo</th></tr></thead><tbody>';
   if (!comp.length) {
-    html += '<tr><td class="concepto" colspan="4" style="text-align:center;color:#94a3b8;font-style:italic">Sin pólizas registradas hasta esta fecha</td></tr>';
+    html += '<tr><td class="concepto" colspan="4" style="text-align:center;color:var(--c-muted);font-style:italic">Sin pólizas registradas hasta esta fecha</td></tr>';
   } else {
     for (var i = 0; i < comp.length; i++) {
       var c = comp[i];

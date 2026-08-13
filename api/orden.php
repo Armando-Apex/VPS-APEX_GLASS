@@ -8,7 +8,7 @@ require_once 'config.php';
 require_once 'permisos.php';
 
 // Acepta sesión interna del sistema O sesión del portal de clientes
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/session_boot.php'; // S2-10
 $esPortal     = !empty($_SESSION['portal_cliente_id']);
 $esInterno    = !empty($_SESSION['user_id']);
 if (!$esPortal && !$esInterno) {
@@ -49,8 +49,14 @@ if ($esPortal && !$esInterno) {
     $stmtCli->execute([$portalClienteId]);
     $rowCli = $stmtCli->fetch();
     $razonCli = $rowCli ? ($rowCli['razon_social'] ?: $rowCli['nombre']) : '';
-    if ((int)$orden['cliente_id'] !== $portalClienteId && $orden['cliente_nombre'] !== $razonCli) {
-        jsonResponse(['error' => 'No autorizado'], 403);
+    // S2-14 fase 1: medir quién depende del fallback por nombre antes de quitarlo
+    // (fase 2, pendiente). Sin cambio de comportamiento todavía.
+    if ((int)$orden['cliente_id'] !== $portalClienteId) {
+        if ($orden['cliente_nombre'] === $razonCli) {
+            error_log('[S2-14] acceso-por-nombre folio=' . ($orden['folio'] ?? '?') . ' cliente_sesion=' . $portalClienteId);
+        } else {
+            jsonResponse(['error' => 'No autorizado'], 403);
+        }
     }
 }
 

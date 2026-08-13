@@ -35,7 +35,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .badge-ok { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #dcfce7; color: #16a34a; }
 .badge-pendiente { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: #fee2e2; color: #dc2626; }
 
-.empty { text-align: center; padding: 24px; color: #94a3b8; font-size: 14px; }
+.empty { text-align: center; padding: 24px; color:var(--c-muted); font-size: 14px; }
 </style>
 
 <div class="main">

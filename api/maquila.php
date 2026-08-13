@@ -28,6 +28,7 @@ if ($method !== 'GET') {
 
 // ─── Cálculo de ml de canteado según selección tipo CPB ──────────────────────
 function calcularMlCanteado($cpb, $ancho, $alto) {
+    if ($ancho <= 0 || $alto <= 0) return 0.0; // S2-05: medidas negativas/cero no producen ML negativos
     $anchoM = $ancho / 1000;
     $altoM  = $alto  / 1000;
     switch ($cpb) {
@@ -58,7 +59,7 @@ function calcularPartidaMaquila($db, $p) {
     $alto       = (int)($p['alto']  ?? 0);
     $cantidad   = max(1, (int)($p['cantidad'] ?? 1));
     $espesor_mm = (float)($p['espesor_mm'] ?? 0);
-    if (!$ancho || !$alto || !$espesor_mm) return null;
+    if ($ancho <= 0 || $alto <= 0 || $espesor_mm <= 0) return null; // S2-05: rechaza medidas negativas
 
     $m2 = round(($ancho / 1000) * ($alto / 1000), 6);
 

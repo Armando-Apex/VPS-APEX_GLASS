@@ -17,7 +17,7 @@ $puedeVerCaptura = in_array($user['rol'], ['desarrollo', 'dir_admin']);
 
 if (!$puedeVerCaptura) {
 ?>
-<div id="contab-content"><div style="text-align:center;padding:48px;color:#94a3b8;font-family:system-ui,-apple-system,sans-serif;">Cargando...</div></div>
+<div id="contab-content"><div style="text-align:center;padding:48px;color:var(--c-muted);font-family:system-ui,-apple-system,sans-serif;">Cargando...</div></div>
 <script>
 var ModContabilidad = (function(){
   var scriptsInyectados = [];
@@ -55,9 +55,9 @@ var ModContabilidad = (function(){
 <meta charset="UTF-8">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; }
-
-.main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+/* S3-03: antes era `body{}` — pisaba el fondo de TODO el dashboard mientras
+   este módulo estaba cargado en el SPA. Retargeteado a .main (raíz del módulo). */
+.main { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--c-bg, #f8fafc); padding: 24px; max-width: 1200px; margin: 0 auto; }
 
 .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .section-title { font-size: 18px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; }
@@ -89,7 +89,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .contab-grupo-captura .contab-tab-btn.active { background: #fef3c7; border-color: #b45309; color: #b45309; }
 .contab-grupo-config .contab-tab-btn.active { background: #ede9fe; border-color: #6d28d9; color: #6d28d9; }
 
-#contab-content .empty-loading { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
+#contab-content .empty-loading { text-align: center; padding: 48px; color:var(--c-muted); font-size: 15px; }
 
 </style>
 

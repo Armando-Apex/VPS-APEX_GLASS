@@ -44,7 +44,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 .link-danger:hover { text-decoration: underline; }
 .est-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
 .badge-activo   { background: #dcfce7; color: #15803d; }
-.badge-inactivo { background: #f1f5f9; color: #94a3b8; }
+.badge-inactivo { background: #f1f5f9; color:var(--c-muted); }
 
 @media(max-width:768px){
   .mq-wrap { padding: 12px; }

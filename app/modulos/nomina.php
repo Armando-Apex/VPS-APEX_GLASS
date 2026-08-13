@@ -56,7 +56,7 @@ td input { width: 100px; padding: 6px 8px; border: 1.5px solid #e2e8f0; border-r
 .total-cell { font-weight: 700; color: #1e293b; }
 .fila-total td { font-weight: 800; color: #1e293b; border-top: 2px solid #e2e8f0; background: #f8fafc; }
 
-.empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
+.empty { text-align: center; padding: 48px; color:var(--c-muted); font-size: 15px; }
 
 .modal-bg {
   display: none; position: fixed; inset: 0;

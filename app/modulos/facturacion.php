@@ -21,7 +21,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .fac-table td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
 .fac-table tr:last-child td { border-bottom: none; }
 .fac-table tr:hover td { background: #f8fafc; }
-.fac-empty { text-align: center; color: #94a3b8; padding: 48px 0; font-size: 13px; }
+.fac-empty { text-align: center; color:var(--c-muted); padding: 48px 0; font-size: 13px; }
 
 /* Badges */
 .fac-badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; }
@@ -33,7 +33,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .fac-tabs { display: flex; gap: 2px; background: #f3f4f6; padding: 3px; border-radius: 10px; width: fit-content; margin-bottom: 16px; }
 .fac-tab { padding: 6px 16px; border-radius: 8px; border: none; font-size: 13px; cursor: pointer; font-weight: 500; background: none; color: #6b7280; }
 .fac-tab.active { background: #fff; color: #1a1a1a; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-.fac-tab-cnt { font-size: 11px; color: #94a3b8; margin-left: 4px; }
+.fac-tab-cnt { font-size: 11px; color:var(--c-muted); margin-left: 4px; }
 .fac-tab.active .fac-tab-cnt { color: #6b7280; }
 @media (max-width: 640px) {
   .fac-tabs { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
@@ -64,7 +64,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .fac-modal { background: #fff; border-radius: 12px; width: 1020px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
 .fac-modal-head { padding: 20px 24px 16px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: #fff; z-index: 1; }
 .fac-modal-head h3 { margin: 0; font-size: 16px; font-weight: 600; }
-.fac-modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #94a3b8; line-height: 1; }
+.fac-modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color:var(--c-muted); line-height: 1; }
 .fac-modal-body { padding: 20px 24px; }
 .fac-modal-foot { padding: 16px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 8px; position: sticky; bottom: 0; background: #fff; }
 
@@ -80,7 +80,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     outline: none; font-family: inherit;
 }
 .fac-field input:focus, .fac-field select:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.12); }
-.fac-hint { font-size: 10px; color: #94a3b8; margin-top: 3px; }
+.fac-hint { font-size: 10px; color:var(--c-muted); margin-top: 3px; }
 .fac-section-title { font-size: 11px; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: .05em; margin: 20px 0 12px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
 
 /* Conceptos */
@@ -93,7 +93,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 /* Custom dropdown clave SAT */
 .fac-csat { position: relative; }
 .fac-csat-display { padding: 4px 20px 4px 4px; font-size: 12px; cursor: pointer; font-family: monospace; font-weight: 600; color: #1e293b; white-space: nowrap; position: relative; min-width: 80px; }
-.fac-csat-display::after { content: '▾'; position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 10px; color: #94a3b8; }
+.fac-csat-display::after { content: '▾'; position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 10px; color:var(--c-muted); }
 .fac-csat-display:hover { background: #f0f9ff; border-radius: 3px; }
 .fac-csat-list { display: none; position: absolute; top: 100%; left: 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 2000; min-width: 280px; padding: 4px 0; }
 .fac-csat-list.open { display: block; }
@@ -151,7 +151,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .fac-cli-opt:last-child { border-bottom:none; }
 .fac-cli-opt:hover { background:#f8fafc; }
 .fac-cli-opt-nombre { font-size:13px; font-weight:600; color:#1e293b; }
-.fac-cli-opt-sub { font-size:11px; color:#94a3b8; margin-top:1px; display:flex; gap:8px; }
+.fac-cli-opt-sub { font-size:11px; color:var(--c-muted); margin-top:1px; display:flex; gap:8px; }
 .fac-cli-opt-rfc { font-family:monospace; font-size:11px; color:#2563eb; font-weight:700; }
 .fac-cli-ok  { font-size:11px; background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:6px 10px; margin-top:6px; color:#166534; display:none; }
 .fac-cli-ok.vis  { display:block; }
@@ -317,7 +317,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
       </div>
 
       <div class="fac-field" id="fac-solicito-wrap" style="display:none;margin-bottom:14px">
-        <label>Cliente que lo solicitó <span style="font-weight:400;text-transform:none;font-size:10px;color:#94a3b8">(registro interno, no aparece en el CFDI)</span></label>
+        <label>Cliente que lo solicitó <span style="font-weight:400;text-transform:none;font-size:10px;color:var(--c-muted)">(registro interno, no aparece en el CFDI)</span></label>
         <select id="fac-solicito-cli">
           <option value="">— Selecciona el cliente real —</option>
         </select>
@@ -538,11 +538,25 @@ var ModFacturacion = (function() {
     return d.innerHTML;
   }
 
+  // S2-07: conceptos corruptos no deben tumbar el modal — se parsea con fallback.
+  function _parseConceptos(f) {
+    if (typeof f.conceptos !== 'string') return f.conceptos || [];
+    try { return JSON.parse(f.conceptos) || []; }
+    catch (e) { console.warn('conceptos inválidos en factura', f.id, e); return []; }
+  }
+
   function _apiFetch(url, opts, cb) {
     var xhr = new XMLHttpRequest();
-    xhr.open(opts.method || 'GET', url);
+    var m = (opts.method || 'GET').toUpperCase();
+    xhr.open(m, url);
     xhr.setRequestHeader('X-SPA-Request', '1');
     if (opts.body) xhr.setRequestHeader('Content-Type', 'application/json');
+    // S2-11: esta función usa XMLHttpRequest, no fetch — no pasa por el wrapper
+    // global de csrf_fetch.js, hay que agregar el token a mano.
+    if (m !== 'GET' && m !== 'HEAD') {
+      var _metaTok = document.querySelector('meta[name="csrf-token"]');
+      xhr.setRequestHeader('X-CSRF-Token', _metaTok ? _metaTok.content : '');
+    }
     xhr.onload = function() {
       var res;
       try { res = JSON.parse(xhr.responseText); } catch(e) { res = {ok:false,error:'Error del servidor'}; }
@@ -708,13 +722,13 @@ var ModFacturacion = (function() {
       html += '<tr>';
       html += '<td style="font-weight:600;color:#2563eb">' + f.folio_interno + modoBadge + pubBadge + '</td>';
       html += '<td><div style="font-weight:600">' + (f.receptor_nombre||'—') + '</div>';
-      html += '<div style="font-size:11px;color:#94a3b8">' + (f.receptor_rfc||'') + '</div>';
+      html += '<div style="font-size:11px;color:var(--c-muted)">' + (f.receptor_rfc||'') + '</div>';
       if (pubGeneral && f.cliente_solicito_nombre) {
         html += '<div style="font-size:10px;color:#3730a3;margin-top:2px">Solicitó: ' + _esc(f.cliente_solicito_nombre) + '</div>';
       }
       html += '</td>';
       html += '<td style="font-size:12px">' + (TIPOS[f.tipo_cfdi]||f.tipo_cfdi) + '</td>';
-      html += '<td style="font-size:12px">' + (f.receptor_uso_cfdi||'') + ' <span style="color:#94a3b8">/ ' + (f.metodo_pago||'') + '</span></td>';
+      html += '<td style="font-size:12px">' + (f.receptor_uso_cfdi||'') + ' <span style="color:var(--c-muted)">/ ' + (f.metodo_pago||'') + '</span></td>';
       html += '<td style="font-weight:600">' + _fmt(f.total) + '</td>';
       html += '<td>' + _badgeHtml(f.estatus);
       if (esTimbrada && f.uuid) html += '<div style="font-size:10px;color:#22c55e;font-family:monospace;margin-top:2px">' + f.uuid.slice(0,8) + '…</div>';
@@ -870,7 +884,7 @@ var ModFacturacion = (function() {
     tipoChange();
     var tbody = document.getElementById('fac-conceptos-body');
     tbody.innerHTML = '';
-    var conceptos = typeof f.conceptos === 'string' ? JSON.parse(f.conceptos) : (f.conceptos || []);
+    var conceptos = _parseConceptos(f);
     for (var j = 0; j < conceptos.length; j++) {
       var c = conceptos[j];
       tbody.innerHTML += _conceptoRow(c.desc, c.clave, c.unidad, c.cant, c.precio, c.iva);
@@ -1088,7 +1102,7 @@ var ModFacturacion = (function() {
 
     document.getElementById('fac-vista-folio').textContent = f.folio_interno;
 
-    var conceptos = typeof f.conceptos === 'string' ? JSON.parse(f.conceptos) : (f.conceptos || []);
+    var conceptos = _parseConceptos(f);
     var esPublicoGeneral = (f.receptor_rfc === 'XAXX010101000');
 
     var html = '';
@@ -1339,7 +1353,7 @@ var ModFacturacion = (function() {
     var drop = document.getElementById('fac-orden-drop');
     if (!drop) return;
     if (!lista.length) {
-      drop.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:#94a3b8">Sin resultados</div>';
+      drop.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:var(--c-muted)">Sin resultados</div>';
       drop.classList.add('open');
       return;
     }
@@ -1560,6 +1574,9 @@ var ModFacturacion = (function() {
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '../api/extraer_constancia.php');
     xhr.setRequestHeader('X-SPA-Request', '1');
+    // S2-11: XMLHttpRequest no pasa por el wrapper global de fetch.
+    var _metaTokCst = document.querySelector('meta[name="csrf-token"]');
+    xhr.setRequestHeader('X-CSRF-Token', _metaTokCst ? _metaTokCst.content : '');
     xhr.onload = function() {
       document.getElementById('fac-cst-loading').classList.remove('visible');
       var res;

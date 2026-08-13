@@ -15,7 +15,7 @@ header('Content-Type: text/html; charset=utf-8');
 <style>
 .fin-wrap { padding: 24px; max-width: 1300px; margin: 0 auto; }
 .page-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
-.page-sub   { font-size: 12px; color: #94a3b8; margin-bottom: 20px; }
+.page-sub   { font-size: 12px; color:var(--c-muted); margin-bottom: 20px; }
 
 /* Lista */
 .vobo-table { background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
@@ -38,13 +38,13 @@ tbody td { padding: 12px 14px; font-size: 13px; }
 .det-folio { font-family: 'Syncopate', sans-serif; font-size: 20px; font-weight: 700; background: var(--c-dark-2); color: white; padding: 6px 16px; border-radius: var(--r-sm); }
 .det-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 20px; }
 .det-field { background: #f8fafc; border-radius: 8px; padding: 10px 14px; }
-.det-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.det-label { font-size: 10px; font-weight: 700; color:var(--c-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
 .det-value { font-size: 14px; font-weight: 600; color: #1e293b; }
 
 /* Saldo visual */
 .saldo-box { background: #f8fafc; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; display: flex; gap: 24px; align-items: center; }
 .saldo-item { text-align: center; }
-.saldo-lbl { font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+.saldo-lbl { font-size: 11px; color:var(--c-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
 .saldo-val { font-size: 18px; font-weight: 800; }
 .saldo-total  { color: #1e293b; }
 .saldo-pagado { color: #16a34a; }
@@ -88,8 +88,8 @@ tbody td { padding: 12px 14px; font-size: 13px; }
 .btn-blue    { background: #2563eb; color: white; }
 .btn-ghost   { background: #f1f5f9; color: #374151; }
 .btn-sm { padding: 7px 14px; font-size: 12px; }
-.loading-msg { text-align: center; padding: 48px; color: #94a3b8; font-size: 14px; }
-.empty-msg   { text-align: center; padding: 48px; color: #94a3b8; }
+.loading-msg { text-align: center; padding: 48px; color:var(--c-muted); font-size: 14px; }
+.empty-msg   { text-align: center; padding: 48px; color:var(--c-muted); }
 </style>
 
 <div class="fin-wrap">
@@ -211,7 +211,7 @@ function renderDetalle() {
   html += '<div class="det-header">';
   html += '<div>';
   html += '<div class="det-folio">' + escHtml(o.folio) + '</div>';
-  html += '<div style="font-size:12px;color:#94a3b8;margin-top:6px">Cotización: ' + escHtml(o.cot_folio||'—') + '</div>';
+  html += '<div style="font-size:12px;color:var(--c-muted);margin-top:6px">Cotización: ' + escHtml(o.cot_folio||'—') + '</div>';
   html += '</div>';
   html += '<button class="btn btn-ghost btn-sm" onclick="ModFinanzasVobo._cerrarDetalle()">&#8592; Volver a lista</button>';
   html += '</div>';
@@ -237,7 +237,7 @@ function renderDetalle() {
 
   // Pagos registrados
   html += '<div class="pagos-titulo">&#128184; Pagos registrados';
-  html += ' <span style="font-size:11px;font-weight:400;color:#94a3b8">(' + (o.pagos||[]).length + ')</span></div>';
+  html += ' <span style="font-size:11px;font-weight:400;color:var(--c-muted)">(' + (o.pagos||[]).length + ')</span></div>';
 
   if (o.pagos && o.pagos.length) {
     for (var i = 0; i < o.pagos.length; i++) {
@@ -250,11 +250,11 @@ function renderDetalle() {
       html += '<span class="pago-forma ' + formaClass + '">' + formaLabel + '</span>';
       if (p.notas) html += '<span style="font-size:12px;color:#64748b">' + escHtml(p.notas) + '</span>';
       html += '<div class="pago-monto">' + fmtMoney(p.monto) + '</div>';
-      html += '<div style="font-size:11px;color:#94a3b8">por ' + escHtml(p.registrado_por||'—') + '</div>';
+      html += '<div style="font-size:11px;color:var(--c-muted)">por ' + escHtml(p.registrado_por||'—') + '</div>';
       html += '</div>';
     }
   } else {
-    html += '<div style="font-size:13px;color:#94a3b8;padding:8px 0">Sin pagos registrados aún</div>';
+    html += '<div style="font-size:13px;color:var(--c-muted);padding:8px 0">Sin pagos registrados aún</div>';
   }
 
   // Banner saldo a favor

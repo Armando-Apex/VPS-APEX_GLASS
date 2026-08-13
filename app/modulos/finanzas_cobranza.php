@@ -15,12 +15,12 @@ header('Content-Type: text/html; charset=utf-8');
 <style>
 .cob-wrap { padding: 24px; max-width: 1400px; margin: 0 auto; }
 .page-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
-.page-sub   { font-size: 12px; color: #94a3b8; margin-bottom: 20px; }
+.page-sub   { font-size: 12px; color:var(--c-muted); margin-bottom: 20px; }
 
 /* Filtros */
 .filtros { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end; padding: 14px 16px; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: var(--r-sm); }
 .filtro-field { display: flex; flex-direction: column; gap: 3px; }
-.filtro-field label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .4px; }
+.filtro-field label { font-size: 10px; font-weight: 700; color:var(--c-muted); text-transform: uppercase; letter-spacing: .4px; }
 .filtro-field input, .filtro-field select {
   padding: 7px 11px; border: 1px solid #e2e8f0; border-radius: 6px;
   font-size: 13px; color: #1e293b; background: white; min-width: 150px;
@@ -43,7 +43,7 @@ header('Content-Type: text/html; charset=utf-8');
 .kpi-icon.rojo  { background: #fef2f2; color: #dc2626; }
 .kpi-icon.gris  { background: #f8fafc; color: #64748b; }
 .kpi-info { min-width: 0; }
-.kpi-lbl { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.kpi-lbl { font-size: 10px; font-weight: 700; color:var(--c-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
 .kpi-val { font-size: 20px; font-weight: 800; color: #1e293b; font-variant-numeric: tabular-nums; }
 .kpi-val.verde  { color: #16a34a; }
 .kpi-val.rojo   { color: #dc2626; }
@@ -53,7 +53,7 @@ header('Content-Type: text/html; charset=utf-8');
 .cob-table { background: white; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
 table { width: 100%; border-collapse: collapse; }
 thead tr { background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
-thead th { padding: 10px 14px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #94a3b8; text-align: left; }
+thead th { padding: 10px 14px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color:var(--c-muted); text-align: left; }
 tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .12s; }
 tbody tr:hover { background: #fafafa; }
 tbody tr:last-child { border-bottom: none; }
@@ -85,14 +85,14 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 /* Botón imprimir salida */
 .btn-salida { font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 6px; border: 1px solid #1a1a2e; cursor: pointer; background: white; color: #1a1a2e; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; transition: background .15s; }
 .btn-salida:hover { background: #1a1a2e; color: white; }
-.btn-salida:disabled { background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0; cursor: not-allowed; }
+.btn-salida:disabled { background: #f1f5f9; color:var(--c-muted); border-color: #e2e8f0; cursor: not-allowed; }
 
 /* Badge estado orden */
 .ord-badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 99px; }
 .ord-vobo    { background: #f3e8ff; color: #7c3aed; }
 .ord-activa  { background: #dbeafe; color: #1d4ed8; }
 .ord-entregada { background: #dcfce7; color: #15803d; }
-.ord-cancelada { background: #f1f5f9; color: #94a3b8; }
+.ord-cancelada { background: #f1f5f9; color:var(--c-muted); }
 
 /* Botón expandir */
 .btn-expand { background: none; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; color: #475569; font-weight: 600; transition: background .12s, border-color .12s; }
@@ -111,8 +111,8 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 .forma-transferencia { background: #f3e8ff; color: #7c3aed; }
 .forma-saldo-favor   { background: #fef9c3; color: #78350f; }
 .pago-monto { font-weight: 700; color: #1e293b; margin-left: auto; }
-.pago-por   { font-size: 11px; color: #94a3b8; }
-.sin-pagos  { font-size: 13px; color: #94a3b8; padding: 8px 0; }
+.pago-por   { font-size: 11px; color:var(--c-muted); }
+.sin-pagos  { font-size: 13px; color:var(--c-muted); padding: 8px 0; }
 
 /* Form pago inline */
 .pago-form-inline { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; }
@@ -125,12 +125,12 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 .btn-reg { padding: 7px 14px; background: var(--c-blue); color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; align-self: flex-end; transition: background .15s; }
 .btn-reg:hover { background: var(--c-blue-dark); }
 
-.loading-msg { text-align: center; padding: 48px; color: #94a3b8; }
-.empty-msg   { text-align: center; padding: 48px; color: #94a3b8; }
+.loading-msg { text-align: center; padding: 48px; color:var(--c-muted); }
+.empty-msg   { text-align: center; padding: 48px; color:var(--c-muted); }
 
 /* Tabs */
 .fin-tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1.5px solid #e2e8f0; }
-.fin-tab  { padding: 9px 20px; font-size: 13px; font-weight: 600; color: #94a3b8; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1.5px; background: none; border-top: none; border-left: none; border-right: none; transition: color .15s; display: flex; align-items: center; gap: 6px; }
+.fin-tab  { padding: 9px 20px; font-size: 13px; font-weight: 600; color:var(--c-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1.5px; background: none; border-top: none; border-left: none; border-right: none; transition: color .15s; display: flex; align-items: center; gap: 6px; }
 .fin-tab:hover  { color: #475569; }
 .fin-tab.active { color: #1a1a2e; border-bottom-color: #1a1a2e; font-weight: 700; }
 
@@ -142,7 +142,7 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 .btn-sf-nuevo:hover { background: var(--c-blue-dark); }
 .sf-table  { background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
 .sf-badge  { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: #dcfce7; color: #15803d; }
-.sf-badge.cero { background: #f1f5f9; color: #94a3b8; }
+.sf-badge.cero { background: #f1f5f9; color:var(--c-muted); }
 .btn-sf-hist { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0; background: white; cursor: pointer; color: #2563eb; }
 .btn-sf-hist:hover { background: #eff6ff; }
 
@@ -182,7 +182,7 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 .sf-cli-lista { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--c-border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 1300; max-height: 200px; overflow-y: auto; display: none; }
 .sf-cli-item  { padding: 9px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
 .sf-cli-item:hover { background: #f0fdf4; }
-.sf-cli-item .sf-cli-cod { font-size: 11px; color: #94a3b8; }
+.sf-cli-item .sf-cli-cod { font-size: 11px; color:var(--c-muted); }
 
 @media(max-width:768px){
   .cob-wrap { padding: 12px; }
@@ -299,7 +299,7 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
     <div class="sf-modal">
       <div class="sf-modal-head">
         <h3>Registrar Dep&#243;sito — Saldo a Favor</h3>
-        <button style="background:none;border:none;color:#94a3b8;font-size:20px;cursor:pointer;padding:0" onclick="sfCerrarModal()">&#10005;</button>
+        <button style="background:none;border:none;color:var(--c-muted);font-size:20px;cursor:pointer;padding:0" onclick="sfCerrarModal()">&#10005;</button>
       </div>
       <div class="sf-modal-body">
         <div class="sf-form-row">
@@ -348,7 +348,7 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
             </div>
           </div>
           <div id="sf-ap-items" style="margin-top:6px"></div>
-          <div style="font-size:11px;color:#94a3b8;margin-top:8px">El monto depositado no es reembolsable en efectivo, solo aplicable a productos que ofrece la empresa. El total puede repartirse libremente entre los productos apartados mientras no exceda el monto depositado.</div>
+          <div style="font-size:11px;color:var(--c-muted);margin-top:8px">El monto depositado no es reembolsable en efectivo, solo aplicable a productos que ofrece la empresa. El total puede repartirse libremente entre los productos apartados mientras no exceda el monto depositado.</div>
         </div>
       </div>
       <div class="sf-modal-foot">
@@ -951,7 +951,7 @@ window.sfQuitarItem = sfQuitarItem;
 function sfRenderApItems() {
   var box = document.getElementById('sf-ap-items');
   if (!box) return;
-  if (!_sfApItems.length) { box.innerHTML = '<div style="font-size:12px;color:#94a3b8">Sin productos agregados</div>'; return; }
+  if (!_sfApItems.length) { box.innerHTML = '<div style="font-size:12px;color:var(--c-muted)">Sin productos agregados</div>'; return; }
   var html = '';
   _sfApItems.forEach(function(it, idx) {
     html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f8fafc;border-radius:6px;margin-bottom:4px;font-size:12px">'
@@ -1003,7 +1003,7 @@ function sfRender() {
       + '<td><button class="btn-sf-hist" onclick="sfToggleHist(' + c.id + ',' + i + ')">Historial</button></td>'
       + '</tr>'
       + '<tr class="sf-hist-panel ' + abierto + '" id="sfhist-' + c.id + '">'
-      + '<td colspan="6"><div class="sf-hist-inner" id="sfhist-inner-' + c.id + '"><div style="color:#94a3b8;font-size:13px">Cargando...</div></div></td>'
+      + '<td colspan="6"><div class="sf-hist-inner" id="sfhist-inner-' + c.id + '"><div style="color:var(--c-muted);font-size:13px">Cargando...</div></div></td>'
       + '</tr>';
   });
   tbody.innerHTML = rows;
@@ -1026,7 +1026,7 @@ async function sfToggleHist(cid, idx) {
       if (!inner) return;
       var fmt = function(n) { return '$' + parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
       var html = !movs.length
-        ? '<div style="color:#94a3b8;font-size:13px;padding:8px 0">Sin movimientos registrados</div>'
+        ? '<div style="color:var(--c-muted);font-size:13px;padding:8px 0">Sin movimientos registrados</div>'
         : movs.map(function(m) {
             var pos = parseFloat(m.monto) >= 0;
             return '<div class="sf-mov-row">'
@@ -1035,7 +1035,7 @@ async function sfToggleHist(cid, idx) {
               + (m.referencia ? '<span class="sf-mov-ref">' + escHtmlSf(m.referencia) + '</span>' : '<span class="sf-mov-ref" style="font-style:italic;color:#cbd5e1">Sin referencia</span>')
               + (m.notas ? '<span style="font-size:12px;color:#64748b">' + escHtmlSf(m.notas) + '</span>' : '')
               + '<span class="sf-mov-monto ' + (pos?'positivo':'negativo') + '">' + (pos?'+':'') + fmt(m.monto) + '</span>'
-              + '<span style="font-size:11px;color:#94a3b8">por ' + escHtmlSf(m.creado_por||'—') + '</span>'
+              + '<span style="font-size:11px;color:var(--c-muted)">por ' + escHtmlSf(m.creado_por||'—') + '</span>'
               + '</div>';
           }).join('');
       inner.innerHTML = html;

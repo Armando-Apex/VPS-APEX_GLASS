@@ -129,6 +129,8 @@ if ($c['fecha_entrega']) {
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>">
+<script src="csrf_fetch.js"></script>
 <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96">
 <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
@@ -153,7 +155,7 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #222; 
 .doc-title-bar { background: #1a1a2e; color: white; padding: 8px 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
 .doc-title-bar .label { font-family: 'Syncopate', sans-serif; font-size: 13px; letter-spacing: 1px; }
 .doc-title-bar .folio { font-size: 18px; font-weight: 700; font-family: 'Syncopate', sans-serif; letter-spacing: 3px; }
-.doc-title-bar .fecha { font-size: 10px; color: #94a3b8; }
+.doc-title-bar .fecha { font-size: 10px; color:var(--c-muted); }
 
 /* Dos columnas info */
 .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
@@ -204,7 +206,7 @@ tbody td.center { text-align: center; }
 .firma-box .linea { border-top: 1.5px solid #374151; width: 180px; margin: 0 auto 4px; }
 .firma-box .nombre { font-size: 11px; font-weight: 700; }
 .firma-box .cargo { font-size: 9.5px; color: #64748b; }
-.contacto-footer { font-size: 9px; color: #94a3b8; text-align: right; line-height: 1.7; }
+.contacto-footer { font-size: 9px; color:var(--c-muted); text-align: right; line-height: 1.7; }
 
 /* Botones flotantes */
 .btn-print { position: fixed; bottom: 20px; right: 20px; background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,.4); z-index: 100; }
@@ -334,7 +336,7 @@ function waEnviar() {
       <div class="label"><?= $remision ? 'REMISIÓN' : ($c['orden_folio'] ? 'ORDEN DE PRODUCCIÓN' : 'COTIZACIÓN') ?></div>
       <div class="fecha"><?= htmlspecialchars($fecha_formateada) ?></div>
       <?php if ($c['orden_folio']): ?>
-      <div style="font-size:9px;color:#94a3b8;margin-top:2px">COT: <?= htmlspecialchars($c['folio']) ?></div>
+      <div style="font-size:9px;color:var(--c-muted);margin-top:2px">COT: <?= htmlspecialchars($c['folio']) ?></div>
       <?php endif; ?>
     </div>
     <div class="folio"><?= htmlspecialchars($c['orden_folio'] ?: $c['folio']) ?></div>
@@ -621,7 +623,7 @@ function waEnviar() {
   </div>
 
   <?php if (!empty($c['factura_tipo']) && $c['factura_tipo'] === 'generica'): ?>
-  <div style="margin-top:14px; padding-top:8px; border-top:1px solid #e2e8f0; text-align:center; font-size:9px; color:#94a3b8; letter-spacing:.3px;">
+  <div style="margin-top:14px; padding-top:8px; border-top:1px solid #e2e8f0; text-align:center; font-size:9px; color:var(--c-muted); letter-spacing:.3px;">
     Factura: PÚBLICO EN GENERAL
   </div>
   <?php endif; ?>

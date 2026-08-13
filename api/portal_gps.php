@@ -13,7 +13,7 @@ require_once 'gps_lib.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/session_boot.php'; // S2-10
 if (empty($_SESSION['portal_cliente_id'])) {
     jsonResponse(['ok' => false, 'error' => 'No autenticado'], 401); exit;
 }

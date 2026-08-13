@@ -132,6 +132,10 @@ function requireSession() {
         ini_set('session.cookie_samesite', 'Lax');
         session_start();
     }
+    // S2-11: token CSRF por sesión (synchronizer token) — se emite una sola vez.
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
     if (empty($_SESSION['user_id'])) {
         header('Location: login.php');
         exit;
@@ -164,6 +168,10 @@ function requireSessionApi() {
         ini_set('session.cookie_samesite', 'Lax');
         session_start();
     }
+    // S2-11: token CSRF por sesión (synchronizer token) — se emite una sola vez.
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
     // Protección CSRF: validar Origin en peticiones de mutación
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     if (in_array($method, ['POST','PUT','DELETE','PATCH'])) {
@@ -185,6 +193,18 @@ function requireSessionApi() {
         http_response_code(401);
         echo json_encode(['error' => 'Sesion requerida']);
         exit;
+    }
+    // S2-11: synchronizer token — Origin/Referer se conserva como primera
+    // barrera, pero ya no es la única (un cliente sin ambos headers pasaba
+    // antes). Sin token válido de sesión no hay mutación. Va DESPUÉS de
+    // confirmar sesión, para que el error sea claro si lo que falta es login.
+    if (in_array($method, ['POST','PUT','DELETE','PATCH'])) {
+        $tokenHeader = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+        if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $tokenHeader)) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Token CSRF inválido o ausente']);
+            exit;
+        }
     }
     $user = [
         'id'      => $_SESSION['user_id'],

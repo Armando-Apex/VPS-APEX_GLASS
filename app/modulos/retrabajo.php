@@ -27,14 +27,14 @@ tbody td       { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
 .badge-activa  { background: #dcfce7; color: #15803d; }
 .badge-entregada { background: #dbeafe; color: #1d4ed8; }
 .badge-ret     { background: #fef3c7; color: #92400e; }
-.ret-razones   { font-size: 11px; color: #94a3b8; margin-top: 3px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ret-razones   { font-size: 11px; color:var(--c-muted); margin-top: 3px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .loading-msg   { text-align: center; padding: 48px; color: #9ca3af; font-size: 14px; cursor: default; }
 .ret-stats     { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .ret-card      { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; min-width: 190px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
-.ret-card-label{ font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #94a3b8; margin-bottom: 6px; }
+.ret-card-label{ font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color:var(--c-muted); margin-bottom: 6px; }
 .ret-card-num  { font-size: 22px; font-weight: 700; color: #1e293b; line-height: 1; }
 .ret-card-cost { color: #b45309; }
-.ret-card-hint { font-size: 11px; color: #94a3b8; margin-top: 6px; }
+.ret-card-hint { font-size: 11px; color:var(--c-muted); margin-top: 6px; }
 .ret-costo     { font-weight: 700; color: #b45309; font-size: 13px; text-align: right; white-space: nowrap; }
 th.num, td.num { text-align: right; }
 </style>
@@ -142,7 +142,7 @@ window.retFiltrar = function() {
       <td>${badgeEst}</td>
       <td>
         <span class="badge badge-ret">&#9888; ${o.piezas_retrabajo} pieza(s)</span>
-        <div style="font-size:11px;color:#94a3b8;margin-top:3px">de ${o.total_piezas} total</div>
+        <div style="font-size:11px;color:var(--c-muted);margin-top:3px">de ${o.total_piezas} total</div>
       </td>
       <td class="num"><span class="ret-costo">${retMoneda(o.costo_retrabajo)}</span></td>
       <td><span style="color:${fechaColor};font-weight:600;font-size:13px">${fechaEnt}</span></td>

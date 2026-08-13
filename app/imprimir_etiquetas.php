@@ -103,7 +103,7 @@ body {
     border-radius: 8px;
 }
 .toolbar h1 { font-size: 15px; font-weight: 700; letter-spacing: 1px; }
-.toolbar .info { font-size: 12px; color: #94a3b8; }
+.toolbar .info { font-size: 12px; color:var(--c-muted); }
 .btn-print {
     background: white; color: #1a1a2e;
     border: none; padding: 8px 20px;

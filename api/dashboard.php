@@ -16,7 +16,7 @@ $porPagina = min(50, max(10, (int)($_GET['por_pagina'] ?? 15)));
 $offset    = ($pagina - 1) * $porPagina;
 
 // Filtro por asesor si el rol es comercial
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/session_boot.php'; // S2-10
 $rolSesion    = $_SESSION['user_rol']  ?? '';
 $nombreSesion = $_SESSION['user_name'] ?? '';
 $filtroAsesor = '';

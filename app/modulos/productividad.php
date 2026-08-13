@@ -455,7 +455,7 @@ function renderHora(data) {
 
   if (!franjas.length) {
 
-    document.getElementById('main').innerHTML = '<div class="loading-wrap"><div class="loading-txt">Sin actividad registrada hoy</div></div>';
+    document.getElementById('main').innerHTML = stateEmptyHTML('Sin actividad registrada hoy', 'activity');
 
     return;
 
@@ -726,7 +726,7 @@ function renderComp(periodos, labelKey, subKey, hrsKey, titulo) {
 
   if (!periodos || !periodos.length) {
 
-    document.getElementById('main').innerHTML = '<div class="loading-wrap"><div class="loading-txt">Sin datos</div></div>';
+    document.getElementById('main').innerHTML = stateEmptyHTML('Sin datos para el periodo', 'bar-chart-2');
 
     return;
 
@@ -925,7 +925,7 @@ const UNIDAD_LBL = { gris: '&#128667; Gris', blanca: '&#128667; Blanca' };
 function renderTrazabilidadRutas(data) {
   const filas = data.trazabilidad || [];
   if (!filas.length) {
-    document.getElementById('main').innerHTML = '<div class="loading-wrap"><div class="loading-txt">Sin rutas para esta fecha</div></div>';
+    document.getElementById('main').innerHTML = stateEmptyHTML('Sin rutas para esta fecha', 'truck');
     return;
   }
 

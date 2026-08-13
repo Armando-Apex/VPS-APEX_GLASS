@@ -28,7 +28,7 @@ header('Content-Type: text/html; charset=utf-8');
 .mm-crumb.cur { color:#0f172a; cursor:default; font-weight:600; }
 .mm-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
 .mm-table { width:100%; border-collapse:collapse; }
-.mm-table th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#94a3b8; font-weight:600; padding:11px 16px; border-bottom:1px solid #f1f5f9; }
+.mm-table th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--c-muted); font-weight:600; padding:11px 16px; border-bottom:1px solid #f1f5f9; }
 .mm-table td { padding:11px 16px; border-bottom:1px solid #f1f5f9; font-size:13px; color:#334155; vertical-align:middle; }
 .mm-table tr:last-child td { border-bottom:none; }
 .mm-name { display:flex; align-items:center; gap:10px; }
@@ -42,7 +42,7 @@ header('Content-Type: text/html; charset=utf-8');
 .mm-ia { border:none; background:none; cursor:pointer; color:#64748b; padding:5px; border-radius:7px; }
 .mm-ia:hover { background:#f1f5f9; color:#0f172a; }
 .mm-ia.del:hover { color:#dc2626; background:#fef2f2; }
-.mm-empty { padding:48px 16px; text-align:center; color:#94a3b8; font-size:13px; }
+.mm-empty { padding:48px 16px; text-align:center; color:var(--c-muted); font-size:13px; }
 .mm-up { margin-bottom:16px; }
 .mm-up-item { background:#fff; border:1px solid #e2e8f0; border-radius:9px; padding:9px 14px; margin-bottom:8px; }
 .mm-up-top { display:flex; justify-content:space-between; font-size:12.5px; color:#334155; margin-bottom:6px; }

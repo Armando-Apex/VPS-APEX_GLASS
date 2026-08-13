@@ -6,7 +6,7 @@
 require_once __DIR__ . '/../api/config.php';
 require_once __DIR__ . '/../api/permisos.php';
 
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/../api/session_boot.php'; // S2-10
 
 if (empty($_SESSION['user_id'])) {
     header('Location: /produccion/app/login.php'); exit;
@@ -18,6 +18,9 @@ $nombre   = $_SESSION['user_name'] ?? 'Operador';
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>">
+<script src="csrf_fetch.js"></script>
+<script src="utils.js"></script>
 <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96">
 <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
@@ -415,8 +418,7 @@ async function cargar() {
     renderDashboard(d);
     document.getElementById('tsLabel').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-MX', {hour:'2-digit',minute:'2-digit'});
   } catch(e) {
-    document.getElementById('mainContent').innerHTML =
-      '<div class="empty"><div class="empty-icon">⚠️</div>Error de conexión</div>';
+    document.getElementById('mainContent').innerHTML = stateErrorHTML('Error de conexión', 'cargar');
   }
   cargarBono();
 }

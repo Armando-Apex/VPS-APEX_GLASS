@@ -25,6 +25,8 @@ session_write_close();
 <html lang="es">
 
 <head>
+<meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>">
+<script src="csrf_fetch.js"></script>
 <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96">
 <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
@@ -187,7 +189,7 @@ body {
 .notif-dot.leida { background: transparent; }
 .notif-item-titulo { font-size: 13px; font-weight: 600; color: var(--text); }
 .notif-item-msg { font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
-.notif-item-tiempo { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+.notif-item-tiempo { font-size: 10px; color:var(--c-muted); margin-top: 2px; }
 .notif-empty { padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
 
 .btn-back {

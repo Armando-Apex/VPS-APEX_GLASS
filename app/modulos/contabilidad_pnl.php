@@ -87,7 +87,7 @@ header('Content-Type: text/html; charset=utf-8');
 .fila-final.positivo td:not(.concepto) { color: #0f766e; }
 .fila-final.negativo td:not(.concepto) { color: #9f1239; }
 
-.empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 14px; }
+.empty { text-align: center; padding: 48px; color:var(--c-muted); font-size: 14px; }
 
 @media (max-width: 640px) {
   #pnlRoot .main { padding: 20px 16px 36px; }

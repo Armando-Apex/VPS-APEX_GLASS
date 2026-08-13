@@ -39,7 +39,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 .mq-folio { font-weight: 700; color: #2563eb; }
 .badge-cot   { background: #dbeafe; color: #1d4ed8; }
 .badge-orden { background: #dcfce7; color: #15803d; }
-.badge-canc  { background: #f1f5f9; color: #94a3b8; }
+.badge-canc  { background: #f1f5f9; color:var(--c-muted); }
 .est-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
 .loading-msg { text-align: center; padding: 48px; color: #9ca3af; font-size: 14px; }
 .pager-inner { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 16px; border-top: 1px solid #f1f5f9; }
@@ -270,7 +270,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 100; max-height: 220px; overflow-y: auto; margin-top: 2px; }
 .autocomplete-item { padding: 9px 12px; cursor: pointer; font-size: 13px; }
 .autocomplete-item:hover { background: #f0f4f8; }
-.autocomplete-item .codigo { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.autocomplete-item .codigo { font-size: 11px; color:var(--c-muted); margin-top: 2px; }
 .mn-partida { border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
 .mn-partida-num { font-size: 12px; font-weight: 700; color: #2563eb; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .4px; }
 .mn-partida-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 12px; }
@@ -628,7 +628,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 .est-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
 .badge-cot   { background: #dbeafe; color: #1d4ed8; }
 .badge-orden { background: #dcfce7; color: #15803d; }
-.badge-canc  { background: #f1f5f9; color: #94a3b8; }
+.badge-canc  { background: #f1f5f9; color:var(--c-muted); }
 .mq-table { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
 table { width: 100%; border-collapse: collapse; }
 thead tr { background: #f8fafc; border-bottom: 2px solid #e2e8f0; }

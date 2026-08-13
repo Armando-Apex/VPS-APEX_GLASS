@@ -36,11 +36,11 @@ tbody td { padding: 10px 14px; font-size: 13px; }
 .mov-dot   { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
 .mov-main  { font-weight: 600; color: #1e293b; }
 .mov-sub   { color: #64748b; margin-top: 1px; }
-.mov-time  { margin-left: auto; color: #94a3b8; font-size: 11px; white-space: nowrap; }
+.mov-time  { margin-left: auto; color:var(--c-muted); font-size: 11px; white-space: nowrap; }
 .pag-btns  { display: flex; gap: 6px; padding: 8px 14px; }
 .pag-btn   { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; cursor: pointer; background: #f1f5f9; border: none; }
 .pag-btn.activo { background: #2563eb; color: white; }
-.loading-mod { padding: 32px; text-align: center; color: #94a3b8; font-size: 13px; }
+.loading-mod { padding: 32px; text-align: center; color:var(--c-muted); font-size: 13px; }
 
 @media(max-width:768px){
   .res-wrap { padding: 12px; }

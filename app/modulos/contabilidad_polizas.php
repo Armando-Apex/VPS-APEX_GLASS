@@ -62,9 +62,9 @@ tr:hover td { background: #f8fafc; }
 .badge-auto   { background: #dcfce7; color: #16a34a; }
 .badge-manual { background: #f1f5f9; color: #64748b; }
 .badge-activa { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; background: #dcfce7; color: #16a34a; }
-.badge-anulada { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; background: #f1f5f9; color: #94a3b8; text-decoration: line-through; }
+.badge-anulada { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; background: #f1f5f9; color:var(--c-muted); text-decoration: line-through; }
 
-.empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
+.empty { text-align: center; padding: 48px; color:var(--c-muted); font-size: 15px; }
 
 .modal-bg {
   display: none; position: fixed; inset: 0;
@@ -115,7 +115,7 @@ tr:hover td { background: #f8fafc; }
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <div class="rango-selector">
         <input type="date" id="fDesde">
-        <span style="color:#94a3b8">a</span>
+        <span style="color:var(--c-muted)">a</span>
         <input type="date" id="fHasta">
       </div>
       <?php if ($puedeEditar): ?><button class="btn btn-primary" onclick="ModPolizas._abrirModalNueva()">+ Nueva póliza</button><?php endif; ?>

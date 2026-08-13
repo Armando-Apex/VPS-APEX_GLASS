@@ -77,7 +77,7 @@ $maps_key = defined('GOOGLE_MAPS_KEY') ? GOOGLE_MAPS_KEY : '';
 .btn-borrar-ruta { background:none; border:1px solid #fca5a5; color:#dc2626; border-radius:8px; padding:5px 10px; font-size:13px; cursor:pointer; margin-left:auto; }
 .btn-borrar-ruta:hover { background:#fee2e2; }
 .btn-iniciar:hover { background:#d97706; }
-.no-rutas { color:#94a3b8; font-size:13px; text-align:center; padding:20px; }
+.no-rutas { color:var(--c-muted); font-size:13px; text-align:center; padding:20px; }
 
 /* Pendientes */
 .lr-pendientes-head { font-size:14px; font-weight:700; color:#0f172a; margin-bottom:10px; }
@@ -98,7 +98,7 @@ table.lr-tbl { width:100%; min-width:820px; border-collapse:collapse; font-size:
 .btn-pag { background:#fff; color:#334155; border:1px solid #e2e8f0; border-radius:6px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer; }
 .btn-pag:hover:not(:disabled) { background:#f8fafc; }
 .btn-pag:disabled { opacity:.4; cursor:default; }
-.loading-row td { text-align:center; color:#94a3b8; padding:30px; }
+.loading-row td { text-align:center; color:var(--c-muted); padding:30px; }
 
 /* Modales */
 .lr-modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:999; align-items:center; justify-content:center; padding:20px; }
@@ -128,10 +128,10 @@ table.lr-tbl { width:100%; min-width:820px; border-collapse:collapse; font-size:
 .tramo-row { display:flex; align-items:center; gap:6px; font-size:12px; color:#334155; padding:3px 0; flex-wrap:wrap; }
 .tramo-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
 .tramo-desde, .tramo-hasta { max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.tramo-flecha { color:#94a3b8; }
+.tramo-flecha { color:var(--c-muted); }
 .tramo-min { margin-left:auto; color:#0f172a; font-weight:600; white-space:nowrap; }
 .tramo-espera { color:#d97706; font-weight:600; }
-.tramo-nota { font-size:11px; color:#94a3b8; margin-top:6px; font-style:italic; }
+.tramo-nota { font-size:11px; color:var(--c-muted); margin-top:6px; font-style:italic; }
 .lr-map-label { background:#1e40af; color:#fff; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:700; white-space:nowrap; }
 /* Autocomplete nuevo — forzar estilo claro */
 .pac-container { z-index:99999 !important; font-family:-apple-system,sans-serif; font-size:13px; }
@@ -186,7 +186,7 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
 .as-pieza-med { font-size:11px; color:#374151; white-space:nowrap; }
 .as-piezas-footer { display:flex; justify-content:space-between; align-items:center; padding:6px 12px; background:#f8fafc; border-top:1px solid #e2e8f0; font-size:11px; color:#64748b; }
 .as-piezas-sel { font-weight:700; color:#2563eb; }
-.as-piezas-loading { text-align:center; padding:20px; color:#94a3b8; font-size:13px; }
+.as-piezas-loading { text-align:center; padding:20px; color:var(--c-muted); font-size:13px; }
 .as-sel-todos { background:none; border:none; color:#2563eb; font-size:11px; cursor:pointer; font-weight:600; padding:0; }
 
 /* Toast */
@@ -531,7 +531,7 @@ var LR = (function() {
       ruta.entregas.forEach(function(e, i) {
         var bCls = 'eb-' + e.entrega_estado;
         var dir  = [e.direccion, e.colonia, e.ciudad].filter(Boolean).map(escH).join(', ')
-                   || '<span style="color:#94a3b8">Sin direcci&oacute;n</span>';
+                   || '<span style="color:var(--c-muted)">Sin direcci&oacute;n</span>';
         var badgeParcial = e.es_parcial == 1
           ? ' <span class="badge-parcial-ruta" title="Ya sali&oacute; parte de esta orden (remisi&oacute;n impresa)">Parcial '+e.salida_piezas_count+'/'+e.salida_piezas_total+'</span>'
           : '';
@@ -558,7 +558,7 @@ var LR = (function() {
           + '</div>';
       });
     } else {
-      rows = '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:14px">Sin entregas asignadas</div>';
+      rows = '<div style="color:var(--c-muted);font-size:12px;text-align:center;padding:14px">Sin entregas asignadas</div>';
     }
 
     var btnPlanificar = '';
@@ -641,7 +641,7 @@ var LR = (function() {
     var tbody = document.getElementById('lr-pendientes-tbody');
     var pagDiv = document.getElementById('lr-pendientes-pag');
     if (!_pendientes.length) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:24px">Sin órdenes pendientes de asignar</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--c-muted);padding:24px">Sin órdenes pendientes de asignar</td></tr>';
       pagDiv.innerHTML = '';
       return;
     }
@@ -1027,7 +1027,7 @@ var LR = (function() {
         + (pz.ancho_mm && pz.alto_mm ? ' &bull; '+pz.ancho_mm+'&times;'+pz.alto_mm+'mm' : '') + '</span>'
         + '</label>';
     });
-    document.getElementById('ep-lista').innerHTML = html || '<div style="color:#94a3b8;font-size:12px">Sin piezas asignadas</div>';
+    document.getElementById('ep-lista').innerHTML = html || '<div style="color:var(--c-muted);font-size:12px">Sin piezas asignadas</div>';
     document.getElementById('modal-entrega-parcial').classList.add('open');
   }
 
@@ -1110,7 +1110,7 @@ var LR = (function() {
       });
       html += '</div>';
     });
-    document.getElementById('carga-lista').innerHTML = html || '<div style="color:#94a3b8;font-size:12px">Sin piezas asignadas</div>';
+    document.getElementById('carga-lista').innerHTML = html || '<div style="color:var(--c-muted);font-size:12px">Sin piezas asignadas</div>';
   }
 
   // Formatea minutos totales como "30 min" / "1 h" / "1 h 15 min"

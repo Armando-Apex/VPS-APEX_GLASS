@@ -151,6 +151,16 @@ if ($method === 'POST') {
         $stmt->execute([$cliente_id]);
         if (!$stmt->fetch()) { jsonResponse(['error' => 'Cliente no encontrado']); exit; }
 
+        // S2-04: anti-doble-clic — mismo depósito (cliente+monto+referencia) hace <8s
+        // se asume envío duplicado. Mismo patrón que api/finanzas.php (registrar_pago).
+        $stmt_dup = $db->prepare("SELECT id FROM clientes_saldo_favor
+            WHERE cliente_id = ? AND tipo = 'deposito' AND monto = ? AND referencia = ?
+              AND created_at >= (NOW() - INTERVAL 8 SECOND) LIMIT 1");
+        $stmt_dup->execute([$cliente_id, $monto, $referencia]);
+        if ($stmt_dup->fetch()) {
+            jsonResponse(['error' => 'Este depósito ya se registró hace unos segundos (posible doble clic). Revisa el saldo antes de reintentar.']); exit;
+        }
+
         $db->prepare("
             INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, creado_por)
             VALUES (?, 'deposito', ?, ?, ?, ?, ?)
@@ -182,6 +192,15 @@ if ($method === 'POST') {
         $stmt = $db->prepare("SELECT id FROM clientes WHERE id = ? AND activo = 1");
         $stmt->execute([$cliente_id]);
         if (!$stmt->fetch()) { jsonResponse(['error' => 'Cliente no encontrado']); exit; }
+
+        // S2-04: mismo guard anti-doble-clic que 'deposito'.
+        $stmt_dup = $db->prepare("SELECT id FROM clientes_saldo_favor
+            WHERE cliente_id = ? AND tipo = 'deposito' AND monto = ? AND referencia = ?
+              AND created_at >= (NOW() - INTERVAL 8 SECOND) LIMIT 1");
+        $stmt_dup->execute([$cliente_id, $monto, $referencia]);
+        if ($stmt_dup->fetch()) {
+            jsonResponse(['error' => 'Este depósito ya se registró hace unos segundos (posible doble clic). Revisa el saldo antes de reintentar.']); exit;
+        }
 
         $itemsLimpios = [];
         foreach ($items as $it) {

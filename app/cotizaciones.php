@@ -26,7 +26,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .header { background: #1a1a2e; color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
 .header h1 { font-size: 20px; font-weight: 800; letter-spacing: 1px; font-family: 'Syncopate', sans-serif; }
 .header .right { display: flex; gap: 16px; align-items: center; }
-.header a { color: #94a3b8; font-size: 13px; text-decoration: none; }
+.header a { color:var(--c-muted); font-size: 13px; text-decoration: none; }
 
 .main { padding: 24px; max-width: 1300px; margin: 0 auto; }
 .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -52,14 +52,14 @@ tr:hover td { background: #f8fafc; cursor: pointer; }
 
 .folio { font-weight: 800; color: #2563eb; font-size: 14px; }
 .monto { font-weight: 700; color: #1e293b; }
-.empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
-.count { font-size: 13px; color: #94a3b8; }
+.empty { text-align: center; padding: 48px; color:var(--c-muted); font-size: 15px; }
+.count { font-size: 13px; color:var(--c-muted); }
 
 .badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
 .badge-cotizacion { background: #dbeafe; color: #1d4ed8; }
 .badge-orden      { background: #fef3c7; color: #d97706; }
 .badge-entregada  { background: #dcfce7; color: #16a34a; }
-.badge-cancelada  { background: #f1f5f9; color: #94a3b8; }
+.badge-cancelada  { background: #f1f5f9; color:var(--c-muted); }
 .badge-bloqueada  { background: #fee2e2; color: #dc2626; }
 
 .icon-bloqueado { color: #dc2626; font-size: 14px; }

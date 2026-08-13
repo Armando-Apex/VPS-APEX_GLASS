@@ -64,6 +64,8 @@ foreach ($parts as $p) {
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>">
+<script src="csrf_fetch.js"></script>
 <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96">
 <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
@@ -79,7 +81,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 
 /* ── Barra impresión ── */
 .print-bar { background: #1a1a2e; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; }
-.print-bar span { color: #94a3b8; font-size: 12px; }
+.print-bar span { color:var(--c-muted); font-size: 12px; }
 .btn-print { background: #2563eb; color: white; border: none; padding: 8px 20px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; }
 
 /* ── Documento ── */

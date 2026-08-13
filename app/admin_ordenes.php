@@ -10,6 +10,8 @@ if ($user['rol'] !== 'dir_admin') {
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>">
+<script src="csrf_fetch.js"></script>
 <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96">
 <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
@@ -23,8 +25,8 @@ body { font-family: system-ui, sans-serif; background: #f1f5f9; color: #1e293b; 
 
 .topbar { background: #1a1a2e; color: white; padding: 14px 24px; display: flex; align-items: center; gap: 16px; }
 .topbar .titulo { font-size: 15px; font-weight: 700; letter-spacing: .5px; }
-.topbar .subtitulo { font-size: 12px; color: #94a3b8; }
-.topbar .back { margin-left: auto; color: #94a3b8; text-decoration: none; font-size: 13px; }
+.topbar .subtitulo { font-size: 12px; color:var(--c-muted); }
+.topbar .back { margin-left: auto; color:var(--c-muted); text-decoration: none; font-size: 13px; }
 .topbar .back:hover { color: white; }
 
 .container { max-width: 900px; margin: 32px auto; padding: 0 16px; }
@@ -61,7 +63,7 @@ tbody td { padding: 12px 14px; font-size: 13px; }
 .btn-restaurar { background: #dbeafe; color: #1d4ed8; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s; white-space: nowrap; }
 .btn-restaurar:hover { background: #bfdbfe; }
 
-.empty { padding: 40px; text-align: center; color: #94a3b8; font-size: 14px; }
+.empty { padding: 40px; text-align: center; color:var(--c-muted); font-size: 14px; }
 .loading { padding: 40px; text-align: center; color: #64748b; font-size: 13px; }
 
 /* Modal de confirmación */

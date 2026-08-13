@@ -229,15 +229,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
     $serie = preg_replace('/[^A-Z0-9]/', '', strtoupper($d['serie'] ?? 'A'));
     if (!$serie) $serie = 'A';
 
-    // Calcular totales (no confiar en el cliente)
-    $sub = 0; $iva = 0;
+    // S2-03: Calcular totales (no confiar en el cliente) — IVA a 2 decimales por
+    // línea (no acumulado a 6 y redondeado al final): el importe de cada línea se
+    // redondea primero a 2 decimales (igual que FacturAPI/el SAT hacen por
+    // concepto), y el IVA se calcula sobre la base gravable ya redondeada — evita
+    // que el total quede desfasado en centavos contra lo que el PAC realmente timbra.
+    $sub = 0; $subGravable = 0;
     foreach ($d['conceptos'] as $c) {
-        $imp  = (float)($c['cant'] ?? 0) * (float)($c['precio'] ?? 0);
+        $imp = round((float)($c['cant'] ?? 0) * (float)($c['precio'] ?? 0), 2);
         $sub += $imp;
-        if (!empty($c['iva'])) $iva += round($imp * 0.16, 6);
+        if (!empty($c['iva'])) $subGravable += $imp;
     }
     $sub   = round($sub, 2);
-    $iva   = round($iva, 2);
+    $iva   = round($subGravable * 0.16, 2);
     $total = round($sub + $iva, 2);
 
     $ordenFolio = trim($d['orden_folio'] ?? '') ?: null;

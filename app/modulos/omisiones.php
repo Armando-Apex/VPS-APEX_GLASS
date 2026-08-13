@@ -17,7 +17,7 @@ require_once __DIR__ . '/../../api/helpers/icons.php';
   gap: 20px; padding-bottom: 24px; margin-bottom: 22px; border-bottom: 1px solid #e2e8f0;
 }
 .om-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #64748b; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-.om-hero-eyebrow svg { color: #94a3b8; }
+.om-hero-eyebrow svg { color:var(--c-muted); }
 .om-hero-periodo { font-size: 15px; font-weight: 500; color: #334155; }
 .om-hero-numero-wrap { text-align: right; }
 .om-hero-label { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
@@ -59,12 +59,12 @@ require_once __DIR__ . '/../../api/helpers/icons.php';
 .om-detalle td { white-space: normal; }
 .om-detalle .col-fecha { color: #78716c; font-size: 12.5px; white-space: nowrap; }
 .om-detalle .col-orden strong { color: #1e293b; font-weight: 600; }
-.om-detalle .col-orden span { display: block; font-size: 11.5px; color: #94a3b8; margin-top: 1px; }
+.om-detalle .col-orden span { display: block; font-size: 11.5px; color:var(--c-muted); margin-top: 1px; }
 .om-detalle .col-pieza { font-size: 12.5px; color: #57534e; }
-.om-detalle .col-pieza span { display: block; color: #94a3b8; margin-top: 1px; }
+.om-detalle .col-pieza span { display: block; color:var(--c-muted); margin-top: 1px; }
 .om-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 500; background: #fef2f2; color: #9f1239; margin: 1px 3px 1px 0; }
 
-.om-empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 13.5px; }
+.om-empty { text-align: center; padding: 48px; color:var(--c-muted); font-size: 13.5px; }
 .om-spinner {
   width: 20px; height: 20px; margin: 0 auto 10px; border-radius: 50%;
   border: 2.5px solid #e2e8f0; border-top-color: #64748b;

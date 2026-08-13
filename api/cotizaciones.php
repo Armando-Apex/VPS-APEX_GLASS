@@ -555,7 +555,7 @@ if ($method === 'POST') {
         $ancho      = (int)($p['ancho'] ?? 0);
         $alto       = (int)($p['alto']  ?? 0);
 
-        if (!$cristal_id || !$ancho || !$alto) continue;
+        if (!$cristal_id || $ancho <= 0 || $alto <= 0) continue; // S2-05: <= 0, no falsy (rechaza medidas negativas)
 
         $stmt = $db->prepare("SELECT nombre, nombre_etiqueta, precio_m2 FROM cristales WHERE id = ? AND activo = 1");
         $stmt->execute([$cristal_id]);
@@ -759,7 +759,7 @@ if ($method === 'PUT') {
             $cantidad   = max(1, (int)($p['cantidad'] ?? 1));
             $ancho      = (int)($p['ancho'] ?? 0);
             $alto       = (int)($p['alto']  ?? 0);
-            if (!$cristal_id || !$ancho || !$alto) continue;
+            if (!$cristal_id || $ancho <= 0 || $alto <= 0) continue; // S2-05: <= 0, no falsy (rechaza medidas negativas)
 
             $stmt = $db->prepare("SELECT nombre, nombre_etiqueta, precio_m2 FROM cristales WHERE id = ? AND activo = 1");
             $stmt->execute([$cristal_id]);

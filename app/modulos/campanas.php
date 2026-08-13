@@ -22,7 +22,7 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','adm
 .cmp-metricas{display:flex;gap:20px;font-size:12px;color:#64748b;margin-top:10px;flex-wrap:wrap;}
 .cmp-metrica span{font-weight:700;color:#1e293b;}
 .cmp-wizard-steps{display:flex;gap:0;margin-bottom:20px;}
-.cmp-step{flex:1;text-align:center;padding:8px;font-size:12px;font-weight:600;color:#94a3b8;border-bottom:3px solid #e2e8f0;}
+.cmp-step{flex:1;text-align:center;padding:8px;font-size:12px;font-weight:600;color:var(--c-muted);border-bottom:3px solid #e2e8f0;}
 .cmp-step.active{color:#2563eb;border-bottom-color:#2563eb;}
 .cmp-step.done{color:#16a34a;border-bottom-color:#16a34a;}
 .cmp-clientes-tabla{max-height:300px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;}
@@ -44,7 +44,7 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','adm
 .conv-item-nombre{font-size:13px;font-weight:600;color:#1e293b;}
 .conv-item-preview{font-size:11px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
 .conv-badge{background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;float:right;margin-top:2px;}
-.conv-item-menu-btn{position:absolute;right:8px;bottom:10px;background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;padding:2px 6px;border-radius:4px;display:none;line-height:1;}
+.conv-item-menu-btn{position:absolute;right:8px;bottom:10px;background:none;border:none;cursor:pointer;color:var(--c-muted);font-size:16px;padding:2px 6px;border-radius:4px;display:none;line-height:1;}
 .conv-item:hover .conv-item-menu-btn{display:block;}
 .conv-item-menu-btn:hover{background:#e2e8f0;color:#475569;}
 .conv-ctx-menu{position:fixed;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:9999;min-width:160px;padding:4px 0;}
@@ -58,7 +58,7 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','adm
 .msg-burbuja{max-width:75%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5;word-break:break-word;white-space:pre-wrap;}
 .msg-out{background:var(--c-blue-light);border-bottom-right-radius:3px;}
 .msg-in{background:#fff;border:1px solid #e2e8f0;border-bottom-left-radius:3px;}
-.msg-meta{font-size:10px;color:#94a3b8;margin-top:4px;text-align:right;}
+.msg-meta{font-size:10px;color:var(--c-muted);margin-top:4px;text-align:right;}
 .msg-in .msg-meta{text-align:left;}
 .msg-burbuja{position:relative;}
 .msg-reply-btn{display:none;position:absolute;top:4px;right:4px;background:rgba(255,255,255,.9);border:1px solid #e2e8f0;border-radius:99px;padding:2px 8px;font-size:12px;cursor:pointer;color:#475569;box-shadow:0 1px 4px rgba(0,0,0,.1);line-height:1.4;}
@@ -67,7 +67,7 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','adm
 .msg-out .msg-quoted{border-left-color:#16a34a;}
 .reply-bar{display:flex;align-items:center;gap:8px;background:#f1f5f9;border-radius:6px;padding:6px 10px;font-size:12px;color:#475569;}
 .reply-bar-text{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.reply-bar-close{background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;line-height:1;padding:0 2px;}
+.reply-bar-close{background:none;border:none;cursor:pointer;color:var(--c-muted);font-size:16px;line-height:1;padding:0 2px;}
 .reply-bar-close:hover{color:#dc2626;}
 .conv-input{border-top:1px solid #e2e8f0;padding:12px;display:flex;flex-direction:column;gap:8px;background:#fff;}
 .conv-input-row{display:flex;gap:8px;align-items:flex-end;}
@@ -95,12 +95,12 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','adm
 .emoji-panel button{background:none;border:none;font-size:20px;cursor:pointer;padding:4px;border-radius:4px;line-height:1;}
 .emoji-panel button:hover{background:#f1f5f9;}
 .emoji-section-sep{grid-column:1/-1;height:1px;background:#f1f5f9;margin:4px 0;}
-.emoji-section-label{grid-column:1/-1;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px;}
+.emoji-section-label{grid-column:1/-1;font-size:10px;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.05em;padding:2px 0 4px;}
 .conv-media-preview{display:flex;align-items:center;gap:10px;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#475569;}
 .conv-media-preview img{height:48px;width:48px;object-fit:cover;border-radius:4px;}
 .conv-media-preview .prev-nombre{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .conv-media-preview .prev-quitar{background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px;padding:0 4px;}
-.conv-vacio{flex:1;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:13px;flex-direction:column;gap:8px;}
+.conv-vacio{flex:1;display:flex;align-items:center;justify-content:center;color:var(--c-muted);font-size:13px;flex-direction:column;gap:8px;}
 .conv-ventana-cerrada{background:#fef3c7;border-top:1px solid #fde68a;padding:10px 14px;font-size:12px;color:#92400e;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
 .conv-ventana-cerrada button{background:#d97706;color:#fff;border:none;border-radius:5px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;white-space:nowrap;}
 .conv-ventana-cerrada button:hover{background:#b45309;}
@@ -291,7 +291,7 @@ var ModCampanas = (function() {
                         '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">' +
                         '<div>' +
                         '<strong style="font-size:14px;">' + esc(c.nombre) + '</strong>' +
-                        '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">' + fmtFecha(c.created_at) + ' &middot; <code>' + esc(c.template_nombre) + '</code></div>' +
+                        '<div style="font-size:11px;color:var(--c-muted);margin-top:2px;">' + fmtFecha(c.created_at) + ' &middot; <code>' + esc(c.template_nombre) + '</code></div>' +
                         '</div>' +
                         '<span class="cmp-badge ' + esc(c.estado) + '">' + esc(c.estado).toUpperCase() + '</span>' +
                         '</div>' +
@@ -299,22 +299,22 @@ var ModCampanas = (function() {
                         '<div style="background:#f8fafc;border-radius:6px;padding:8px 4px;">' +
                             '<div style="font-size:18px;font-weight:700;color:#334155;">' + env + '</div>' +
                             '<div style="font-size:10px;color:#64748b;margin-top:2px;">Enviados</div>' +
-                            '<div style="font-size:11px;color:#94a3b8;">' + pEnv + '% de ' + tot + '</div>' +
+                            '<div style="font-size:11px;color:var(--c-muted);">' + pEnv + '% de ' + tot + '</div>' +
                         '</div>' +
                         '<div style="background:#f0fdf4;border-radius:6px;padding:8px 4px;">' +
                             '<div style="font-size:18px;font-weight:700;color:#16a34a;">' + ent + '</div>' +
                             '<div style="font-size:10px;color:#64748b;margin-top:2px;">Entregados</div>' +
-                            '<div style="font-size:11px;color:#94a3b8;">' + pEnt + '% env.</div>' +
+                            '<div style="font-size:11px;color:var(--c-muted);">' + pEnt + '% env.</div>' +
                         '</div>' +
                         '<div style="background:#f5f3ff;border-radius:6px;padding:8px 4px;">' +
                             '<div style="font-size:18px;font-weight:700;color:#7c3aed;">' + lei + '</div>' +
                             '<div style="font-size:10px;color:#64748b;margin-top:2px;">Le&iacute;dos</div>' +
-                            '<div style="font-size:11px;color:#94a3b8;">' + pLei + '% env.</div>' +
+                            '<div style="font-size:11px;color:var(--c-muted);">' + pLei + '% env.</div>' +
                         '</div>' +
                         '<div style="background:#fff7ed;border-radius:6px;padding:8px 4px;">' +
                             '<div style="font-size:18px;font-weight:700;color:#ea580c;">' + res + '</div>' +
                             '<div style="font-size:10px;color:#64748b;margin-top:2px;">Respuestas</div>' +
-                            '<div style="font-size:11px;color:#94a3b8;">' + pRes + '% env.</div>' +
+                            '<div style="font-size:11px;color:var(--c-muted);">' + pRes + '% env.</div>' +
                         '</div>' +
                         '</div>' +
                         '<div style="background:#f1f5f9;border-radius:4px;overflow:hidden;height:6px;margin-bottom:12px;">' +
@@ -524,7 +524,7 @@ var ModCampanas = (function() {
                     '</tr>';
             });
             if (_clientesSeleccionados.length > 50) {
-                filas += '<tr><td colspan="3" style="padding:6px 10px;font-size:11px;color:#94a3b8;">...y ' + (_clientesSeleccionados.length - 50) + ' m&aacute;s</td></tr>';
+                filas += '<tr><td colspan="3" style="padding:6px 10px;font-size:11px;color:var(--c-muted);">...y ' + (_clientesSeleccionados.length - 50) + ' m&aacute;s</td></tr>';
             }
             cont.innerHTML =
                 '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;margin-bottom:14px;">' +
@@ -570,7 +570,7 @@ var ModCampanas = (function() {
             wrap.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;';
 
             var lbl = document.createElement('span');
-            lbl.style.cssText = 'font-size:12px;color:#94a3b8;width:32px;flex-shrink:0;';
+            lbl.style.cssText = 'font-size:12px;color:var(--c-muted);width:32px;flex-shrink:0;';
             lbl.textContent = '{{' + (i + 1) + '}}';
 
             var sel = document.createElement('select');
@@ -1090,7 +1090,7 @@ var ModCampanas = (function() {
             var cid = c.id;
             var cnombre = esc(c.nombre_cliente || c.telefono).replace(/'/g,"&#39;");
             var nombreMostrar = c.nombre_cliente ? esc(c.nombre_cliente) : esc(fmtTel10(c.telefono));
-            var telChip = c.nombre_cliente ? ' <span style="font-size:11px;color:#94a3b8;font-weight:500;">' + esc(fmtTel10(c.telefono)) + '</span>' : '';
+            var telChip = c.nombre_cliente ? ' <span style="font-size:11px;color:var(--c-muted);font-weight:500;">' + esc(fmtTel10(c.telefono)) + '</span>' : '';
             var activaCls = (_convActiva === cid) ? ' active' : '';
             html += '<div class="conv-item' + activaCls + '" onclick="window.cmpAbrirConv(' + cid + ',\'' + cnombre + '\')" id="convItem' + cid + '">' +
                 badgeSL +
@@ -1133,7 +1133,7 @@ var ModCampanas = (function() {
 
         var tipo      = _convTipoMap[convId] || 'desconocido';
         var badgeTipo = _tipoBadge[tipo] || '';
-        var telChip   = ' <span style="font-size:11px;color:#94a3b8;font-weight:500;">' + esc(fmtTel10(_convTelMap[convId])) + '</span>';
+        var telChip   = ' <span style="font-size:11px;color:var(--c-muted);font-weight:500;">' + esc(fmtTel10(_convTelMap[convId])) + '</span>';
         var nombreHeaderHtml = (tipo === 'prospecto' || tipo === 'desconocido')
             ? '<span onclick="window.cmpAbrirContacto(' + convId + ')" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;" title="Ver / editar contacto">' + esc(_convActivaNombre) + '</span>'
             : esc(_convActivaNombre);
@@ -1193,7 +1193,7 @@ var ModCampanas = (function() {
         var chat = document.getElementById('cmpConvChat');
         chat.innerHTML =
             '<div class="conv-header">' + nombreHeaderHtml + telChip + badgeTipo + '</div>' +
-            '<div class="conv-mensajes" id="cmpMsgs"><p style="color:#94a3b8;font-size:12px;text-align:center;">Cargando mensajes...</p></div>' +
+            '<div class="conv-mensajes" id="cmpMsgs"><p style="color:var(--c-muted);font-size:12px;text-align:center;">Cargando mensajes...</p></div>' +
             inputHtml;
 
         if (ventanaAbierta) {
@@ -1282,19 +1282,19 @@ var ModCampanas = (function() {
                     if (m.contenido && m.contenido.indexOf('/produccion/') === 0) {
                         contenidoHtml = '<img src="' + esc(m.contenido) + '" style="max-width:220px;max-height:220px;border-radius:6px;display:block;cursor:pointer;" onclick="window.open(this.src,\'_blank\')">';
                     } else {
-                        contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128247; Imagen</div>';
+                        contenidoHtml = '<div style="font-size:11px;color:var(--c-muted);">&#128247; Imagen</div>';
                     }
                 } else if (m.tipo === 'audio') {
                     if (m.contenido && m.contenido.indexOf('/produccion/') === 0) {
                         contenidoHtml = '<audio controls style="max-width:220px;display:block;margin:2px 0;"><source src="' + esc(m.contenido) + '">Tu navegador no soporta audio.</audio>';
                     } else {
-                        contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#127908; Nota de voz</div>';
+                        contenidoHtml = '<div style="font-size:11px;color:var(--c-muted);">&#127908; Nota de voz</div>';
                     }
                 } else if (m.tipo === 'video') {
                     if (m.contenido && m.contenido.indexOf('/produccion/') === 0) {
                         contenidoHtml = '<video controls style="max-width:260px;max-height:200px;border-radius:6px;display:block;"><source src="' + esc(m.contenido) + '" type="video/mp4">Tu navegador no soporta video.</video>';
                     } else {
-                        contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#127916; Video</div>';
+                        contenidoHtml = '<div style="font-size:11px;color:var(--c-muted);">&#127916; Video</div>';
                     }
                 } else if (m.tipo === 'ubicacion') {
                     // formato: "lat,lng" (inbound) o "lat,lng|nombre" (outbound)
@@ -1316,7 +1316,7 @@ var ModCampanas = (function() {
                             '<div style="font-size:12px;color:#2563eb;padding:6px 0;">&#128205; ' + labelUbic + ' &mdash; Ver en Google Maps</div>' +
                             '</a>';
                     } else {
-                        contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128205; Ubicaci&oacute;n</div>';
+                        contenidoHtml = '<div style="font-size:11px;color:var(--c-muted);">&#128205; Ubicaci&oacute;n</div>';
                     }
                 } else if (m.tipo === 'contacto') {
                     var contactosHtml = '';
@@ -1329,9 +1329,9 @@ var ModCampanas = (function() {
                                 (tels ? '<div style="font-size:12px;color:#2563eb;margin-top:2px;">' + tels + '</div>' : '') +
                                 '</div>';
                         });
-                        contenidoHtml = contactosHtml || '<div style="font-size:11px;color:#94a3b8;">&#128100; Contacto</div>';
+                        contenidoHtml = contactosHtml || '<div style="font-size:11px;color:var(--c-muted);">&#128100; Contacto</div>';
                     } catch (e) {
-                        contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128100; Contacto</div>';
+                        contenidoHtml = '<div style="font-size:11px;color:var(--c-muted);">&#128100; Contacto</div>';
                     }
                 } else if (m.tipo === 'documento') {
                     var docParts = (m.contenido || '').split('|');
@@ -1343,7 +1343,7 @@ var ModCampanas = (function() {
                         contenidoHtml = '<a href="' + esc(m.contenido) + '" target="_blank" style="display:flex;align-items:center;gap:6px;color:#2563eb;font-size:13px;text-decoration:none;">&#128196; Ver documento</a>';
                     } else {
                         // Solo nombre (mensajes viejos sin descarga)
-                        contenidoHtml = '<div style="font-size:11px;color:#94a3b8;">&#128196; ' + esc(m.contenido) + '</div>';
+                        contenidoHtml = '<div style="font-size:11px;color:var(--c-muted);">&#128196; ' + esc(m.contenido) + '</div>';
                     }
                 } else {
                     // Texto: preservar saltos de línea con white-space:pre-wrap (aplicado via CSS en .msg-burbuja)
@@ -1363,7 +1363,7 @@ var ModCampanas = (function() {
             if (msgsEl) {
                 msgsEl.setAttribute('data-conv-id', convId);
                 var cercaAbajo = !preservarScroll || (msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight) < 80;
-                msgsEl.innerHTML = msgs || '<p style="color:#94a3b8;font-size:12px;text-align:center;">Sin mensajes a&uacute;n.</p>';
+                msgsEl.innerHTML = msgs || '<p style="color:var(--c-muted);font-size:12px;text-align:center;">Sin mensajes a&uacute;n.</p>';
                 if (cercaAbajo) { msgsEl.scrollTop = msgsEl.scrollHeight; }
                 // Restaurar el punto donde iba cualquier audio que estaba pausado a medias
                 for (var srcRestaurar in audiosPausadosProgreso) {

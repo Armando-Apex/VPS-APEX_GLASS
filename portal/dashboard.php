@@ -5,7 +5,7 @@
 // ============================================================
 require_once __DIR__ . '/../api/config.php';
 
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/../api/session_boot.php'; // S2-10
 if (empty($_SESSION['portal_cliente_id'])) {
     header('Location: index.php'); exit;
 }
@@ -24,6 +24,7 @@ $cliente_razon = $rowCli ? ($rowCli['razon_social'] ?: $rowCli['nombre']) : '';
 $stmt = $pdo->prepare("
     SELECT
         o.folio,
+        o.cliente_id,
         o.orden_trabajo,
         o.proyecto,
         COALESCE(DATE(c.vobo_at), o.fecha_pedido) AS fecha_pedido,
@@ -60,12 +61,20 @@ $stmt = $pdo->prepare("
 $stmt->execute([$cliente_id, $cliente_razon]);
 $ordenes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// S2-14 fase 1: medir quién depende del fallback por nombre, sin cambiar el comportamiento.
+foreach ($ordenes as $o) {
+    if ((int)$o['cliente_id'] !== (int)$cliente_id) {
+        error_log('[S2-14] acceso-por-nombre folio=' . $o['folio'] . ' cliente_sesion=' . $cliente_id);
+    }
+}
+
 $activas    = array_filter($ordenes, fn($o) => $o['estado'] === 'activa');
 $entregadas = array_filter($ordenes, fn($o) => $o['estado'] === 'entregada');
 
 $stmtCot = $pdo->prepare("
     SELECT
         c.folio,
+        c.cliente_id,
         c.fecha,
         c.proyecto,
         c.total,
@@ -78,6 +87,13 @@ $stmtCot = $pdo->prepare("
 ");
 $stmtCot->execute([$cliente_id, $cliente_razon]);
 $cotizaciones = $stmtCot->fetchAll(PDO::FETCH_ASSOC);
+
+// S2-14 fase 1: medir quién depende del fallback por nombre, sin cambiar el comportamiento.
+foreach ($cotizaciones as $c) {
+    if ((int)$c['cliente_id'] !== (int)$cliente_id) {
+        error_log('[S2-14] acceso-por-nombre folio=' . $c['folio'] . ' cliente_sesion=' . $cliente_id);
+    }
+}
 
 function cotTag($estatus) {
     switch ($estatus) {

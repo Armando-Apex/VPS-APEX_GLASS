@@ -5,7 +5,7 @@ require_once __DIR__ . '/../api/permisos.php';
 // Roles que tienen acceso a operador.php
 $rolesOperador = ['operador','chofer','jefe_piso','director','dir_admin','desarrollo'];
 
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/../api/session_boot.php'; // S2-10
 
 if (empty($_SESSION['user_id'])) {
     header('Location: /produccion/app/login.php');
@@ -33,6 +33,8 @@ $user = [
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>">
+<script src="csrf_fetch.js"></script>
 <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96">
 <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
@@ -1142,7 +1144,7 @@ function setupButton(p) {
     } else {
       btn.textContent   = '⛔ Pieza no está lista para terminar';
       btn.className     = 'btn-action done';
-      btn.style.cssText = 'background:#334155;color:#94a3b8;cursor:not-allowed;font-size:14px;opacity:1';
+      btn.style.cssText = 'background:#334155;color:var(--c-muted);cursor:not-allowed;font-size:14px;opacity:1';
       btn.onclick       = null;
     }
     return;
@@ -2029,7 +2031,7 @@ async function buscarPorNumero() {
               <div style="font-size:11px;color:#6b6b7a;margin-top:2px">${p.cristal_corto||p.cristal||''} &bull; ${p.ancho_mm}&times;${p.alto_mm}mm</div>
               ${tags.length ? '<div style="font-size:10px;color:#f5a623;margin-top:2px">' + tags.join(' &middot; ') + '</div>' : ''}
             </div>
-            <div style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:#1a1a2e;color:#94a3b8">
+            <div style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:#1a1a2e;color:var(--c-muted)">
               ${p.estatus.toUpperCase()}
             </div>
           </div>

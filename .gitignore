@@ -11,6 +11,7 @@ archivos_ordenes/
 # Logs y temporales
 *.log
 *.tmp
+error_log
 
 # Cache runtime GPS (contiene token en vivo)
 scripts/gps_cache/

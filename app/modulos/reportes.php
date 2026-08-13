@@ -24,15 +24,15 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .rep-tipo-badge.mejora { background: #dbeafe; color: #1d4ed8; }
 .rep-content { flex: 1; }
 .rep-desc { font-size: 13px; color: #1e293b; margin-bottom: 6px; line-height: 1.5; }
-.rep-meta { font-size: 11px; color: #94a3b8; display: flex; gap: 12px; flex-wrap: wrap; }
+.rep-meta { font-size: 11px; color:var(--c-muted); display: flex; gap: 12px; flex-wrap: wrap; }
 .rep-meta strong { color: #64748b; }
 .rep-estado { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .rep-badge-pend { font-size: 11px; font-weight: 700; background: #fef3c7; color: #92400e; padding: 2px 9px; border-radius: 99px; }
 .rep-badge-comp { font-size: 11px; font-weight: 700; background: #dcfce7; color: #166534; padding: 2px 9px; border-radius: 99px; }
 .rep-btn-comp { background: #166534; color: #fff; border: none; padding: 6px 14px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .rep-btn-comp:hover { background: #15803d; }
-.rep-empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 13px; }
-.rep-completado-por { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+.rep-empty { text-align: center; padding: 48px; color:var(--c-muted); font-size: 13px; }
+.rep-completado-por { font-size: 10px; color:var(--c-muted); margin-top: 2px; }
 .rep-elem-chip { display:inline-flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
 .rep-elem-tag { background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; font-size:11px; padding:2px 8px; color:#0284c7; }
 .rep-elem-tag span { color:#0c4a6e; font-family:monospace; }
@@ -41,7 +41,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .rep-modal-back { display:none; position:fixed; inset:0; background:rgba(15,23,42,.5); z-index:9999; align-items:center; justify-content:center; padding:20px; }
 .rep-modal-back.open { display:flex; }
 .rep-modal { background:#fff; border-radius:12px; max-width:560px; width:100%; max-height:85vh; overflow-y:auto; padding:22px 24px; }
-.rep-modal-close { float:right; background:none; border:none; font-size:20px; cursor:pointer; color:#94a3b8; line-height:1; }
+.rep-modal-close { float:right; background:none; border:none; font-size:20px; cursor:pointer; color:var(--c-muted); line-height:1; }
 .rep-modal h3 { margin:0 0 14px; font-size:16px; color:#1a1a1a; }
 .rep-modal-desc { font-size:13px; color:#1e293b; line-height:1.6; white-space:pre-wrap; background:#f8fafc; border-radius:8px; padding:12px 14px; margin-bottom:14px; }
 .rep-modal-field { font-size:12px; color:#475569; margin-bottom:8px; }

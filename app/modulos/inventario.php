@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
+require_once __DIR__ . '/../../api/helpers/icons.php'; // S3-02
 $user = requirePermiso('ver_inventario');
 $puedeGestionar = in_array($user['rol'], ['dir_admin','administracion','dueno','desarrollo']);
 $esDirAdmin     = $user['rol'] === 'dir_admin';
@@ -45,7 +46,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .kpi-card.warn   { border-top-color: #f59e0b; }
 .kpi-num { font-size: 28px; font-weight: 800; color: #1e293b; line-height: 1; }
 .kpi-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .5px; margin-top: 6px; }
-.kpi-sub { font-size: 12px; color: #94a3b8; margin-top: 3px; }
+.kpi-sub { font-size: 12px; color:var(--c-muted); margin-top: 3px; }
 
 /* Alertas banner */
 .alerta-banner {
@@ -99,7 +100,7 @@ tr:hover td { background: #f8fafc; }
 .modal { background:white; border-radius:16px; width:90%; max-width:540px; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.2); }
 .modal-head { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid var(--c-border); }
 .modal-title { font-size:16px; font-weight:800; color:#1e293b; }
-.modal-close { background:none; border:none; font-size:20px; color:#94a3b8; cursor:pointer; padding:2px 8px; border-radius:6px; }
+.modal-close { background:none; border:none; font-size:20px; color:var(--c-muted); cursor:pointer; padding:2px 8px; border-radius:6px; }
 .modal-close:hover { background:#f1f5f9; }
 .modal-body { padding:20px 22px; }
 .modal-footer { padding:14px 22px; border-top:1px solid var(--c-border); display:flex; gap:8px; justify-content:flex-end; }
@@ -115,14 +116,14 @@ tr:hover td { background: #f8fafc; }
   transition:border-color .15s;
 }
 .form-input:focus, .form-select:focus, .form-textarea:focus { border-color:#2563eb; }
-.form-hint { font-size:11px; color:#94a3b8; }
+.form-hint { font-size:11px; color:var(--c-muted); }
 
 /* Compras detalle */
 .detalle-compras { background:#f8fafc; border-radius:10px; padding:14px; margin-top:14px; }
 .detalle-title { font-size:12px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px; }
 
 /* Loading */
-.loading-row td { text-align:center; padding:40px; color:#94a3b8; font-size:13px; }
+.loading-row td { text-align:center; padding:40px; color:var(--c-muted); font-size:13px; }
 
 /* Flete badge */
 .flete-incluido { color:#16a34a; font-weight:700; }
@@ -214,7 +215,7 @@ tr:hover td { background: #f8fafc; }
 
   <!-- Banner alertas (solo si hay stock bajo) -->
   <div id="invAlertaBanner" style="display:none" class="alerta-banner">
-    <div class="icon">&#9888;&#65039;</div>
+    <div class="icon"><?= icono('alert-triangle') ?></div>
     <div class="txt" id="invAlertaTxt"></div>
   </div>
 
@@ -436,7 +437,7 @@ tr:hover td { background: #f8fafc; }
         </div>
       </div>
       <div id="ajustePreview" style="margin-top:6px;font-size:13px;font-weight:600"></div>
-      <div style="margin-top:10px;font-size:12px;color:#94a3b8">Esto registra un movimiento de salida en el inventario (no borra ni edita compras existentes). Solo puede corregir el stock hacia abajo — para aumentarlo usa "Registrar compra". No se puede deshacer desde aqu&#237;.</div>
+      <div style="margin-top:10px;font-size:12px;color:var(--c-muted)">Esto registra un movimiento de salida en el inventario (no borra ni edita compras existentes). Solo puede corregir el stock hacia abajo — para aumentarlo usa "Registrar compra". No se puede deshacer desde aqu&#237;.</div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="invCerrarModal('modalAjusteStock')">Cancelar</button>
@@ -835,11 +836,11 @@ async function cargarStock() {
       var cls      = l.alerta_stock==1 ? 'alerta' : (pct!==null && pct<150 ? 'warn' : 'ok');
       var barW     = pct !== null ? Math.min(pct, 100) : 100;
       var estadoBadge = l.alerta_stock==1
-        ? '<span class="badge badge-alerta">&#9888;&#65039; Stock bajo</span>'
+        ? '<span class="badge badge-alerta">' + iconoJS('alert-triangle') + ' Stock bajo</span>'
         : '<span class="badge badge-ok">&#10003; OK</span>';
-      var acciones = puedeGestionar ? '<button class="btn-icon" title="Editar" onclick="invEditarLamina('+l.id+')">&#9998;</button>' : '';
+      var acciones = puedeGestionar ? '<button class="btn-icon" title="Editar" onclick="invEditarLamina('+l.id+')">'+iconoJS('edit-2')+'</button>' : '';
       if (puedeAjustarStock) {
-        acciones += '<button class="btn-icon" title="Ajustar stock" onclick="invAbrirAjusteStock('+l.id+')">&#128295;</button>';
+        acciones += '<button class="btn-icon" title="Ajustar stock" onclick="invAbrirAjusteStock('+l.id+')">'+iconoJS('refresh-cw')+'</button>';
       }
       return '<tr>'+
         '<td><strong>'+(tipoLabel[l.tipo]||l.tipo)+'</strong></td>'+
@@ -848,7 +849,7 @@ async function cargarStock() {
         '<td>'+fmt(l.m2,2)+' m&#178;</td>'+
         '<td><strong>'+stock+'</strong> l&#225;m.</td>'+
         '<td><div class="stock-bar-wrap"><div class="stock-bar"><div class="stock-fill '+cls+'" style="width:'+barW+'%"></div></div><div class="stock-pct">'+(pct !== null ? pct+'%' : '&#8212;')+'</div></div><div style="font-size:11px;color:#64748b;margin-top:2px">'+fmt(stockM2,1)+' m&#178;</div></td>'+
-        '<td>'+(rM2>0 ? fmt(rM2,1)+' m&#178;' : '<span style="color:#94a3b8">&#8212;</span>')+'</td>'+
+        '<td>'+(rM2>0 ? fmt(rM2,1)+' m&#178;' : '<span style="color:var(--c-muted)">&#8212;</span>')+'</td>'+
         '<td>'+fmtPeso(l.costo_prom_m2)+'/m&#178;</td>'+
         '<td>'+estadoBadge+'</td>'+
         (puedeGestionar ? '<td>'+acciones+'</td>' : '')+
@@ -879,7 +880,7 @@ async function cargarCompras() {
         '<td>'+(fleteLabel[c.flete_tipo]||c.flete_tipo)+(parseFloat(c.costo_flete_total)>0 ? '<div style="font-size:11px;color:#64748b">'+fmtPeso(c.costo_flete_total)+' total</div>' : '')+'</td>'+
         '<td><strong>'+fmtPeso(c.costo_real_unitario)+'</strong></td>'+
         '<td style="font-size:12px;color:#64748b">'+(c.referencia||'&#8212;')+'</td>'+
-        '<td style="font-size:12px;color:#94a3b8">'+(c.registrado_por||'&#8212;')+'</td>'+
+        '<td style="font-size:12px;color:var(--c-muted)">'+(c.registrado_por||'&#8212;')+'</td>'+
         '</tr>';
     }).join('');
   } catch(e) { console.error(e); }
@@ -903,7 +904,7 @@ async function cargarProveedores() {
         '<td>'+(p.email||'&#8212;')+'</td>'+
         '<td style="font-size:12px;color:#64748b">'+(p.notas||'&#8212;')+'</td>'+
         '<td>'+(p.activo==1 ? '<span class="badge badge-ok">Activo</span>' : '<span class="badge badge-gray">Inactivo</span>')+'</td>'+
-        (puedeGestionar ? '<td><button class="btn-icon" title="Editar" onclick="invEditarProveedor('+p.id+')">&#9998;</button></td>' : '')+
+        (puedeGestionar ? '<td><button class="btn-icon" title="Editar" onclick="invEditarProveedor('+p.id+')">'+iconoJS('edit-2')+'</button></td>' : '')+
         '</tr>';
     }).join('');
   } catch(e) { console.error(e); }
@@ -1192,7 +1193,7 @@ async function cargarCalendario() {
 // ── OC: Ver detalle ──────────────────────────────────────────
 async function ocVerDetalle(id) {
   $('modalOCTitulo').textContent = 'Cargando&#8230;';
-  $('modalOCBody').innerHTML = '<div style="text-align:center;padding:32px;color:#94a3b8">Cargando&#8230;</div>';
+  $('modalOCBody').innerHTML = '<div style="text-align:center;padding:32px;color:var(--c-muted)">Cargando&#8230;</div>';
   invAbrirModal('modalDetalleOC');
   try {
     var r = await fetch('../api/ordenes_compra.php?accion=detalle&id='+id);
@@ -1208,15 +1209,15 @@ async function ocVerDetalle(id) {
 
     var html =
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px">'+
-      '<div><span style="font-size:11px;color:#94a3b8;text-transform:uppercase">Proveedor</span><br><strong>'+oc.proveedor_nombre+'</strong><br><span style="font-size:12px;color:#64748b">'+(oc.proveedor_telefono||'')+'</span></div>'+
-      '<div><span style="font-size:11px;color:#94a3b8;text-transform:uppercase">Fecha OC</span><br><strong>'+fmtFecha(oc.fecha_oc)+'</strong></div>'+
-      '<div><span style="font-size:11px;color:#94a3b8;text-transform:uppercase">Estado</span><br>'+
+      '<div><span style="font-size:11px;color:var(--c-muted);text-transform:uppercase">Proveedor</span><br><strong>'+oc.proveedor_nombre+'</strong><br><span style="font-size:12px;color:#64748b">'+(oc.proveedor_telefono||'')+'</span></div>'+
+      '<div><span style="font-size:11px;color:var(--c-muted);text-transform:uppercase">Fecha OC</span><br><strong>'+fmtFecha(oc.fecha_oc)+'</strong></div>'+
+      '<div><span style="font-size:11px;color:var(--c-muted);text-transform:uppercase">Estado</span><br>'+
         '<span class="badge '+(estadoBadge[oc.estado]||'badge-gray')+'">'+oc.estado+'</span>'+
         (oc.estado==='borrador' && puedeGestionar ? '<button class="btn btn-ghost btn-sm" style="margin-top:4px" onclick="ocCambiarEstado('+oc.id+',\'abierta\')">Abrir OC</button>' : '')+
       '</div>'+
-      '<div><span style="font-size:11px;color:#94a3b8;text-transform:uppercase">Cr&#233;dito</span><br><strong>'+oc.dias_credito+' d&#237;as</strong></div>'+
-      '<div><span style="font-size:11px;color:#94a3b8;text-transform:uppercase">Fecha pago</span><br><strong style="color:#f59e0b">'+(fmtFecha(oc.fecha_pago_programada)||'&#8212;')+'</strong></div>'+
-      '<div><span style="font-size:11px;color:#94a3b8;text-transform:uppercase">Total c/IVA</span><br><strong style="font-size:18px">'+fmtPeso(total)+'</strong></div>'+
+      '<div><span style="font-size:11px;color:var(--c-muted);text-transform:uppercase">Cr&#233;dito</span><br><strong>'+oc.dias_credito+' d&#237;as</strong></div>'+
+      '<div><span style="font-size:11px;color:var(--c-muted);text-transform:uppercase">Fecha pago</span><br><strong style="color:#f59e0b">'+(fmtFecha(oc.fecha_pago_programada)||'&#8212;')+'</strong></div>'+
+      '<div><span style="font-size:11px;color:var(--c-muted);text-transform:uppercase">Total c/IVA</span><br><strong style="font-size:18px">'+fmtPeso(total)+'</strong></div>'+
       '</div>'+
 
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
@@ -1243,7 +1244,7 @@ async function ocVerDetalle(id) {
             '<td>'+fmtPeso(p.importe)+'</td>'+
             '<td>'+(parseFloat(p.cantidad_recibida||0)>0 ? '<strong style="color:#16a34a">'+p.cantidad_recibida+'</strong>' : '0')+'/'+p.cantidad+'</td>'+
             '<td style="white-space:nowrap">'+
-              (puedeEditarPartida ? '<button class="btn-icon" title="Editar" onclick="npEditar('+oc.id+','+p.id+','+p.cantidad+','+p.precio_unitario+',\''+descEsc+'\',\''+p.unidad+'\')">&#9998;</button>' : '')+
+              (puedeEditarPartida ? '<button class="btn-icon" title="Editar" onclick="npEditar('+oc.id+','+p.id+','+p.cantidad+','+p.precio_unitario+',\''+descEsc+'\',\''+p.unidad+'\')">'+iconoJS('edit-2')+'</button>' : '')+
               (puedeEditarPartida ? '<button class="btn-icon" title="Eliminar partida" style="color:#dc2626" onclick="npEliminar('+oc.id+','+p.id+',\''+descEsc+'\')">&#128465;</button>' : '')+
             '</td>'+
             '</tr>';
@@ -1559,7 +1560,7 @@ async function ocAbrirDistribuir(ocId, numeroOc) {
   _dfMetodo  = 'lamina';
   $('dfTitulo').textContent = 'Distribuir flete — ' + numeroOc;
   $('dfMetodo').value = 'lamina';
-  $('dfComprasLista').innerHTML = '<div style="color:#94a3b8;padding:12px">Cargando&#8230;</div>';
+  $('dfComprasLista').innerHTML = '<div style="color:var(--c-muted);padding:12px">Cargando&#8230;</div>';
   $('dfPreview').style.display = 'none';
   invAbrirModal('modalDistribuirFlete');
   try {
@@ -1569,7 +1570,7 @@ async function ocAbrirDistribuir(ocId, numeroOc) {
     var compras   = d.compras || [];
     $('dfMontoFlete').textContent = fmtPeso(_dfTotalFlete);
     if (!compras.length) {
-      $('dfComprasLista').innerHTML = '<div style="color:#94a3b8;padding:12px">No hay compras en inventario con stock disponible.</div>';
+      $('dfComprasLista').innerHTML = '<div style="color:var(--c-muted);padding:12px">No hay compras en inventario con stock disponible.</div>';
       return;
     }
     var ocAnterior = null;
@@ -1651,7 +1652,7 @@ async function cargarConsumo() {
     var d = await r.json();
     var movs = d.movimientos || [];
     if (!movs.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#94a3b8">Sin registros de consumo</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--c-muted)">Sin registros de consumo</td></tr>';
       return;
     }
     tbody.innerHTML = movs.map(function(m) {
@@ -1666,7 +1667,7 @@ async function cargarConsumo() {
         '<td style="color:#64748b">' + dim + '</td>' +
         '<td><span class="badge badge-info">' + escAttr(m.cantidad_laminas) + ' l&#225;m.</span></td>' +
         '<td style="color:#64748b;font-size:12px;max-width:320px">' + detalle + '</td>' +
-        '<td style="color:#94a3b8;font-size:12px">' + (m.operador_nombre ? escAttr(m.operador_nombre) : '&#8212;') + '</td>' +
+        '<td style="color:var(--c-muted);font-size:12px">' + (m.operador_nombre ? escAttr(m.operador_nombre) : '&#8212;') + '</td>' +
       '</tr>';
     }).join('');
   } catch(e) {

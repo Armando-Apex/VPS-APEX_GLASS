@@ -224,13 +224,13 @@ async function rdCargar() {
     const inv  = await r3.json().catch(function(){ return {}; });
     const ef   = await r4.json().catch(function(){ return {}; });
     if (rep.error) {
-      document.getElementById('rdMain').innerHTML = '<div class="loading" style="color:#dc2626">Error: ' + rep.error + '</div>';
+      document.getElementById('rdMain').innerHTML = stateErrorHTML(rep.error, 'rdCargar');
       return;
     }
     rdRender(rep, dash, inv, ef);
     document.getElementById('rdTs').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
   } catch(e) {
-    document.getElementById('rdMain').innerHTML = '<div class="loading" style="color:#dc2626">Error de conexi&#243;n</div>';
+    document.getElementById('rdMain').innerHTML = stateErrorHTML('Error de conexión', 'rdCargar');
   }
 }
 
@@ -750,7 +750,7 @@ function rvCargar() {
     .then(function(r) { return r.json(); })
     .then(function(data) { rvRender(data); })
     .catch(function() {
-      document.getElementById('rvMain').innerHTML = '<div class="loading" style="color:#dc2626">Error de conexi&#243;n</div>';
+      document.getElementById('rvMain').innerHTML = stateErrorHTML('Error de conexión', 'rvCargar');
     });
 }
 
@@ -792,6 +792,7 @@ rdCargar();
 setInterval(rdCargar, 300000);
 
 window.rdCargar        = rdCargar;
+window.rvCargar        = rvCargar;
 window.rdToggleAlmacen = rdToggleAlmacen;
 window.rdTabSwitch     = rdTabSwitch;
 window.rvSetGran       = rvSetGran;

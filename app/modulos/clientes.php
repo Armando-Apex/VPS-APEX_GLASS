@@ -47,8 +47,8 @@ tbody td { padding: 11px 14px; font-size: 13px; }
   display:flex; justify-content:space-between; align-items:flex-start; flex-shrink:0;
 }
 .cli-panel-head h3 { font-size:16px; font-weight:700; margin-bottom:3px; line-height:1.3; }
-.cli-panel-head p  { font-size:12px; color:#94a3b8; }
-.cli-panel-close { background:none; border:none; color:#94a3b8; font-size:20px; cursor:pointer; padding:0; line-height:1; }
+.cli-panel-head p  { font-size:12px; color:var(--c-muted); }
+.cli-panel-close { background:none; border:none; color:var(--c-muted); font-size:20px; cursor:pointer; padding:0; line-height:1; }
 .cli-panel-close:hover { color:#fff; }
 .cli-panel-body { padding:24px; overflow-y:auto; flex:1; }
 .cli-info-row {
@@ -56,7 +56,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
   padding:14px 0; border-bottom:1px solid #f1f5f9;
 }
 .cli-info-row:last-child { border-bottom:none; }
-.cli-info-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#94a3b8; }
+.cli-info-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--c-muted); }
 .cli-info-valor { font-size:14px; color:#1e293b; font-weight:500; }
 .cli-info-valor.mono { font-family:monospace; font-size:13px; letter-spacing:.5px; }
 .cli-info-valor.muted { color:#64748b; font-weight:400; }
@@ -82,7 +82,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 /* datos fiscales panel */
 .cli-fiscal-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; padding:2px 7px; border-radius:99px; margin-left:6px; vertical-align:middle; }
 .cli-fiscal-badge.ok  { background:#dcfce7; color:#166534; }
-.cli-fiscal-badge.no  { background:#f1f5f9; color:#94a3b8; }
+.cli-fiscal-badge.no  { background:#f1f5f9; color:var(--c-muted); }
 .cli-fiscal-drop {
   border:2px dashed #cbd5e1; border-radius:8px; padding:14px 16px;
   display:flex; align-items:center; gap:12px; cursor:pointer;
@@ -121,7 +121,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 .cli-btn-gen { background:#2563eb; color:#fff; border-color:#2563eb; }
 .cli-btn-gen:hover { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
 .cli-copy-ok { font-size:11px; color:#16a34a; display:none; }
-.cli-sin-acceso { font-size:13px; color:#94a3b8; font-style:italic; }
+.cli-sin-acceso { font-size:13px; color:var(--c-muted); font-style:italic; }
 
 @media(max-width:768px){
   .cli-wrap { padding: 12px; }
@@ -299,7 +299,7 @@ window.cliAbrirPanel = function(id) {
   var _tieneTel = !!(c.telefono_alterno || c.telefono);
   var _btnWA = PUEDE_GENERAR && _tieneTel
     ? ` <button class="cli-btn-sm cli-btn-wa" id="btn-enviar-wa-${c.id}" onclick="cliEnviarAccesoWA(${c.id})">&#128241; Enviar por WA</button>`
-    : (PUEDE_GENERAR && !_tieneTel ? ` <span style="font-size:11px;color:#94a3b8">Sin tel. para WA</span>` : '');
+    : (PUEDE_GENERAR && !_tieneTel ? ` <span style="font-size:11px;color:var(--c-muted)">Sin tel. para WA</span>` : '');
   if (!c.portal_password) {
     passHTML = `<span class="cli-sin-acceso">Sin acceso al portal</span>`;
     if (PUEDE_GENERAR) {
@@ -357,7 +357,7 @@ window.cliAbrirPanel = function(id) {
     </div>
     <div class="cli-info-row">
       <div class="cli-info-label">&#128176; Saldo a Favor</div>
-      <div class="cli-info-valor" id="panel-saldo-favor"><span style="color:#94a3b8">Cargando...</span></div>
+      <div class="cli-info-valor" id="panel-saldo-favor"><span style="color:var(--c-muted)">Cargando...</span></div>
     </div>
     <div class="cli-info-row" id="panel-fiscal-section">
       ${cliFiscalSeccionHtml(c)}
@@ -380,7 +380,7 @@ window.cliAbrirPanel = function(id) {
         el.innerHTML = '<span style="font-size:15px;font-weight:700;color:#15803d">' + fmt + '</span>'
           + ' <span style="font-size:11px;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:99px;font-weight:700">Disponible</span>';
       } else {
-        el.innerHTML = '<span style="color:#94a3b8">$0.00</span>';
+        el.innerHTML = '<span style="color:var(--c-muted)">$0.00</span>';
       }
     })
     .catch(function() {});
@@ -674,20 +674,20 @@ function cliFiscalSeccionHtml(c) {
     datosHtml = `
       <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div>
-          <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em">RFC</div>
+          <div style="font-size:10px;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em">RFC</div>
           <div style="font-family:monospace;font-weight:700;font-size:13px;color:#1e293b">${c.rfc}</div>
         </div>
         <div>
-          <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em">CP Fiscal</div>
+          <div style="font-size:10px;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em">CP Fiscal</div>
           <div style="font-size:13px;color:#1e293b">${c.cp_fiscal || '—'}</div>
         </div>
         <div style="grid-column:1/-1">
-          <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em">Régimen Fiscal</div>
+          <div style="font-size:10px;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em">Régimen Fiscal</div>
           <div style="font-size:12px;color:#1e293b">${c.regimen_fiscal ? (REGIMENES[c.regimen_fiscal] || c.regimen_fiscal) : '—'}</div>
         </div>
       </div>`;
   } else {
-    datosHtml = '<div style="font-size:12px;color:#94a3b8;margin-top:6px">Sin datos fiscales. Sube la Constancia de Situación Fiscal para registrarlos.</div>';
+    datosHtml = '<div style="font-size:12px;color:var(--c-muted);margin-top:6px">Sin datos fiscales. Sube la Constancia de Situación Fiscal para registrarlos.</div>';
   }
 
   const btnLabel = tieneRfc ? '&#128196; Actualizar desde CSF' : '&#128196; Subir Constancia SAT';

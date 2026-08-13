@@ -1,7 +1,7 @@
 <?php
 require_once 'config.php';
 require_once 'permisos.php';
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/session_boot.php'; // S2-10
 header('Content-Type: application/json; charset=utf-8');
 
 $user = requirePermiso('ver_dashboard');

@@ -31,7 +31,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 .cot-folio { font-weight: 700; color: #2563eb; }
 .badge-cot   { background: #dbeafe; color: #1d4ed8; }
 .badge-orden { background: #dcfce7; color: #15803d; }
-.badge-canc  { background: #f1f5f9; color: #94a3b8; }
+.badge-canc  { background: #f1f5f9; color:var(--c-muted); }
 .badge-rech  { background: #fee2e2; color: #991b1b; }
 .badge-inac  { background: #f1f5f9; color: #64748b; }
 .est-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
@@ -241,7 +241,7 @@ function cotFiltrar() {
     var badgeClass = esInactiva(c)?'badge-inac':c.estatus==='cotizacion'?'badge-cot':c.estatus==='orden'?'badge-orden':c.estatus==='rechazada'?'badge-rech':'badge-canc';
     var badgeLabel = esInactiva(c)?'Inactiva':c.estatus==='cotizacion'?'Cotizaci&#243;n':c.estatus==='orden'?'Orden':c.estatus==='rechazada'?'Rechazada':'Cancelada';
     var folioCell = c.orden_folio
-      ? '<span class="cot-folio">'+c.orden_folio+'</span><br><span style="font-size:11px;color:#94a3b8">'+c.folio+'</span>'
+      ? '<span class="cot-folio">'+c.orden_folio+'</span><br><span style="font-size:11px;color:var(--c-muted)">'+c.folio+'</span>'
       : '<span class="cot-folio">'+(c.folio||'&#8212;')+'</span>';
     return '<tr onclick="irA(\'cotizacion\',{id:\''+c.id+'\'})">'
       +'<td>'+folioCell+'</td>'

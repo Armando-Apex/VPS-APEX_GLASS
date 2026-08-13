@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
+require_once __DIR__ . '/../../api/helpers/icons.php'; // S3-02
 $user = requirePermiso('cambiar_cualquier_estatus');
 if (!in_array($user['rol'], ['dir_admin', 'desarrollo'])) { echo '<div style="padding:40px;color:#dc2626">Acceso denegado</div>'; exit; }
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
@@ -38,7 +39,7 @@ tbody td{padding:10px 14px;font-size:13px;}
 .modal .acciones{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
 .modal .btn-ok{background:#dc2626;color:white;border:none;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;}
 .modal .btn-cancel{background:#f1f5f9;color:#374151;border:none;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
-.empty{padding:32px;text-align:center;color:#94a3b8;font-size:13px;}
+.empty{padding:32px;text-align:center;color:var(--c-muted);font-size:13px;}
 .toast{position:fixed;bottom:24px;right:24px;background:#1e293b;color:white;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.3);z-index:200;transform:translateY(80px);opacity:0;transition:all .3s;}
 .toast.show{transform:translateY(0);opacity:1;}
 .toast.error{background:#dc2626;}
@@ -98,18 +99,18 @@ tbody td{padding:10px 14px;font-size:13px;}
   <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #e2e8f0;">
     <button id="tab-btn-cancelar" onclick="adminTab('cancelar')"
       style="padding:10px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:#2563eb;border-bottom:2px solid #2563eb;margin-bottom:-2px">
-      &#128683; Cancelar / Restaurar
+      <?= icono('ban') ?> Cancelar / Restaurar
     </button>
     <button id="tab-btn-estatus" onclick="adminTab('estatus')"
       style="padding:10px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:#64748b;border-bottom:2px solid transparent;margin-bottom:-2px">
-      &#9998;&#65039; Correcci&#243;n de Estatus
+      <?= icono('edit-2') ?> Correcci&#243;n de Estatus
     </button>
   </div>
 
   <!-- Panel 1: Cancelar/Restaurar -->
   <div id="panel-cancelar">
     <div class="aviso">
-      &#9888;&#65039; <div>Al <strong>cancelar</strong> una orden se oculta del dashboard y las piezas dejan de contarse en producci&#243;n. El historial se conserva. Puedes restaurarla en cualquier momento.</div>
+      <?= icono('alert-triangle') ?> <div>Al <strong>cancelar</strong> una orden se oculta del dashboard y las piezas dejan de contarse en producci&#243;n. El historial se conserva. Puedes restaurarla en cualquier momento.</div>
     </div>
     <div class="filtros">
       <input type="text" id="buscar" placeholder="&#128269; N&#250;mero de orden, folio o cliente..." oninput="filtrar()" onkeydown="if(event.key==='Enter')filtrar()">
@@ -127,14 +128,14 @@ tbody td{padding:10px 14px;font-size:13px;}
   <!-- Panel 2: Corrección de Estatus -->
   <div id="panel-estatus" style="display:none">
     <div class="aviso" style="background:#fef3c7;border-left-color:#d97706">
-      &#9888;&#65039; <div>Cambia el estatus de <strong>todas las piezas</strong> de una orden de un solo golpe. &#218;til para corregir &#243;rdenes del sistema anterior.</div>
+      <?= icono('alert-triangle') ?> <div>Cambia el estatus de <strong>todas las piezas</strong> de una orden de un solo golpe. &#218;til para corregir &#243;rdenes del sistema anterior.</div>
     </div>
     <div class="filtros">
       <input type="text" id="buscar-estatus" placeholder="&#128269; Buscar folio o cliente..." oninput="buscarParaEstatus()">
     </div>
     <div id="estatus-resultado"></div>
     <div id="estatus-form" style="display:none;background:white;border-radius:12px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-top:16px">
-      <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;color:#1e293b">&#9998;&#65039; Corregir Estatus Masivo</h3>
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;color:#1e293b"><?= icono('edit-2') ?> Corregir Estatus Masivo</h3>
       <div id="estatus-orden-info" style="background:#f8fafc;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:13px;font-weight:600;color:#1e293b"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
         <div>
@@ -170,7 +171,7 @@ tbody td{padding:10px 14px;font-size:13px;}
 <!-- Modal cancelar -->
 <div class="modal-overlay" id="modalCancelar">
   <div class="modal">
-    <h3>&#128683; Cancelar orden</h3>
+    <h3><?= icono('ban') ?> Cancelar orden</h3>
     <p>&#191;Est&#225;s seguro de que deseas cancelar esta orden?</p>
     <p>La orden se ocultar&#225; del sistema pero el historial se conserva. Puedes restaurarla despu&#233;s.</p>
     <div class="orden-info">
@@ -191,6 +192,14 @@ tbody td{padding:10px 14px;font-size:13px;}
 window.ModAdminOrdenes = (function() {
   let _ordenes = [], _folioActual = null, _estatusOrdenActual = null;
 
+  // S1-09: escapar datos de servidor antes de interpolar en innerHTML/onclick (mismo patrón que archivos_ordenes.php)
+  function escHtml(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function escJs(s) {
+    return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  }
+
   async function cargar() {
     try {
       const res  = await fetch('../api/admin_ordenes.php');
@@ -210,16 +219,16 @@ window.ModAdminOrdenes = (function() {
     document.getElementById('tbody').innerHTML = lista.map(o => {
       const badgeCls = o.estado === 'activa' ? 'badge-activa' : 'badge-cancelada';
       const btn = o.estado === 'cancelada'
-        ? `<button class="btn-restaurar" onclick="restaurar('${o.folio}','${(o.cliente_nombre||'').replace(/'/g,"\\'")}')">&#8617; Restaurar</button>`
-        : `<button class="btn-cancelar" onclick="abrirModal('${o.folio}','${(o.cliente_nombre||'').replace(/'/g,"\\'")}',${o.total_piezas||0})">&#128683; Cancelar</button>`;
+        ? `<button class="btn-restaurar" onclick="restaurar('${escJs(o.folio)}','${escJs(o.cliente_nombre||'')}')">${iconoJS('rotate-ccw')} Restaurar</button>`
+        : `<button class="btn-cancelar" onclick="abrirModal('${escJs(o.folio)}','${escJs(o.cliente_nombre||'')}',${parseInt(o.total_piezas,10)||0})">${iconoJS('ban')} Cancelar</button>`;
       const fecha = o.fecha_entrega ? new Date(o.fecha_entrega+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '&#8212;';
       return `<tr>
-        <td class="td-folio" onclick="irA('orden',{folio:'${o.folio}'})">${o.folio}</td>
-        <td>${o.cliente_nombre||'&#8212;'}</td>
-        <td style="color:#64748b">${o.asesor||'&#8212;'}</td>
+        <td class="td-folio" onclick="irA('orden',{folio:'${escJs(o.folio)}'})">${escHtml(o.folio)}</td>
+        <td>${escHtml(o.cliente_nombre)||'&#8212;'}</td>
+        <td style="color:#64748b">${escHtml(o.asesor)||'&#8212;'}</td>
         <td style="color:#64748b">${fecha}</td>
-        <td style="color:#64748b">${o.total_piezas||0} pzs</td>
-        <td><span class="estado-badge ${badgeCls}">${o.estado||''}</span></td>
+        <td style="color:#64748b">${parseInt(o.total_piezas,10)||0} pzs</td>
+        <td><span class="estado-badge ${badgeCls}">${escHtml(o.estado)}</span></td>
         <td>${btn}</td>
       </tr>`;
     }).join('');
@@ -304,14 +313,14 @@ window.ModAdminOrdenes = (function() {
       return;
     }
     document.getElementById('estatus-resultado').innerHTML = lista.map(o =>
-      `<div onclick="seleccionarOrdenEstatus('${o.folio}','${(o.cliente_nombre||'').replace(/'/g,"\\'")}',${o.total_piezas||0})"
+      `<div onclick="seleccionarOrdenEstatus('${escJs(o.folio)}','${escJs(o.cliente_nombre||'')}',${parseInt(o.total_piezas,10)||0})"
         style="padding:12px 16px;background:white;border-radius:8px;margin-bottom:6px;cursor:pointer;border:1.5px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center"
         onmouseover="this.style.borderColor='#2563eb'" onmouseout="this.style.borderColor='#e2e8f0'">
         <div>
-          <div style="font-weight:700;color:#2563eb">${o.folio}</div>
-          <div style="font-size:12px;color:#64748b">${o.cliente_nombre||''} &middot; ${o.asesor||''}</div>
+          <div style="font-weight:700;color:#2563eb">${escHtml(o.folio)}</div>
+          <div style="font-size:12px;color:#64748b">${escHtml(o.cliente_nombre)} &middot; ${escHtml(o.asesor)}</div>
         </div>
-        <div style="font-size:12px;color:#64748b">${o.total_piezas||0} pzs &middot; ${o.estado||''}</div>
+        <div style="font-size:12px;color:#64748b">${parseInt(o.total_piezas,10)||0} pzs &middot; ${escHtml(o.estado)}</div>
       </div>`
     ).join('');
   }
@@ -320,7 +329,7 @@ window.ModAdminOrdenes = (function() {
     _estatusOrdenActual = folio;
     document.getElementById('estatus-resultado').innerHTML = '';
     document.getElementById('buscar-estatus').value = folio;
-    document.getElementById('estatus-orden-info').innerHTML = `<strong>${folio}</strong> &mdash; ${cliente} &mdash; ${totalPzs} piezas`;
+    document.getElementById('estatus-orden-info').innerHTML = `<strong>${escHtml(folio)}</strong> &mdash; ${escHtml(cliente)} &mdash; ${parseInt(totalPzs,10)||0} piezas`;
 
     try {
       const res  = await fetch('../api/orden.php?folio='+encodeURIComponent(folio));
@@ -330,8 +339,8 @@ window.ModAdminOrdenes = (function() {
       partidas.forEach(p => {
         (p.piezas||[]).forEach(pz => {
           rows += `<div style="display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid #f1f5f9">
-            <span>P${p.partida} &bull; Pieza ${pz.pieza_num} &bull; ${p.cristal||''} ${p.ancho_mm}&#215;${p.alto_mm}mm</span>
-            <span style="color:#64748b;font-weight:600">${pz.estatus||''}</span>
+            <span>P${parseInt(p.partida,10)||0} &bull; Pieza ${parseInt(pz.pieza_num,10)||0} &bull; ${escHtml(p.cristal)} ${parseInt(p.ancho_mm,10)||0}&#215;${parseInt(p.alto_mm,10)||0}mm</span>
+            <span style="color:#64748b;font-weight:600">${escHtml(pz.estatus)}</span>
           </div>`;
         });
       });

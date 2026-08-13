@@ -11,6 +11,8 @@ $modo         = $id_cot ? 'ver' : 'nuevo';
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>">
+<script src="csrf_fetch.js"></script>
 <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96">
 <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
@@ -28,7 +30,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .header { background: #1a1a2e; color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
 .header h1 { font-size: 20px; font-weight: 800; letter-spacing: 1px; font-family: 'Syncopate', sans-serif; }
 .header .right { display: flex; gap: 16px; align-items: center; }
-.header a { color: #94a3b8; font-size: 13px; text-decoration: none; }
+.header a { color:var(--c-muted); font-size: 13px; text-decoration: none; }
 
 .main { padding: 24px; max-width: 1500px; margin: 0 auto; }
 
@@ -54,7 +56,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 }
 .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: #2563eb; }
 .field input[readonly] { background: #f8fafc; color: #64748b; }
-.field .hint { font-size: 11px; color: #94a3b8; }
+.field .hint { font-size: 11px; color:var(--c-muted); }
 
 /* Partidas */
 .partidas-header { display: grid; grid-template-columns: 36px 200px 55px 75px 75px 120px 150px 52px 52px 52px 130px 36px; gap: 6px; padding: 6px 10px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; }
@@ -88,7 +90,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .badge-cotizacion { background: #dbeafe; color: #1d4ed8; }
 .badge-orden      { background: #fef3c7; color: #d97706; }
 .badge-entregada  { background: #dcfce7; color: #16a34a; }
-.badge-cancelada  { background: #f1f5f9; color: #94a3b8; }
+.badge-cancelada  { background: #f1f5f9; color:var(--c-muted); }
 
 /* Alerta saldo */
 .alerta-saldo { background: #fee2e2; border: 1.5px solid #fca5a5; border-radius: 10px; padding: 14px 18px; color: #dc2626; font-weight: 700; margin-bottom: 16px; display: none; }
@@ -99,7 +101,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 100; max-height: 240px; overflow-y: auto; }
 .autocomplete-item { padding: 10px 14px; cursor: pointer; font-size: 14px; }
 .autocomplete-item:hover { background: #f0f4f8; }
-.autocomplete-item .codigo { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.autocomplete-item .codigo { font-size: 11px; color:var(--c-muted); margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -114,7 +116,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 </div>
 
 <div class="main" id="mainContent">
-  <div class="empty" style="padding:48px;text-align:center;color:#94a3b8">Cargando...</div>
+  <div class="empty" style="padding:48px;text-align:center;color:var(--c-muted)">Cargando...</div>
 </div>
 
 <script>
@@ -168,7 +170,7 @@ function renderFormulario(data) {
     html += '<div style="margin-top:8px"><span class="badge badge-' + estatus + '">' + etiquetaEstatus(estatus) + '</span></div>';
   } else {
     html += '<div style="font-size:15px;font-weight:700;color:#1e293b">Nueva Cotización</div>';
-    html += '<div style="font-size:13px;color:#94a3b8;margin-top:4px">El folio se generará al guardar</div>';
+    html += '<div style="font-size:13px;color:var(--c-muted);margin-top:4px">El folio se generará al guardar</div>';
   }
   html += '</div>';
 

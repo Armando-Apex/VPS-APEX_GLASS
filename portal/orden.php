@@ -5,7 +5,7 @@
 // ============================================================
 require_once __DIR__ . '/../api/config.php';
 
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/../api/session_boot.php'; // S2-10
 if (empty($_SESSION['portal_cliente_id'])) {
     header('Location: index.php'); exit;
 }
@@ -25,14 +25,19 @@ $rowCli = $stmtCli->fetch(PDO::FETCH_ASSOC);
 $cliente_razon = $rowCli ? ($rowCli['razon_social'] ?: $rowCli['nombre']) : '';
 
 $stmtCheck = $pdo->prepare("
-    SELECT id FROM ordenes
+    SELECT id, cliente_id AS orden_cliente_id FROM ordenes
     WHERE folio = ?
       AND (cliente_id = ? OR cliente_nombre = ?)
     LIMIT 1
 ");
 $stmtCheck->execute([$folio, $cliente_id, $cliente_razon]);
-if (!$stmtCheck->fetch()) {
+$rowCheck = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+if (!$rowCheck) {
     header('Location: dashboard.php'); exit;
+}
+// S2-14 fase 1: medir quién depende del fallback por nombre, sin cambiar el comportamiento.
+if ((int)$rowCheck['orden_cliente_id'] !== (int)$cliente_id) {
+    error_log('[S2-14] acceso-por-nombre folio=' . $folio . ' cliente_sesion=' . $cliente_id);
 }
 ?>
 <!DOCTYPE html>

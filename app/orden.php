@@ -50,7 +50,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px;
   margin-bottom: 16px;
 }
-.meta-item label { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; }
+.meta-item label { font-size: 11px; font-weight: 700; color:var(--c-muted); text-transform: uppercase; letter-spacing: .5px; }
 .meta-item p { font-size: 15px; font-weight: 700; color: #1e293b; margin-top: 3px; }
 
 .orden-stats { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -135,8 +135,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .tiempo-chip { font-size: 11px; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 10px; }
 .tiempo-chip.alerta  { background: #fef3c7; color: #d97706; }
 .tiempo-chip.urgente { background: #fef2f2; color: #dc2626; }
-.qr-code { font-family: monospace; font-size: 11px; color: #94a3b8; }
-.loading { text-align: center; padding: 60px; color: #94a3b8; }
+.qr-code { font-family: monospace; font-size: 11px; color:var(--c-muted); }
+.loading { text-align: center; padding: 60px; color:var(--c-muted); }
 
 @media (max-width: 768px) {
   .orden-meta { grid-template-columns: 1fr 1fr; }

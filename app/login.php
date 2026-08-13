@@ -7,7 +7,7 @@ require_once __DIR__ . '/../api/config.php';
 require_once __DIR__ . '/../api/permisos.php';
 
 // Si ya tiene sesion, redirigir segun rol
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/../api/session_boot.php'; // S2-10
 if (!empty($_SESSION['user_id'])) {
     $redireccion = REDIRECCION_LOGIN[$_SESSION['user_rol']] ?? 'operador.php';
     header('Location: ' . $redireccion);

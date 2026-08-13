@@ -7,7 +7,7 @@
 require_once __DIR__ . '/../api/config.php';
 require_once __DIR__ . '/../api/helpers/referidos_lib.php';
 
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/../api/session_boot.php'; // S2-10
 
 if (empty($_SESSION['portal_cliente_id'])) {
     header('Location: index.php');

@@ -37,7 +37,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .cot-head-min-eyebrow { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #2563eb; }
 .cot-head-min-eyebrow svg { flex-shrink: 0; }
 .cot-head-min-title { font-family: 'Outfit', system-ui, -apple-system, sans-serif; font-size: 23px; font-weight: 600; letter-spacing: -.2px; color: #0f172a; }
-.cot-head-min-sub { font-size: 12.5px; color: #94a3b8; margin-top: 3px; }
+.cot-head-min-sub { font-size: 12.5px; color:var(--c-muted); margin-top: 3px; }
 .cot-head-min-top .type-toggle { margin-bottom: 0; }
 .card-title { font-size: 15px; font-weight: 800; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
 .folio-badge { background: var(--c-dark-2); color: white; font-size: 22px; font-weight: 800; padding: 8px 20px; border-radius: var(--r-sm); font-family: 'Syncopate', sans-serif; letter-spacing: 2px; }
@@ -52,7 +52,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .field input, .field select, .field textarea { padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 14px; color: #1e293b; background: white; width: 100%; }
 .field input:focus, .field select:focus { outline: none; border-color: #2563eb; }
 .field input[readonly] { background: #f8fafc; color: #64748b; }
-.field .hint { font-size: 11px; color: #94a3b8; }
+.field .hint { font-size: 11px; color:var(--c-muted); }
 /* Toggle Factura genérica */
 .fact-toggle { display:flex; align-items:center; justify-content:center; gap:9px; height:42px; border:1.5px solid #e2e8f0; border-radius:8px; background:white; cursor:pointer; font-size:13px; font-weight:700; color:#374151; transition:all .15s; }
 .fact-toggle:hover { border-color:#cbd5e1; background:#f8fafc; }
@@ -132,7 +132,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .badge-cotizacion { background: #dbeafe; color: #1d4ed8; }
 .badge-orden      { background: #fef3c7; color: #d97706; }
 .badge-entregada  { background: #dcfce7; color: #16a34a; }
-.badge-cancelada  { background: #f1f5f9; color: #94a3b8; }
+.badge-cancelada  { background: #f1f5f9; color:var(--c-muted); }
 .badge-rechazada  { background: #fee2e2; color: #991b1b; }
 /* Alerta saldo */
 .alerta-saldo { background: #fee2e2; border: 1.5px solid #fca5a5; border-radius: 10px; padding: 14px 18px; color: #dc2626; font-weight: 700; margin-bottom: 16px; display: none; }
@@ -143,7 +143,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .corr-modal { background:white; border-radius:16px; width:100%; max-width:980px; box-shadow:0 24px 64px rgba(0,0,0,.22); overflow:hidden; margin:auto; }
 .corr-head { background:#0f172a; color:white; padding:18px 24px; display:flex; justify-content:space-between; align-items:center; }
 .corr-head h2 { font-size:15px; font-weight:800; letter-spacing:.3px; }
-.corr-close { background:none; border:none; color:#94a3b8; font-size:20px; cursor:pointer; line-height:1; padding:2px 6px; }
+.corr-close { background:none; border:none; color:var(--c-muted); font-size:20px; cursor:pointer; line-height:1; padding:2px 6px; }
 .corr-close:hover { color:white; }
 .corr-tabs { display:flex; gap:0; border-bottom:2px solid #e2e8f0; padding:0 24px; }
 .corr-tab { padding:12px 20px; font-size:13px; font-weight:700; color:#64748b; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; background:none; border-top:none; border-left:none; border-right:none; }
@@ -154,7 +154,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .corr-motivo-wrap textarea { width:100%; padding:10px 14px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:13px; resize:vertical; min-height:60px; font-family:inherit; }
 .corr-motivo-wrap textarea:focus { outline:none; border-color:#2563eb; }
 .corr-section { margin-bottom:24px; }
-.corr-section-title { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; color:#94a3b8; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid #f1f5f9; }
+.corr-section-title { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; color:var(--c-muted); margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid #f1f5f9; }
 .corr-hdr-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:4px; }
 .corr-field label { display:block; font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.4px; margin-bottom:5px; }
 .corr-field input, .corr-field select { width:100%; padding:8px 12px; border:1.5px solid #e2e8f0; border-radius:7px; font-size:13px; background:white; }
@@ -164,7 +164,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .corr-partidas-table td { padding:6px 6px; border-top:1px solid #f1f5f9; vertical-align:middle; }
 .corr-partidas-table td input, .corr-partidas-table td select { width:100%; padding:5px 7px; border:1.5px solid #e2e8f0; border-radius:6px; font-size:12px; background:white; min-width:0; }
 .corr-partidas-table td input:focus, .corr-partidas-table td select:focus { outline:none; border-color:#2563eb; }
-.corr-partidas-table td input[disabled], .corr-partidas-table td select[disabled] { background:#f1f5f9; color:#94a3b8; cursor:not-allowed; }
+.corr-partidas-table td input[disabled], .corr-partidas-table td select[disabled] { background:#f1f5f9; color:var(--c-muted); cursor:not-allowed; }
 .corr-num { font-weight:800; color:#2563eb; text-align:center; font-size:13px; white-space:nowrap; }
 .corr-ref  { color:#374151; font-size:11px; white-space:nowrap; max-width:130px; overflow:hidden; text-overflow:ellipsis; }
 .corr-foot { display:flex; justify-content:flex-end; gap:10px; padding:16px 24px; border-top:1px solid #f1f5f9; }
@@ -176,8 +176,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .hist-ant { color:#dc2626; text-decoration:line-through; font-size:12px; }
 .hist-nvo { color:#16a34a; font-weight:700; font-size:12px; }
 .hist-motivo { color:#64748b; font-size:12px; font-style:italic; }
-.hist-fecha  { color:#94a3b8; font-size:11px; white-space:nowrap; }
-.hist-empty  { text-align:center; padding:40px; color:#94a3b8; }
+.hist-fecha  { color:var(--c-muted); font-size:11px; white-space:nowrap; }
+.hist-empty  { text-align:center; padding:40px; color:var(--c-muted); }
 .btn-corregir { background:#7c3aed; color:white; }
 /* Banner saldo a favor */
 .banner-saldo-favor { display: none; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px 16px; color: #15803d; font-size: 13px; font-weight: 600; margin-top: 8px; align-items: center; gap: 8px; }
@@ -215,17 +215,17 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .arch-cat-comprobante_de_pago { background: #dcfce7; color: #15803d; }
 .arch-cat-croquis             { background: #fef3c7; color: #b45309; }
 .arch-file-name { flex: 1; color: #374151; }
-.arch-file-meta { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.arch-file-meta { font-size: 11px; color:var(--c-muted); white-space: nowrap; }
 .btn-arch-ver { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0; background: white; color: #2563eb; cursor: pointer; }
 .btn-arch-ver:hover { background: #eff6ff; }
-.arch-empty { text-align: center; padding: 20px; color: #94a3b8; font-size: 13px; }
+.arch-empty { text-align: center; padding: 20px; color:var(--c-muted); font-size: 13px; }
 /* Modal archivos */
 .arch-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1500; align-items:center; justify-content:center; padding:20px; }
 .arch-overlay.open { display:flex; }
 .arch-modal { background:white; border-radius:16px; width:100%; max-width:780px; box-shadow:0 24px 64px rgba(0,0,0,.22); overflow:hidden; }
 .arch-modal-head { background:#1a1a2e; color:white; padding:20px 28px; display:flex; justify-content:space-between; align-items:center; }
 .arch-modal-head h3 { font-size:14px; font-weight:800; }
-.arch-modal-close { background:none; border:none; color:#94a3b8; font-size:20px; cursor:pointer; line-height:1; padding:2px 6px; }
+.arch-modal-close { background:none; border:none; color:var(--c-muted); font-size:20px; cursor:pointer; line-height:1; padding:2px 6px; }
 .arch-modal-close:hover { color:white; }
 .arch-modal-body { padding:28px; max-height:75vh; overflow-y:auto; }
 /* Selector tipo de cotización (normal / retrabajo) — reemplaza el checkbox suelto */
@@ -243,22 +243,22 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 /* Grupos del encabezado: Proyecto / Condiciones comerciales / Entrega */
 .grp { margin-top:22px; padding-top:16px; border-top:1px solid #f1f5f9; }
 .grp:first-of-type { margin-top:0; padding-top:0; border-top:none; }
-.grp-label { font-size:11px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:.7px; margin-bottom:12px; }
+.grp-label { font-size:11px; font-weight:800; color:var(--c-muted); text-transform:uppercase; letter-spacing:.7px; margin-bottom:12px; }
 /* Partidas: franja alterna explícita (evita depender de nth-child con srv-wrap intercalado) */
 .partida-row.zebra { background:#f8fafc; }
 .partida-row:hover { background:#eff6ff; }
 .p-subhead { display:grid; grid-template-columns: 34px 190px 54px 72px 72px 115px 145px 50px 50px 50px 70px 125px 34px; gap:5px; padding:0 8px; margin-bottom:3px; }
-.p-subhead span { font-size:8px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:.4px; text-align:center; }
+.p-subhead span { font-size:8px; font-weight:800; color:var(--c-muted); text-transform:uppercase; letter-spacing:.4px; text-align:center; }
 /* Autocomplete cliente */
 .autocomplete-wrap { position: relative; }
 .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 100; max-height: 240px; overflow-y: auto; }
 .autocomplete-item { padding: 10px 14px; cursor: pointer; font-size: 14px; }
 .autocomplete-item:hover { background: #f0f4f8; }
-.autocomplete-item .codigo { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.autocomplete-item .codigo { font-size: 11px; color:var(--c-muted); margin-top: 2px; }
 </style>
 
 <div class="main" id="mainContent">
-  <div style="padding:48px;text-align:center;color:#94a3b8">Cargando...</div>
+  <div style="padding:48px;text-align:center;color:var(--c-muted)">Cargando...</div>
 </div>
 
 <script>
@@ -368,7 +368,7 @@ function renderFormulario(data) {
     var folioDisplay = (data.orden_folio && estatus !== 'cotizacion') ? data.orden_folio : data.folio;
     html += '<div class="folio-badge">' + escHtml(folioDisplay) + '</div>';
     if (data.orden_folio && estatus !== 'cotizacion') {
-      html += '<div style="margin-top:4px;font-size:11px;color:#94a3b8">COT: ' + escHtml(data.folio) + '</div>';
+      html += '<div style="margin-top:4px;font-size:11px;color:var(--c-muted)">COT: ' + escHtml(data.folio) + '</div>';
     }
     html += '<div style="margin-top:8px"><span class="badge badge-' + estatus + '">' + etiquetaEstatus(estatus) + '</span></div>';
     html += '</div>';
@@ -624,7 +624,7 @@ function renderFormulario(data) {
 
   if (esNuevo) {
     html += '<div style="margin-top:20px;display:flex;gap:10px">';
-    html += '<button class="btn btn-primary" onclick="ModCotizacion._guardarCotizacion()">&#128190; Guardar cotización</button>';
+    html += '<button class="btn btn-primary" onclick="ModCotizacion._guardarCotizacion(this)">&#128190; Guardar cotización</button>';
     html += '<button class="btn btn-ghost" onclick="irA(\'cotizaciones\')">Cancelar</button>';
     html += '</div>';
   }
@@ -1145,7 +1145,9 @@ async function actualizarFechaEntrega() {
 }
 
 // ── Guardar nueva cotización ──────────────────────────────────────────────────
-async function guardarCotizacion() {
+async function guardarCotizacion(btn) {
+  if (btn && btn.disabled) return; // ya se está procesando este mismo clic
+
   var clienteId = document.getElementById('clienteId')?.value;
   if (!clienteId) { alert('Selecciona un cliente'); return; }
 
@@ -1165,15 +1167,21 @@ async function guardarCotizacion() {
     payload.motivo_descuento = motivo;
   }
 
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
   try {
     var res  = await fetch(API_COT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     var data = await res.json();
     if (data.ok) {
-      irA('cotizacion', {id: data.id});
+      irA('cotizacion', {id: data.id}); // navega: no hace falta re-habilitar
     } else {
+      if (btn) { btn.disabled = false; btn.innerHTML = '&#128190; Guardar cotización'; }
       alert(data.error || 'Error al guardar');
     }
-  } catch(e) { alert('Error de conexión'); }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '&#128190; Guardar cotización'; }
+    alert('Error de conexión');
+  }
 }
 
 // ── Guardar cambios en cotización existente ───────────────────────────────────
@@ -1800,7 +1808,7 @@ function _inyectarModalCatalogo() {
           '<select id="catUnidad" class="cat-precio-input" title="Unidad de cobro"><option value="pieza">por pieza</option><option value="ml">por m.l.</option></select>' +
           '<button class="btn-cat-add" onclick="window.cotCrearServicioCat()">+ Agregar</button>' +
         '</div>' +
-        '<div class="cat-list" id="catList"><div style="text-align:center;color:#94a3b8;padding:20px">Cargando...</div></div>' +
+        '<div class="cat-list" id="catList"><div style="text-align:center;color:var(--c-muted);padding:20px">Cargando...</div></div>' +
       '</div>' +
     '</div>';
   document.body.appendChild(d);
@@ -1814,7 +1822,7 @@ async function _renderCatalogo() {
     var data = await res.json();
     _srvCatalogo = data.filter(function(s) { return s.activo == 1; });
     if (!data.length) {
-      listEl.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px">Sin servicios en cat&#225;logo</div>';
+      listEl.innerHTML = '<div style="text-align:center;color:var(--c-muted);padding:20px">Sin servicios en cat&#225;logo</div>';
       return;
     }
     var html = '';

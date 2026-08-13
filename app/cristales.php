@@ -34,7 +34,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 }
 .header h1 { font-size: 20px; font-weight: 800; letter-spacing: 1px; font-family: 'Syncopate', sans-serif; }
 .header .right { display: flex; gap: 16px; align-items: center; }
-.header a { color: #94a3b8; font-size: 13px; text-decoration: none; }
+.header a { color:var(--c-muted); font-size: 13px; text-decoration: none; }
 
 /* ── Layout ── */
 .main { padding: 24px; max-width: 1100px; margin: 0 auto; }
@@ -74,7 +74,7 @@ td { padding: 14px 16px; border-top: 1px solid #f1f5f9; font-size: 14px; color: 
 tr:hover td { background: #f8fafc; }
 
 .badge-activo   { background: #dcfce7; color: #16a34a; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
-.badge-inactivo { background: #f1f5f9; color: #94a3b8; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+.badge-inactivo { background: #f1f5f9; color:var(--c-muted); font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
 
 .precio { font-size: 16px; font-weight: 800; color: #1e293b; }
 
@@ -103,7 +103,7 @@ tr:hover td { background: #f8fafc; }
 .field input:focus, .field textarea:focus {
   outline: none; border-color: #2563eb;
 }
-.field .hint { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+.field .hint { font-size: 11px; color:var(--c-muted); margin-top: 4px; }
 
 .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
 
@@ -132,10 +132,10 @@ tr:hover td { background: #f8fafc; }
 .hist-precios { font-size: 14px; font-weight: 700; color: #1e293b; }
 .hist-precios .anterior { color: #dc2626; text-decoration: line-through; margin-right: 8px; }
 .hist-precios .nuevo    { color: #16a34a; }
-.hist-meta  { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+.hist-meta  { font-size: 12px; color:var(--c-muted); margin-top: 2px; }
 .hist-motivo { font-size: 12px; color: #2563eb; margin-top: 2px; font-style: italic; }
 
-.empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
+.empty { text-align: center; padding: 48px; color:var(--c-muted); font-size: 15px; }
 
 /* ── Filtro ── */
 .filtros { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; }
@@ -274,7 +274,7 @@ function renderTabla(lista) {
   }
   document.getElementById('tablaCristales').innerHTML = lista.map((c, i) => `
     <tr>
-      <td style="color:#94a3b8;font-size:13px">${i + 1}</td>
+      <td style="color:var(--c-muted);font-size:13px">${i + 1}</td>
       <td style="font-weight:600">${c.nombre}</td>
       <td style="color:#64748b">${c.nombre_etiqueta}</td>
       <td><span class="precio">$${parseFloat(c.precio_m2).toLocaleString('es-MX', {minimumFractionDigits:2})}</span></td>

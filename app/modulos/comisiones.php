@@ -37,13 +37,13 @@ header('Content-Type: text/html; charset=utf-8');
 .cm-det-panel { display:none; border-top:1px solid #e2e8f0; }
 .cm-det-panel.open { display:block; }
 .cm-det-panel table { width:100%; border-collapse:collapse; font-size:12.5px; }
-.cm-det-panel th { text-align:left; font-size:10px; text-transform:uppercase; color:#94a3b8; padding:8px 18px; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
+.cm-det-panel th { text-align:left; font-size:10px; text-transform:uppercase; color:var(--c-muted); padding:8px 18px; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
 .cm-det-panel td { padding:8px 18px; border-bottom:1px solid #e2e8f0; color:#374151; }
 .cm-det-panel .folio { font-weight:700; color:#2563eb; }
 .cm-badge-ok { color:#15803d; font-weight:600; }
 .cm-badge-no { color:#b91c1c; font-weight:600; }
 
-.cm-empty { text-align:center; padding:60px 20px; color:#94a3b8; }
+.cm-empty { text-align:center; padding:60px 20px; color:var(--c-muted); }
 </style>
 
 <div class="cm-wrap">

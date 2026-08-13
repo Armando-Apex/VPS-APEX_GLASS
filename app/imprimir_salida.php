@@ -203,6 +203,8 @@ if ($fecha_chofer_php) {
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>">
+<script src="csrf_fetch.js"></script>
 <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96">
 <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
@@ -220,7 +222,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
   background: #1a1a2e; padding: 10px 24px;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
-.print-bar span { color: #94a3b8; font-size: 12px; }
+.print-bar span { color:var(--c-muted); font-size: 12px; }
 .btn-print  { background: #f5a623; color: #000; border: none; padding: 8px 20px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .btn-cancel { background: #334155; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; }
 
@@ -246,7 +248,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .btn-menu-icon.azul  { background: #dbeafe; color: #1d4ed8; }
 .btn-menu-texto strong { display: block; font-size: 14px; font-weight: 700; color: #1e293b; }
 .btn-menu-texto span  { font-size: 12px; color: #64748b; }
-.menu-salidas-hist { margin-top: 28px; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 14px; }
+.menu-salidas-hist { margin-top: 28px; font-size: 11px; color:var(--c-muted); border-top: 1px solid #f1f5f9; padding-top: 14px; }
 .menu-salidas-hist ul { margin-top: 6px; padding-left: 18px; line-height: 1.9; }
 
 /* ── Selector de piezas ── */
@@ -278,7 +280,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .pieza-chip input[type=checkbox] { margin: 0; width: 14px; height: 14px; cursor: pointer; }
 .pieza-chip.checked   { background: #ecfdf5; border-color: #16a34a; color: #15803d; }
 .pieza-chip.checked:hover { background: #dcfce7; }
-.pieza-chip.entregado { background: #f1f5f9; border-color: #e2e8f0; color: #94a3b8; cursor: default; opacity: .7; }
+.pieza-chip.entregado { background: #f1f5f9; border-color: #e2e8f0; color:var(--c-muted); cursor: default; opacity: .7; }
 .pieza-chip.en-proceso { background: #fff7ed; border-color: #fed7aa; color: #9a3412; cursor: default; }
 
 .leyenda { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -379,7 +381,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 
 /* Columna Entrega */
 .entrega-col { text-align: center; min-width: 82px; font-size: 10px; }
-.ent-pendiente { color: #94a3b8; font-style: italic; font-weight: 600; }
+.ent-pendiente { color:var(--c-muted); font-style: italic; font-weight: 600; }
 .ent-fecha     { color: #15803d; font-weight: 700; }
 .ent-parcial   { color: #c2410c; font-weight: 600; }
 
@@ -486,7 +488,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
   </div>
 
   <div id="partidas-container">
-    <div style="padding:40px;text-align:center;color:#94a3b8">
+    <div style="padding:40px;text-align:center;color:var(--c-muted)">
       <div style="width:32px;height:32px;border:3px solid #e2e8f0;border-top-color:#64748b;border-radius:50%;animation:spin .6s linear infinite;margin:0 auto 12px"></div>
       Cargando piezas...
     </div>
@@ -765,7 +767,7 @@ function renderSelector() {
     });
 
     if (termCnt === 0) {
-      html += '<span style="font-size:12px;color:#94a3b8;padding:8px">Sin piezas terminadas</span>';
+      html += '<span style="font-size:12px;color:var(--c-muted);padding:8px">Sin piezas terminadas</span>';
     }
     html += '</div></div>';
   });

@@ -43,7 +43,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   padding: 14px 18px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
 }
 .check-row .nombre { flex: 1 1 200px; font-size: 14px; font-weight: 700; color: #1e293b; }
-.check-row .estimado { font-size: 12px; color: #94a3b8; }
+.check-row .estimado { font-size: 12px; color:var(--c-muted); }
 .check-row input[type=number] { width: 110px; padding: 8px 10px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; }
 .check-row input[type=date] { padding: 8px 10px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; }
 
@@ -55,7 +55,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   font-size: 15px; font-weight: 800; color: #1e293b; text-align: right;
 }
 
-.empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
+.empty { text-align: center; padding: 48px; color:var(--c-muted); font-size: 15px; }
 
 .modal-bg {
   display: none; position: fixed; inset: 0;

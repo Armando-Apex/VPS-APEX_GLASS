@@ -23,7 +23,7 @@ header('Content-Type: text/html; charset=utf-8');
 .est-folio  { font-weight: 600; color: #2563eb; min-width: 70px; cursor: pointer; }
 .est-folio:hover { text-decoration: underline; }
 .est-desc   { color: #64748b; flex: 1; font-size: 12px; }
-.est-empty  { padding: 24px; text-align: center; color: #94a3b8; font-size: 13px; }
+.est-empty  { padding: 24px; text-align: center; color:var(--c-muted); font-size: 13px; }
 .loading-msg { text-align: center; padding: 48px; color: #9ca3af; font-size: 14px; }
 </style>
 

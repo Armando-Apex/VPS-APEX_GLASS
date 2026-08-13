@@ -16,7 +16,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=cotizacion&id='.$id_cot_php); exit;
 }
 if (!$id_cot_php) {
-    echo '<div style="padding:24px;color:#94a3b8;font-size:13px">Guarda la cotización primero para agregar croquis.</div>';
+    echo '<div style="padding:24px;color:var(--c-muted);font-size:13px">Guarda la cotización primero para agregar croquis.</div>';
     exit;
 }
 header('Content-Type: text/html; charset=utf-8');
@@ -44,7 +44,7 @@ header('Content-Type: text/html; charset=utf-8');
 .cq-btn-pdf { background: #16a34a; color: white; border: none; border-radius: 7px; padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer; }
 .cq-btn-edit { background: #2563eb; color: white; border: none; border-radius: 7px; padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer; }
 .cq-btn-del { background: #fee2e2; color: #dc2626; border: none; border-radius: 7px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
-.cq-empty { color: #94a3b8; font-size: 13px; padding: 20px 0; text-align: center; }
+.cq-empty { color:var(--c-muted); font-size: 13px; padding: 20px 0; text-align: center; }
 .cq-btn-nuevo { background: #2563eb; color: white; border: none; border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .cq-btn-nuevo:hover { background: #1d4ed8; }
 /* ── Constructor ──────────────────────────────────────────── */
@@ -65,7 +65,7 @@ header('Content-Type: text/html; charset=utf-8');
 .cq-field-label { font-size: 13px; color: #64748b; min-width: 76px; }
 .cq-fi { flex: 1; min-width: 0; height: 34px; border: 1.5px solid #e2e8f0; border-radius: 7px; padding: 0 9px; font-size: 14px; background: white; color: #1e293b; box-sizing: border-box; }
 .cq-fi:focus { outline: none; border-color: #2563eb; }
-.cq-unit { font-size: 12px; color: #94a3b8; min-width: 22px; }
+.cq-unit { font-size: 12px; color:var(--c-muted); min-width: 22px; }
 /* Canteado */
 .cq-canteo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .cq-canteo-btn { border: 1px solid #e2e8f0; border-radius: 6px; padding: 7px 4px; font-size: 12px; cursor: pointer; background: white; color: #64748b; text-align: center; font-weight: 500; }
@@ -74,15 +74,15 @@ header('Content-Type: text/html; charset=utf-8');
 .cq-chip { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 13px; font-size: 13px; cursor: grab; background: #f1f5f9; color: #374151; display: flex; align-items: center; gap: 9px; user-select: none; margin-bottom: 7px; font-weight: 500; }
 .cq-chip:hover { background: #e2e8f0; }
 .cq-chip:active { cursor: grabbing; }
-.cq-hint { font-size: 11px; color: #94a3b8; line-height: 1.5; margin-top: 4px; }
+.cq-hint { font-size: 11px; color:var(--c-muted); line-height: 1.5; margin-top: 4px; }
 /* Lista elementos colocados */
 .cq-placed-item { font-size: 11px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 9px; display: flex; justify-content: space-between; align-items: center; color: #64748b; margin-top: 5px; }
-.cq-del-btn { background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 15px; padding: 0 2px; }
+.cq-del-btn { background: none; border: none; cursor: pointer; color:var(--c-muted); font-size: 15px; padding: 0 2px; }
 .cq-del-btn:hover { color: #dc2626; }
 /* Canvas area */
 .cq-canvas-area { display: flex; flex-direction: column; background: #f8fafc; overflow: hidden; }
 .cq-canvas-toolbar { padding: 11px 18px; background: white; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.cq-canvas-hint { font-size: 12px; color: #94a3b8; }
+.cq-canvas-hint { font-size: 12px; color:var(--c-muted); }
 .cq-canvas-btns { display: flex; gap: 7px; }
 .cq-btn-guardar { background: #16a34a; color: white; border: none; border-radius: 8px; padding: 7px 16px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .cq-btn-guardar:hover { background: #15803d; }
@@ -135,7 +135,7 @@ header('Content-Type: text/html; charset=utf-8');
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
         <label style="font-size:12px;font-weight:700;color:#374151;min-width:90px">Partida:</label>
         <select class="cq-partida-sel" id="cq-partida-sel" style="max-width:260px"></select>
-        <span style="font-size:11px;color:#94a3b8" id="cq-medidas-hint"></span>
+        <span style="font-size:11px;color:var(--c-muted)" id="cq-medidas-hint"></span>
       </div>
 
       <div class="cq-editor">
@@ -180,7 +180,7 @@ header('Content-Type: text/html; charset=utf-8');
               <button class="cq-canteo-btn" id="cq-ds-btn" onclick="CroquisMod._toggleDescuadre()" style="width:100%;font-size:11px">+ Descuadre</button>
             </div>
             <div id="cq-ds-fields" style="display:none;margin-top:6px;border-top:1px dashed #e2e8f0;padding-top:6px">
-              <div style="font-size:10px;color:#94a3b8;margin-bottom:4px;text-align:center">Medida real de cada lado</div>
+              <div style="font-size:10px;color:var(--c-muted);margin-bottom:4px;text-align:center">Medida real de cada lado</div>
               <div class="cq-field-row"><span class="cq-field-label" style="font-size:10px">Ancho inf</span><input class="cq-fi" type="number" id="cq-ds-ainf" min="10" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
               <div class="cq-field-row"><span class="cq-field-label" style="font-size:10px">Ancho sup</span><input class="cq-fi" type="number" id="cq-ds-asup" min="10" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
               <div class="cq-field-row"><span class="cq-field-label" style="font-size:10px">Alto izq</span><input class="cq-fi" type="number" id="cq-ds-hizq" min="10" oninput="CroquisMod._redraw()"><span class="cq-unit">mm</span></div>
@@ -299,7 +299,7 @@ header('Content-Type: text/html; charset=utf-8');
             </svg>
           </div>
           <div class="cq-nota-bar">
-            <span style="font-size:12px;color:#94a3b8">Nota:</span>
+            <span style="font-size:12px;color:var(--c-muted)">Nota:</span>
             <input class="cq-nota-input" type="text" id="cq-nota" placeholder="Notas de fabricación..." oninput="CroquisMod._redraw()">
           </div>
         </div>

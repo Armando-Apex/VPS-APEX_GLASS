@@ -378,7 +378,7 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1e293
 .meta b { color: #1a1a2e; }
 .svg-wrap { border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px; display: flex; justify-content: center; overflow: auto; }
 .svg-wrap svg { display: block; flex-shrink: 0; }
-.footer-note { margin-top: 8px; font-size: 10px; color: #94a3b8; text-align: center; }
+.footer-note { margin-top: 8px; font-size: 10px; color:var(--c-muted); text-align: center; }
 .ctrl-bar { position: fixed; top: 10px; right: 10px; display: flex; align-items: center; gap: 8px; background: white; border: 1px solid #d1d5db; border-radius: 8px; padding: 6px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
 .ctrl-bar label { font-size: 12px; color: #374151; font-weight: 600; white-space: nowrap; }
 .ctrl-bar select { font-size: 12px; border: 1px solid #d1d5db; border-radius: 5px; padding: 3px 6px; background: white; cursor: pointer; }

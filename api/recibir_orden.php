@@ -190,6 +190,12 @@ try {
         }
     }
 
+    // S2-09: una orden sin piezas no es importable — abortar la transacción para
+    // no dejar orden fantasma ni folio quemado.
+    if ($piezasCreadas === 0) {
+        throw new Exception('La importación no generó ninguna pieza: revisa que las partidas tengan cristal y num_piezas >= 1.');
+    }
+
     $db->commit();
 
     jsonResponse([

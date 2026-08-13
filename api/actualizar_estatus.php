@@ -67,11 +67,15 @@ if ($omision
 
 
 
+// S2-01: 'reproceso' ya no es un destino de escaneo. El reproceso se hace por
+// api/reproceso.php (reset a 'pendiente' con bitácora y permisos propios);
+// aquí solo llegaba a un callejón sin salida: ningún flujo acepta 'reproceso'
+// como origen, así que la pieza quedaba atascada.
 $estatusValidos = [
 
     'pendiente','en_corte','cortado','canteado',
 
-    'trazo','taladro','en_horno','terminado','entregado','reproceso'
+    'trazo','taladro','en_horno','terminado','entregado'
 
 ];
 

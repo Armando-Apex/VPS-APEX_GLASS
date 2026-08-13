@@ -56,8 +56,14 @@ define('TOKEN_SECRETO', _env('BACKUP_TOKEN', ''));
 
 // ── SEGURIDAD ─────────────────────────────────────────────────────────────────
 if (php_sapi_name() !== 'cli') {
+    // Fail-closed: sin token configurado NO hay bypass — se niega todo acceso HTTP.
+    if (TOKEN_SECRETO === '') {
+        http_response_code(503);
+        exit('Backups por HTTP deshabilitados: configura BACKUP_TOKEN en .env o ejecuta por CLI');
+    }
     $token = $_GET['token'] ?? '';
-    if ($token !== TOKEN_SECRETO) {
+    // hash_equals: comparación en tiempo constante (mitiga timing attacks)
+    if (!is_string($token) || !hash_equals(TOKEN_SECRETO, $token)) {
         http_response_code(403);
         exit('Acceso denegado');
     }

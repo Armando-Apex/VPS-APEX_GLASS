@@ -71,7 +71,7 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #222; 
 .doc-title-bar { background: #1a1a2e; color: white; padding: 8px 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
 .doc-title-bar .label { font-family: 'Syncopate', sans-serif; font-size: 13px; letter-spacing: 1px; }
 .doc-title-bar .folio { font-size: 18px; font-weight: 700; font-family: 'Syncopate', sans-serif; letter-spacing: 3px; }
-.doc-title-bar .fecha { font-size: 10px; color: #94a3b8; }
+.doc-title-bar .fecha { font-size: 10px; color:var(--c-muted); }
 
 /* Dos columnas info */
 .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }

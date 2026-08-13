@@ -8,7 +8,7 @@
 
 require_once 'config.php';
 require_once 'permisos.php';
-requireSessionApi();
+$usuario = requireSessionApi();
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: https://apex.glass');
@@ -21,7 +21,10 @@ $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) jsonResponse(['error' => 'JSON inválido'], 400);
 
 $ordenId = (int)($input['orden_id']   ?? 0);
-$userId  = (int)($input['usuario_id'] ?? 0);
+// S2-06: el usuario es SIEMPRE el de la sesión — el usuario_id del body se
+// ignora (antes podía suplantar a cualquier empleado en la bitácora).
+// Mismo criterio que api/actualizar_estatus.php.
+$userId  = (int)$usuario['id'];
 
 if (!$ordenId) jsonResponse(['error' => 'orden_id requerido'], 400);
 
@@ -37,15 +40,7 @@ if ($ord['estado'] !== 'activa') {
     jsonResponse(['error' => 'La orden ' . $ord['folio'] . ' no está activa (estado: ' . $ord['estado'] . '); espera el VoBo de Finanzas'], 409);
 }
 
-$nombreUsuario = 'Desconocido';
-if ($userId) {
-    $u = $db->prepare('SELECT nombre FROM usuarios WHERE id = ?');
-    $u->execute([$userId]);
-    $u = $u->fetch();
-    if ($u) $nombreUsuario = $u['nombre'];
-} elseif (!empty($_SESSION['user_name'])) {
-    $nombreUsuario = $_SESSION['user_name'];
-}
+$nombreUsuario = $usuario['nombre'] ?? 'Desconocido';
 
 $piezas = $db->prepare("SELECT id FROM piezas WHERE orden_id = ? AND estatus = 'pendiente'");
 $piezas->execute([$ordenId]);

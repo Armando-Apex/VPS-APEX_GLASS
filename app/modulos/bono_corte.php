@@ -42,7 +42,7 @@ $puedeAprobar = tienePermiso($user['rol'], 'gestionar_contabilidad');
 .bc-excl-panel { display:none; border-top:1px solid #e2e8f0; }
 .bc-excl-panel.open { display:block; }
 .bc-excl-panel table { width:100%; border-collapse:collapse; font-size:12.5px; }
-.bc-excl-panel th { text-align:left; font-size:10px; text-transform:uppercase; color:#94a3b8; padding:8px 18px; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
+.bc-excl-panel th { text-align:left; font-size:10px; text-transform:uppercase; color:var(--c-muted); padding:8px 18px; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
 .bc-excl-panel td { padding:8px 18px; border-bottom:1px solid #e2e8f0; color:#64748b; }
 
 .bc-det-toggle { width:100%; text-align:left; display:flex; align-items:center; gap:8px; padding:10px 18px; background:#f0fdf4; border:none; border-top:1px solid #e2e8f0; cursor:pointer; font-size:12px; color:#166534; font-weight:600; }
@@ -50,12 +50,12 @@ $puedeAprobar = tienePermiso($user['rol'], 'gestionar_contabilidad');
 .bc-det-panel { display:none; border-top:1px solid #e2e8f0; }
 .bc-det-panel.open { display:block; }
 .bc-det-panel table { width:100%; border-collapse:collapse; font-size:12.5px; }
-.bc-det-panel th { text-align:left; font-size:10px; text-transform:uppercase; color:#94a3b8; padding:8px 18px; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
+.bc-det-panel th { text-align:left; font-size:10px; text-transform:uppercase; color:var(--c-muted); padding:8px 18px; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
 .bc-det-panel td { padding:8px 18px; border-bottom:1px solid #e2e8f0; color:#374151; }
 .bc-det-panel .folio { font-weight:700; color:#2563eb; }
-.bc-det-panel .sin-piezas { color:#94a3b8; font-style:italic; }
+.bc-det-panel .sin-piezas { color:var(--c-muted); font-style:italic; }
 
-.bc-empty { text-align:center; padding:60px 20px; color:#94a3b8; }
+.bc-empty { text-align:center; padding:60px 20px; color:var(--c-muted); }
 </style>
 
 <div class="bc-wrap">

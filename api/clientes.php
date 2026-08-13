@@ -1,6 +1,7 @@
 <?php
 require_once 'config.php';
 require_once 'permisos.php';
+require_once __DIR__ . '/helpers/crypto.php'; // S1-07: cifrado reversible de portal_password
 
 header('Content-Type: application/json');
 
@@ -30,6 +31,9 @@ if ($method === 'GET') {
         if (!$ver_pass) {
             unset($cliente['portal_password'], $cliente['portal_password_hash']);
         } else {
+            // S1-07: portal_password viene cifrada en BD — se descifra solo para
+            // roles con permiso de verla (mismo criterio que antes, ver_pass).
+            $cliente['portal_password'] = apexDecrypt($cliente['portal_password'] ?? null);
             unset($cliente['portal_password_hash']);
         }
         $stmt2 = $pdo->prepare("SELECT * FROM clientes_bitacora WHERE cliente_id = ? ORDER BY fecha DESC LIMIT 100");
@@ -54,7 +58,17 @@ if ($method === 'GET') {
         FROM clientes c $where ORDER BY codigo ASC LIMIT 350
     ");
     $stmt->execute($params);
-    jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
+    $lista = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($ver_pass) {
+        // S1-07: descifrar portal_password por fila (viene cifrada en BD)
+        foreach ($lista as &$row) {
+            if (array_key_exists('portal_password', $row)) {
+                $row['portal_password'] = apexDecrypt($row['portal_password']);
+            }
+        }
+        unset($row);
+    }
+    jsonResponse($lista); exit;
 }
 
 if (!$puede_editar) {

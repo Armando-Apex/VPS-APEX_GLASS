@@ -5,6 +5,7 @@
 // ============================================================
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/permisos.php';
+require_once __DIR__ . '/helpers/crypto.php'; // S1-07: cifrado reversible de portal_password
 
 // Flags de la cookie de sesión ANTES de cualquier session_start (M-17c).
 // requirePermiso/requireSessionApi respetan la sesión ya iniciada y no la vuelven a abrir.
@@ -66,12 +67,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'generar_pass') {
         !preg_match('/[!@#$%&*+\-?]/', $pass)
     );
 
-    // ── Guardar texto plano (para que admin lo vea) Y hash bcrypt (para login) ─
+    // S1-07: portal_password ya NO se guarda en claro — se cifra (AES-256-GCM,
+    // llave PORTAL_PASS_KEY en .env) para que el ERP pueda seguir mostrándola/
+    // copiándola sin que un dump de BD exponga contraseñas reales de clientes.
+    // El login sigue usando SOLO portal_password_hash (bcrypt), sin cambio.
     $hash = password_hash($pass, PASSWORD_BCRYPT, ['cost' => 12]);
 
     $pdo->prepare(
         "UPDATE clientes SET portal_password = ?, portal_password_hash = ?, portal_activo = 1 WHERE id = ?"
-    )->execute([$pass, $hash, $id]);
+    )->execute([apexEncrypt($pass), $hash, $id]);
 
     echo json_encode(['ok' => true, 'password' => $pass]);
     exit;
@@ -98,8 +102,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'enviar_acceso_wa') {
     $telDig = preg_replace('/[^0-9]/', '', $telRaw);
     $telefono = (strlen($telDig) === 10) ? '52' . $telDig : (strlen($telDig) === 12 ? $telDig : '52' . substr($telDig, -10));
 
-    // Generar contraseña si no tiene
-    $pass = $c['portal_password'];
+    // S1-07: portal_password viene cifrada — se descifra para reenviar la MISMA
+    // contraseña (no se regenera cada vez que se reenvía el acceso).
+    $pass = apexDecrypt($c['portal_password']);
     if (!$pass) {
         $mayus = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
         $minus = 'abcdefghjkmnpqrstuvwxyz';
@@ -119,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'enviar_acceso_wa') {
         );
         $hash = password_hash($pass, PASSWORD_BCRYPT, ['cost' => 12]);
         $pdo->prepare("UPDATE clientes SET portal_password = ?, portal_password_hash = ?, portal_activo = 1 WHERE id = ?")
-            ->execute([$pass, $hash, $id]);
+            ->execute([apexEncrypt($pass), $hash, $id]);
     }
 
     $nombre = substr(strip_tags($c['razon_social'] ?: $c['nombre']), 0, 60);

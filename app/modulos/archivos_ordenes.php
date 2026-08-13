@@ -13,7 +13,7 @@ header('Content-Type: text/html; charset=utf-8');
 <style>
 .arch-wrap { padding: 24px; max-width: 1100px; }
 .page-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
-.page-sub   { font-size: 12px; color: #94a3b8; margin-bottom: 20px; }
+.page-sub   { font-size: 12px; color:var(--c-muted); margin-bottom: 20px; }
 
 /* Buscador */
 .arch-search-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: flex-end; }
@@ -57,8 +57,8 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 .btn-ver:hover { background: #eff6ff; }
 .btn-del { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: none; background: #fee2e2; color: #dc2626; cursor: pointer; white-space: nowrap; }
 .btn-del:hover { background: #fecaca; }
-.empty-msg { text-align: center; padding: 48px; color: #94a3b8; font-size: 14px; }
-.loading-msg { text-align: center; padding: 48px; color: #94a3b8; font-size: 14px; }
+.empty-msg { text-align: center; padding: 48px; color:var(--c-muted); font-size: 14px; }
+.loading-msg { text-align: center; padding: 48px; color:var(--c-muted); font-size: 14px; }
 
 @media(max-width:768px){
   .arch-wrap { padding: 12px; }

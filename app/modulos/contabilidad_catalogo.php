@@ -64,13 +64,13 @@ tr:hover td { background: #f8fafc; }
 
 .grupo-tag {
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
-  color: #94a3b8; padding: 14px 16px 4px;
+  color:var(--c-muted); padding: 14px 16px 4px;
 }
 
 .badge-activo   { background: #dcfce7; color: #16a34a; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
-.badge-inactivo { background: #f1f5f9; color: #94a3b8; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+.badge-inactivo { background: #f1f5f9; color:var(--c-muted); font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
 
-.empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
+.empty { text-align: center; padding: 48px; color:var(--c-muted); font-size: 15px; }
 
 .modal-bg {
   display: none; position: fixed; inset: 0;

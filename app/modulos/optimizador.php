@@ -492,7 +492,7 @@ async function cargarCristales() {
 
     if (!d.cristales?.length) {
 
-      el.innerHTML = '<div class="loading">Sin piezas pendientes de corte</div>'; return;
+      el.innerHTML = stateEmptyHTML('Sin piezas pendientes de corte', 'scissors'); return;
 
     }
 

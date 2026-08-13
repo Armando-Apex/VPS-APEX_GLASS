@@ -12,9 +12,9 @@ header('Content-Type: text/html; charset=utf-8');
 <meta charset="UTF-8">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; }
-
-.main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+/* S3-03: antes era `body{}` — pisaba el fondo de TODO el dashboard mientras
+   este módulo estaba cargado en el SPA. Retargeteado a .main (raíz del módulo). */
+.main { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--c-bg, #f8fafc); padding: 24px; max-width: 1100px; margin: 0 auto; }
 
 .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px; }
 .section-title { font-size: 18px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; }
@@ -56,7 +56,7 @@ tr:hover td { background: #f8fafc; }
 
 .badge-cat { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; background: #f1f5f9; color: #64748b; }
 
-.empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
+.empty { text-align: center; padding: 48px; color:var(--c-muted); font-size: 15px; }
 
 .modal-bg {
   display: none; position: fixed; inset: 0;
@@ -87,7 +87,7 @@ tr:hover td { background: #f8fafc; }
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <div class="rango-selector">
         <input type="date" id="fDesde">
-        <span style="color:#94a3b8">a</span>
+        <span style="color:var(--c-muted)">a</span>
         <input type="date" id="fHasta">
       </div>
       <?php if ($puedeEditar): ?><button class="btn btn-primary" onclick="ModCajaChica._abrirModalMovimiento()">+ Registrar gasto</button><?php endif; ?>

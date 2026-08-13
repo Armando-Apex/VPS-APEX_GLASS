@@ -5,7 +5,7 @@
 // ============================================================
 require_once __DIR__ . '/../api/config.php';
 
-if (session_status() === PHP_SESSION_NONE) session_start();
+require_once __DIR__ . '/../api/session_boot.php'; // S2-10
 if (empty($_SESSION['portal_cliente_id'])) {
     header('Location: index.php'); exit;
 }
@@ -34,6 +34,10 @@ $stmtCot = $pdo->prepare("
 $stmtCot->execute([$folio, $cliente_id, $cliente_razon]);
 $cot = $stmtCot->fetch(PDO::FETCH_ASSOC);
 if (!$cot) { header('Location: dashboard.php'); exit; }
+// S2-14 fase 1: medir quién depende del fallback por nombre, sin cambiar el comportamiento.
+if ((int)$cot['cliente_id'] !== (int)$cliente_id) {
+    error_log('[S2-14] acceso-por-nombre folio=' . $folio . ' cliente_sesion=' . $cliente_id);
+}
 
 // Partidas
 $stmtPart = $pdo->prepare("

@@ -42,7 +42,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 .com-item-archivo{ font-size: 11px; color: var(--c-muted); font-family: monospace; margin-top: 2px; }
 .com-item-badge  { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; flex-shrink: 0; }
 .com-badge-on    { background: #dcfce7; color: #16a34a; }
-.com-badge-off   { background: #f1f5f9; color: #94a3b8; }
+.com-badge-off   { background: #f1f5f9; color:var(--c-muted); }
 .com-item-actions{ display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
 .com-countdown   { font-size: 11px; color: var(--c-muted); font-variant-numeric: tabular-nums; margin-top: 4px; }
 .com-countdown.pronto { color: #f5a623; font-weight: 700; }
