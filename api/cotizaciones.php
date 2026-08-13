@@ -390,7 +390,8 @@ if ($method === 'POST') {
         $cot_id         = (int)($body['cotizacion_id']    ?? 0);
         $partida_id     = (int)($body['partida_id']       ?? 0);
         $servicio_id    = (int)($body['servicio_id']      ?? 0);
-        $und_x_pieza    = max(1, (int)($body['unidades_por_pieza'] ?? 1));
+        // unidades_por_pieza acepta decimales (metros lineales para servicios tipo 'ml')
+        $und_x_pieza    = round(max(0.001, (float)($body['unidades_por_pieza'] ?? 1)), 3);
         $cant_piezas    = max(1, (int)($body['cantidad_piezas']    ?? 1));
 
         if (!$cot_id || !$partida_id || !$servicio_id) {

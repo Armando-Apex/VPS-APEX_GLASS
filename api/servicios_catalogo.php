@@ -22,7 +22,7 @@ $es_admin = in_array($rol, ['dir_admin', 'desarrollo']);
 if ($method === 'GET') {
     $todos = isset($_GET['todos']) && $_GET['todos'] === '1';
     $where = $todos ? '' : 'WHERE activo = 1';
-    $stmt  = $db->query("SELECT id, nombre, precio_default, activo FROM servicios_catalogo $where ORDER BY nombre ASC");
+    $stmt  = $db->query("SELECT id, nombre, precio_default, unidad, activo FROM servicios_catalogo $where ORDER BY nombre ASC");
     jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
 }
 
@@ -37,14 +37,15 @@ $body = json_decode(file_get_contents('php://input'), true) ?? [];
 if ($method === 'POST') {
     $nombre  = trim($body['nombre']        ?? '');
     $precio  = (float)($body['precio_default'] ?? 0);
+    $unidad  = ($body['unidad'] ?? 'pieza') === 'ml' ? 'ml' : 'pieza';
 
     if (!$nombre || $precio <= 0) {
         jsonResponse(['error' => 'Nombre y precio son requeridos']);
     }
 
-    $stmt = $db->prepare("INSERT INTO servicios_catalogo (nombre, precio_default) VALUES (?, ?)");
-    $stmt->execute([$nombre, $precio]);
-    jsonResponse(['ok' => true, 'id' => (int)$db->lastInsertId(), 'nombre' => $nombre, 'precio_default' => $precio]);
+    $stmt = $db->prepare("INSERT INTO servicios_catalogo (nombre, precio_default, unidad) VALUES (?, ?, ?)");
+    $stmt->execute([$nombre, $precio, $unidad]);
+    jsonResponse(['ok' => true, 'id' => (int)$db->lastInsertId(), 'nombre' => $nombre, 'precio_default' => $precio, 'unidad' => $unidad]);
 }
 
 // ── PUT editar ────────────────────────────────────────────────────────────────
@@ -52,13 +53,14 @@ if ($method === 'PUT') {
     $id     = (int)($body['id']            ?? 0);
     $nombre = trim($body['nombre']         ?? '');
     $precio = (float)($body['precio_default'] ?? 0);
+    $unidad = ($body['unidad'] ?? 'pieza') === 'ml' ? 'ml' : 'pieza';
 
     if (!$id || !$nombre || $precio <= 0) {
         jsonResponse(['error' => 'Datos incompletos']);
     }
 
-    $db->prepare("UPDATE servicios_catalogo SET nombre = ?, precio_default = ? WHERE id = ?")
-       ->execute([$nombre, $precio, $id]);
+    $db->prepare("UPDATE servicios_catalogo SET nombre = ?, precio_default = ?, unidad = ? WHERE id = ?")
+       ->execute([$nombre, $precio, $unidad, $id]);
     jsonResponse(['ok' => true]);
 }
 

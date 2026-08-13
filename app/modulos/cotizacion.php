@@ -794,15 +794,15 @@ function renderPartidas(editable) {
       if (_canAddSrv) {
         html += '<div class="srv-form" id="srv-form-' + i + '" style="display:none">';
         html += '<div class="srv-form-inner">';
-        html += '<select id="srv-cat-' + i + '" onchange="window.cotSrvCalc(' + i + ', ' + (p.cantidad || 1) + ')">';
+        html += '<select id="srv-cat-' + i + '" onchange="window.cotSrvSel(' + i + ', ' + (p.ancho || 0) + ', ' + (p.alto || 0) + ', ' + (p.cantidad || 1) + ')">';
         html += '<option value="">-- Seleccionar servicio --</option>';
         for (var k = 0; k < _srvCatalogo.length; k++) {
           var sc = _srvCatalogo[k];
-          html += '<option value="' + sc.id + '" data-precio="' + sc.precio_default + '">' + escHtml(sc.nombre) + ' ($' + parseFloat(sc.precio_default).toFixed(2) + ')</option>';
+          html += '<option value="' + sc.id + '" data-precio="' + sc.precio_default + '" data-unidad="' + (sc.unidad || 'pieza') + '">' + escHtml(sc.nombre) + ' ($' + parseFloat(sc.precio_default).toFixed(2) + ')</option>';
         }
         html += '</select>';
         html += '<div class="srv-form-fields">';
-        html += '<label>Und/pieza<input type="number" id="srv-und-' + i + '" value="1" min="1" onchange="window.cotSrvCalc(' + i + ', ' + (p.cantidad || 1) + ')"></label>';
+        html += '<label><span id="srv-undlbl-' + i + '">Und/pieza</span><input type="number" id="srv-und-' + i + '" value="1" min="0" step="any" onchange="window.cotSrvCalc(' + i + ', ' + (p.cantidad || 1) + ')"></label>';
         html += '<label>Piezas<input type="number" id="srv-pzs-' + i + '" value="' + (p.cantidad || 1) + '" min="1" onchange="window.cotSrvCalc(' + i + ', ' + (p.cantidad || 1) + ')"></label>';
         html += '<span class="srv-total-preview">= <strong id="srv-total-' + i + '">$0.00</strong></span>';
         html += '</div>';
@@ -1669,6 +1669,31 @@ function cotToggleSrvForm(idx) {
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
+// Al elegir un servicio: si es por metro lineal ('ml') autocalcula el perímetro
+// del vidrio (2×(ancho+alto)) y propone la mitad de piezas (insulado = 2 vidrios
+// por unidad), para evitar el error humano de teclear el perímetro a mano.
+function cotSrvSel(idx, ancho, alto, cantidad) {
+  var catEl = document.getElementById('srv-cat-' + idx);
+  var undEl = document.getElementById('srv-und-' + idx);
+  var pzsEl = document.getElementById('srv-pzs-' + idx);
+  var lblEl = document.getElementById('srv-undlbl-' + idx);
+  if (catEl) {
+    var opt    = catEl.options[catEl.selectedIndex];
+    var unidad = opt ? (opt.getAttribute('data-unidad') || 'pieza') : 'pieza';
+    if (unidad === 'ml') {
+      var perim = Math.round((2 * ((ancho || 0) + (alto || 0)) / 1000) * 1000) / 1000;
+      if (undEl) undEl.value = perim;
+      if (pzsEl) pzsEl.value = (cantidad || 1) / 2;
+      if (lblEl) lblEl.textContent = 'm.l./pieza';
+    } else {
+      if (undEl) undEl.value = 1;
+      if (pzsEl) pzsEl.value = (cantidad || 1);
+      if (lblEl) lblEl.textContent = 'Und/pieza';
+    }
+  }
+  cotSrvCalc(idx, cantidad);
+}
+
 function cotSrvCalc(idx, defaultPzs) {
   var catEl = document.getElementById('srv-cat-' + idx);
   var undEl = document.getElementById('srv-und-' + idx);
@@ -1677,7 +1702,7 @@ function cotSrvCalc(idx, defaultPzs) {
   if (!catEl || !totEl) return;
   var opt    = catEl.options[catEl.selectedIndex];
   var precio = opt ? parseFloat(opt.getAttribute('data-precio') || 0) : 0;
-  var und    = parseInt(undEl ? undEl.value : 1) || 1;
+  var und    = parseFloat(undEl ? undEl.value : 1) || 0;
   var pzs    = parseInt(pzsEl ? pzsEl.value : defaultPzs) || 1;
   var total  = precio * und * pzs;
   totEl.textContent = '$' + total.toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -1700,7 +1725,7 @@ async function cotGuardarServicio(idx, partidaId, cotId) {
         cotizacion_id:     cotId,
         partida_id:        partidaId,
         servicio_id:       parseInt(catEl.value),
-        unidades_por_pieza: parseInt(undEl ? undEl.value : 1) || 1,
+        unidades_por_pieza: parseFloat(undEl ? undEl.value : 1) || 1,
         cantidad_piezas:    parseInt(pzsEl ? pzsEl.value : 1) || 1,
       }),
     });
@@ -1772,6 +1797,7 @@ function _inyectarModalCatalogo() {
         '<div class="cat-form">' +
           '<input type="text" id="catNombre" placeholder="Nombre del servicio (ej: Radio)" />' +
           '<input type="number" id="catPrecio" placeholder="Precio $" class="cat-precio-input" min="0" step="0.01" />' +
+          '<select id="catUnidad" class="cat-precio-input" title="Unidad de cobro"><option value="pieza">por pieza</option><option value="ml">por m.l.</option></select>' +
           '<button class="btn-cat-add" onclick="window.cotCrearServicioCat()">+ Agregar</button>' +
         '</div>' +
         '<div class="cat-list" id="catList"><div style="text-align:center;color:#94a3b8;padding:20px">Cargando...</div></div>' +
@@ -1798,6 +1824,9 @@ async function _renderCatalogo() {
       html += '<div class="cat-item" style="' + (inactivo ? 'opacity:.45' : '') + '" id="cat-item-' + s.id + '">';
       html += '<input type="text" id="cat-nom-' + s.id + '" value="' + escHtml(s.nombre) + '" style="flex:1">';
       html += '<input type="number" id="cat-pre-' + s.id + '" value="' + parseFloat(s.precio_default).toFixed(2) + '" class="cat-precio-input" min="0" step="0.01">';
+      html += '<select id="cat-uni-' + s.id + '" class="cat-precio-input" title="Unidad de cobro">' +
+              '<option value="pieza"' + ((s.unidad === 'ml') ? '' : ' selected') + '>por pieza</option>' +
+              '<option value="ml"' + ((s.unidad === 'ml') ? ' selected' : '') + '>por m.l.</option></select>';
       html += '<button class="btn-cat-save" onclick="window.cotEditarServicioCat(' + s.id + ')">&#10003;</button>';
       if (!inactivo) {
         html += '<button class="btn-cat-del" title="Desactivar" onclick="window.cotDesactivarServicioCat(' + s.id + ')">&#128465;</button>';
@@ -1813,17 +1842,19 @@ async function _renderCatalogo() {
 async function cotCrearServicioCat() {
   var nombre = (document.getElementById('catNombre')?.value || '').trim();
   var precio = parseFloat(document.getElementById('catPrecio')?.value || 0);
+  var unidad = document.getElementById('catUnidad')?.value || 'pieza';
   if (!nombre || precio <= 0) { alert('Escribe el nombre y un precio mayor a 0'); return; }
   try {
     var res  = await fetch('../api/servicios_catalogo.php', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({nombre: nombre, precio_default: precio}),
+      body: JSON.stringify({nombre: nombre, precio_default: precio, unidad: unidad}),
     });
     var data = await res.json();
     if (data.ok) {
       document.getElementById('catNombre').value = '';
       document.getElementById('catPrecio').value = '';
+      if (document.getElementById('catUnidad')) document.getElementById('catUnidad').value = 'pieza';
       _renderCatalogo();
     } else { alert(data.error || 'Error'); }
   } catch(e) { alert('Error de conexión'); }
@@ -1832,12 +1863,13 @@ async function cotCrearServicioCat() {
 async function cotEditarServicioCat(id) {
   var nombre = (document.getElementById('cat-nom-' + id)?.value || '').trim();
   var precio = parseFloat(document.getElementById('cat-pre-' + id)?.value || 0);
+  var unidad = document.getElementById('cat-uni-' + id)?.value || 'pieza';
   if (!nombre || precio <= 0) { alert('Nombre y precio son requeridos'); return; }
   try {
     var res  = await fetch('../api/servicios_catalogo.php', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({id: id, nombre: nombre, precio_default: precio}),
+      body: JSON.stringify({id: id, nombre: nombre, precio_default: precio, unidad: unidad}),
     });
     var data = await res.json();
     if (data.ok) {
@@ -1916,6 +1948,7 @@ window.cotEditarServicioCat   = cotEditarServicioCat;
 window.cotDesactivarServicioCat = cotDesactivarServicioCat;
 
 window.cotToggleSrvForm    = cotToggleSrvForm;
+window.cotSrvSel           = cotSrvSel;
 window.cotSrvCalc          = cotSrvCalc;
 window.cotGuardarServicio  = cotGuardarServicio;
 window.cotEliminarServicio = cotEliminarServicio;
