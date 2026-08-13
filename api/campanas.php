@@ -428,12 +428,16 @@ if ($metodo === 'POST' && $accion === 'enviar') {
     // Las URLs scontent.whatsapp.net tienen tokens de sesión — Meta no las puede fetchear
     // desde sus servidores de entrega, causando fallido silencioso con wamid válido.
     $headerMediaId = null;
+    // Tipo de media del header: 'image' (default) o 'video'. Valor inicial por la extensión
+    // de la URL; se corrige con el MIME real tras descargar el archivo (más abajo).
+    $headerMediaTipo = preg_match('/\.(mp4|mov|3gp)(\?|$)/i', $campana['header_image_url'] ?? '') ? 'video' : 'image';
     if (!empty($campana['header_image_url'])) {
         $imgBytes = @file_get_contents($campana['header_image_url']);
         if ($imgBytes !== false) {
             $tmpImg = tempnam(sys_get_temp_dir(), 'wa_hdr_');
             file_put_contents($tmpImg, $imgBytes);
             $mime = mime_content_type($tmpImg) ?: 'image/jpeg';
+            $headerMediaTipo = (strncmp($mime, 'video/', 6) === 0) ? 'video' : 'image';
             $chUp = curl_init('https://graph.facebook.com/v20.0/' . WA_PHONE_ID . '/media');
             curl_setopt($chUp, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($chUp, CURLOPT_POST, true);
@@ -571,12 +575,17 @@ if ($metodo === 'POST' && $accion === 'enviar') {
 
         $components = [];
         if (!empty($campana['header_image_url'])) {
-            $imgParam = $headerMediaId
+            $mediaParam = $headerMediaId
                 ? ['id'   => $headerMediaId]
                 : ['link' => $campana['header_image_url']];
+            // Header de imagen o video, según el MIME detectado arriba. Meta usa la misma
+            // estructura {type, <tipo>:{id|link}} en ambos casos.
             $components[] = [
                 'type'       => 'header',
-                'parameters' => [['type' => 'image', 'image' => $imgParam]]
+                'parameters' => [[
+                    'type'           => $headerMediaTipo,
+                    $headerMediaTipo => $mediaParam
+                ]]
             ];
         }
         if (!empty($parametros)) {

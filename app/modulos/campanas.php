@@ -485,10 +485,10 @@ var ModCampanas = (function() {
                 '<div id="cmpBodyPlantilla" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:#166534;white-space:pre-wrap;line-height:1.6;">' +
                 '</div>' +
                 '<div id="cmpHeaderImgSection" style="display:none;margin-bottom:14px;">' +
-                '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">URL de imagen del encabezado *</label>' +
+                '<label id="cmpHeaderImgLabel" style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">URL de imagen del encabezado *</label>' +
                 '<input id="cmpHeaderImgUrl" type="url" placeholder="https://tu-servidor.com/imagen.jpg" maxlength="500" ' +
                 'style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">' +
-                '<p style="font-size:11px;color:#64748b;margin:5px 0 0;">La imagen debe ser p&uacute;blica (URL accesible desde internet). Formatos: JPG, PNG. M&iacute;n. 300px ancho.</p>' +
+                '<p id="cmpHeaderImgHint" style="font-size:11px;color:#64748b;margin:5px 0 0;">La imagen debe ser p&uacute;blica (URL accesible desde internet). Formatos: JPG, PNG. M&iacute;n. 300px ancho.</p>' +
                 '</div>' +
                 '<div id="cmpVarsSection" style="display:none;margin-bottom:14px;">' +
                 '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Variables del mensaje</label>' +
@@ -652,16 +652,27 @@ var ModCampanas = (function() {
         _templateHeaderFormat = plantilla.header_format || '';
         if (bodyEl) { bodyEl.style.display = ''; bodyEl.textContent = _templateBody; }
 
-        // Campo imagen si el header es IMAGE
+        // Campo de media (URL) si el header es IMAGE o VIDEO
         var imgSection = document.getElementById('cmpHeaderImgSection');
         if (imgSection) {
-            imgSection.style.display = _templateHeaderFormat === 'IMAGE' ? '' : 'none';
-            // Auto-rellenar con imagen de ejemplo de Meta si existe
+            var esImg = _templateHeaderFormat === 'IMAGE';
+            var esVid = _templateHeaderFormat === 'VIDEO';
+            imgSection.style.display = (esImg || esVid) ? '' : 'none';
             var imgInput = document.getElementById('cmpHeaderImgUrl');
-            if (imgInput && _templateHeaderFormat === 'IMAGE') {
-                if (!imgInput.value) {
-                    imgInput.value = plantilla.header_example || '';
-                }
+            var lbl      = document.getElementById('cmpHeaderImgLabel');
+            var hint     = document.getElementById('cmpHeaderImgHint');
+            if (esVid) {
+                if (lbl)  lbl.textContent = 'URL del video del encabezado *';
+                if (imgInput) imgInput.placeholder = 'https://apex.glass/produccion/media/campanas/video.mp4';
+                if (hint) hint.innerHTML = 'El video debe ser p&uacute;blico (URL accesible desde internet). Formato: MP4 (H.264 + AAC), m&aacute;x. 16 MB.';
+            } else if (esImg) {
+                if (lbl)  lbl.textContent = 'URL de imagen del encabezado *';
+                if (imgInput) imgInput.placeholder = 'https://tu-servidor.com/imagen.jpg';
+                if (hint) hint.innerHTML = 'La imagen debe ser p&uacute;blica (URL accesible desde internet). Formatos: JPG, PNG. M&iacute;n. 300px ancho.';
+            }
+            // Auto-rellenar con el ejemplo de Meta si el campo está vacío (imagen o video)
+            if (imgInput && (esImg || esVid) && !imgInput.value) {
+                imgInput.value = plantilla.header_example || '';
             }
         }
 
@@ -936,6 +947,10 @@ var ModCampanas = (function() {
             _headerImageUrl = ((document.getElementById('cmpHeaderImgUrl') || {}).value || '').trim();
             if (_templateHeaderFormat === 'IMAGE' && !_headerImageUrl) {
                 alert('Esta plantilla requiere una imagen de encabezado. Ingresa la URL de la imagen.');
+                return;
+            }
+            if (_templateHeaderFormat === 'VIDEO' && !_headerImageUrl) {
+                alert('Esta plantilla requiere un video de encabezado. Ingresa la URL del video (MP4 público).');
                 return;
             }
         }

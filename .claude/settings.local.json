@@ -206,7 +206,10 @@
       "Bash(nft list *)",
       "Bash(xargs ls -lt)",
       "Bash(cp out/tiempos-respuesta.mp4 media/tiempos_respuesta_julio_v2.mp4)",
-      "Bash(chmod 0640 media/tiempos_respuesta_julio_v2.mp4)"
+      "Bash(chmod 0640 media/tiempos_respuesta_julio_v2.mp4)",
+      "Bash(ffprobe *)",
+      "Bash(cp /home/apexglass2025/herramientas/video-marketing/media/tiempos_respuesta_julio_cuadrado_wa.mp4 media/campanas/tiempos_respuesta_wa.mp4)",
+      "Bash(chmod 644 media/campanas/tiempos_respuesta_wa.mp4)"
     ]
   },
   "hooks": {
