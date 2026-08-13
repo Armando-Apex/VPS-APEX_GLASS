@@ -35,7 +35,7 @@ if ($esMaquila) {
     $partidas = $stmt2->fetchAll(PDO::FETCH_ASSOC);
 
     // Servicios adicionales por partida
-    $stmtSrv = $db->prepare("SELECT cps.*, sc.nombre as servicio_nombre FROM cotizacion_partida_servicios cps LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id WHERE cps.cotizacion_id = ? ORDER BY cps.partida_id, cps.id");
+    $stmtSrv = $db->prepare("SELECT cps.*, sc.nombre as servicio_nombre, sc.unidad as servicio_unidad FROM cotizacion_partida_servicios cps LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id WHERE cps.cotizacion_id = ? ORDER BY cps.partida_id, cps.id");
     $stmtSrv->execute([$id]);
     $servicios_raw = $stmtSrv->fetchAll(PDO::FETCH_ASSOC);
     foreach ($servicios_raw as $srv) {
@@ -425,7 +425,11 @@ function waEnviar() {
       <tr style="background:#f0fdf4;">
         <td class="center" style="color:#16a34a;font-size:9px;font-weight:700;">+SRV</td>
         <td colspan="5" style="color:#15803d;font-size:10px;padding-left:14px;">
+          <?php if (($srv['servicio_unidad'] ?? 'pieza') === 'ml'): $ml = rtrim(rtrim(number_format((float)$srv['unidades_por_pieza'],3,'.',''), '0'), '.'); ?>
+          <?= htmlspecialchars($srv['descripcion']) ?> &mdash; <?= $ml ?> m.l. &times; <?= (int)$srv['cantidad_piezas'] ?> pzs &times; $<?= number_format((float)$srv['precio_unitario'],2) ?>/m.l.
+          <?php else: ?>
           <?= htmlspecialchars($srv['descripcion']) ?> &mdash; <?= (int)$srv['unidades_por_pieza'] ?> und &times; <?= (int)$srv['cantidad_piezas'] ?> pzs &times; $<?= number_format((float)$srv['precio_unitario'],2) ?>
+          <?php endif; ?>
         </td>
         <td class="right" style="color:#15803d;font-weight:700;">$<?= number_format((float)$srv['subtotal'],2) ?></td>
       </tr>

@@ -111,7 +111,7 @@ if ($method === 'GET') {
             $pidIds = array_column($partidas, 'id');
             $inPh   = implode(',', array_fill(0, count($pidIds), '?'));
             $stmtSrv = $db->prepare("
-                SELECT cps.*, sc.nombre as servicio_nombre
+                SELECT cps.*, sc.nombre as servicio_nombre, sc.unidad as servicio_unidad
                 FROM cotizacion_partida_servicios cps
                 LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id
                 WHERE cps.partida_id IN ($inPh)

@@ -781,8 +781,10 @@ function renderPartidas(editable) {
         html += '<div class="srv-row">';
         html += '<span class="srv-badge">+ Servicio</span>';
         html += '<span class="srv-desc">' + escHtml(srv.descripcion) + '</span>';
-        html += '<span class="srv-qty">' + srv.unidades_por_pieza + ' und &times; ' + srv.cantidad_piezas + ' pzs</span>';
-        html += '<span class="srv-precio">$' + parseFloat(srv.precio_unitario).toFixed(2) + '/und</span>';
+        var srvEsMl = (srv.servicio_unidad === 'ml');
+        var srvUniLbl = srvEsMl ? (parseFloat(srv.unidades_por_pieza).toFixed(3).replace(/\.?0+$/, '') + ' m.l.') : (srv.unidades_por_pieza + ' und');
+        html += '<span class="srv-qty">' + srvUniLbl + ' &times; ' + srv.cantidad_piezas + ' pzs</span>';
+        html += '<span class="srv-precio">$' + parseFloat(srv.precio_unitario).toFixed(2) + (srvEsMl ? '/m.l.' : '/und') + '</span>';
         html += '<span class="srv-sub">= $' + parseFloat(srv.subtotal).toFixed(2) + '</span>';
         if (_canAddSrv) {
           html += '<button class="srv-del-btn" onclick="window.cotEliminarServicio(' + srv.id + ', ' + _dataCot.id + ', ' + i + ')">&#215;</button>';
