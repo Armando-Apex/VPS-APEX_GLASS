@@ -35,7 +35,7 @@ require_once __DIR__ . '/../api/helpers/icons.php';
 <html lang="es">
 <head>
 <meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>">
-<script src="csrf_fetch.js"></script>
+<script src="csrf_fetch.js?v=<?= @filemtime(__DIR__.'/csrf_fetch.js') ?: date('Ymd') ?>"></script>
 <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96">
 <link rel="icon" type="image/x-icon" href="/favicon/favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
@@ -236,7 +236,7 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
 .notif-item-tiempo{font-size:10px;color:var(--c-muted);margin-top:3px;}
 .notif-empty{padding:32px;text-align:center;color:var(--c-muted);font-size:13px;}
 </style>
-<script src="utils.js"></script>
+<script src="utils.js?v=<?= @filemtime(__DIR__.'/utils.js') ?: date('Ymd') ?>"></script>
 </head>
 <body>
 
