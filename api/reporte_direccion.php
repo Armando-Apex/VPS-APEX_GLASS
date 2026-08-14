@@ -427,6 +427,7 @@ $stmtF = $pdo->prepare("
     JOIN cotizaciones c ON c.orden_id = o.id
     WHERE o.estado IN ('activa', 'entregada')
       AND c.estatus NOT IN ('cancelada', 'rechazada')
+      AND c.es_retrabajo = 0
       AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
 ");
 $stmtF->execute($params2);
@@ -497,6 +498,7 @@ $stmtTop = $pdo->prepare("
     JOIN cotizaciones c ON c.orden_id = o.id
     JOIN clientes cl ON cl.id = c.cliente_id
     WHERE o.estado IN ('activa', 'entregada') AND c.estatus NOT IN ('cancelada', 'rechazada')
+      AND c.es_retrabajo = 0
       AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
     GROUP BY cl.id, cl.nombre
     ORDER BY total_ventas DESC
@@ -512,6 +514,7 @@ $stmtTopPed = $pdo->prepare("
     JOIN cotizaciones c ON c.orden_id = o.id
     JOIN clientes cl ON cl.id = c.cliente_id
     WHERE o.estado IN ('activa', 'entregada') AND c.estatus NOT IN ('cancelada', 'rechazada')
+      AND c.es_retrabajo = 0
       AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
     GROUP BY cl.id, cl.nombre
     ORDER BY ordenes DESC
@@ -528,6 +531,7 @@ $stmtTopM2 = $pdo->prepare("
     JOIN clientes cl ON cl.id = c.cliente_id
     JOIN cotizaciones_partidas cp ON cp.cotizacion_id = c.id
     WHERE o.estado IN ('activa', 'entregada') AND c.estatus NOT IN ('cancelada', 'rechazada')
+      AND c.es_retrabajo = 0
       AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
     GROUP BY cl.id, cl.nombre
     ORDER BY total_m2 DESC
@@ -542,6 +546,7 @@ $stmtAsesor = $pdo->prepare("
     FROM cotizaciones c
     JOIN ordenes o ON o.id = c.orden_id
     WHERE o.estado IN ('activa', 'entregada') AND c.estatus NOT IN ('cancelada', 'rechazada')
+      AND c.es_retrabajo = 0
       AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
     GROUP BY c.asesor_nombre
     ORDER BY total_ventas DESC
