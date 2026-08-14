@@ -13,16 +13,11 @@ header('Access-Control-Allow-Origin: https://apex.glass');
 $db        = getDB();
 $seccion   = $_GET['seccion']    ?? 'todas';
 
-// Filtro por asesor si el rol es comercial
 require_once __DIR__ . '/session_boot.php'; // S2-10
-$rolSesion    = $_SESSION['user_rol']  ?? '';
-$nombreSesion = $_SESSION['user_name'] ?? '';
+// Nota: ya NO se filtra por asesor propio (UPD-508) — todos los asesores
+// ven todas las órdenes, distinguidas por el tag de asesor en el frontend.
 $filtroAsesor = '';
 $paramAsesor  = [];
-if ($rolSesion === 'comercial' && $nombreSesion) {
-    $filtroAsesor = "AND o.asesor LIKE ?";
-    $paramAsesor  = ['%' . $nombreSesion . '%'];
-}
 $busqueda  = trim($_GET['busqueda'] ?? '');
 $pagina    = max(1, (int)($_GET['pagina']    ?? 1));
 $porPagina = $busqueda ? 9999 : min(200, max(10, (int)($_GET['por_pagina'] ?? 50)));

@@ -35,6 +35,13 @@ tbody td { padding: 11px 14px; font-size: 13px; }
 .badge-rech  { background: #fee2e2; color: #991b1b; }
 .badge-inac  { background: #f1f5f9; color: #64748b; }
 .est-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; }
+.aso-badge { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 99px; display: inline-block; white-space: nowrap; }
+.aso-bethy   { background: #ede9fe; color: #6d28d9; }
+.aso-cynthia { background: #ccfbf1; color: #0f766e; }
+.aso-yahaira { background: #fce7f3; color: #be185d; }
+.aso-otro    { background: #f1f5f9; color: #64748b; }
+.th-aso { cursor: pointer; user-select: none; }
+.th-aso:hover { color: #1a1a1a; }
 .loading-msg { text-align: center; padding: 48px; color: #9ca3af; font-size: 14px; }
 
 /* ── Sección autorizaciones pendientes ── */
@@ -120,7 +127,8 @@ tbody td { padding: 11px 14px; font-size: 13px; }
   <div class="cot-table">
     <table>
       <thead><tr>
-        <th>Folio</th><th>Cliente</th><th>Asesor</th>
+        <th>Folio</th><th>Cliente</th>
+        <th class="th-aso" onclick="ModCotizaciones._sortAsesor()">Asesor <span id="cot-aso-arrow"></span></th>
         <th>Fecha</th><th>Entrega</th><th>Total</th><th>Estado</th>
       </tr></thead>
       <tbody id="cot-tbody"><tr><td colspan="7" class="loading-msg">Cargando&#8230;</td></tr></tbody>
@@ -139,6 +147,23 @@ var _cotTab       = 'cotizacion';
 var _cotPage      = 1;
 var _authPendOpen = false;
 var _COT_PER_PAGE = 25;
+var _cotAsoSort   = null; // null | 'asc' | 'desc'
+
+function cotAsesorBadge(nombre) {
+  var n = (nombre || '').toLowerCase();
+  var cls = 'aso-otro';
+  if (n.indexOf('bethy') >= 0) cls = 'aso-bethy';
+  else if (n.indexOf('cynthia') >= 0) cls = 'aso-cynthia';
+  else if (n.indexOf('yahaira') >= 0) cls = 'aso-yahaira';
+  return '<span class="aso-badge ' + cls + '">' + (nombre || '&#8212;') + '</span>';
+}
+
+function cotSortAsesor() {
+  _cotAsoSort = _cotAsoSort === 'asc' ? 'desc' : (_cotAsoSort === 'desc' ? null : 'asc');
+  var arrow = document.getElementById('cot-aso-arrow');
+  if (arrow) arrow.innerHTML = _cotAsoSort === 'asc' ? '&#8593;' : (_cotAsoSort === 'desc' ? '&#8595;' : '');
+  cotFiltrar();
+}
 
 async function cotCargar() {
   try {
@@ -210,6 +235,16 @@ function cotFiltrar() {
 
   var lista = _cotData.filter(function(c) { return esTabMatch(c, _cotTab) && cotMatchSearch(c, q); });
 
+  if (_cotAsoSort) {
+    lista = lista.slice().sort(function(a, b) {
+      var va = (a.asesor_nombre || '').toLowerCase();
+      var vb = (b.asesor_nombre || '').toLowerCase();
+      if (va < vb) return _cotAsoSort === 'asc' ? -1 : 1;
+      if (va > vb) return _cotAsoSort === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
   var cots  = _cotData.filter(function(c){ return c.estatus==='cotizacion' && !esInactiva(c); }).length;
   var ords  = _cotData.filter(function(c){ return c.estatus==='orden'; }).length;
   var cans  = _cotData.filter(function(c){ return c.estatus==='cancelada'; }).length;
@@ -246,7 +281,7 @@ function cotFiltrar() {
     return '<tr onclick="irA(\'cotizacion\',{id:\''+c.id+'\'})">'
       +'<td>'+folioCell+'</td>'
       +'<td>'+(c.cliente_nombre||'&#8212;')+'</td>'
-      +'<td style="color:#64748b;font-size:12px">'+(c.asesor_nombre||'&#8212;')+'</td>'
+      +'<td>'+cotAsesorBadge(c.asesor_nombre)+'</td>'
       +'<td style="color:#64748b;font-size:12px">'+fecha+'</td>'
       +'<td style="font-size:12px">'+entrega+'</td>'
       +'<td style="font-weight:600">'+total+'</td>'
@@ -355,6 +390,7 @@ return {
   _filtrar:          cotFiltrar,
   _toggleAuthPend:   toggleAuthPend,
   _resolverAuthLista: resolverAuthLista,
+  _sortAsesor:       cotSortAsesor,
 };
 })();
 </script>

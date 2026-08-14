@@ -140,13 +140,10 @@ if ($method === 'GET') {
     }
 
     // Lista
+    // Nota: ya NO se filtra por asesor propio (UPD-508) — todos los asesores
+    // ven todas las cotizaciones/órdenes, distinguidas por el tag de asesor en el frontend.
     $where  = ['1=1'];
     $params = [];
-    // Filtrar por asesor si el rol es comercial
-    if ($rol === 'comercial' && $usuario_nombre) {
-        $where[]  = 'c.asesor_nombre LIKE ?';
-        $params[] = '%' . $usuario_nombre . '%';
-    }
     if ($estatus) { $where[] = 'c.estatus = ?'; $params[] = $estatus; }
     if ($q) {
         $where[]  = '(c.folio LIKE ? OR c.cliente_nombre LIKE ? OR c.proyecto LIKE ? OR o.folio LIKE ?)';
