@@ -16,7 +16,10 @@ $es_dir_admin_cots = in_array(($_SESSION['user_rol'] ?? ''), ['dir_admin', 'desa
 .cot-search:focus { border-color: #2563eb; }
 .btn-nueva { background: #2563eb; color: white; border: none; padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .btn-nueva:hover { background: #1d4ed8; }
-.cot-tabs { display: flex; gap: 2px; background: #f3f4f6; padding: 3px; border-radius: 10px; width: fit-content; margin-bottom: 16px; }
+.cot-tabs-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.cot-tabs { display: flex; gap: 2px; background: #f3f4f6; padding: 3px; border-radius: 10px; width: fit-content; }
+.cot-aso-select { padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; color: #374151; background: #fff; cursor: pointer; outline: none; }
+.cot-aso-select:focus { border-color: #2563eb; }
 .cot-tab { padding: 6px 16px; border-radius: 8px; border: none; font-size: 13px; cursor: pointer; font-weight: 500; background: none; color: #6b7280; }
 .cot-tab.active { background: #fff; color: #1a1a1a; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
 .cot-cnt { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 99px; background: #e5e7eb; color: #6b7280; margin-left: 4px; }
@@ -77,8 +80,10 @@ tbody td { padding: 11px 14px; font-size: 13px; }
   .btn-nueva   { width: 100%; text-align: center; }
 
   /* Tabs: scroll horizontal */
+  .cot-tabs-row { flex-direction: column; align-items: stretch; }
   .cot-tabs { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
   .cot-tab  { white-space: nowrap; padding: 6px 12px; font-size: 12px; }
+  .cot-aso-select { width: 100%; }
 
   /* Tabla: ocultar Asesor, Fecha creación y Estado (la tab ya lo indica) */
   thead th:nth-child(3),
@@ -116,12 +121,17 @@ tbody td { padding: 11px 14px; font-size: 13px; }
     <button class="btn-nueva" onclick="irA('cotizacion',{nuevo:'1'})">+ Nueva Cotizaci&#243;n</button>
   </div>
 
-  <div class="cot-tabs">
-    <button class="cot-tab active" onclick="ModCotizaciones._tab('cotizacion')">Cotizaciones <span class="cot-cnt" id="cot-cnt-cot">&#8212;</span></button>
-    <button class="cot-tab"        onclick="ModCotizaciones._tab('orden')"      >&#211;rdenes <span class="cot-cnt" id="cot-cnt-ord">&#8212;</span></button>
-    <button class="cot-tab"        onclick="ModCotizaciones._tab('cancelada')"  >Canceladas <span class="cot-cnt" id="cot-cnt-can">&#8212;</span></button>
-    <button class="cot-tab"        onclick="ModCotizaciones._tab('rechazada')"  >Rechazadas <span class="cot-cnt" id="cot-cnt-rech">&#8212;</span></button>
-    <button class="cot-tab"        onclick="ModCotizaciones._tab('inactiva')"   >Inactivas <span class="cot-cnt" id="cot-cnt-inac">&#8212;</span></button>
+  <div class="cot-tabs-row">
+    <div class="cot-tabs">
+      <button class="cot-tab active" onclick="ModCotizaciones._tab('cotizacion')">Cotizaciones <span class="cot-cnt" id="cot-cnt-cot">&#8212;</span></button>
+      <button class="cot-tab"        onclick="ModCotizaciones._tab('orden')"      >&#211;rdenes <span class="cot-cnt" id="cot-cnt-ord">&#8212;</span></button>
+      <button class="cot-tab"        onclick="ModCotizaciones._tab('cancelada')"  >Canceladas <span class="cot-cnt" id="cot-cnt-can">&#8212;</span></button>
+      <button class="cot-tab"        onclick="ModCotizaciones._tab('rechazada')"  >Rechazadas <span class="cot-cnt" id="cot-cnt-rech">&#8212;</span></button>
+      <button class="cot-tab"        onclick="ModCotizaciones._tab('inactiva')"   >Inactivas <span class="cot-cnt" id="cot-cnt-inac">&#8212;</span></button>
+    </div>
+    <select class="cot-aso-select" id="cot-aso-filter" onchange="ModCotizaciones._filtrarAsesor()">
+      <option value="">Todos los asesores</option>
+    </select>
   </div>
 
   <div class="cot-table">
@@ -165,11 +175,32 @@ function cotSortAsesor() {
   cotFiltrar();
 }
 
+function cotFiltrarAsesor() {
+  _cotPage = 1;
+  cotFiltrar();
+}
+
+function cotPoblarAsesores() {
+  var sel = document.getElementById('cot-aso-filter');
+  if (!sel) return;
+  var actual = sel.value;
+  var nombres = [];
+  _cotData.forEach(function(c) {
+    if (c.asesor_nombre && nombres.indexOf(c.asesor_nombre) < 0) nombres.push(c.asesor_nombre);
+  });
+  nombres.sort(function(a, b) { return a.localeCompare(b, 'es'); });
+  sel.innerHTML = '<option value="">Todos los asesores</option>' + nombres.map(function(n) {
+    return '<option value="' + n.replace(/"/g, '&quot;') + '">' + n + '</option>';
+  }).join('');
+  if (nombres.indexOf(actual) >= 0) sel.value = actual;
+}
+
 async function cotCargar() {
   try {
     var res  = await fetch('../api/cotizaciones.php?limit=1000&t=' + Date.now());
     var data = await res.json();
     _cotData = Array.isArray(data) ? data : (data.cotizaciones || []);
+    cotPoblarAsesores();
     cotFiltrar();
     document.getElementById('cot-sub').textContent =
       'Actualizado a las ' + new Date().toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
@@ -205,6 +236,8 @@ window.cotPaginar = cotPaginar;
 
 function cotFiltrar() {
   var q = ((document.getElementById('cot-q') || {}).value || '').toLowerCase().trim();
+  var asesorSel = ((document.getElementById('cot-aso-filter') || {}).value || '');
+  var baseData = asesorSel ? _cotData.filter(function(c) { return c.asesor_nombre === asesorSel; }) : _cotData;
 
   function esInactiva(c) { return c.estatus === 'cotizacion' && parseInt(c.es_inactiva) === 1; }
   function esTabMatch(c, tab) {
@@ -215,12 +248,12 @@ function cotFiltrar() {
 
   // Auto-switch tab si la búsqueda no tiene resultados en el tab actual pero sí en otro
   if (q) {
-    var enActual = _cotData.filter(function(c) { return esTabMatch(c, _cotTab) && cotMatchSearch(c, q); });
+    var enActual = baseData.filter(function(c) { return esTabMatch(c, _cotTab) && cotMatchSearch(c, q); });
     if (enActual.length === 0) {
       for (var ti = 0; ti < _ALL_TABS.length; ti++) {
         if (_ALL_TABS[ti] === _cotTab) continue;
         var tabCheck = _ALL_TABS[ti];
-        var enOtro = _cotData.filter(function(c) { return esTabMatch(c, tabCheck) && cotMatchSearch(c, q); });
+        var enOtro = baseData.filter(function(c) { return esTabMatch(c, tabCheck) && cotMatchSearch(c, q); });
         if (enOtro.length > 0) {
           _cotTab  = tabCheck;
           _cotPage = 1;
@@ -233,7 +266,7 @@ function cotFiltrar() {
     }
   }
 
-  var lista = _cotData.filter(function(c) { return esTabMatch(c, _cotTab) && cotMatchSearch(c, q); });
+  var lista = baseData.filter(function(c) { return esTabMatch(c, _cotTab) && cotMatchSearch(c, q); });
 
   if (_cotAsoSort) {
     lista = lista.slice().sort(function(a, b) {
@@ -245,11 +278,11 @@ function cotFiltrar() {
     });
   }
 
-  var cots  = _cotData.filter(function(c){ return c.estatus==='cotizacion' && !esInactiva(c); }).length;
-  var ords  = _cotData.filter(function(c){ return c.estatus==='orden'; }).length;
-  var cans  = _cotData.filter(function(c){ return c.estatus==='cancelada'; }).length;
-  var rechs = _cotData.filter(function(c){ return c.estatus==='rechazada'; }).length;
-  var inacs = _cotData.filter(function(c){ return esInactiva(c); }).length;
+  var cots  = baseData.filter(function(c){ return c.estatus==='cotizacion' && !esInactiva(c); }).length;
+  var ords  = baseData.filter(function(c){ return c.estatus==='orden'; }).length;
+  var cans  = baseData.filter(function(c){ return c.estatus==='cancelada'; }).length;
+  var rechs = baseData.filter(function(c){ return c.estatus==='rechazada'; }).length;
+  var inacs = baseData.filter(function(c){ return esInactiva(c); }).length;
   document.getElementById('cot-cnt-cot').textContent  = cots;
   document.getElementById('cot-cnt-ord').textContent  = ords;
   document.getElementById('cot-cnt-can').textContent  = cans;
@@ -391,6 +424,7 @@ return {
   _toggleAuthPend:   toggleAuthPend,
   _resolverAuthLista: resolverAuthLista,
   _sortAsesor:       cotSortAsesor,
+  _filtrarAsesor:    cotFiltrarAsesor,
 };
 })();
 </script>
