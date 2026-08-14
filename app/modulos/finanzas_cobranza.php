@@ -73,6 +73,7 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 .pay-badge.completo { background: #dcfce7; color: #15803d; }
 .pay-badge.parcial  { background: #fef3c7; color: #b45309; }
 .pay-badge.sin-pago { background: #fee2e2; color: #dc2626; }
+.retrabajo-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; white-space: nowrap; background: #fef3c7; color: #92400e; display: inline-block; margin-top: 3px; }
 
 /* Selector estatus pago Lina */
 .sel-epago { font-size: 11px; font-weight: 600; padding: 3px 7px; border-radius: 6px; border: 1.5px solid #e2e8f0; cursor: pointer; background: #f8fafc; outline: none; }
@@ -391,6 +392,14 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
       </select>
     </div>
     <div class="filtro-field">
+      <label>Retrabajo</label>
+      <select id="f-retrabajo" onchange="ModFinanzasCobranza._filtrar()">
+        <option value="">Todos</option>
+        <option value="sin">Sin retrabajo</option>
+        <option value="solo">Solo retrabajo</option>
+      </select>
+    </div>
+    <div class="filtro-field">
       <label>Desde</label>
       <input type="date" id="f-desde" onchange="ModFinanzasCobranza._filtrar()">
     </div>
@@ -490,6 +499,7 @@ function filtrar() {
   var estado = document.getElementById('f-estado')?.value || '';
   var pago   = document.getElementById('f-pago')?.value   || '';
   var asesor = document.getElementById('f-asesor')?.value || '';
+  var retrab = document.getElementById('f-retrabajo')?.value || '';
   var desde  = document.getElementById('f-desde')?.value  || '';
   var hasta  = document.getElementById('f-hasta')?.value  || '';
 
@@ -497,6 +507,8 @@ function filtrar() {
     if (q && !(o.folio||'').toLowerCase().includes(q) && !(o.cliente_nombre||'').toLowerCase().includes(q)) return false;
     if (estado && o.estado !== estado) return false;
     if (asesor && o.asesor !== asesor) return false;
+    if (retrab === 'sin'  && +o.es_retrabajo === 1) return false;
+    if (retrab === 'solo' && +o.es_retrabajo !== 1) return false;
     // Una búsqueda por folio/cliente ignora el rango de fechas — si Lina busca S-097
     // debe aparecer aunque sea de un mes anterior al periodo mostrado por default.
     if (!q) {
@@ -580,8 +592,12 @@ function renderTabla() {
       + (puedeImprimir ? 'onclick="window.open(\'imprimir_salida.php?id=' + o.cot_id + '\',\'_blank\')"' : 'disabled')
       + '><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Salida</button>';
 
+    var tagRetrabajo = (+o.es_retrabajo === 1)
+      ? '<br><span class="retrabajo-badge" title="Orden de retrabajo — la empresa absorbe la pérdida, no perseguir este cobro">Retrabajo — no cobrar</span>'
+      : '';
+
     rows += '<tr>'
-      + '<td style="font-weight:700;color:#2563eb">' + escHtml(o.folio) + '</td>'
+      + '<td style="font-weight:700;color:#2563eb">' + escHtml(o.folio) + tagRetrabajo + '</td>'
       + '<td>' + escHtml(o.cliente_nombre) + '</td>'
       + '<td style="font-size:12px;color:#64748b">' + escHtml(o.asesor||'—') + '</td>'
       + '<td style="font-size:12px;color:#64748b">' + fmtF(o.fecha_pedido) + '</td>'
@@ -801,6 +817,7 @@ function limpiar() {
   document.getElementById('f-estado').value = '';
   document.getElementById('f-pago').value   = '';
   document.getElementById('f-asesor').value = '';
+  document.getElementById('f-retrabajo').value = '';
   aplicarPeriodoDefault();
   filtrar();
 }
