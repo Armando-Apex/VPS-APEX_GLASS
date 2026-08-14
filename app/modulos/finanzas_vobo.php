@@ -30,6 +30,7 @@ tbody td { padding: 12px 14px; font-size: 13px; }
 .dias-ok  { background: #dcfce7; color: #15803d; }
 .dias-warn{ background: #fef3c7; color: #b45309; }
 .dias-old { background: #fee2e2; color: #dc2626; }
+.retrabajo-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; white-space: nowrap; background: #fef3c7; color: #92400e; display: inline-block; }
 
 /* Panel detalle */
 .det-panel { background: white; border: 1px solid #e2e8f0; border-radius: 14px; padding: 24px; display: none; }
@@ -157,8 +158,11 @@ function renderLista() {
     var pagado = o.saldo_pagado ? '$' + parseFloat(o.saldo_pagado).toLocaleString('es-MX',{minimumFractionDigits:2}) : '$0.00';
     var condLabel = o.condicion_pago === 'pago_total' ? 'Pago Total' : '50% Anticipo';
     var fechaLabel = fped.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
+    var tagRetrabajo = (+o.es_retrabajo === 1)
+      ? '<br><span class="retrabajo-badge" title="Orden de retrabajo — la empresa absorbe la pérdida">Retrabajo</span>'
+      : '';
     return '<tr onclick="ModFinanzasVobo._abrirDetalle(' + o.id + ')">'
-      + '<td style="font-weight:700;color:#2563eb">' + escHtml(o.folio) + '</td>'
+      + '<td style="font-weight:700;color:#2563eb">' + escHtml(o.folio) + tagRetrabajo + '</td>'
       + '<td>' + escHtml(o.cliente_nombre) + '</td>'
       + '<td style="color:#64748b;font-size:12px">' + escHtml(o.asesor||'—') + '</td>'
       + '<td style="font-size:12px;color:#64748b">' + fechaLabel + '</td>'
@@ -215,6 +219,14 @@ function renderDetalle() {
   html += '</div>';
   html += '<button class="btn btn-ghost btn-sm" onclick="ModFinanzasVobo._cerrarDetalle()">&#8592; Volver a lista</button>';
   html += '</div>';
+
+  // Banner retrabajo — el cliente casi nunca paga, no se exige anticipo (UPD-467/470)
+  if (+o.es_retrabajo === 1) {
+    html += '<div style="background:#fef3c7;border:1.5px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;font-size:13px">';
+    html += '<span style="font-size:18px">&#9888;&#65039;</span>';
+    html += '<span><strong style="color:#92400e">Orden de retrabajo</strong> — la empresa absorbe la pérdida, no se exige anticipo para dar VoBo. No perseguir este cobro en Cobranza.</span>';
+    html += '</div>';
+  }
 
   // Datos generales
   html += '<div class="det-grid">';

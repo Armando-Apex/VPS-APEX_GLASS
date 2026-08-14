@@ -89,7 +89,7 @@ if ($method === 'GET') {
                    ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
                    GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                    c.saldo_pagado,
-                   c.condicion_pago, c.folio as cot_folio
+                   c.condicion_pago, c.folio as cot_folio, COALESCE(c.es_retrabajo, 0) as es_retrabajo
             FROM ordenes o
             LEFT JOIN cotizaciones c ON c.orden_id = o.id
             WHERE o.estado = 'pendiente_vobo'
@@ -107,7 +107,8 @@ if ($method === 'GET') {
                    ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
                    GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - COALESCE(c.descuento,0)/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                    c.saldo_pagado,
-                   c.condicion_pago, c.folio as cot_folio, c.vobo_por, c.vobo_at, c.cliente_id
+                   c.condicion_pago, c.folio as cot_folio, c.vobo_por, c.vobo_at, c.cliente_id,
+                   COALESCE(c.es_retrabajo, 0) as es_retrabajo
             FROM ordenes o
             LEFT JOIN cotizaciones c ON c.orden_id = o.id
             WHERE o.id = ?
