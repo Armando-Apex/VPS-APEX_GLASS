@@ -189,9 +189,17 @@ function cotPoblarAsesores() {
     if (c.asesor_nombre && nombres.indexOf(c.asesor_nombre) < 0) nombres.push(c.asesor_nombre);
   });
   nombres.sort(function(a, b) { return a.localeCompare(b, 'es'); });
-  sel.innerHTML = '<option value="">Todos los asesores</option>' + nombres.map(function(n) {
-    return '<option value="' + n.replace(/"/g, '&quot;') + '">' + n + '</option>';
-  }).join('');
+  sel.innerHTML = '';
+  var optTodos = document.createElement('option');
+  optTodos.value = '';
+  optTodos.textContent = 'Todos los asesores';
+  sel.appendChild(optTodos);
+  nombres.forEach(function(n) {
+    var opt = document.createElement('option');
+    opt.value = n;
+    opt.textContent = n;
+    sel.appendChild(opt);
+  });
   if (nombres.indexOf(actual) >= 0) sel.value = actual;
 }
 
