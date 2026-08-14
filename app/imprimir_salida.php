@@ -32,7 +32,9 @@ $saldo_pagado = (float)($c['saldo_pagado'] ?? 0);
 $totales_cot  = apexTotalesCotizacion($db, $id);
 $total_cot    = $totales_cot ? $totales_cot['total'] : 0.0;
 $pago_completo = $total_cot > 0 && $saldo_pagado >= $total_cot - 0.99;
-if (!$pago_completo && !in_array($epago, ['en_proceso','pago_entrega','pagado'])) {
+// Retrabajo (UPD-467/470): la empresa ya decidió absorber la pérdida, no se
+// exige cobro ni estatus de pago falso para autorizar la salida.
+if (!$pago_completo && !in_array($epago, ['en_proceso','pago_entrega','pagado']) && empty($c['es_retrabajo'])) {
     die('Esta orden aún no tiene autorización de salida. Faltan $' . number_format(max(0, $total_cot - $saldo_pagado), 2)
         . ' por cobrar o Finanzas debe actualizar el estatus de pago (queda en bitácora).');
 }

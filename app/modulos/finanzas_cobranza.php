@@ -587,7 +587,7 @@ function renderTabla() {
       + 'onchange="ModFinanzasCobranza._cambiarEpago(' + o.cot_id + ',this)">'
       + selOpts + '</select>';
 
-    var puedeImprimir = pagado >= total || ['en_proceso','pago_entrega','pagado'].indexOf(epActual) !== -1;
+    var puedeImprimir = pagado >= total || ['en_proceso','pago_entrega','pagado'].indexOf(epActual) !== -1 || +o.es_retrabajo === 1;
     var btnSalida = '<button class="btn-salida" '
       + (puedeImprimir ? 'onclick="window.open(\'imprimir_salida.php?id=' + o.cot_id + '\',\'_blank\')"' : 'disabled')
       + '><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Salida</button>';

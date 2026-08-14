@@ -41,7 +41,7 @@ $costoVentasVidrio = costoVentasPeriodo($pdo, $desde, $hasta);
 $cobertura         = costoVentasCobertura($pdo, $desde, $hasta);
 $mermaNeta         = mermaNetaPeriodo($pdo, $desde, $hasta);
 $bonoManoObra      = bonoManoObraPeriodo($pdo, $desde, $hasta);
-$costoRetrabajo    = costoRetrabajoPisoPeriodo($pdo, $desde, $hasta);
+$costoRetrabajo    = costoRetrabajoPisoPeriodo($pdo, $desde, $hasta) + costoRetrabajoComercialPeriodo($pdo, $desde, $hasta);
 $costoLineas = [];
 if (isset($porCodigo['5.1'])) {
     $costoLineas[] = ['codigo' => '5.1', 'nombre' => $porCodigo['5.1']['nombre'], 'monto' => $costoVentasVidrio];

@@ -107,6 +107,7 @@ function costoVentasPeriodo(PDO $pdo, string $desde, string $hasta): float {
         WHERE o.estado IN ('activa', 'entregada')
           AND c.estatus NOT IN ('cancelada', 'rechazada')
           AND c.vobo_at IS NOT NULL
+          AND c.es_retrabajo = 0
           AND DATE(c.vobo_at) BETWEEN ? AND ?
           AND $tipoNorm NOT IN $sinCosto
     ");
@@ -176,7 +177,8 @@ function bonoManoObraPeriodo(PDO $pdo, string $desde, string $hasta): float {
 }
 
 /**
- * Retrabajo de Corte de piso (cuenta 5.5). Cuando el piso reporta una pieza
+ * Retrabajo de piso (cuenta 5.5, componente 1 de 2 — ver costoRetrabajoComercialPeriodo()
+ * para el componente 2). Cuando el piso reporta una pieza
  * mala (api/reproceso.php marca piezas.es_retrabajo=1 y la regresa a
  * 'pendiente'), esa pieza se vuelve a cortar: se desperdicia un vidrio
  * completo del tamaño de la pieza que NO lo cuenta nadie más —
@@ -217,6 +219,47 @@ function costoRetrabajoPisoPeriodo(PDO $pdo, string $desde, string $hasta): floa
           AND $tipoNorm NOT IN $sinCosto
     ");
     $stmt->execute([$efectivoDesde, $hasta]);
+    return (float) $stmt->fetchColumn();
+}
+
+/**
+ * Retrabajo comercial (cuenta 5.5, componente 2 de 2). Cuando el asesor crea
+ * una cotización marcada es_retrabajo=1 (error comercial — medida mal tomada,
+ * cliente no conforme, etc., ver api/cotizaciones.php acción convertir_orden y
+ * CLAUDE.md UPD-467) y esa orden recibe VoBo, la pieza nueva consume un vidrio
+ * real que la empresa no va a cobrar (el cliente casi nunca paga, UPD-470).
+ * Antes de esta función ese costo ya se contaba en el Estado de Resultados,
+ * pero mezclado dentro de 5.1 Vidrio (costoVentasPeriodo(), que no excluía
+ * es_retrabajo) — sin visibilidad propia. costoVentasPeriodo() ahora excluye
+ * es_retrabajo=1 y este monto se suma aquí en su lugar: es una reclasificación
+ * entre dos cuentas de Costo de Ventas, no cambia Utilidad Bruta ni Neta.
+ *
+ * Mismo costeo que 5.1 (m² de la pieza × costo promedio de compra por
+ * tipo/espesor) y misma fecha de reconocimiento que el resto de
+ * costoVentasPeriodo(): c.vobo_at, no la fecha de creación de la pieza — es la
+ * misma orden/venta, solo que sin ingreso. Excluye maquila, igual que 5.1.
+ * Sin corte de fecha explícito: es_retrabajo no existía antes del 06-ago-2026
+ * (UPD-467), así que un rango anterior regresa 0 de forma natural.
+ */
+function costoRetrabajoComercialPeriodo(PDO $pdo, string $desde, string $hasta): float {
+    $tipoNorm = PNL_TIPO_NORM_SQL;
+    $espesorNorm = PNL_ESPESOR_NORM_SQL;
+    $sinCosto = PNL_TIPOS_SIN_COSTO;
+    $costoProm = PNL_COSTO_PROM_SUBQUERY;
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(ROUND(SUM(p.m2 * cp.costo_prom_m2), 2), 0) AS costo_retrabajo
+        FROM piezas p
+        JOIN ordenes o ON o.id = p.orden_id
+        JOIN cotizaciones c ON c.orden_id = o.id
+        LEFT JOIN $costoProm cp ON cp.tipo = $tipoNorm AND cp.espesor_mm = $espesorNorm
+        WHERE o.estado IN ('activa', 'entregada')
+          AND c.estatus NOT IN ('cancelada', 'rechazada')
+          AND c.vobo_at IS NOT NULL
+          AND c.es_retrabajo = 1
+          AND DATE(c.vobo_at) BETWEEN ? AND ?
+          AND $tipoNorm NOT IN $sinCosto
+    ");
+    $stmt->execute([$desde, $hasta]);
     return (float) $stmt->fetchColumn();
 }
 
@@ -291,6 +334,7 @@ function costoVentasCobertura(PDO $pdo, string $desde, string $hasta): array {
         WHERE o.estado IN ('activa', 'entregada')
           AND c.estatus NOT IN ('cancelada', 'rechazada')
           AND c.vobo_at IS NOT NULL
+          AND c.es_retrabajo = 0
           AND DATE(c.vobo_at) BETWEEN ? AND ?
           AND $tipoNorm NOT IN $sinCosto
     ");
