@@ -490,7 +490,7 @@ function renderFormulario(data) {
   html += '</div>'; // form-grid (cliente)
 
   // ── Proyecto ──
-  html += '<div class="grp"><div class="grp-label">Proyecto</div><div class="form-grid">';
+  html += '<div class="grp"><div class="grp-label">Proyecto</div><div class="form-grid form-grid-4">';
   html += '<div class="field"><label>Proyecto / Referencia</label>';
   html += '<input type="text" id="fProyecto" placeholder="Ej: Casa Lomas" ' + (!editable ? 'readonly' : '') + ' value="' + escHtml(data ? data.proyecto : '') + '"></div>';
 
@@ -506,8 +506,21 @@ function renderFormulario(data) {
     html += '<input type="text" readonly value="' + parseFloat(data.descuento_referido) + '% (ya aplicado)"></div>';
   }
 
-  // Alerta — sin span-3: con Proyecto + Referido/Descuento ya son 3 campos,
-  // así entra en el mismo renglón en vez de brincar a una fila propia vacía.
+  // Código de promo por volumen (Estados de WhatsApp, 15-ago-2026) — código
+  // personal del cliente (CTN-###PROMO). El % lo decide el servidor según el
+  // total de piezas de la cotización, y REEMPLAZA el campo Descuento manual
+  // (así el candado de autorización >10% se sigue disparando igual). Igual
+  // que Referidos: solo se pide al crear, en edición ya quedó fijo (promocion_id).
+  if (esNuevo) {
+    html += '<div class="field"><label>C&oacute;digo de Promoci&oacute;n</label>';
+    html += '<input type="text" id="fPromoWaCodigo" placeholder="Ej: CTN-259PROMO" maxlength="20" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
+    html += '<small style="color:#64748b;">Opcional, descuento por volumen de piezas.</small></div>';
+  } else if (data && data.promocion_id) {
+    html += '<div class="field"><label>Promoci&oacute;n aplicada</label>';
+    html += '<input type="text" readonly value="' + parseFloat(data.descuento || 0) + '% por volumen (ya aplicado)"></div>';
+  }
+
+  // Alerta
   html += '<div class="field"><label>Alerta / Nota especial</label>';
   html += '<input type="text" id="fAlerta" ' + (!editable?'readonly':'') + ' value="' + escHtml(data ? (data.alerta||'') : '') + '" placeholder="Ej: Urgente, cliente espera..."></div>';
   html += '</div></div>'; // form-grid, grp Proyecto
@@ -1258,6 +1271,7 @@ function armarPayload(clienteId) {
     factura_tipo:   (document.getElementById('fFacturaGenerica')?.checked ? 'generica' : ''),
     alerta:         document.getElementById('fAlerta')?.value       || '',
     referido_ctn:   (document.getElementById('fReferidoCtn')?.value || '').trim(),
+    promo_wa_codigo: (document.getElementById('fPromoWaCodigo')?.value || '').trim(),
     partidas:       partidasPayload,
   };
 }

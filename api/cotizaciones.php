@@ -21,6 +21,7 @@ $es_admin     = in_array($rol, ['dir_admin', 'dueno', 'desarrollo']);
 require_once 'cotizacion_helpers.php';
 require_once __DIR__ . '/helpers/totales.php';    // A-2: fórmula canónica de totales
 require_once __DIR__ . '/helpers/referidos_lib.php'; // Esquema de Referidos (promo agosto 2026)
+require_once __DIR__ . '/helpers/promo_wa_lib.php';   // Promo Estados WhatsApp por volumen (15-ago-2026)
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
 if ($method === 'GET') {
@@ -485,6 +486,7 @@ if ($method === 'POST') {
     $partidas     = $body['partidas']              ?? [];
     $fecha_entrega_manual = trim($body['fecha_entrega'] ?? '');
     $referido_ctn = trim($body['referido_ctn']     ?? '');
+    $promo_wa_codigo = trim($body['promo_wa_codigo'] ?? '');
     $es_retrabajo = !empty($body['es_retrabajo']) ? 1 : 0;
 
     if (!$cliente_id) { jsonResponse(['error' => 'Cliente requerido']); exit; }
@@ -516,6 +518,24 @@ if ($method === 'POST') {
         if ($pzOrig['estado'] === 'cancelada') { jsonResponse(['error' => 'La orden original está cancelada']); exit; }
         if ($pzOrig['tipo'] === 'maquila') { jsonResponse(['error' => 'La orden original es de Maquila — por ahora el retrabajo desde Cotización solo aplica a órdenes de Suministro']); exit; }
         if ((int)$pzOrig['cliente_id'] !== $cliente_id) { jsonResponse(['error' => 'El cliente debe ser el mismo de la orden original']); exit; }
+    }
+
+    // Promo Estados WhatsApp por volumen (15-ago-2026, ver api/helpers/promo_wa_lib.php):
+    // código personal CTN-###PROMO — el % del tramo (según total de piezas de la
+    // cotización) REEMPLAZA el descuento manual capturado (no se suma aparte, a
+    // diferencia de Referidos) para que el candado de autorización dir_admin >10%
+    // (autorizaciones_descuento) se dispare igual que cualquier descuento manual
+    // en los tramos de 11+ piezas — decisión explícita de Armando.
+    $promocion_id = null;
+    if (!$es_retrabajo && $promo_wa_codigo !== '') {
+        $valPromo = promoWaValidarCodigo($db, $promo_wa_codigo, $cliente_id);
+        if ($valPromo['error']) { jsonResponse(['error' => $valPromo['error']]); exit; }
+        $promocion_id  = $valPromo['promocion_id'];
+        $totalPiezasPromo = 0;
+        foreach ($partidas as $p) { $totalPiezasPromo += max(1, (int)($p['cantidad'] ?? 1)); }
+        $descPromo = promoWaCalcularDescuento($db, $promocion_id, $totalPiezasPromo);
+        if ($descPromo === null) { jsonResponse(['error' => 'No hay un tramo de descuento definido para ' . $totalPiezasPromo . ' piezas.']); exit; }
+        $descuento = $descPromo; // reemplaza el % manual — lo define el tramo de piezas
     }
 
     // Esquema de Referidos (promo agosto 2026, ver api/helpers/referidos_lib.php):
@@ -610,14 +630,14 @@ if ($method === 'POST') {
 
         $db->prepare("INSERT INTO cotizaciones
             (folio, fecha, cliente_id, cliente_nombre, asesor_id, asesor_nombre,
-             proyecto, descuento, descuento_referido, credito, condicion_pago, tipo_entrega,
+             proyecto, descuento, descuento_referido, promocion_id, credito, condicion_pago, tipo_entrega,
              localidad, ciudad_destino, factura_tipo, fecha_entrega, fecha_entrega_manual,
              alerta, subtotal, iva, total, saldo_pendiente, entrega_bloqueada, estatus, es_retrabajo)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ")->execute([
             $folio, $fecha_hoy, $cliente_id, $cliente_nombre,
             $usuario_id, $usuario_nombre,
-            $proyecto, $descuento, $descuento_referido, $credito, $condicion, $tipo_entrega,
+            $proyecto, $descuento, $descuento_referido, $promocion_id, $credito, $condicion, $tipo_entrega,
             $localidad, $ciudad, $factura_tipo, $fecha_entrega, $es_manual,
             $alerta, $subtotal_neto, $iva_total, $total_final,
             $saldo,
@@ -685,7 +705,7 @@ if ($method === 'PUT') {
         if (!$puede_editar) { jsonResponse(['error' => 'Sin permiso']); exit; }
 
         // Verificar que existe y está en estatus cotizacion
-        $stmt = $db->prepare("SELECT estatus, asesor_id, COALESCE(saldo_pagado,0) AS saldo_pagado, COALESCE(descuento_referido,0) AS descuento_referido FROM cotizaciones WHERE id = ?");
+        $stmt = $db->prepare("SELECT estatus, asesor_id, COALESCE(saldo_pagado,0) AS saldo_pagado, COALESCE(descuento_referido,0) AS descuento_referido, promocion_id, es_retrabajo FROM cotizaciones WHERE id = ?");
         $stmt->execute([$id]);
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
@@ -701,7 +721,11 @@ if ($method === 'PUT') {
         // Referidos: descuento_referido queda fijo desde que se registró — no es
         // editable aquí, solo se preserva y se suma para recalcular el total.
         $descuento_referido = (float)$cot['descuento_referido'];
-        $descuento_efectivo = $descuento + $descuento_referido;
+        // Promo Estados WhatsApp por volumen: si la cotización ya trae un promocion_id
+        // (se fijó al crearla), queda LOCKED — solo se recalcula el % según el total de
+        // piezas vigente. Si no traía y ahora se manda un código nuevo, se valida aquí.
+        $promocion_id    = $cot['promocion_id'] ? (int)$cot['promocion_id'] : null;
+        $promo_wa_codigo = trim($body['promo_wa_codigo'] ?? '');
         $credito      = ($body['credito'] ?? 'no') === 'si' ? 'si' : 'no';
         $condicion    = in_array($body['condicion_pago'] ?? '', ['anticipo','pago_total']) ? $body['condicion_pago'] : 'anticipo';
         $tipo_entrega = in_array($body['tipo_entrega'] ?? '', ['domicilio','planta']) ? $body['tipo_entrega'] : 'domicilio';
@@ -714,6 +738,22 @@ if ($method === 'PUT') {
 
         if (!$cliente_id) { jsonResponse(['error' => 'Cliente requerido']); exit; }
         if (empty($partidas)) { jsonResponse(['error' => 'Se requiere al menos una partida']); exit; }
+
+        if (!$cot['es_retrabajo']) {
+            if (!$promocion_id && $promo_wa_codigo !== '') {
+                $valPromo = promoWaValidarCodigo($db, $promo_wa_codigo, $cliente_id);
+                if ($valPromo['error']) { jsonResponse(['error' => $valPromo['error']]); exit; }
+                $promocion_id = $valPromo['promocion_id'];
+            }
+            if ($promocion_id) {
+                $totalPiezasPromo = 0;
+                foreach ($partidas as $p) { $totalPiezasPromo += max(1, (int)($p['cantidad'] ?? 1)); }
+                $descPromo = promoWaCalcularDescuento($db, $promocion_id, $totalPiezasPromo);
+                if ($descPromo === null) { jsonResponse(['error' => 'No hay un tramo de descuento definido para ' . $totalPiezasPromo . ' piezas.']); exit; }
+                $descuento = $descPromo; // reemplaza el % manual — lo define el tramo de piezas
+            }
+        }
+        $descuento_efectivo = $descuento + $descuento_referido;
 
         // Datos del cliente
         $stmt = $db->prepare("SELECT razon_social, nombre FROM clientes WHERE id = ?");
@@ -831,14 +871,14 @@ if ($method === 'PUT') {
         try {
             // Actualizar cabecera
             $db->prepare("UPDATE cotizaciones SET
-                cliente_id=?, cliente_nombre=?, proyecto=?, descuento=?,
+                cliente_id=?, cliente_nombre=?, proyecto=?, descuento=?, promocion_id=?,
                 credito=?, condicion_pago=?, tipo_entrega=?, localidad=?,
                 ciudad_destino=?, factura_tipo=?, fecha_entrega=?, fecha_entrega_manual=?,
                 alerta=?, subtotal=?, iva=?, total=?, saldo_pendiente=?,
                 updated_at=NOW()
                 WHERE id=?
             ")->execute([
-                $cliente_id, $cliente_nombre, $proyecto, $descuento,
+                $cliente_id, $cliente_nombre, $proyecto, $descuento, $promocion_id,
                 $credito, $condicion, $tipo_entrega, $localidad,
                 $ciudad, $factura_tipo, $fecha_entrega, $es_manual,
                 $alerta, $subtotal_neto, $iva_total, $total_final, $saldo,
