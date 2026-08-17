@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 17 agosto 2026 | Próximo UPD disponible: UPD-520
+# Última actualización: 17 agosto 2026 | Próximo UPD disponible: UPD-521
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -753,4 +753,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-519 | 17-ago-2026 | Armando | Fix período por default en Estado de Resultados (`?m=contabilidad`, `app/modulos/contabilidad_pnl.php`): Armando pidió que al entrar muestre el mes en curso (agosto) — antes abría en el mes **anterior** (julio) a propósito (`periodoAnteriorAHoy()`, decisión original documentada en el código: "el período en curso normalmente está incompleto"). Renombrada/simplificada a `periodoActual()`, que regresa el período que contiene hoy en vez del anterior; usada en `iniciarControles()` (carga inicial del módulo) y `granularidadCambio()` (al cambiar Mensual/Trimestral/Semestral/Anual). Solo afecta el modo "Individual" (vista de un solo período) — el modo "Comparar períodos" ya mostraba Ene-Hoy por default, sin cambio. El aviso de cobertura de costo trazado (banner cuando `<80%` de piezas tienen costo real, ver UPD-434/438) sigue funcionando igual y avisa si agosto (mes corriendo) no tiene suficiente dato todavía — no se quitó ninguna protección, solo cambió qué mes se ve primero. `php -l` + `node --check` del `<script>` embebido OK. Sin prueba visual en navegador — pendiente que Armando confirme que abre en agosto. |
 
-**Próximo UPD disponible: UPD-520**
+| UPD-520 | 17-ago-2026 | Armando | Corrección de datos (no código): eliminado cliente duplicado **CTN-494** (id=352, "JOSÉ GUADALUPE TAMAYO PALACIOS", creado 12-ago-2026 por Yahaira) — mismo teléfono (8145936765) que **CTN-207** (id=63, "JOSE GUADALUPE TAMAYO", creado 07-jun-2026), mismo caso que UPD-451. Verificadas las 9 tablas con `cliente_id`/`referente_cliente_id`/`cliente_solicito_id` antes de borrar: CTN-494 no tenía ninguna actividad real (0 cotizaciones, órdenes, saldo a favor, referidos, conversación WA, rechazos, facturas ni campañas) — solo su registro de creación en `clientes_bitacora`. Se conservó CTN-207, que sí tiene 2 cotizaciones, 2 órdenes, 15 envíos de campaña y 1 conversación de WhatsApp reales. Borrado `clientes_bitacora` (id=313) + `clientes` (id=352) dentro de una transacción con SELECT de verificación antes/después; confirmado que CTN-207 quedó intacto. |
+
+**Próximo UPD disponible: UPD-521**
