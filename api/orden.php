@@ -6,6 +6,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
+require_once __DIR__ . '/helpers/horario_habil.php';
 
 // Acepta sesión interna del sistema O sesión del portal de clientes
 require_once __DIR__ . '/session_boot.php'; // S2-10
@@ -62,20 +63,23 @@ if ($esPortal && !$esInterno) {
 
 // Todas las piezas con sus campos de trabajos incluidos
 $stmt = $db->prepare('
-    SELECT 
+    SELECT
         p.*,
-        TIMESTAMPDIFF(MINUTE,
-            (SELECT h.created_at FROM historial_estatus h
-             WHERE h.pieza_id = p.id AND h.estatus_nuevo = "cortado"
-             ORDER BY h.created_at ASC LIMIT 1),
-            NOW()
-        ) as minutos_desde_corte
+        (SELECT h.created_at FROM historial_estatus h
+         WHERE h.pieza_id = p.id AND h.estatus_nuevo = "cortado"
+         ORDER BY h.created_at ASC LIMIT 1) as fecha_cortado
     FROM piezas p
     WHERE p.orden_id = ?
     ORDER BY p.partida ASC, p.pieza_num ASC
 ');
 $stmt->execute([$orden['id']]);
 $piezas = $stmt->fetchAll();
+
+$ahora = date('Y-m-d H:i:s');
+foreach ($piezas as &$p) {
+    $p['minutos_desde_corte'] = $p['fecha_cortado'] ? minutosHabilesEntre($p['fecha_cortado'], $ahora) : null;
+}
+unset($p);
 
 // Agrupar por partida
 $partidas = [];
