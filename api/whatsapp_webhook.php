@@ -316,7 +316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $cli = $stmtCli->fetch(PDO::FETCH_ASSOC);
                     $clienteId = $cli ? $cli['id'] : null;
 
-                    $db->prepare("INSERT INTO whatsapp_conversaciones (cliente_id, telefono, ultima_actividad) VALUES (?,?,NOW())")
+                    $db->prepare("INSERT INTO whatsapp_conversaciones (cliente_id, telefono, ultima_actividad, ultimo_mensaje_cliente_at) VALUES (?,?,NOW(),NOW())")
                        ->execute([$clienteId, $telefono]);
                     $convId = $db->lastInsertId();
                 } else {
@@ -350,7 +350,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $db->prepare("INSERT INTO whatsapp_mensajes (conversacion_id, campana_envio_id, direccion, contenido, tipo, wa_message_id) VALUES (?,?,'inbound',?,?,?)")
                    ->execute([$convId, $campanaEnvioId, $contenido, $tipo, $waId]);
 
-                $db->prepare("UPDATE whatsapp_conversaciones SET mensajes_sin_leer = mensajes_sin_leer + 1, ultima_actividad = NOW() WHERE id=?")
+                // ultimo_mensaje_cliente_at solo se mueve aquí (mensaje ENTRANTE) — es la única
+                // acción que reabre la ventana de servicio de 24h de WhatsApp. ultima_actividad
+                // se sigue actualizando también con nuestros propios envíos (orden del inbox),
+                // por eso no sirve para decidir si la ventana sigue abierta.
+                $db->prepare("UPDATE whatsapp_conversaciones SET mensajes_sin_leer = mensajes_sin_leer + 1, ultima_actividad = NOW(), ultimo_mensaje_cliente_at = NOW() WHERE id=?")
                    ->execute([$convId]);
 
                 if ($envio) {

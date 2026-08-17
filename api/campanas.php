@@ -244,7 +244,7 @@ if ($metodo === 'GET' && $accion === 'conversaciones') {
                    WHEN pr.id IS NOT NULL THEN 'prospecto'
                    ELSE 'desconocido'
                END as tipo_contacto,
-               wc.telefono, wc.ultima_actividad, wc.mensajes_sin_leer, wc.estado,
+               wc.telefono, wc.ultima_actividad, wc.ultimo_mensaje_cliente_at, wc.mensajes_sin_leer, wc.estado,
                (SELECT contenido FROM whatsapp_mensajes wm
                 WHERE wm.conversacion_id = wc.id
                 ORDER BY wm.created_at DESC LIMIT 1) as ultimo_mensaje
@@ -652,6 +652,11 @@ if ($metodo === 'POST' && $accion === 'responder') {
     if (!$conv) {
         jsonResponse(['error' => 'Conversación no encontrada'], 404);
     }
+    // Fuera de la ventana de 24h, Meta acepta el envío (200 + message id) y solo falla
+    // después, en silencio, vía webhook — mejor cortar aquí con un error claro.
+    if (!waVentanaAbierta($conv['ultimo_mensaje_cliente_at'])) {
+        jsonResponse(['error' => 'Ventana de 24h cerrada — el cliente no ha escrito recientemente. Usa "Reactivar conversación" primero.'], 409);
+    }
 
     $payload = [
         'messaging_product' => 'whatsapp',
@@ -743,6 +748,12 @@ if ($metodo === 'POST' && $accion === 'enviar_media') {
     $conv = $stmtConv->fetch(PDO::FETCH_ASSOC);
     if (!$conv) {
         jsonResponse(['error' => 'Conversación no encontrada'], 404);
+    }
+    // Fuera de la ventana de 24h, Meta acepta el envío (200 + message id) y solo falla
+    // después, en silencio, vía webhook — mejor cortar aquí con un error claro (este es
+    // justo el caso reportado: "la portada de la cotización no le llegó al cliente").
+    if (!waVentanaAbierta($conv['ultimo_mensaje_cliente_at'])) {
+        jsonResponse(['error' => 'Ventana de 24h cerrada — el cliente no ha escrito recientemente. Usa "Reactivar conversación" primero.'], 409);
     }
 
     $file     = $_FILES['archivo'];
@@ -878,6 +889,9 @@ if ($metodo === 'POST' && $accion === 'enviar_ubicacion') {
     $stmtConv->execute([$convId]);
     $conv = $stmtConv->fetch(PDO::FETCH_ASSOC);
     if (!$conv) jsonResponse(['error' => 'Conversación no encontrada'], 404);
+    if (!waVentanaAbierta($conv['ultimo_mensaje_cliente_at'])) {
+        jsonResponse(['error' => 'Ventana de 24h cerrada — el cliente no ha escrito recientemente. Usa "Reactivar conversación" primero.'], 409);
+    }
 
     $payload = [
         'messaging_product' => 'whatsapp',

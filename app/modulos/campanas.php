@@ -1051,7 +1051,10 @@ var ModCampanas = (function() {
 
     // ── Conversaciones ────────────────────────────────────────
     var _convTipoMap = {};
-    var _convActividadMap = {};
+    // Última vez que EL CLIENTE escribió (no nuestros propios envíos) — es lo único que
+    // realmente reabre la ventana de servicio de 24h de WhatsApp; ultima_actividad no sirve
+    // para esto porque también se mueve con lo que nosotros mandamos.
+    var _convUltimoClienteMap = {};
 
     var _tipoBadge = {
         cliente:     '<span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;background:#dbeafe;color:#1d4ed8;margin-left:6px;vertical-align:middle;">CRM</span>',
@@ -1083,14 +1086,14 @@ var ModCampanas = (function() {
         var html = '';
         var sinLeerTotal = 0;
         _convTipoMap = {};
-        _convActividadMap = {};
+        _convUltimoClienteMap = {};
         _convTelMap = {};
         _convDataAll.forEach(function(c) {
             var sl   = parseInt(c.mensajes_sin_leer) || 0;
             var tipo = c.tipo_contacto || 'desconocido';
-            _convTipoMap[c.id]      = tipo;
-            _convActividadMap[c.id] = c.ultima_actividad || null;
-            _convTelMap[c.id]       = c.telefono || '';
+            _convTipoMap[c.id]          = tipo;
+            _convUltimoClienteMap[c.id] = c.ultimo_mensaje_cliente_at || null;
+            _convTelMap[c.id]           = c.telefono || '';
             sinLeerTotal += sl;
 
             if (q) {
@@ -1153,24 +1156,26 @@ var ModCampanas = (function() {
             ? '<span onclick="window.cmpAbrirContacto(' + convId + ')" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;" title="Ver / editar contacto">' + esc(_convActivaNombre) + '</span>'
             : esc(_convActivaNombre);
 
-        // Verificar ventana 24h
-        var ultimaActividad = _convActividadMap[convId] || null;
-        var ventanaAbierta  = true;
-        var fechaLeg        = '';
-        if (ultimaActividad) {
-            var diffMs = Date.now() - new Date(ultimaActividad.replace(' ', 'T')).getTime();
+        // Verificar ventana 24h — SOLO cuenta el último mensaje que el cliente nos escribió,
+        // nunca lo que nosotros le mandamos a él (ver _convUltimoClienteMap arriba).
+        var ultimoCliente  = _convUltimoClienteMap[convId] || null;
+        var ventanaAbierta = false;
+        var fechaLeg       = '';
+        if (ultimoCliente) {
+            var diffMs = Date.now() - new Date(ultimoCliente.replace(' ', 'T')).getTime();
             ventanaAbierta = diffMs < 24 * 3600 * 1000;
-            if (!ventanaAbierta) {
-                var d = new Date(ultimaActividad.replace(' ', 'T'));
-                fechaLeg = d.toLocaleString('es-MX', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
-            }
+        }
+        if (!ventanaAbierta) {
+            fechaLeg = ultimoCliente
+                ? new Date(ultimoCliente.replace(' ', 'T')).toLocaleString('es-MX', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})
+                : 'nunca ha escrito';
         }
 
         var inputHtml;
         if (!ventanaAbierta) {
             inputHtml =
                 '<div class="conv-ventana-cerrada">' +
-                '<span>&#128274; Ventana cerrada &middot; &uacute;ltima actividad: ' + fechaLeg + '</span>' +
+                '<span>&#128274; Ventana cerrada &middot; &uacute;ltimo mensaje del cliente: ' + fechaLeg + '</span>' +
                 '<button id="cmpBtnReabrir" onclick="window.cmpEnviarTemplateInbox()">Reactivar conversaci&oacute;n</button>' +
                 '</div>';
         } else {
@@ -1409,7 +1414,8 @@ var ModCampanas = (function() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.ok) {
-                _convActividadMap[_convActiva] = new Date().toISOString().replace('T', ' ').substring(0, 19);
+                // No se marca la ventana como reabierta aquí — enviar el template no la reabre,
+                // solo la reabre una respuesta real del cliente (llega vía webhook).
                 cargarMensajes(_convActiva);
                 var banner = document.querySelector('.conv-ventana-cerrada span');
                 if (banner) banner.innerHTML = '&#9989; Mensaje enviado &middot; La ventana se abrir&aacute; cuando el cliente responda.';

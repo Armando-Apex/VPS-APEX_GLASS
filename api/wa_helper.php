@@ -22,3 +22,15 @@ if (!function_exists('enviarMensajeWA')) {
         return ['code' => $code, 'data' => $data, 'curl_error' => $curlErr];
     }
 }
+
+// Ventana de servicio al cliente de WhatsApp (24h): solo se puede reabrir con un mensaje
+// entrante DEL CLIENTE, nunca enviando algo nosotros. $ultimoMensajeClienteAt debe venir de
+// whatsapp_conversaciones.ultimo_mensaje_cliente_at (NO de ultima_actividad, que también se
+// mueve con nuestros propios envíos y por eso no sirve para esta validación).
+if (!function_exists('waVentanaAbierta')) {
+    function waVentanaAbierta($ultimoMensajeClienteAt) {
+        if (!$ultimoMensajeClienteAt) return false;
+        $diffSeg = time() - strtotime($ultimoMensajeClienteAt);
+        return $diffSeg < 24 * 3600;
+    }
+}
