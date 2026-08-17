@@ -274,16 +274,13 @@ function aplicarVisibilidadPeriodo(gran) {
   document.getElementById('individualPeriodoWrap').style.display = mostrar ? '' : 'none';
 }
 
-// El período anterior al actual (ej. si hoy es agosto, en Mensual regresa julio) — es el que se
-// muestra por default al entrar, ya que el período en curso normalmente está incompleto.
-function periodoAnteriorAHoy(gran) {
-  var n = totalIdx(gran);
+// El período que contiene hoy (ej. si hoy es agosto, en Mensual regresa agosto) — es el que se
+// muestra por default al entrar. El período puede estar incompleto (mes en curso), el aviso de
+// cobertura de costo ya avisa aparte si el dato no es confiable todavía.
+function periodoActual(gran) {
   var anioActual = new Date().getFullYear();
   var idxHoy = idxDeHoy(gran);
-  var k = anioActual * n + (idxHoy - 1) - 1;
-  var anio = Math.floor(k / n);
-  var idx = (k % n) + 1;
-  return { anio: anio, idx: idx };
+  return { anio: anioActual, idx: idxHoy };
 }
 
 function aplicarModoComparacion() {
@@ -296,7 +293,7 @@ function aplicarModoComparacion() {
 function iniciarControles() {
   var gran = document.getElementById('granularidad').value;
   var anioActual = new Date().getFullYear();
-  var anterior = periodoAnteriorAHoy(gran);
+  var actual = periodoActual(gran);
 
   poblarAnios(document.getElementById('desdeAnio'));
   poblarAnios(document.getElementById('hastaAnio'));
@@ -311,13 +308,13 @@ function iniciarControles() {
   document.getElementById('desdePeriodo').value = 1;
   document.getElementById('hastaPeriodo').value = idxDeHoy(gran);
 
-  document.getElementById('individualAnio').value = anterior.anio;
-  document.getElementById('individualPeriodo').value = anterior.idx;
+  document.getElementById('individualAnio').value = actual.anio;
+  document.getElementById('individualPeriodo').value = actual.idx;
 }
 
 function granularidadCambio() {
   var gran = document.getElementById('granularidad').value;
-  var anterior = periodoAnteriorAHoy(gran);
+  var actual = periodoActual(gran);
 
   poblarPeriodo(document.getElementById('desdePeriodo'), gran);
   poblarPeriodo(document.getElementById('hastaPeriodo'), gran);
@@ -326,8 +323,8 @@ function granularidadCambio() {
 
   document.getElementById('desdePeriodo').value = 1;
   document.getElementById('hastaPeriodo').value = idxDeHoy(gran);
-  document.getElementById('individualAnio').value = anterior.anio;
-  document.getElementById('individualPeriodo').value = anterior.idx;
+  document.getElementById('individualAnio').value = actual.anio;
+  document.getElementById('individualPeriodo').value = actual.idx;
 
   cargar();
 }
