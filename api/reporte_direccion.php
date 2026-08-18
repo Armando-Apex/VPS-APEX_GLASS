@@ -452,7 +452,7 @@ $finanzas = $stmtF->fetch(PDO::FETCH_ASSOC);
 // del período (ver abajo). ticket_promedio queda sin uso en el frontend (dead
 // field histórico) — se deja sin filtro, no vale la pena mantenerlo si nadie
 // lo consume.
-// bethy_total/cynthia_total ("Cotizado (pipeline)" en Rendimiento por asesor) SÍ
+// bethy_total/berenice_total ("Cotizado (pipeline)" en Rendimiento por asesor) SÍ
 // se filtran por el período seleccionado ($desde/$hasta) — a petición de
 // Armando, 31-jul-2026: ese pipeline por asesor debe ser "las del mes", igual
 // criterio que pipeline_total_periodo (incluye vencidas del período, no solo
@@ -468,7 +468,7 @@ $stmtC = $pdo->prepare("
         COALESCE(SUM(CASE WHEN c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0)    AS total_cotizado,
         AVG(CASE WHEN COALESCE(c.total,0) > 0 THEN c.total ELSE NULL END)                  AS ticket_promedio,
         COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Bethy%' AND c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0)   AS bethy_total,
-        COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Cynthia%' AND c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0) AS cynthia_total,
+        COALESCE(SUM(CASE WHEN c.asesor_nombre LIKE '%Berenice%' AND c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0) AS berenice_total,
         COALESCE(SUM(CASE WHEN c.fecha >= DATE_SUB(CURDATE(), INTERVAL 15 DAY) THEN c.total ELSE 0 END), 0)                   AS pipeline_vigente,
         COALESCE(SUM(CASE WHEN c.created_at BETWEEN ? AND ? THEN c.total ELSE 0 END), 0)                                     AS pipeline_total_periodo
     FROM cotizaciones c

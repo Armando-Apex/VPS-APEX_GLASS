@@ -512,7 +512,7 @@ if ($metodo === 'POST' && $accion === 'enviar') {
             }
             // Normalizar a asesoras reales — si quedó vacío o es alguien que no es
             // comercial (ej. cotización hecha por el Director Administrativo), usar Bethy.
-            $asesorasReales = ['Bethy', 'Cynthia'];
+            $asesorasReales = ['Bethy', 'Berenice'];
             foreach ($clienteIdsEnvio as $cid) {
                 if (empty($extraData[$cid]['asesor']) || !in_array($extraData[$cid]['asesor'], $asesorasReales, true)) {
                     $extraData[$cid]['asesor'] = 'Bethy';

@@ -20,9 +20,10 @@ const COMISION_TRAMOS = [
 ];
 
 const COMISION_ASESORES = [
-    'bethy'   => ['label' => 'Bethy',   'like' => '%Bethy%'],
-    'cynthia' => ['label' => 'Cynthia', 'like' => '%Cynthia%'],
-    'yahaira' => ['label' => 'Yahaira', 'like' => '%Yahaira%'],
+    'bethy'    => ['label' => 'Bethy',    'like' => '%Bethy%'],
+    'berenice' => ['label' => 'Berenice', 'like' => '%Berenice%'],
+    'cynthia'  => ['label' => 'Cynthia',  'like' => '%Cynthia%'], // histórico — asesor2 hasta 18-ago-2026
+    'yahaira'  => ['label' => 'Yahaira',  'like' => '%Yahaira%'],
 ];
 
 const YAHAIRA_TASA_INICIAL         = 0.015;

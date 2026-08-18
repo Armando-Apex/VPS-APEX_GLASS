@@ -47,16 +47,18 @@ $servicios_subtotal = (float)($c['servicios_subtotal'] ?? 0);
 // Datos del asesor — usa los de la BD o los del Excel como fallback
 $asesores_excel = [
     'Bethy Rocha'          => ['movil' => '81 3400 0145', 'email' => 'bethy.rocha@apex.glass'],
-    'Cynthia Negrete'      => ['movil' => '81 4005 1992', 'email' => 'cynthia.negrete@apex.glass'],
+    'Berenice Cabrera'     => ['movil' => '81 4005 1992', 'email' => 'berenice.cabrera@apex.glass'],
+    'Cynthia Negrete'      => ['movil' => '81 4005 1992', 'email' => 'cynthia.negrete@apex.glass'], // histórico
     'Nadia Zaragoza Garcia'=> ['movil' => '81 2004 8082', 'email' => 'nadia.zaragoza@apex.glass'],
     'Armando Reyna'        => ['movil' => '81 2390 8070', 'email' => 'armando.reyna@apex.glass'],
 ];
 
 // Mapa de nombre corto → nombre completo
 $nombres_completos = [
-    'Bethy'   => 'Bethy Rocha',
-    'Cynthia' => 'Cynthia Negrete',
-    'Nadia'   => 'Nadia Zaragoza Garcia',
+    'Bethy'    => 'Bethy Rocha',
+    'Berenice' => 'Berenice Cabrera',
+    'Cynthia'  => 'Cynthia Negrete', // histórico — cotizaciones pre-14-ago-2026 (asesor2)
+    'Nadia'    => 'Nadia Zaragoza Garcia',
     'Armando' => 'Armando Reyna',
 ];
 

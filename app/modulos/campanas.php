@@ -702,7 +702,7 @@ var ModCampanas = (function() {
             var v = _templateVars[i];
             var val = v === '{{nombre_cliente}}'   ? (nombreCliente || 'Cliente') :
                       v === '{{punto}}'             ? '.' :
-                      v === '{{nombre_asesor}}'     ? 'Cynthia' :
+                      v === '{{nombre_asesor}}'     ? 'Berenice' :
                       v === '{{num_ordenes}}'       ? '3' :
                       v === '{{num_cotizaciones}}'  ? '2' :
                       v === '{{monto_cotizado}}'    ? '$12,500' :

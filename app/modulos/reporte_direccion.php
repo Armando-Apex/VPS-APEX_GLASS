@@ -333,7 +333,7 @@ function rdRender(rep, dash, inv, ef) {
         '<th style="text-align:right">Cotizado (pipeline)</th>' +
       '</tr></thead><tbody>';
     porAsesor.forEach(function(a) {
-      var bethyCot = a.asesor_nombre && a.asesor_nombre.indexOf('Bethy') >= 0 ? fmtMXN(cot.bethy_total) : (a.asesor_nombre && a.asesor_nombre.indexOf('Cynthia') >= 0 ? fmtMXN(cot.cynthia_total) : '&#8212;');
+      var bethyCot = a.asesor_nombre && a.asesor_nombre.indexOf('Bethy') >= 0 ? fmtMXN(cot.bethy_total) : (a.asesor_nombre && a.asesor_nombre.indexOf('Berenice') >= 0 ? fmtMXN(cot.berenice_total) : '&#8212;');
       html += '<tr>' +
         '<td><strong>' + esc(a.asesor_nombre||'Sin asignar') + '</strong></td>' +
         '<td style="text-align:right">' + a.ordenes + '</td>' +
