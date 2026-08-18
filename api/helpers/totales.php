@@ -48,7 +48,7 @@ function apexTotalesCotizacion(PDO $db, $cotizacion_id) {
     // El candado de autorización dir_admin >10% (autorizaciones_descuento) evalúa
     // solo `cotizaciones.descuento` — descuento_referido queda fuera de ese cálculo
     // a propósito, es automático y no requiere aprobación.
-    $descuento_efectivo = (float)$cot['descuento'] + (float)$cot['descuento_referido'];
+    $descuento_efectivo = min(100, (float)$cot['descuento'] + (float)$cot['descuento_referido']); // S1-01/S1-04: tope 100%
 
     $st = $db->prepare("SELECT COALESCE(SUM(precio_m2_usado*m2*cantidad),0) FROM cotizaciones_partidas WHERE cotizacion_id = ?");
     $st->execute([(int)$cotizacion_id]);
