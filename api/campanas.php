@@ -87,6 +87,7 @@ function nombreCampanaCorto($clienteId, $contacto) {
 
 // ── Función: enviar mensaje a Meta Cloud API ─────────────────
 require_once __DIR__ . '/wa_helper.php';
+require_once __DIR__ . '/helpers/totales.php'; // S1-02: fórmula canónica (incluye descuento_referido)
 
 // ── GET mensajes sin leer (badge sidebar) ────────────────────
 if ($metodo === 'GET' && $accion === 'sin_leer') {
@@ -939,18 +940,14 @@ if ($metodo === 'POST' && $accion === 'enviar_cotizacion_wa') {
 
     // Cargar cotización — si no es admin, restringir a cotizaciones propias
     $sqlCot = "
-        SELECT c.folio, c.cliente_nombre, c.proyecto, c.cliente_id,
-               c.asesor_id, c.descuento, c.servicios_subtotal,
-               COALESCE(SUM(cp.precio_m2_usado * cp.m2 * cp.cantidad), 0) as subtotal_bruto
+        SELECT c.folio, c.cliente_nombre, c.proyecto, c.cliente_id, c.asesor_id
         FROM cotizaciones c
-        LEFT JOIN cotizaciones_partidas cp ON cp.cotizacion_id = c.id
         WHERE c.id = ?";
     $params = [$cotizacionId];
     if (!$esAdminWA) {
         $sqlCot .= " AND c.asesor_id = ?";
         $params[] = $user['id'];
     }
-    $sqlCot .= " GROUP BY c.id";
     $stmtCot = $db->prepare($sqlCot);
     $stmtCot->execute($params);
     $cot = $stmtCot->fetch(PDO::FETCH_ASSOC);
@@ -958,12 +955,9 @@ if ($metodo === 'POST' && $accion === 'enviar_cotizacion_wa') {
         jsonResponse(['error' => 'Cotización no encontrada'], 404);
     }
 
-    // Calcular total igual que imprimir_cotizacion.php
-    $subtotal_neto = ($cot['descuento'] > 0)
-        ? round($cot['subtotal_bruto'] * (1 - $cot['descuento'] / 100), 2)
-        : (float)$cot['subtotal_bruto'];
-    $base       = round($subtotal_neto + (float)($cot['servicios_subtotal'] ?? 0), 2);
-    $totalFmt   = '$' . number_format(round($base * 1.16, 2), 2, '.', ',');
+    // S1-02: fórmula canónica A-2 (incluye descuento_referido; maquila ramifica sola)
+    $tots     = apexTotalesCotizacion($db, $cotizacionId);
+    $totalFmt = '$' . number_format($tots['total'] ?? 0, 2, '.', ',');
 
     $telefono = normalizarTelefono($telefonoRaw);
 
