@@ -475,7 +475,7 @@ if ($method === 'POST') {
     // Crear cotización nueva
     $cliente_id   = (int)($body['cliente_id']    ?? 0);
     $proyecto     = trim($body['proyecto']        ?? '');
-    $descuento    = (float)($body['descuento']    ?? 0);
+    $descuento    = max(0, min(100, (float)($body['descuento'] ?? 0))); // S1-04: mismo clamp que edición
     $credito      = ($body['credito'] ?? 'no') === 'si' ? 'si' : 'no';
     $condicion    = in_array($body['condicion_pago'] ?? '', ['anticipo','pago_total']) ? $body['condicion_pago'] : 'anticipo';
     $tipo_entrega = in_array($body['tipo_entrega'] ?? '', ['domicilio','planta']) ? $body['tipo_entrega'] : 'domicilio';
@@ -554,7 +554,7 @@ if ($method === 'POST') {
     }
     // Suma con el descuento manual (no cascada); el candado de autorización >10%
     // sigue evaluando solo $descuento (manual), no $descuento_efectivo.
-    $descuento_efectivo = $descuento + $descuento_referido;
+    $descuento_efectivo = min(100, $descuento + $descuento_referido); // S1-04: tope 100%
 
     // Calcular fecha entrega
     $fecha_hoy    = date('Y-m-d');
@@ -753,7 +753,7 @@ if ($method === 'PUT') {
                 $descuento = $descPromo; // reemplaza el % manual — lo define el tramo de piezas
             }
         }
-        $descuento_efectivo = $descuento + $descuento_referido;
+        $descuento_efectivo = min(100, $descuento + $descuento_referido); // S1-04: tope 100%
 
         // Datos del cliente
         $stmt = $db->prepare("SELECT razon_social, nombre FROM clientes WHERE id = ?");
