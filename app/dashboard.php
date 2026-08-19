@@ -223,6 +223,20 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
 .notif-panel-titulo{font-size:13px;font-weight:700;color:var(--c-text);}
 .notif-btn-leer-todas{font-size:11px;color:var(--c-muted);background:none;border:none;cursor:pointer;padding:0;}
 .notif-btn-leer-todas:hover{color:var(--c-blue);}
+#msgPanel{width:420px;max-width:calc(100vw - 24px);}
+#msgLista{max-height:75vh;min-height:320px;overflow-y:auto;}
+#msgPanel .notif-item-titulo{font-size:14px;}
+#msgPanel .notif-item-msg{font-size:13px;}
+#msgPanel .msg-item-bubble{font-size:14px;max-width:90%;}
+.msg-panel-footer{display:flex;gap:6px;padding:10px 12px;border-top:1px solid #f1f5f9;}
+.msg-panel-footer input{flex:1;border:1px solid var(--c-border);border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;}
+.msg-panel-footer button{background:var(--c-blue);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;}
+.msg-item{padding:8px 12px;}
+.msg-item-bubble{max-width:85%;border-radius:10px;padding:7px 10px;font-size:12.5px;line-height:1.4;margin-bottom:4px;}
+.msg-item-bubble.mio{background:var(--c-blue);color:#fff;margin-left:auto;}
+.msg-item-bubble.otro{background:#f1f5f9;color:var(--c-text);}
+.msg-item-tiempo{font-size:10px;color:var(--c-muted);margin-bottom:8px;}
+.msg-item-tiempo.mio{text-align:right;}
 .notif-lista{max-height:380px;overflow-y:auto;}
 .notif-item{padding:12px 16px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s;display:flex;gap:10px;align-items:flex-start;}
 .notif-item:hover{background:#f8fafc;}
@@ -259,6 +273,24 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
           <button class="notif-btn-leer-todas" onclick="leerTodas()">Marcar todas como le&#237;das</button>
         </div>
         <div class="notif-lista" id="notifLista"><div class="notif-empty">Cargando&#8230;</div></div>
+      </div>
+    </div>
+    <?php endif; ?>
+    <?php if ($esAdmin || $esComercial): ?>
+    <div class="notif-wrap" id="msgWrap">
+      <button class="notif-btn" onclick="toggleMsgPanel()" title="Mensajes" aria-label="Mensajes">
+        <?= icono('message-square', 18) ?><span class="notif-badge" id="msgBadge"></span>
+      </button>
+      <div class="notif-panel" id="msgPanel">
+        <div class="notif-panel-head">
+          <span class="notif-panel-titulo" id="msgPanelTitulo">Mensajes</span>
+          <button class="notif-btn-leer-todas" id="msgBtnVolver" onclick="msgVolverLista()" style="display:none;">&larr; Conversaciones</button>
+        </div>
+        <div class="notif-lista" id="msgLista"><div class="notif-empty">Cargando&#8230;</div></div>
+        <div class="msg-panel-footer" id="msgFooter" style="display:none;">
+          <input type="text" id="msgInput" placeholder="Escribe un mensaje..." maxlength="2000" autocomplete="off" name="msg-nuevo-<?= bin2hex(random_bytes(4)) ?>" onkeydown="if(event.key==='Enter')msgEnviar()">
+          <button onclick="msgEnviar()">Enviar</button>
+        </div>
       </div>
     </div>
     <?php endif; ?>
@@ -665,6 +697,162 @@ document.addEventListener('click', e => {
 
 cargarNotificaciones();
 _siOrig.call(window, cargarNotificaciones, 30000);
+<?php endif; ?>
+
+<?php if ($esAdmin || $esComercial): ?>
+// ── Mensajes internos (hilo persona <-> desarrollo) ───────────────────────────
+var _esDevMsg = <?= $esAdmin ? 'true' : 'false' ?>;
+var _msgConversaciones = [];
+var _msgHiloActivo = [];
+var _msgOtroIdActivo = null;
+var _msgOtroNombreActivo = null;
+
+function msgFechaHora(fechaStr) {
+  var d = new Date(fechaStr.replace(' ', 'T'));
+  return d.toLocaleDateString('es-MX', {day:'2-digit', month:'short'}) + ', ' +
+    d.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+}
+
+function msgEscHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+async function cargarMsgBadge() {
+  try {
+    var r = await fetch('../api/mensajes.php?accion=sin_leer&t=' + Date.now());
+    var d = await r.json();
+    if (!d.ok) return;
+    var badge = document.getElementById('msgBadge');
+    if (d.total > 0) {
+      badge.textContent = d.total > 99 ? '99+' : d.total;
+      badge.classList.add('show');
+    } else {
+      badge.classList.remove('show');
+    }
+  } catch(e) {}
+}
+
+async function toggleMsgPanel() {
+  var panel = document.getElementById('msgPanel');
+  panel.classList.toggle('open');
+  if (!panel.classList.contains('open')) return;
+  if (_esDevMsg) {
+    msgVolverLista();
+  } else {
+    msgAbrirHilo(null, null);
+  }
+}
+
+async function msgVolverLista() {
+  document.getElementById('msgBtnVolver').style.display = 'none';
+  document.getElementById('msgFooter').style.display = 'none';
+  document.getElementById('msgPanelTitulo').textContent = 'Mensajes';
+  _msgOtroIdActivo = null;
+  var lista = document.getElementById('msgLista');
+  lista.innerHTML = '<div class="notif-empty">Cargando&#8230;</div>';
+  try {
+    var r = await fetch('../api/mensajes.php?accion=conversaciones&t=' + Date.now());
+    var d = await r.json();
+    if (!d.ok) { lista.innerHTML = '<div class="notif-empty">Error al cargar</div>'; return; }
+    _msgConversaciones = d.conversaciones || [];
+    if (!_msgConversaciones.length) {
+      lista.innerHTML = '<div class="notif-empty">Sin conversaciones todav&#237;a</div>';
+      return;
+    }
+    lista.innerHTML = '';
+    _msgConversaciones.forEach(function(c) {
+      var noLeidosHtml = c.no_leidos > 0 ? '<span class="notif-badge show" style="position:static;margin-left:6px;">' + c.no_leidos + '</span>' : '';
+      var item = document.createElement('div');
+      item.className = 'notif-item' + (c.no_leidos > 0 ? ' no-leida' : '');
+      item.innerHTML =
+        '<div class="notif-item-body">' +
+          '<div class="notif-item-titulo">' + msgEscHtml(c.nombre) + noLeidosHtml + '</div>' +
+          '<div class="notif-item-msg">' + msgEscHtml(c.ultimo_mensaje || '') + '</div>' +
+          '<div class="notif-item-tiempo">' + tiempoRelativo(c.ultimo_at) + '</div>' +
+        '</div>';
+      item.addEventListener('click', function() { msgAbrirHilo(c.usuario_id, c.nombre); });
+      lista.appendChild(item);
+    });
+  } catch(e) { lista.innerHTML = '<div class="notif-empty">Error al cargar</div>'; }
+}
+
+async function msgAbrirHilo(otroId, otroNombre) {
+  _msgOtroIdActivo = otroId;
+  _msgOtroNombreActivo = otroNombre;
+  document.getElementById('msgFooter').style.display = 'flex';
+  if (_esDevMsg) {
+    document.getElementById('msgBtnVolver').style.display = 'inline';
+    document.getElementById('msgPanelTitulo').textContent = otroNombre || 'Mensajes';
+  }
+  var lista = document.getElementById('msgLista');
+  lista.innerHTML = '<div class="notif-empty">Cargando&#8230;</div>';
+  try {
+    var url = '../api/mensajes.php?accion=hilo&t=' + Date.now();
+    if (_esDevMsg) url += '&con=' + otroId;
+    var r = await fetch(url);
+    var d = await r.json();
+    if (!d.ok) { lista.innerHTML = '<div class="notif-empty">Error al cargar</div>'; return; }
+    _msgHiloActivo = d.mensajes || [];
+    msgRenderHilo();
+    cargarMsgBadge();
+  } catch(e) { lista.innerHTML = '<div class="notif-empty">Error al cargar</div>'; }
+}
+
+function msgRenderHilo() {
+  var lista = document.getElementById('msgLista');
+  if (!_msgHiloActivo.length) {
+    lista.innerHTML = '<div class="notif-empty">Sin mensajes todav&#237;a. Escribe el primero.</div>';
+    return;
+  }
+  lista.innerHTML = '<div class="msg-item">' + _msgHiloActivo.map(function(m) {
+    var mio = _esDevMsg ? (m.de_otro == 0) : (m.de_otro == 1);
+    return '<div class="msg-item-bubble ' + (mio ? 'mio' : 'otro') + '">' + msgEscHtml(m.mensaje) + '</div>' +
+      '<div class="msg-item-tiempo ' + (mio ? 'mio' : '') + '">' + msgEscHtml(m.autor_nombre) + ' &middot; ' + msgFechaHora(m.created_at) + '</div>';
+  }).join('') + '</div>';
+  lista.scrollTop = lista.scrollHeight;
+}
+
+async function msgEnviar() {
+  var input = document.getElementById('msgInput');
+  var texto = input.value.trim();
+  if (!texto) return;
+  var body = { mensaje: texto };
+  if (_esDevMsg) {
+    if (!_msgOtroIdActivo) return;
+    body.para = _msgOtroIdActivo;
+  }
+  input.value = '';
+  try {
+    var r = await fetch('../api/mensajes.php?accion=enviar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    var d = await r.json();
+    if (!d.ok) { alert(d.error || 'No se pudo enviar'); return; }
+    msgAbrirHilo(_msgOtroIdActivo, _msgOtroNombreActivo);
+  } catch(e) { alert('No se pudo enviar'); }
+}
+
+function cerrarMsgPanel() {
+  document.getElementById('msgPanel').classList.remove('open');
+}
+
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('msgWrap');
+  if (!wrap) return;
+  // Usa composedPath() en vez de wrap.contains(e.target): un click en un ítem de la
+  // lista de conversaciones dispara msgAbrirHilo(), que reemplaza el innerHTML de
+  // #msgLista (para mostrar "Cargando...") ANTES de que el evento termine de subir
+  // hasta aquí — para entonces e.target ya no está en el DOM y contains() da falso,
+  // cerrando el panel de golpe. composedPath() congela la ruta al momento del click.
+  var ruta = typeof e.composedPath === 'function' ? e.composedPath() : [e.target];
+  if (ruta.indexOf(wrap) === -1) cerrarMsgPanel();
+});
+
+cargarMsgBadge();
+_siOrig.call(window, cargarMsgBadge, 30000);
 <?php endif; ?>
 // ── Sidebar drawer móvil ──────────────────────────────────────────────────────
 var _scrollY = 0;

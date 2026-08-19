@@ -76,7 +76,7 @@ if ($method === 'GET') {
         // Orden: primero 'activa' (aún con piezas por salir) y luego 'entregada'; dentro de
         // cada grupo, fecha de entrega prometida más antigua primero.
         $stmt = $db->prepare("
-            SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_entrega,
+            SELECT o.id, o.folio, o.cliente_id, o.cliente_nombre, o.asesor, o.fecha_entrega,
                    o.estado, c.localidad, c.ciudad_destino
             FROM ordenes o
             LEFT JOIN cotizaciones c ON c.orden_id = o.id
@@ -127,7 +127,7 @@ if ($method === 'GET') {
             // ver api/salidas.php + app/imprimir_salida.php) — se jala ese dato existente en vez
             // de duplicar el seguimiento con ruta_entrega_piezas, que es un mecanismo aparte.
             $stmt2 = $db->prepare("
-                SELECT re.*, re.estado as entrega_estado, o.folio, o.cliente_nombre, o.estado as orden_estado,
+                SELECT re.*, re.estado as entrega_estado, o.folio, o.cliente_id, o.cliente_nombre, o.estado as orden_estado,
                        os.es_parcial, os.piezas_count as salida_piezas_count, os.piezas_total as salida_piezas_total
                 FROM ruta_entregas re
                 JOIN ordenes o ON o.id = re.orden_id

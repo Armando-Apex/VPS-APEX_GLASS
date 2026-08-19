@@ -196,6 +196,8 @@ var ModReportes = (function() {
       html += '<button class="rep-btn-ir" onclick="ModReportes.irAlElemento(' + r.id + ')">&#8594; Ir al elemento</button>';
     }
 
+    html += '<button class="rep-btn-ir" onclick="ModReportes.mensaje(' + r.id + ')">&#9993; Mandar mensaje a ' + esc(r.creado_por) + '</button>';
+
     document.getElementById('rep-modal-body').innerHTML = html;
     document.getElementById('rep-modal-back').className = 'rep-modal-back open';
   }
@@ -296,6 +298,22 @@ var ModReportes = (function() {
 
   _cargar();
 
-  return { filtrar: filtrar, completar: completar, verDetalle: verDetalle, cerrarDetalle: cerrarDetalle, irAlElemento: irAlElemento };
+  function mensaje(id) {
+    var r = null;
+    for (var i = 0; i < _todos.length; i++) { if (_todos[i].id === id) { r = _todos[i]; break; } }
+    if (!r) return;
+    fetch('../api/mensajes.php?accion=resolver_usuario&nombre=' + encodeURIComponent(r.creado_por))
+      .then(function(resp) { return resp.json(); })
+      .then(function(d) {
+        if (!d.ok) { alert(d.error || 'No se encontró el usuario'); return; }
+        cerrarDetalle();
+        var panel = document.getElementById('msgPanel');
+        panel.classList.add('open');
+        if (typeof msgAbrirHilo === 'function') msgAbrirHilo(d.usuario.id, d.usuario.nombre);
+      })
+      .catch(function() { alert('No se pudo abrir la conversación'); });
+  }
+
+  return { filtrar: filtrar, completar: completar, verDetalle: verDetalle, cerrarDetalle: cerrarDetalle, irAlElemento: irAlElemento, mensaje: mensaje };
 })();
 </script>

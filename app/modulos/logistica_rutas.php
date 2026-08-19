@@ -306,6 +306,7 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
     <h3>Asignar a Ruta</h3>
     <input type="hidden" id="as-orden-id">
     <input type="hidden" id="as-ruta-id">
+    <input type="hidden" id="as-cliente-id">
     <div class="lr-field">
       <label>Ruta destino</label>
       <select id="as-ruta-sel"></select>
@@ -319,6 +320,12 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
         <span><span class="as-piezas-sel" id="as-piezas-count">0</span> piezas seleccionadas</span>
         <button class="as-sel-todos" onclick="LR.toggleTodasPiezas()">Seleccionar todas</button>
       </div>
+    </div>
+    <div class="lr-field" id="as-dir-guardada-wrap" style="display:none;">
+      <label>Dirección guardada</label>
+      <select id="as-dir-guardada" onchange="LR.usarDireccionGuardada('as')">
+        <option value="">Nueva dirección</option>
+      </select>
     </div>
     <div class="lr-field">
       <label>Dirección</label>
@@ -339,6 +346,12 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
       <label>Referencias</label>
       <input type="text" id="as-ref" placeholder="Entre calles, color de fachada...">
     </div>
+    <div class="lr-field">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:700;">
+        <input type="checkbox" id="as-guardar-dir-cb" onchange="LR.toggleGuardarDir('as')" style="width:auto;"> Guardar dirección
+      </label>
+      <input type="text" id="as-guardar-dir-nombre" placeholder="Nombre, ej. Taller" style="display:none;margin-top:6px;">
+    </div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="LR.cerrarModalAsignar()">Cancelar</button>
       <button class="btn-confirm" onclick="LR.guardarAsignacion()">Asignar</button>
@@ -351,6 +364,13 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
   <div class="lr-modal">
     <h3>Editar Dirección</h3>
     <input type="hidden" id="ed-entrega-id">
+    <input type="hidden" id="ed-cliente-id">
+    <div class="lr-field" id="ed-dir-guardada-wrap" style="display:none;">
+      <label>Dirección guardada</label>
+      <select id="ed-dir-guardada" onchange="LR.usarDireccionGuardada('ed')">
+        <option value="">Nueva dirección</option>
+      </select>
+    </div>
     <div class="lr-field">
       <label>Dirección</label>
       <input type="text" id="ed-dir">
@@ -363,6 +383,12 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
     <div class="lr-field">
       <label>Referencias</label>
       <input type="text" id="ed-ref">
+    </div>
+    <div class="lr-field">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:400;">
+        <input type="checkbox" id="ed-guardar-dir-cb" onchange="LR.toggleGuardarDir('ed')" style="width:auto;"> Guardar dirección
+      </label>
+      <input type="text" id="ed-guardar-dir-nombre" placeholder="Nombre, ej. Taller" style="display:none;margin-top:6px;">
     </div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="LR.cerrarEditDir()">Cancelar</button>
@@ -663,7 +689,7 @@ var LR = (function() {
         + '<td>'+(o.localidad||'Local')+(o.ciudad_destino?' — '+escH(o.ciudad_destino):'')+'</td>'
         + '<td><span class="estado-chip '+eCls+'">'+o.estado+'</span></td>'
         + '<td><span class="peso-chip">'+fmtKg(o.peso_kg)+'</span></td>'
-        + '<td><div class="lr-actions"><button class="btn-asignar" onclick="LR.abrirModalAsignar('+o.id+')">Asignar</button>'
+        + '<td><div class="lr-actions"><button class="btn-asignar" onclick="LR.abrirModalAsignar('+o.id+','+(o.cliente_id||0)+')">Asignar</button>'
         + (PUEDE_LIBERAR_PEND && o.estado === 'entregada' ? '<button class="btn-asignar" style="background:#64748b" onclick="LR.liberarPendiente('+o.id+',\''+escH(o.folio)+'\')">Liberar</button>' : '')
         + '</div></td>'
         + '</tr>';
@@ -753,9 +779,14 @@ var LR = (function() {
     }
   }
 
-  function abrirModalAsignar(orden_id) {
+  function abrirModalAsignar(orden_id, cliente_id) {
     if (!_rutas.length) { toast('Crea al menos una ruta primero', true); return; }
     document.getElementById('as-orden-id').value = orden_id;
+    document.getElementById('as-cliente-id').value = cliente_id || 0;
+    document.getElementById('as-guardar-dir-cb').checked = false;
+    document.getElementById('as-guardar-dir-nombre').style.display = 'none';
+    document.getElementById('as-guardar-dir-nombre').value = '';
+    cargarDireccionesGuardadas('as', cliente_id);
     var sel = document.getElementById('as-ruta-sel');
     sel.innerHTML = _rutas.map(function(r) {
       var usado = parseFloat(r.peso_total||0);
@@ -884,14 +915,80 @@ var LR = (function() {
     input.style.display = '';
   }
 
+  // ── Direcciones guardadas por cliente ───────────────────────
+  var _direccionesGuardadas = {}; // prefix -> lista cargada, para poder autocompletar al elegir
+
+  async function cargarDireccionesGuardadas(prefix, cliente_id) {
+    var wrap = document.getElementById(prefix + '-dir-guardada-wrap');
+    var sel  = document.getElementById(prefix + '-dir-guardada');
+    sel.innerHTML = '<option value="">Nueva dirección</option>';
+    wrap.style.display = 'none';
+    _direccionesGuardadas[prefix] = [];
+    if (!cliente_id) return;
+    try {
+      var r = await fetch('../api/clientes_direcciones.php?accion=listar&cliente_id=' + cliente_id);
+      var d = await r.json();
+      if (!d.ok || !d.direcciones.length) return;
+      _direccionesGuardadas[prefix] = d.direcciones;
+      d.direcciones.forEach(function(dir, i) {
+        var opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = dir.etiqueta;
+        sel.appendChild(opt);
+      });
+      wrap.style.display = '';
+    } catch(e) {}
+  }
+
+  function usarDireccionGuardada(prefix) {
+    var idx = document.getElementById(prefix + '-dir-guardada').value;
+    if (idx === '') return;
+    var dir = _direccionesGuardadas[prefix][parseInt(idx)];
+    if (!dir) return;
+    document.getElementById(prefix + '-dir').value = dir.direccion || '';
+    document.getElementById(prefix + '-col').value = dir.colonia || '';
+    document.getElementById(prefix + '-ciu').value = dir.ciudad || 'Monterrey';
+    document.getElementById(prefix + '-ref').value = dir.referencias || '';
+  }
+
+  function toggleGuardarDir(prefix) {
+    var checked = document.getElementById(prefix + '-guardar-dir-cb').checked;
+    document.getElementById(prefix + '-guardar-dir-nombre').style.display = checked ? '' : 'none';
+  }
+
+  async function guardarDireccionSiAplica(prefix, cliente_id) {
+    var cb = document.getElementById(prefix + '-guardar-dir-cb');
+    if (!cb || !cb.checked) return;
+    var etiqueta = document.getElementById(prefix + '-guardar-dir-nombre').value.trim();
+    if (!etiqueta) { toast('Ponle un nombre a la dirección para guardarla (ej. Taller)', true); return; }
+    await fetch('../api/clientes_direcciones.php?accion=guardar', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        cliente_id: cliente_id,
+        etiqueta: etiqueta,
+        direccion: document.getElementById(prefix + '-dir').value.trim(),
+        colonia: document.getElementById(prefix + '-col').value.trim(),
+        ciudad: document.getElementById(prefix + '-ciu').value.trim() || 'Monterrey',
+        referencias: document.getElementById(prefix + '-ref').value.trim()
+      })
+    });
+  }
+
   async function guardarAsignacion() {
-    var orden_id  = parseInt(document.getElementById('as-orden-id').value);
-    var ruta_id   = parseInt(document.getElementById('as-ruta-sel').value);
+    var orden_id   = parseInt(document.getElementById('as-orden-id').value);
+    var ruta_id    = parseInt(document.getElementById('as-ruta-sel').value);
+    var cliente_id = parseInt(document.getElementById('as-cliente-id').value) || 0;
     var checks    = document.querySelectorAll('.as-pieza-cb:checked');
     var pieza_ids = Array.from(checks).map(function(c){ return parseInt(c.value); });
 
     if (!pieza_ids.length) {
       toast('Selecciona al menos una pieza', true);
+      return;
+    }
+
+    var cbGuardar = document.getElementById('as-guardar-dir-cb');
+    if (cbGuardar.checked && !document.getElementById('as-guardar-dir-nombre').value.trim()) {
+      toast('Ponle un nombre a la dirección para guardarla (ej. Taller)', true);
       return;
     }
 
@@ -908,6 +1005,7 @@ var LR = (function() {
     });
     var d = await r.json();
     if (d.ok) {
+      await guardarDireccionSiAplica('as', cliente_id);
       cerrarModalAsignar();
       toast('Orden asignada — ' + d.peso_kg + ' kg · ' + pieza_ids.length + ' piezas');
       await cargar();
@@ -927,10 +1025,15 @@ var LR = (function() {
     }
     if (!e) return;
     document.getElementById('ed-entrega-id').value = entrega_id;
+    document.getElementById('ed-cliente-id').value = e.cliente_id || 0;
     document.getElementById('ed-dir').value = e.direccion  || '';
     document.getElementById('ed-col').value = e.colonia    || '';
     document.getElementById('ed-ciu').value = e.ciudad     || 'Monterrey';
     document.getElementById('ed-ref').value = e.referencias|| '';
+    document.getElementById('ed-guardar-dir-cb').checked = false;
+    document.getElementById('ed-guardar-dir-nombre').style.display = 'none';
+    document.getElementById('ed-guardar-dir-nombre').value = '';
+    cargarDireccionesGuardadas('ed', e.cliente_id);
     document.getElementById('modal-edit-dir').classList.add('open');
     setTimeout(function(){ initAutocomplete(); }, 100);
   }
@@ -938,6 +1041,12 @@ var LR = (function() {
 
   async function guardarEditDir() {
     var id = parseInt(document.getElementById('ed-entrega-id').value);
+    var cliente_id = parseInt(document.getElementById('ed-cliente-id').value) || 0;
+    var cbGuardar = document.getElementById('ed-guardar-dir-cb');
+    if (cbGuardar.checked && !document.getElementById('ed-guardar-dir-nombre').value.trim()) {
+      toast('Ponle un nombre a la dirección para guardarla (ej. Taller)', true);
+      return;
+    }
     var r  = await fetch(API_RUTAS, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
@@ -949,7 +1058,10 @@ var LR = (function() {
       })
     });
     var d = await r.json();
-    if (d.ok) { cerrarEditDir(); toast('Dirección actualizada'); await cargarRutas(); }
+    if (d.ok) {
+      await guardarDireccionSiAplica('ed', cliente_id);
+      cerrarEditDir(); toast('Dirección actualizada'); await cargarRutas();
+    }
     else       { toast(d.error||'Error', true); }
   }
 
@@ -1721,6 +1833,7 @@ var LR = (function() {
     pendPagina:irAPendPagina,
     liberarPendiente:liberarPendiente,
     confirmarRegreso:confirmarRegreso,
+    usarDireccionGuardada:usarDireccionGuardada, toggleGuardarDir:toggleGuardarDir,
   };
 })();
 </script>
