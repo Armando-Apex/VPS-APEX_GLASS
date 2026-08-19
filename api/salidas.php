@@ -98,7 +98,7 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
     // Sale la mercancía si: pago completo (total canónico), o Finanzas autorizó
     // el estatus de pago (bitácora C-11), o dir_admin autorizó la entrega con adeudo.
     $stmtPago = $db->prepare("SELECT estatus_pago, COALESCE(saldo_pagado,0) AS saldo_pagado,
-                                     entrega_bloqueada, entrega_autorizada_por
+                                     entrega_bloqueada, entrega_autorizada_por, es_retrabajo
                               FROM cotizaciones WHERE id = ?");
     $stmtPago->execute([$cotizacion_id]);
     $cotPago     = $stmtPago->fetch(PDO::FETCH_ASSOC);
@@ -107,8 +107,12 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
     $pagadoCot   = (float)$cotPago['saldo_pagado'];
 
     $pagoCompleto = $totalCot > 0 && $pagadoCot >= $totalCot - 0.99;
+    // Retrabajo (UPD-467/470/513): la empresa ya decidió absorber la pérdida, no se
+    // exige cobro ni estatus de pago falso para autorizar la salida — mismo criterio
+    // que app/imprimir_salida.php y finanzas_cobranza.php.
     $autorizada   = in_array($cotPago['estatus_pago'], ['en_proceso', 'pago_entrega', 'pagado'], true)
-                    || ((int)$cotPago['entrega_bloqueada'] === 0 && !empty($cotPago['entrega_autorizada_por']));
+                    || ((int)$cotPago['entrega_bloqueada'] === 0 && !empty($cotPago['entrega_autorizada_por']))
+                    || !empty($cotPago['es_retrabajo']);
     if (!$pagoCompleto && !$autorizada) {
         jsonResponse(['error' => 'Salida bloqueada: faltan $' . number_format(max(0, $totalCot - $pagadoCot), 2)
             . ' por cobrar. Finanzas debe registrar el pago o autorizar el estatus de pago.'], 422);
