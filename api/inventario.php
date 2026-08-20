@@ -6,7 +6,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
-$user = requirePermiso('ver_inventario');
+$user = requirePermisoApi('ver_inventario');
 
 $db     = getDB();
 $method = $_SERVER['REQUEST_METHOD'];
@@ -316,7 +316,7 @@ if ($method === 'POST') {
 
     // ── Registrar compra ──────────────────────────────────────
     if ($accion === 'registrar_compra') {
-        requirePermiso('gestionar_inventario');
+        requirePermisoApi('gestionar_inventario');
 
         $lamina_id   = (int)($body['lamina_id']        ?? 0);
         $proveedor_id= (int)($body['proveedor_id']     ?? 0);

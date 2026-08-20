@@ -8,7 +8,7 @@ require_once 'permisos.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-$user = requirePermiso('ver_ordenes');
+$user = requirePermisoApi('ver_ordenes');
 $rol  = $user['rol'];
 $pdo  = getDB();
 

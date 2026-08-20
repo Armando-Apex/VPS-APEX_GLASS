@@ -8,6 +8,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
+require_once __DIR__ . '/helpers/totales.php'; // A-03: barrera de cobro en corregir_estatus
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: https://apex.glass');
@@ -216,6 +217,23 @@ if ($method === 'POST') {
         if (!$orden) jsonResponse(['error' => 'Orden no encontrada'], 404);
 
         $ordenId = $orden['id'];
+
+        // A-03: no permitir marcar "entregado" masivamente si hay saldo pendiente real,
+        // mismo candado que ya usa app/imprimir_salida.php (con la misma excepción de retrabajo).
+        if ($estatus === 'entregado') {
+            $stmtCot = $db->prepare("SELECT id, saldo_pagado, es_retrabajo FROM cotizaciones WHERE orden_id = ?");
+            $stmtCot->execute([$ordenId]);
+            $cot = $stmtCot->fetch();
+            if ($cot && empty($cot['es_retrabajo'])) {
+                $totalesCot = apexTotalesCotizacion($db, $cot['id']);
+                $totalCot   = $totalesCot ? $totalesCot['total'] : 0.0;
+                $saldoPag   = (float)($cot['saldo_pagado'] ?? 0);
+                if ($totalCot > 0 && $saldoPag < $totalCot - 0.99) {
+                    jsonResponse(['error' => 'No se puede marcar como entregado: faltan $'
+                        . number_format(max(0, $totalCot - $saldoPag), 2) . ' por cobrar.'], 422);
+                }
+            }
+        }
 
         // Obtener piezas
         $stmtP = $db->prepare("SELECT id, estatus FROM piezas WHERE orden_id=?");

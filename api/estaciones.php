@@ -8,11 +8,18 @@
 // ============================================================
 
 require_once 'config.php';
+require_once 'session_boot.php'; // C-06: solo para saber si hay sesión, no la exige (SmartTV sigue sin login)
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: https://apex.glass');
 
 $db = getDB();
+
+// C-06: este endpoint sigue sin exigir login (decisión consciente UPD-500, es el
+// SmartTV de planta) — pero si NO hay sesión iniciada, se quita cliente_nombre/asesor
+// del payload (dato comercial que la pantalla de piso no necesita). Con sesión activa
+// (ej. vista admin que sí usa este mismo endpoint) no cambia nada.
+$estaLogueado = !empty($_SESSION['user_id']);
 
 // Todas las piezas de órdenes activas con datos de la orden
 $piezas = $db->query('
@@ -97,6 +104,12 @@ foreach ($piezas as $p) {
 $totales['cortado']  += $totales['en_corte']  ?? 0;
 $totales['templado'] += $totales['en_horno']  ?? 0;
 unset($totales['en_corte'], $totales['en_horno']);
+
+// C-06: sin sesión (SmartTV público) se quita el dato comercial del payload.
+if (!$estaLogueado) {
+    foreach ($piezas as &$p) { unset($p['cliente_nombre'], $p['asesor']); }
+    unset($p);
+}
 
 jsonResponse([
     'piezas'  => $piezas,

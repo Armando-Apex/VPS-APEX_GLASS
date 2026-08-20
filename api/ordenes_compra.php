@@ -10,7 +10,7 @@ require_once 'config.php';
 require_once 'permisos.php';
 require_once 'mailer.php';
 require_once 'helpers/polizas_lib.php';
-$user = requirePermiso('ver_inventario');
+$user = requirePermisoApi('ver_inventario');
 
 $db     = getDB();
 $method = $_SERVER['REQUEST_METHOD'];
@@ -261,7 +261,7 @@ if ($method === 'GET') {
 
 // ── POST ─────────────────────────────────────────────────────
 if ($method === 'POST') {
-    requirePermiso('gestionar_inventario');
+    requirePermisoApi('gestionar_inventario');
     $body   = json_decode(file_get_contents('php://input'), true) ?? [];
     $accion = $body['accion'] ?? $accion;
 
@@ -695,7 +695,7 @@ if ($method === 'POST') {
 
     // ── Distribuir flete de OC sin referencia a inventario ───
     if ($accion === 'distribuir_flete') {
-        requirePermiso('gestionar_inventario');
+        requirePermisoApi('gestionar_inventario');
         $oc_id   = (int)($body['oc_id'] ?? 0);
         $compras = array_map('intval', $body['compra_ids'] ?? []);
         $metodo  = in_array($body['metodo'] ?? '', ['lamina', 'm2']) ? $body['metodo'] : 'lamina';
@@ -894,7 +894,7 @@ if ($method === 'POST') {
 
 // ── PUT ──────────────────────────────────────────────────────
 if ($method === 'PUT') {
-    requirePermiso('gestionar_inventario');
+    requirePermisoApi('gestionar_inventario');
     $body   = json_decode(file_get_contents('php://input'), true) ?? [];
     $accion = $body['accion'] ?? '';
     $id     = (int)($body['id'] ?? 0);
@@ -939,7 +939,7 @@ if ($method === 'PUT') {
 
 // ── DELETE ───────────────────────────────────────────────────
 if ($method === 'DELETE') {
-    requirePermiso('gestionar_inventario');
+    requirePermisoApi('gestionar_inventario');
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     $accion = $body['accion'] ?? ($_GET['accion'] ?? 'eliminar_partida');
     $id     = (int)($body['id'] ?? ($_GET['id'] ?? 0));

@@ -470,13 +470,8 @@ var LR = (function() {
   }
   function fmtKg(n) { return parseFloat(n||0).toFixed(1) + ' kg'; }
 
-  function toast(msg, err) {
-    var el = document.getElementById('lr-toast');
-    el.textContent = msg;
-    el.style.background = err ? '#dc2626' : '#0f172a';
-    el.style.display = 'block';
-    setTimeout(function(){ el.style.display='none'; }, 3000);
-  }
+  // D-01: toast() local eliminado — usa el global de utils.js (toast(msg, err) sigue
+  // funcionando igual, es compatible con la firma vieja: err truthy === 'error').
 
   function setFecha(f) {
     _fecha = f;

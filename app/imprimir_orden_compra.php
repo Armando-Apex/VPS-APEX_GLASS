@@ -25,10 +25,15 @@ $stmtP->execute([$id]);
 $partidas = $stmtP->fetchAll(PDO::FETCH_ASSOC);
 
 $subtotal = 0;
-foreach ($partidas as $p) { $subtotal += (float)$p['importe']; }
+$total = 0;
+foreach ($partidas as $p) {
+    $importe = (float)$p['importe'];
+    $subtotal += $importe;
+    $total    += !empty($p['iva_incluido']) ? $importe : $importe * 1.16;
+}
 $subtotal = round($subtotal, 2);
-$iva   = round($subtotal * 0.16, 2);
-$total = round($subtotal * 1.16, 2);
+$total    = round($total, 2);
+$iva      = round($total - $subtotal, 2);
 
 $meses = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 $fecha_formateada = '';

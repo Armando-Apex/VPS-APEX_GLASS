@@ -11,7 +11,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 $metodo = $_SERVER['REQUEST_METHOD'];
 $body   = json_decode(file_get_contents('php://input'), true) ?? [];
-$user   = requirePermiso('ver_ordenes');
+$user   = requirePermisoApi('ver_ordenes');
 $rol    = $user['rol'];
 $nombre = $user['nombre'] ?? $user['usuario'] ?? 'sistema';
 $pdo    = getDB();

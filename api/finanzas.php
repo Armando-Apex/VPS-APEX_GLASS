@@ -545,13 +545,17 @@ if ($method === 'PUT') {
                     $cxcCta    = pl_cuentaId($db, '1.2');
                     $ivaCta    = pl_cuentaId($db, '2.2');
                     $ventasCta = pl_cuentaId($db, $cp['tipo'] === 'maquila' ? '4.2' : '4.1');
-                    if ($cxcCta && $ivaCta && $ventasCta && (float)$cp['total_cot'] > 0) {
+                    // B-03: la póliza usa el total CANÓNICO ($totalesCot, ya calculado arriba
+                    // para el candado de anticipo), no los campos subtotal/iva/total guardados
+                    // en cotizaciones — que pueden desincronizarse del real (ya visto en
+                    // producción con saldo_pendiente stale).
+                    if ($cxcCta && $ivaCta && $ventasCta && $totalesCot['total'] > 0) {
                         pl_generarAutomatica($db, 'finanzas_vobo', (int)$orden['cot_id'], 'ingresos',
                             date('Y-m-d'), 'Venta reconocida — Orden ' . $orden['folio'],
                             [
-                                [$cxcCta, (float)$cp['total_cot'], 0, 'CxC — ' . $orden['folio']],
-                                [$ventasCta, 0, (float)$cp['subtotal'], 'Venta — ' . $orden['folio']],
-                                [$ivaCta, 0, (float)$cp['iva'], 'IVA — ' . $orden['folio']],
+                                [$cxcCta, $totalesCot['total'], 0, 'CxC — ' . $orden['folio']],
+                                [$ventasCta, 0, $totalesCot['subtotal'], 'Venta — ' . $orden['folio']],
+                                [$ivaCta, 0, $totalesCot['iva'], 'IVA — ' . $orden['folio']],
                             ],
                             (int)$user['id']);
                     }

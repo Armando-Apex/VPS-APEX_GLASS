@@ -266,7 +266,7 @@ window.ModAdminOrdenes = (function() {
       const data = await res.json();
       if (data.ok) { cerrarModal(); toast('Orden cancelada'); await cargar(); }
       else toast('Error: '+(data.error||''), true);
-    } catch(e) { toast('Error de conexi&#243;n', true); }
+    } catch(e) { toast('Error de conexión', true); }
   }
 
   async function restaurar(folio, cliente) {
@@ -282,11 +282,8 @@ window.ModAdminOrdenes = (function() {
     } catch(e) { toast('Error', true); }
   }
 
-  function toast(msg, err=false) {
-    const t = document.getElementById('toast');
-    t.innerHTML = msg; t.className = 'toast show' + (err?' error':'');
-    setTimeout(() => t.className='toast', 3000);
-  }
+  // D-01: toast() local eliminado — usa el global de utils.js (msg via textContent,
+  // más seguro contra XSS; firma toast(msg, err) sigue igual).
 
   // ── TABS ───────────────────────────────────────────────
   function adminTab(tab) {
@@ -373,7 +370,7 @@ window.ModAdminOrdenes = (function() {
       });
       const data = await res.json();
       if (data.ok) {
-        toast('&#10003; Estatus actualizado: '+data.piezas_actualizadas+' piezas');
+        toast('✓ Estatus actualizado: '+data.piezas_actualizadas+' piezas');
         cancelarEstatus();
         await cargar();
       } else {

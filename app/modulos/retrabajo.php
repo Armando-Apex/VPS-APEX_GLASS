@@ -83,6 +83,9 @@ function retMoneda(n) {
   return '$' + (Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// C-01: escapa texto libre (razones de reproceso capturadas por operadores) antes de insertarlo en HTML
+function escRet(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
 async function cargar() {
   try {
     const r = await fetch('../api/retrabajo.php?t=' + Date.now());
@@ -137,7 +140,7 @@ window.retFiltrar = function() {
       <td>
         <div class="ret-folio">${o.folio}</div>
         <div class="ret-cliente">${o.cliente_nombre || '—'}</div>
-        ${o.razones ? `<div class="ret-razones" title="${o.razones}">${o.razones}</div>` : ''}
+        ${o.razones ? `<div class="ret-razones" title="${escRet(o.razones)}">${escRet(o.razones)}</div>` : ''}
       </td>
       <td>${badgeEst}</td>
       <td>

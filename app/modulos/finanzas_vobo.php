@@ -338,9 +338,9 @@ async function registrarPago(cot_id, orden_id, btn) {
   var forma = document.getElementById('pf-forma')?.value;
   var notas = document.getElementById('pf-notas')?.value || '';
 
-  if (!monto || monto <= 0) { alert('Ingresa un monto válido'); return; }
+  if (!monto || monto <= 0) { toast('Ingresa un monto válido', 'error'); return; }
   if (forma === 'saldo_favor' && monto > _saldoFavor) {
-    alert('El monto excede el Saldo a Favor disponible ($' + _saldoFavor.toLocaleString('es-MX',{minimumFractionDigits:2}) + ')');
+    toast('El monto excede el Saldo a Favor disponible ($' + _saldoFavor.toLocaleString('es-MX',{minimumFractionDigits:2}) + ')', 'error');
     return;
   }
 
@@ -358,7 +358,7 @@ async function registrarPago(cot_id, orden_id, btn) {
     data = await res.json();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Registrar pago'; }
-    alert('Error de conexión al registrar el pago');
+    toast('Error de conexión al registrar el pago', 'error');
     return;
   }
 
@@ -366,18 +366,18 @@ async function registrarPago(cot_id, orden_id, btn) {
     // Recargar detalle para mostrar el nuevo pago (re-renderiza con un botón nuevo ya habilitado)
     await abrirDetalle(orden_id);
     if (data.excedente) {
-      alert('Pago registrado.\n\nEl excedente de $' + parseFloat(data.excedente).toLocaleString('es-MX',{minimumFractionDigits:2}) + ' fue abonado al saldo a favor del cliente.');
+      toast('Pago registrado. El excedente de $' + parseFloat(data.excedente).toLocaleString('es-MX',{minimumFractionDigits:2}) + ' fue abonado al saldo a favor del cliente.');
     }
   } else {
     if (btn) { btn.disabled = false; btn.textContent = 'Registrar pago'; }
-    alert(data.error || 'Error al registrar pago');
+    toast(data.error || 'Error al registrar pago', 'error');
   }
 }
 
 // ── Dar VoBo ──────────────────────────────────────────────────
 async function darVobo(orden_id, notaVobo) {
   var fecha = document.getElementById('vobo-fecha')?.value;
-  if (!fecha) { alert('Selecciona una fecha de entrega'); return; }
+  if (!fecha) { toast('Selecciona una fecha de entrega', 'error'); return; }
   if (!notaVobo && !confirm('¿Confirmar VoBo y pasar esta orden a producción?\n\nFecha de entrega: ' + fecha)) return;
 
   var body = { accion:'vobo', orden_id: orden_id, fecha_entrega: fecha };
@@ -390,7 +390,7 @@ async function darVobo(orden_id, notaVobo) {
   });
   var data = await res.json();
   if (data.ok) {
-    alert('✅ VoBo registrado por ' + data.vobo_por + '\nFecha de entrega: ' + data.fecha_entrega);
+    toast('VoBo registrado por ' + data.vobo_por + ' — Fecha de entrega: ' + data.fecha_entrega);
     cerrarDetalle();
     cargarLista();
   } else if (data.error && data.error.indexOf('escribir el motivo') !== -1) {
@@ -399,7 +399,7 @@ async function darVobo(orden_id, notaVobo) {
     var motivo = prompt(data.error + '\n\nEscribe el motivo para forzar el VoBo:');
     if (motivo && motivo.trim()) darVobo(orden_id, motivo.trim());
   } else {
-    alert(data.error || 'Error al dar VoBo');
+    toast(data.error || 'Error al dar VoBo', 'error');
   }
 }
 

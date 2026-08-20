@@ -544,7 +544,7 @@ async function optimizar() {
 
   const alto  = parseInt(document.getElementById('altoLamina').value);
 
-  if (!ancho || !alto) { toast('Ingresa las dimensiones de la l&#225;mina', 'err'); return; }
+  if (!ancho || !alto) { toast('Ingresa las dimensiones de la lámina', 'error'); return; }
 
 
 
@@ -772,7 +772,7 @@ async function registrar(ancho, alto) {
 
   const pedidos  = document.getElementById('regPedidos').value.trim();
 
-  if (!cantidad) { toast('Indica la cantidad de l&#225;minas', 'err'); return; }
+  if (!cantidad) { toast('Indica la cantidad de láminas', 'error'); return; }
 
 
 
@@ -804,19 +804,19 @@ async function registrar(ancho, alto) {
 
     if (d.ok) {
 
-      toast('&#9989; Consumo registrado', 'ok');
+      toast('✅ Consumo registrado', 'ok');
 
       setTimeout(() => irPaso(1), 1500);
 
     } else {
 
-      toast('&#10060; ' + (d.error || 'Error'), 'err');
+      toast('❌ ' + (d.error || 'Error'), 'error');
 
     }
 
   } catch(e) {
 
-    toast('&#10060; Error de conexi&#243;n', 'err');
+    toast('❌ Error de conexión', 'error');
 
   }
 
@@ -836,17 +836,9 @@ function irPaso(n) {
 
 
 
-function toast(msg, tipo = '') {
-
-  const el = document.getElementById('toast');
-
-  el.textContent = msg; el.className = 'toast show ' + tipo;
-
-  clearTimeout(el._t);
-
-  el._t = setTimeout(() => el.classList.remove('show'), 3000);
-
-}
+// D-01: toast() local eliminado — usa el global de utils.js. Se normalizaron
+// las llamadas de este archivo ('err' -> 'error') para que coincidan con las
+// clases CSS reales del host global (apex-toast-ok/error/warn en dashboard.php).
 
 
 

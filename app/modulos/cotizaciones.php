@@ -165,7 +165,7 @@ function cotAsesorBadge(nombre) {
   if (n.indexOf('bethy') >= 0) cls = 'aso-bethy';
   else if (n.indexOf('cynthia') >= 0) cls = 'aso-cynthia';
   else if (n.indexOf('yahaira') >= 0) cls = 'aso-yahaira';
-  return '<span class="aso-badge ' + cls + '">' + (nombre || '&#8212;') + '</span>';
+  return '<span class="aso-badge ' + cls + '">' + (nombre ? escCots(nombre) : '&#8212;') + '</span>';
 }
 
 function cotSortAsesor() {
@@ -317,11 +317,11 @@ function cotFiltrar() {
     var badgeClass = esInactiva(c)?'badge-inac':c.estatus==='cotizacion'?'badge-cot':c.estatus==='orden'?'badge-orden':c.estatus==='rechazada'?'badge-rech':'badge-canc';
     var badgeLabel = esInactiva(c)?'Inactiva':c.estatus==='cotizacion'?'Cotizaci&#243;n':c.estatus==='orden'?'Orden':c.estatus==='rechazada'?'Rechazada':'Cancelada';
     var folioCell = c.orden_folio
-      ? '<span class="cot-folio">'+c.orden_folio+'</span><br><span style="font-size:11px;color:var(--c-muted)">'+c.folio+'</span>'
-      : '<span class="cot-folio">'+(c.folio||'&#8212;')+'</span>';
+      ? '<span class="cot-folio">'+escCots(c.orden_folio)+'</span><br><span style="font-size:11px;color:var(--c-muted)">'+escCots(c.folio)+'</span>'
+      : '<span class="cot-folio">'+(c.folio?escCots(c.folio):'&#8212;')+'</span>';
     return '<tr onclick="irA(\'cotizacion\',{id:\''+c.id+'\'})">'
       +'<td>'+folioCell+'</td>'
-      +'<td>'+(c.cliente_nombre||'&#8212;')+'</td>'
+      +'<td>'+(c.cliente_nombre?escCots(c.cliente_nombre):'&#8212;')+'</td>'
       +'<td>'+cotAsesorBadge(c.asesor_nombre)+'</td>'
       +'<td style="color:#64748b;font-size:12px">'+fecha+'</td>'
       +'<td style="font-size:12px">'+entrega+'</td>'

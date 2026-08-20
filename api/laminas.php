@@ -8,7 +8,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
-$user = requirePermiso('ver_inventario');
+$user = requirePermisoApi('ver_inventario');
 
 $db     = getDB();
 $method = $_SERVER['REQUEST_METHOD'];
@@ -132,7 +132,7 @@ if ($method === 'GET') {
 
 // ── POST / PUT ───────────────────────────────────────────────
 if ($method === 'POST' || $method === 'PUT') {
-    requirePermiso('gestionar_inventario');
+    requirePermisoApi('gestionar_inventario');
     $body     = json_decode(file_get_contents('php://input'), true) ?? [];
     $accion   = $body['accion'] ?? $accion;
     $id       = (int)($body['id'] ?? $id);
@@ -171,7 +171,7 @@ if ($method === 'POST' || $method === 'PUT') {
 
 // ── DELETE ───────────────────────────────────────────────────
 if ($method === 'DELETE') {
-    requirePermiso('gestionar_inventario');
+    requirePermisoApi('gestionar_inventario');
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     $id   = (int)($body['id'] ?? $id);
     if (!$id) jsonResponse(['error' => 'ID requerido'], 422);

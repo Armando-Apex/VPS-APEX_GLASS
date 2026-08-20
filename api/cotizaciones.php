@@ -428,6 +428,15 @@ if ($method === 'POST') {
             $db->prepare("UPDATE cotizaciones SET subtotal = ?, iva = ?, total = ? WHERE id = ?")
                ->execute([$tots['subtotal'], $tots['iva'], $tots['total'], $cot_id]);
 
+            // A-05: un servicio nuevo puede subir el total por arriba de lo ya pagado —
+            // rebloquear la entrega si queda saldo pendiente (mismo patrón de actualizar_saldo).
+            $stCP = $db->prepare("SELECT COALESCE(saldo_pagado,0) AS saldo_pagado FROM cotizaciones WHERE id = ?");
+            $stCP->execute([$cot_id]);
+            $saldoPagado = (float)$stCP->fetchColumn();
+            $saldoPend   = max(0, round($tots['total'] - $saldoPagado, 2));
+            $db->prepare("UPDATE cotizaciones SET saldo_pendiente = ?, entrega_bloqueada = ? WHERE id = ?")
+               ->execute([$saldoPend, $saldoPend > 0 ? 1 : 0, $cot_id]);
+
             $db->commit();
             jsonResponse(['ok' => true, 'servicios_subtotal' => $srv_total, 'nuevo_servicio' => [
                 'id' => (int)$db->lastInsertId(), 'descripcion' => $srv['nombre'],
@@ -462,6 +471,14 @@ if ($method === 'POST') {
             $tots = apexTotalesCotizacion($db, $cot_id);
             $db->prepare("UPDATE cotizaciones SET subtotal = ?, iva = ?, total = ? WHERE id = ?")
                ->execute([$tots['subtotal'], $tots['iva'], $tots['total'], $cot_id]);
+
+            // A-05: recalcular saldo/bloqueo también al quitar un servicio (mismo patrón de actualizar_saldo).
+            $stCP = $db->prepare("SELECT COALESCE(saldo_pagado,0) AS saldo_pagado FROM cotizaciones WHERE id = ?");
+            $stCP->execute([$cot_id]);
+            $saldoPagado = (float)$stCP->fetchColumn();
+            $saldoPend   = max(0, round($tots['total'] - $saldoPagado, 2));
+            $db->prepare("UPDATE cotizaciones SET saldo_pendiente = ?, entrega_bloqueada = ? WHERE id = ?")
+               ->execute([$saldoPend, $saldoPend > 0 ? 1 : 0, $cot_id]);
 
             $db->commit();
             jsonResponse(['ok' => true, 'servicios_subtotal' => $srv_total]);
@@ -705,7 +722,7 @@ if ($method === 'PUT') {
         if (!$puede_editar) { jsonResponse(['error' => 'Sin permiso']); exit; }
 
         // Verificar que existe y está en estatus cotizacion
-        $stmt = $db->prepare("SELECT estatus, asesor_id, COALESCE(saldo_pagado,0) AS saldo_pagado, COALESCE(descuento_referido,0) AS descuento_referido, promocion_id, es_retrabajo FROM cotizaciones WHERE id = ?");
+        $stmt = $db->prepare("SELECT estatus, asesor_id, cliente_id, COALESCE(saldo_pagado,0) AS saldo_pagado, COALESCE(descuento_referido,0) AS descuento_referido, promocion_id, es_retrabajo FROM cotizaciones WHERE id = ?");
         $stmt->execute([$id]);
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
@@ -718,13 +735,25 @@ if ($method === 'PUT') {
         $cliente_id   = (int)($body['cliente_id']    ?? 0);
         $proyecto     = trim($body['proyecto']        ?? '');
         $descuento    = max(0, min(100, (float)($body['descuento'] ?? 0)));
+
+        // B-02: si se reasigna la cotización a OTRO cliente, el descuento de referido y
+        // la promo por volumen quedaban "pegados" del cliente original — un código/beneficio
+        // de un cliente sobrevivía al pasarse a otro. Si cambia el cliente, se recalculan
+        // desde cero para el cliente NUEVO (mismo criterio que al crear la cotización).
+        $clienteCambio = $cliente_id && (int)$cot['cliente_id'] !== $cliente_id;
+
         // Referidos: descuento_referido queda fijo desde que se registró — no es
-        // editable aquí, solo se preserva y se suma para recalcular el total.
-        $descuento_referido = (float)$cot['descuento_referido'];
+        // editable aquí, solo se preserva y se suma para recalcular el total (salvo que
+        // el cliente haya cambiado, ver B-02 arriba).
+        $descuento_referido = $clienteCambio
+            ? referidosDescuentoAutomatico($db, $cliente_id)
+            : (float)$cot['descuento_referido'];
         // Promo Estados WhatsApp por volumen: si la cotización ya trae un promocion_id
         // (se fijó al crearla), queda LOCKED — solo se recalcula el % según el total de
         // piezas vigente. Si no traía y ahora se manda un código nuevo, se valida aquí.
-        $promocion_id    = $cot['promocion_id'] ? (int)$cot['promocion_id'] : null;
+        // Si el cliente cambió (B-02), se olvida el promocion_id viejo — el código de un
+        // cliente no debe seguir aplicando a otro; hay que volver a capturarlo si aplica.
+        $promocion_id    = ($clienteCambio || !$cot['promocion_id']) ? null : (int)$cot['promocion_id'];
         $promo_wa_codigo = trim($body['promo_wa_codigo'] ?? '');
         $credito      = ($body['credito'] ?? 'no') === 'si' ? 'si' : 'no';
         $condicion    = in_array($body['condicion_pago'] ?? '', ['anticipo','pago_total']) ? $body['condicion_pago'] : 'anticipo';
@@ -886,10 +915,14 @@ if ($method === 'PUT') {
             ]);
 
             // Preservar servicios antes de borrar partidas (mapeados por num_partida)
+            // B-01: se trae también sc.unidad para poder recalcular perímetro/piezas de
+            // los servicios 'ml' contra las medidas NUEVAS de la partida (si no, un
+            // espaciador queda cobrado con el perímetro viejo tras editar medidas).
             $stmtSrvBak = $db->prepare("
-                SELECT cps.*, cp.num_partida
+                SELECT cps.*, cp.num_partida, sc.unidad AS srv_unidad
                 FROM cotizacion_partida_servicios cps
                 JOIN cotizaciones_partidas cp ON cp.id = cps.partida_id
+                LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id
                 WHERE cps.cotizacion_id = ?
             ");
             $stmtSrvBak->execute([$id]);
@@ -930,11 +963,28 @@ if ($method === 'PUT') {
                 foreach ($srvBackup as $s) {
                     $nuevoPartidaId = $nuevosIdsPorNumPartida[$s['num_partida']] ?? null;
                     if (!$nuevoPartidaId) continue;
+
+                    $und_x_pieza = (float)$s['unidades_por_pieza'];
+                    $cant_piezas = (float)$s['cantidad_piezas'];
+                    $subtotalSrv = (float)$s['subtotal'];
+
+                    // B-01: si el servicio es por metro lineal, recalcular perímetro/piezas
+                    // contra la geometría NUEVA de la partida (mismo criterio que cotSrvSel()
+                    // al agregar un servicio: perímetro = 2×(ancho+alto), piezas de servicio =
+                    // mitad de la cantidad — el vidrio insulado siempre va de dos en dos, así
+                    // que la cantidad de la partida siempre es par en la práctica).
+                    $nuevaPartida = $partidas_data[$s['num_partida'] - 1] ?? null;
+                    if ($nuevaPartida && $s['srv_unidad'] === 'ml') {
+                        $und_x_pieza = round(2 * ($nuevaPartida['ancho'] + $nuevaPartida['alto']) / 1000, 3);
+                        $cant_piezas = intdiv((int)$nuevaPartida['cantidad'], 2) ?: 1;
+                        $subtotalSrv = round((float)$s['precio_unitario'] * $und_x_pieza * $cant_piezas, 2);
+                    }
+
                     $stmtSrvIns->execute([
                         $id, $nuevoPartidaId, $s['servicio_id'] ?: null, $s['descripcion'],
-                        $s['precio_unitario'], $s['unidades_por_pieza'], $s['cantidad_piezas'], $s['subtotal'],
+                        $s['precio_unitario'], $und_x_pieza, $cant_piezas, $subtotalSrv,
                     ]);
-                    $srv_restaurado += (float)$s['subtotal'];
+                    $srv_restaurado += $subtotalSrv;
                 }
                 // Actualizar servicios_subtotal si cambió (partidas eliminadas pierden sus servicios)
                 $stSrv = $db->prepare("SELECT COALESCE(SUM(subtotal),0) FROM cotizacion_partida_servicios WHERE cotizacion_id = ?");

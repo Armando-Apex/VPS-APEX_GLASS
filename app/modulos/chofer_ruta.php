@@ -96,12 +96,7 @@ var CR = (function() {
     return new Date(d+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'2-digit',month:'long'});
   }
 
-  function toast(msg) {
-    var el = document.getElementById('cr-toast');
-    el.textContent = msg;
-    el.style.display = 'block';
-    setTimeout(function(){ el.style.display='none'; }, 2500);
-  }
+  // D-01: toast() local eliminado — usa el global de utils.js.
 
   function setFecha(f) {
     _fecha = f;

@@ -433,8 +433,29 @@ if ($metodo === 'POST' && $accion === 'enviar') {
     // de la URL; se corrige con el MIME real tras descargar el archivo (más abajo).
     $headerMediaTipo = preg_match('/\.(mp4|mov|3gp)(\?|$)/i', $campana['header_image_url'] ?? '') ? 'video' : 'image';
     if (!empty($campana['header_image_url'])) {
-        $imgBytes = @file_get_contents($campana['header_image_url']);
-        if ($imgBytes !== false) {
+        // C-03: file_get_contents() sin timeout/límite podía colgar el worker (se agravó
+        // con video, hasta 16MB, UPD-507) o ser usado para sondear la red interna (SSRF).
+        // cURL con timeout + límite real de tamaño (via progress function, MAXFILESIZE
+        // solo no basta para HTTP normal) + bloqueo de IPs privadas/loopback resueltas.
+        $imgBytes = false;
+        $hdrHost = parse_url($campana['header_image_url'], PHP_URL_HOST) ?: '';
+        $hdrIp   = $hdrHost ? gethostbyname($hdrHost) : '';
+        $esIpPrivada = $hdrIp && !filter_var($hdrIp, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+        if ($hdrHost && !$esIpPrivada) {
+            $chHdr = curl_init($campana['header_image_url']);
+            curl_setopt($chHdr, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($chHdr, CURLOPT_TIMEOUT, 30);
+            curl_setopt($chHdr, CURLOPT_MAXFILESIZE, 16 * 1024 * 1024);
+            curl_setopt($chHdr, CURLOPT_NOPROGRESS, false);
+            curl_setopt($chHdr, CURLOPT_PROGRESSFUNCTION, function($res, $dlTotal, $dlNow) {
+                return ($dlNow > 16 * 1024 * 1024) ? 1 : 0;
+            });
+            $imgBytes = curl_exec($chHdr);
+            curl_close($chHdr);
+        } else {
+            error_log('APEX WA header rechazado (host inválido o IP privada/SSRF): ' . $campana['header_image_url']);
+        }
+        if ($imgBytes !== false && strlen($imgBytes) <= 16 * 1024 * 1024) {
             $tmpImg = tempnam(sys_get_temp_dir(), 'wa_hdr_');
             file_put_contents($tmpImg, $imgBytes);
             $mime = mime_content_type($tmpImg) ?: 'image/jpeg';

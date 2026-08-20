@@ -161,13 +161,15 @@ window.ordCambiarLimite = function(n, btn) {
   ordCargar();
 };
 
+function escOrd(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
 function ordAsesorBadge(nombre) {
   const n = (nombre || '').toLowerCase();
   let cls = 'aso-otro';
   if (n.indexOf('bethy') >= 0) cls = 'aso-bethy';
   else if (n.indexOf('cynthia') >= 0) cls = 'aso-cynthia';
   else if (n.indexOf('yahaira') >= 0) cls = 'aso-yahaira';
-  return '<span class="aso-badge ' + cls + '">' + (nombre || '&#8212;') + '</span>';
+  return '<span class="aso-badge ' + cls + '">' + (nombre ? escOrd(nombre) : '&#8212;') + '</span>';
 }
 function ordFmtFecha(f) {
   if (!f) return '&#8212;';
@@ -281,7 +283,7 @@ function ordFiltrar() {
             <span class="orden-folio" onclick="event.stopPropagation();irA('orden',{folio:'${o.folio}'})">${o.folio}</span>
             ${esPrio?'<span class="badge-prio">&#9889; Prior.</span>':''}
             ${etiquetaEstado(o)}
-            <span class="orden-cliente">${o.cliente_nombre||'&#8212;'}</span>
+            <span class="orden-cliente">${o.cliente_nombre?escOrd(o.cliente_nombre):'&#8212;'}</span>
             <span class="orden-asesor">${ordAsesorBadge(o.asesor)}</span>
             <span class="orden-fecha" style="color:${color}">${fecha}</span>
             <span class="toggle-icon" id="ord-icon-bq-${o.folio}">&#9660;</span>
@@ -363,7 +365,7 @@ function ordRenderPorIniciar(list) {
       <div class="orden-head" onclick="ordTogglePartidas('${o.folio}')">
         <span class="orden-folio" onclick="event.stopPropagation();irA('orden',{folio:'${o.folio}'})">${o.folio}</span>
         ${esPrio?'<span class="badge-prio">&#9889; Prior.</span>':''}
-        <span class="orden-cliente">${o.cliente_nombre||'&#8212;'}</span>
+        <span class="orden-cliente">${o.cliente_nombre?escOrd(o.cliente_nombre):'&#8212;'}</span>
         <span class="orden-asesor">${ordAsesorBadge(o.asesor)}</span>
         <span class="orden-fecha" style="color:${ordColorFecha(o.fecha_entrega)}">${ordFmtFecha(o.fecha_entrega)}</span>
         <span class="pzs-badge pzs-pend">${o.total_pendientes} pz</span>
@@ -391,7 +393,7 @@ function ordRenderEnProceso(list) {
     return `<div class="entr-row">
       <span class="entr-folio" onclick="irA('orden',{folio:'${o.folio}'})">${o.folio}</span>
       ${esPrio?'<span class="badge-prio">&#9889;</span>':''}
-      <span class="entr-cliente">${o.cliente_nombre||'&#8212;'}</span>
+      <span class="entr-cliente">${o.cliente_nombre?escOrd(o.cliente_nombre):'&#8212;'}</span>
       <span class="entr-asesor">${ordAsesorBadge(o.asesor)}</span>
       <span class="entr-fecha" style="color:${ordColorFecha(o.fecha_entrega)}">${ordFmtFecha(o.fecha_entrega)}</span>
       <span style="font-size:12px;color:#9ca3af;min-width:160px">${partes.join(' &#183; ')}</span>
@@ -407,7 +409,7 @@ function ordRenderListas(list) {
   el.innerHTML='<div class="orden-card">'+list.map(o=>`<div class="entr-row">
     <span class="entr-folio" onclick="irA('orden',{folio:'${o.folio}'})">${o.folio}</span>
     ${+o.prioridad===1?'<span class="badge-prio">&#9889;</span>':''}
-    <span class="entr-cliente">${o.cliente_nombre||'&#8212;'}</span>
+    <span class="entr-cliente">${o.cliente_nombre?escOrd(o.cliente_nombre):'&#8212;'}</span>
     <span class="entr-asesor">${ordAsesorBadge(o.asesor)}</span>
     <span class="entr-fecha" style="color:${ordColorFecha(o.fecha_entrega)}">${ordFmtFecha(o.fecha_entrega)}</span>
     <span class="pzs-badge pzs-term">${o.terminadas} pz listas</span>
@@ -423,7 +425,7 @@ function ordRenderEntregadas(list) {
     const fechaCierre = o.fecha_cierre ? ordFmtFecha(o.fecha_cierre) : null;
     return `<div class="entr-row">
       <span class="entr-folio" onclick="irA('orden',{folio:'${o.folio}'})">${o.folio}</span>
-      <span class="entr-cliente">${o.cliente_nombre||'&#8212;'}</span>
+      <span class="entr-cliente">${o.cliente_nombre?escOrd(o.cliente_nombre):'&#8212;'}</span>
       <span class="entr-asesor">${ordAsesorBadge(o.asesor)}</span>
       <span class="entr-pzs">${totalEntr} de ${total} pzs</span>
       <span class="entr-fecha">&#218;lt. entrega: ${ordFmtFecha(o.ultima_entrega)}</span>
