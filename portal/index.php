@@ -268,6 +268,36 @@ body {
   background: #F7F8FA;
 }
 
+.btn-ofertas {
+  position: relative;
+  border-color: rgba(245,166,35,.55);
+  animation: ofertasRing 2.4s ease-in-out infinite;
+}
+
+.btn-ofertas::after {
+  content: '';
+  position: absolute;
+  top: -4px; right: -4px;
+  width: 8px; height: 8px;
+  background: var(--amber);
+  border-radius: 50%;
+  animation: ofertasDot 2.4s ease-in-out infinite;
+}
+
+@keyframes ofertasRing {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245,166,35,.32); }
+  50%      { box-shadow: 0 0 0 5px rgba(245,166,35,0); }
+}
+
+@keyframes ofertasDot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245,166,35,.55); }
+  50%      { box-shadow: 0 0 0 4px rgba(245,166,35,0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-ofertas, .btn-ofertas::after { animation: none; }
+}
+
 /* ── Spinner ── */
 .spin {
   display: inline-block;
@@ -380,7 +410,7 @@ body {
   </div>
 
   <button class="btn-main" id="btnLogin" onclick="doLogin()">Entrar</button>
-  <button class="btn-ghost" onclick="abrirOfertas()">Conoce nuestras ofertas</button>
+  <button class="btn-ghost btn-ofertas" onclick="abrirOfertas()">Conoce nuestras ofertas</button>
 
   <div class="footer-note">Acceso exclusivo para clientes</div>
 </div>
