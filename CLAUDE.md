@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 20 agosto 2026 | Próximo UPD disponible: UPD-529
+# Última actualización: 20 agosto 2026 | Próximo UPD disponible: UPD-530
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -450,7 +450,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-529**
+Próximo UPD disponible: **UPD-530**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -611,4 +611,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-528 | 20-ago-2026 | Mando | Sprint D parcial (misma auditoría, visual): D-01 — 8 `alert()` migrados a `toast()` en `finanzas_vobo.php`; 4 funciones `toast()` locales duplicadas eliminadas (`logistica_rutas.php`, `admin_ordenes.php`, `optimizador.php`, `chofer_ruta.php`), ahora caen en la global de `utils.js`; de paso se corrigieron entidades HTML que se hubieran mostrado rotas (`admin_ordenes.php`) o que ya se mostraban rotas en producción desde antes (`optimizador.php`, bug preexistente no relacionado). D-02 (sweep de emojis en `app/orden.php`) evaluado con Mando — el set de íconos SVG del sistema no cubre todos los conceptos (falta reloj/tornillo/fuego/impresora/mensaje); Mando decidió dejar `orden.php` como está, sin tocar. D-03 a D-07 quedan pendientes para otra sesión. |
 
-**Próximo UPD disponible: UPD-529**
+| UPD-529 | 20-ago-2026 | Armando | **Carpeta fija para actualizar la imagen/video de Ofertas del portal, sin tocar código.** Antes `portal/index.php` apuntaba a un nombre fijo `img/oferta.jpeg` en el modal "Conoce nuestras ofertas" — cualquier cambio requería que Claude editara el HTML. Creada `portal/img/ofertas/` (se movió ahí el archivo vigente + el historial `oferta_001/002/003.jpeg` que ya existía suelto en `img/`). El modal ahora detecta en cada carga el archivo más reciente por fecha de modificación (`glob` + `filemtime`) y lo muestra como `<img>` o `<video controls autoplay muted loop playsinline>` según la extensión (`jpg/jpeg/png/webp` vs. `mp4/webm/mov`) — soporta video, no solo imagen. De aquí en adelante: subir el archivo nuevo a `portal/img/ofertas/` por FTP/AdminBolt (mismo patrón ya establecido de "Armando sube archivos, Claude nunca sube") y se refleja solo, sin pedirle nada a Claude. Verificado en producción: `curl` a `img/ofertas/oferta.jpeg` da 200 y el HTML servido del portal ya referencia la ruta nueva. `php -l` OK. |
+
+**Próximo UPD disponible: UPD-530**

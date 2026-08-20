@@ -15,6 +15,19 @@ if (session_status() === PHP_SESSION_NONE) {
 if (!empty($_SESSION['portal_cliente_id'])) {
     header('Location: dashboard.php'); exit;
 }
+
+// Ofertas: toma el archivo más reciente subido a img/ofertas/ (imagen o video).
+// Para cambiar la oferta solo hay que subir un archivo nuevo a esa carpeta por FTP/AdminBolt.
+$ofertaSrc = 'img/oferta.jpeg';
+$ofertaEsVideo = false;
+$ofertaDir = __DIR__ . '/img/ofertas';
+$ofertaArchivos = is_dir($ofertaDir) ? glob($ofertaDir . '/*.{jpg,jpeg,png,webp,mp4,webm,mov}', GLOB_BRACE) : [];
+if ($ofertaArchivos) {
+    usort($ofertaArchivos, fn($a, $b) => filemtime($b) <=> filemtime($a));
+    $ofertaMasReciente = $ofertaArchivos[0];
+    $ofertaSrc = 'img/ofertas/' . basename($ofertaMasReciente);
+    $ofertaEsVideo = in_array(strtolower(pathinfo($ofertaMasReciente, PATHINFO_EXTENSION)), ['mp4', 'webm', 'mov']);
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -376,7 +389,11 @@ body {
 <div id="modalOfertas" class="modal-bg" onclick="cerrarOfertas()">
   <div class="modal-box" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="cerrarOfertas()">&#10005;</button>
-    <img src="img/oferta.jpeg" alt="Ofertas APEX GLASS" class="modal-img">
+    <?php if ($ofertaEsVideo): ?>
+    <video src="<?= htmlspecialchars($ofertaSrc) ?>" class="modal-img" controls autoplay muted loop playsinline></video>
+    <?php else: ?>
+    <img src="<?= htmlspecialchars($ofertaSrc) ?>" alt="Ofertas APEX GLASS" class="modal-img">
+    <?php endif; ?>
   </div>
 </div>
 
