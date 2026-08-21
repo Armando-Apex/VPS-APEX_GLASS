@@ -392,6 +392,7 @@ async function cargarCatalogos() {
         cpb: p.cpb || 'No',
         taladros_pasados: parseInt(p.taladros_pasados, 10) || 0,
         taladros_avellanados: parseInt(p.taladros_avellanados, 10) || 0,
+        resaques: parseInt(p.resaques, 10) || 0,
         templado: parseInt(p.templado, 10) || 0,
         filo_muerto: parseInt(p.filo_muerto, 10) || 0,
         cpb_fm: p.cpb_fm || 'No'
@@ -440,7 +441,7 @@ function seleccionarCliente(id, nombre) {
 }
 
 function agregarPartida() {
-  partidas.push({ ancho:0, alto:0, cantidad:1, espesor_mm:6, cristal_tipo_id:0, corte:0, canteado:0, cpb:'No', taladros_pasados:0, taladros_avellanados:0, templado:0, filo_muerto:0, cpb_fm:'No' });
+  partidas.push({ ancho:0, alto:0, cantidad:1, espesor_mm:6, cristal_tipo_id:0, corte:0, canteado:0, cpb:'No', taladros_pasados:0, taladros_avellanados:0, resaques:0, templado:0, filo_muerto:0, cpb_fm:'No' });
   render();
 }
 
@@ -491,6 +492,11 @@ function subtotalPartida(p) {
   if (perforaciones > 0) {
     var pt = precioDe('taladro', p.espesor_mm);
     if (pt) total += perforaciones * pt * p.cantidad;
+  }
+  var nResaques = parseInt(p.resaques)||0;
+  if (nResaques > 0) {
+    var pr = precioDe('resaque', p.espesor_mm);
+    if (pr) total += nResaques * pr * p.cantidad;
   }
   if (p.templado) {
     var ph = precioDe('horno', p.espesor_mm);
@@ -547,6 +553,7 @@ function render() {
     html += '<div class="mn-taladros">';
     html += '<label>Taladros pasados<input type="number" value="' + p.taladros_pasados + '" onchange="ModMaquilaNueva._campo(' + i + ",'taladros_pasados',parseInt(this.value)||0)\"></label>";
     html += '<label>Avellanados<input type="number" value="' + p.taladros_avellanados + '" onchange="ModMaquilaNueva._campo(' + i + ",'taladros_avellanados',parseInt(this.value)||0)\"></label>";
+    html += '<label>Resaques<input type="number" value="' + p.resaques + '" onchange="ModMaquilaNueva._campo(' + i + ",'resaques',parseInt(this.value)||0)\"></label>";
     html += '</div>';
 
     html += '<div class="mn-partida-foot">';
@@ -713,6 +720,7 @@ function render() {
     if (p.corte == 1) servicios.push('Corte (' + parseFloat(p.ml_corte).toFixed(2) + 'ml)');
     if (p.canteado == 1) servicios.push('Canteado ' + esc(p.cpb) + ' (' + parseFloat(p.ml_canteado).toFixed(2) + 'ml)');
     if ((parseInt(p.taladros_pasados)||0) + (parseInt(p.taladros_avellanados)||0) > 0) servicios.push('Taladro (' + p.taladros_pasados + 'p/' + p.taladros_avellanados + 'a)');
+    if ((parseInt(p.resaques)||0) > 0) servicios.push('Resaques (' + p.resaques + ')');
     if (p.templado == 1) servicios.push('Templado');
     if (p.filo_muerto == 1) servicios.push('Filo Muerto ' + esc(p.cpb_fm) + ' (' + parseFloat(p.ml_filo_muerto).toFixed(2) + 'ml)');
     html += '<tr>';

@@ -74,6 +74,7 @@ function calcularPartidaMaquila($db, $p) {
         'corte' => 0, 'ml_corte' => 0, 'precio_corte_usado' => null, 'subtotal_corte' => 0,
         'canteado' => 0, 'cpb' => 'No', 'ml_canteado' => 0, 'precio_canteado_usado' => null, 'subtotal_canteado' => 0,
         'taladros_pasados' => 0, 'taladros_avellanados' => 0, 'precio_taladro_usado' => null, 'subtotal_taladro' => 0,
+        'resaques' => 0, 'precio_resaque_usado' => null, 'subtotal_resaque' => 0,
         'templado' => 0, 'precio_horno_usado' => null, 'subtotal_horno' => 0,
         'filo_muerto' => 0, 'cpb_fm' => 'No', 'ml_filo_muerto' => 0, 'precio_filo_muerto_usado' => null, 'subtotal_filo_muerto' => 0,
     ];
@@ -123,6 +124,15 @@ function calcularPartidaMaquila($db, $p) {
         $out['subtotal_taladro'] = round(($pasados + $avellanados) * $precio * $cantidad, 2);
     }
 
+    $resaques = (int)($p['resaques'] ?? 0);
+    if ($resaques > 0) {
+        $precio = buscarPrecio($db, 'resaque', $espesor_mm);
+        if ($precio === null) return ['__error' => "Sin precio de resaque para espesor {$espesor_mm}mm"];
+        $out['resaques'] = $resaques;
+        $out['precio_resaque_usado'] = $precio;
+        $out['subtotal_resaque'] = round($resaques * $precio * $cantidad, 2);
+    }
+
     if (!empty($p['templado'])) {
         $precio = buscarPrecio($db, 'horno', $espesor_mm);
         if ($precio === null) return ['__error' => "Sin precio de horno para espesor {$espesor_mm}mm"];
@@ -133,7 +143,7 @@ function calcularPartidaMaquila($db, $p) {
 
     $out['subtotal'] = round(
         $out['subtotal_corte'] + $out['subtotal_canteado'] +
-        $out['subtotal_taladro'] + $out['subtotal_horno'] + $out['subtotal_filo_muerto'], 2
+        $out['subtotal_taladro'] + $out['subtotal_resaque'] + $out['subtotal_horno'] + $out['subtotal_filo_muerto'], 2
     );
 
     return $out;
@@ -251,10 +261,11 @@ if ($recurso === 'cotizacion') {
              corte, ml_corte, precio_corte_usado, subtotal_corte,
              canteado, cpb, ml_canteado, precio_canteado_usado, subtotal_canteado,
              taladros_pasados, taladros_avellanados, precio_taladro_usado, subtotal_taladro,
+             resaques, precio_resaque_usado, subtotal_resaque,
              templado, precio_horno_usado, subtotal_horno,
              filo_muerto, cpb_fm, ml_filo_muerto, precio_filo_muerto_usado, subtotal_filo_muerto,
              detalles, subtotal)
-            VALUES (?,?,?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?)
+            VALUES (?,?,?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?,?, ?,?)
         ");
         foreach ($partidas_calc as $i => $p) {
             $stmtP->execute([
@@ -262,6 +273,7 @@ if ($recurso === 'cotizacion') {
                 $p['corte'], $p['ml_corte'], $p['precio_corte_usado'], $p['subtotal_corte'],
                 $p['canteado'], $p['cpb'], $p['ml_canteado'], $p['precio_canteado_usado'], $p['subtotal_canteado'],
                 $p['taladros_pasados'], $p['taladros_avellanados'], $p['precio_taladro_usado'], $p['subtotal_taladro'],
+                $p['resaques'], $p['precio_resaque_usado'], $p['subtotal_resaque'],
                 $p['templado'], $p['precio_horno_usado'], $p['subtotal_horno'],
                 $p['filo_muerto'], $p['cpb_fm'], $p['ml_filo_muerto'], $p['precio_filo_muerto_usado'], $p['subtotal_filo_muerto'],
                 $p['detalles'], $p['subtotal']
@@ -348,10 +360,11 @@ if ($recurso === 'cotizacion') {
                  corte, ml_corte, precio_corte_usado, subtotal_corte,
                  canteado, cpb, ml_canteado, precio_canteado_usado, subtotal_canteado,
                  taladros_pasados, taladros_avellanados, precio_taladro_usado, subtotal_taladro,
+                 resaques, precio_resaque_usado, subtotal_resaque,
                  templado, precio_horno_usado, subtotal_horno,
                  filo_muerto, cpb_fm, ml_filo_muerto, precio_filo_muerto_usado, subtotal_filo_muerto,
                  detalles, subtotal)
-                VALUES (?,?,?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?)
+                VALUES (?,?,?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?,?, ?,?)
             ");
             foreach ($partidas_calc as $i => $p) {
                 $stmtP->execute([
@@ -359,6 +372,7 @@ if ($recurso === 'cotizacion') {
                     $p['corte'], $p['ml_corte'], $p['precio_corte_usado'], $p['subtotal_corte'],
                     $p['canteado'], $p['cpb'], $p['ml_canteado'], $p['precio_canteado_usado'], $p['subtotal_canteado'],
                     $p['taladros_pasados'], $p['taladros_avellanados'], $p['precio_taladro_usado'], $p['subtotal_taladro'],
+                    $p['resaques'], $p['precio_resaque_usado'], $p['subtotal_resaque'],
                     $p['templado'], $p['precio_horno_usado'], $p['subtotal_horno'],
                     $p['filo_muerto'], $p['cpb_fm'], $p['ml_filo_muerto'], $p['precio_filo_muerto_usado'], $p['subtotal_filo_muerto'],
                     $p['detalles'], $p['subtotal']
@@ -517,7 +531,7 @@ if ($recurso === 'precios') {
         $espesor_mm = (float)($body['espesor_mm'] ?? 0);
         $precio     = (float)($body['precio']     ?? 0);
 
-        if (!in_array($servicio, ['corte','canteado','taladro','horno','filo_muerto'])) {
+        if (!in_array($servicio, ['corte','canteado','taladro','horno','filo_muerto','resaque'])) {
             jsonResponse(['error' => 'Servicio inválido']); exit;
         }
         if ($espesor_mm <= 0 || $precio <= 0) {

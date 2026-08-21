@@ -290,8 +290,8 @@ if ($method === 'POST') {
                     (orden_id, partida, pieza_num, pieza_total,
                      cristal, cristal_corto, requiere_templado, requiere_corte,
                      ancho_mm, alto_mm, m2,
-                     cpb, detalles, tp, ta, qr_code, estatus)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     cpb, detalles, tp, ta, resaques, qr_code, estatus)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ");
                 foreach ($partidas as $p) {
                     $etiqueta = trim(($p['tipo_vidrio_nombre'] ?? 'Cliente') . ' ' . $p['espesor_mm'] . 'mm');
@@ -301,7 +301,7 @@ if ($method === 'POST') {
                             $orden_id, $p['num_partida'], $i, $p['cantidad'],
                             $etiqueta, $etiqueta, (int)$p['templado'], (int)$p['corte'],
                             $p['ancho'], $p['alto'], $p['m2'],
-                            $p['cpb'], $p['detalles'] ?? '', $p['taladros_pasados'], $p['taladros_avellanados'],
+                            $p['cpb'], $p['detalles'] ?? '', $p['taladros_pasados'], $p['taladros_avellanados'], $p['resaques'] ?? 0,
                             $qr, 'pendiente'
                         ]);
                     }

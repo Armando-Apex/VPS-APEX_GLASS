@@ -101,8 +101,8 @@ function regenerarPiezasMaquila($db, $orden_id, $folio_orden, $partidas_calc) {
         (orden_id, partida, pieza_num, pieza_total,
          cristal, cristal_corto, requiere_templado, requiere_corte,
          ancho_mm, alto_mm, m2,
-         cpb, detalles, tp, ta, qr_code, estatus)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         cpb, detalles, tp, ta, resaques, qr_code, estatus)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ");
     foreach ($partidas_calc as $i => $p) {
         $num_partida = $i + 1;
@@ -114,7 +114,7 @@ function regenerarPiezasMaquila($db, $orden_id, $folio_orden, $partidas_calc) {
                 $orden_id, $num_partida, $k, $p['cantidad'],
                 $etiqueta, $etiqueta, (int)$p['templado'], (int)$p['corte'],
                 $p['ancho'], $p['alto'], $p['m2'],
-                $p['cpb'], $p['detalles'] ?? '', $p['taladros_pasados'], $p['taladros_avellanados'],
+                $p['cpb'], $p['detalles'] ?? '', $p['taladros_pasados'], $p['taladros_avellanados'], $p['resaques'] ?? 0,
                 $qr, 'pendiente'
             ]);
         }

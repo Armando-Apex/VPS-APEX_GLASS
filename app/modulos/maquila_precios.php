@@ -68,6 +68,7 @@ tbody td { padding: 11px 14px; font-size: 13px; }
           <option value="canteado">Canteado</option>
           <option value="filo_muerto">Filo Muerto</option>
           <option value="taladro">Taladro</option>
+          <option value="resaque">Resaque</option>
           <option value="horno">Horno (Templado)</option>
         </select>
       </div>
@@ -120,7 +121,7 @@ var API = '../api/maquila.php';
 var precios = [];
 var tipos = [];
 var _editando = false;
-var SERVICIO_LABEL = { corte:'Corte', canteado:'Canteado', filo_muerto:'Filo Muerto', taladro:'Taladro', horno:'Horno (Templado)' };
+var SERVICIO_LABEL = { corte:'Corte', canteado:'Canteado', filo_muerto:'Filo Muerto', taladro:'Taladro', resaque:'Resaque', horno:'Horno (Templado)' };
 
 function esc(s) {
   var d = document.createElement('div');
