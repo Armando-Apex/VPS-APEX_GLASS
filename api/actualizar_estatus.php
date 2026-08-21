@@ -191,6 +191,10 @@ if ($estatus === 'entregado' && !tienePermiso($usuario['rol'], 'registrar_entreg
 }
 
 $estatusAnterior = $pieza['estatus'];
+// EC-2: copia sin mutar — $estatusAnterior se reasigna más abajo en el caso de
+// omisión con salto múltiple; el guard del UPDATE necesita el valor ORIGINAL
+// leído al inicio de la request, no el recalculado.
+$estatusOriginal = $pieza['estatus'];
 
 $FLUJO_ORDEN = ['pendiente','en_corte','cortado','canteado','trazo','taladro','en_horno','terminado','entregado'];
 
@@ -201,8 +205,16 @@ $nombreUsuario = $usuario['nombre'];
 // si falla cualquier INSERT de historial, la pieza no queda movida a medias.
 $db->beginTransaction();
 try {
-    $db->prepare('UPDATE piezas SET estatus = ?, updated_at = NOW() WHERE qr_code = ?')
-       ->execute([$estatus, $qr]);
+    // EC-2: guard de carrera — la validación de flujo (arriba) se hizo sobre el
+    // estatus leído al inicio de la request; sin condicionar el UPDATE al mismo
+    // estatus, dos escaneos casi simultáneos del mismo QR pasaban los dos la
+    // validación y ambos movían la pieza (historial/WA duplicados). Mismo patrón
+    // que ya usa api/salidas.php:150.
+    $stUpd = $db->prepare('UPDATE piezas SET estatus = ?, updated_at = NOW() WHERE qr_code = ? AND estatus = ?');
+    $stUpd->execute([$estatus, $qr, $estatusOriginal]);
+    if ($stUpd->rowCount() !== 1) {
+        throw new Exception('Esta pieza ya fue movida por otro escaneo — recarga e intenta de nuevo.');
+    }
 
     // Registrar en historial
     // Si es omisión con salto de múltiples pasos, insertar un registro por cada paso saltado
@@ -246,7 +258,10 @@ try {
     $db->commit();
 } catch (Exception $e) {
     $db->rollBack();
-    jsonResponse(['error' => 'Error al actualizar la pieza'], 500);
+    // EC-2: el mensaje del guard de carrera es útil para el usuario (sabe que
+    // debe recargar); cualquier otro fallo real sigue devolviendo 500 genérico.
+    $esGuardCarrera = strpos($e->getMessage(), 'ya fue movida por otro escaneo') !== false;
+    jsonResponse(['error' => $esGuardCarrera ? $e->getMessage() : 'Error al actualizar la pieza'], $esGuardCarrera ? 409 : 500);
 }
 
 

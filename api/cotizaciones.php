@@ -23,6 +23,22 @@ require_once __DIR__ . '/helpers/totales.php';    // A-2: fórmula canónica de 
 require_once __DIR__ . '/helpers/referidos_lib.php'; // Esquema de Referidos (promo agosto 2026)
 require_once __DIR__ . '/helpers/promo_wa_lib.php';   // Promo Estados WhatsApp por volumen (15-ago-2026)
 
+// LN-5: una orden con CFDI timbrado (o en proceso de timbrado) vigente ante el SAT
+// no debe poder cancelarse/rechazarse — eso movería el dinero a saldo a favor
+// mientras el cliente se queda con la factura fiscal válida (doble beneficio).
+// Regresa el folio_interno de la factura que bloquea, o null si no hay ninguna.
+function cotizacionesFacturaVigente(PDO $db, $ordenId) {
+    if (!$ordenId) return null;
+    $stO = $db->prepare("SELECT folio FROM ordenes WHERE id = ?");
+    $stO->execute([$ordenId]);
+    $ordenFolio = $stO->fetchColumn();
+    if (!$ordenFolio) return null;
+
+    $stF = $db->prepare("SELECT folio_interno FROM facturas WHERE orden_folio = ? AND estatus IN ('timbrada','timbrando') LIMIT 1");
+    $stF->execute([$ordenFolio]);
+    return $stF->fetchColumn() ?: null;
+}
+
 // ─── GET ──────────────────────────────────────────────────────────────────────
 if ($method === 'GET') {
     $id      = isset($_GET['id'])  ? (int)$_GET['id']  : null;
@@ -1046,14 +1062,46 @@ if ($method === 'PUT') {
     }
 
     if ($accion === 'marcar_entregada') {
-        // Verificar bloqueo
-        $stmt = $db->prepare("SELECT entrega_bloqueada, saldo_pendiente FROM cotizaciones WHERE id = ?");
+        $stmt = $db->prepare("SELECT entrega_bloqueada, saldo_pendiente, orden_id, folio, estatus FROM cotizaciones WHERE id = ?");
         $stmt->execute([$id]);
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$cot) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
+
+        // LN-7: solo se puede marcar entregada una cotización que ya es una orden
+        // real y sigue activa — antes se podía forzar 'entregada' sobre una
+        // cotización que nunca pasó por producción, o resucitar una cancelada.
+        // Mismo criterio que ya usa la UI para mostrar el botón (estatus==='orden').
+        if ($cot['estatus'] !== 'orden' || !$cot['orden_id']) {
+            jsonResponse(['error' => 'Solo se puede marcar entregada una orden activa (estatus actual: "' . $cot['estatus'] . '")']); exit;
+        }
+        $stO = $db->prepare("SELECT estado FROM ordenes WHERE id = ?");
+        $stO->execute([$cot['orden_id']]);
+        $estadoOrden = $stO->fetchColumn();
+        if ($estadoOrden !== 'activa') {
+            jsonResponse(['error' => 'La orden asociada no está activa (estado actual: "' . $estadoOrden . '") — no se puede marcar entregada']); exit;
+        }
+
         if ($cot['entrega_bloqueada'] && !$es_admin) {
             jsonResponse(['error' => 'Entrega bloqueada por saldo pendiente', 'bloqueada' => true]); exit;
         }
+
+        // Override de bloqueo por saldo — mismo patrón de bitácora que ya usa
+        // 'actualizar_saldo' (línea ~1082) y el vobo_override de finanzas.php.
+        $overrideBloqueo = (bool)$cot['entrega_bloqueada'] && $es_admin;
+
         $db->prepare("UPDATE cotizaciones SET estatus='entregada', updated_at=NOW() WHERE id=?")->execute([$id]);
+
+        if ($overrideBloqueo) {
+            $db->prepare("INSERT INTO correcciones_log
+                (tipo, referencia_id, folio, campo, valor_anterior, valor_nuevo, motivo, usuario)
+                VALUES ('cotizacion', ?, ?, 'entrega_bloqueada', '1', 'entregada (override)', ?, ?)")
+               ->execute([
+                   $id, $cot['folio'],
+                   'Marcada entregada con saldo pendiente $' . number_format((float)$cot['saldo_pendiente'], 2) . ' — override de ' . $rol,
+                   $usuario_nombre
+               ]);
+        }
+
         jsonResponse(['ok' => true]); exit;
     }
 
@@ -1110,6 +1158,11 @@ if ($method === 'PUT') {
             $stO->execute([$cot['orden_id']]);
             if ($stO->fetchColumn() === 'entregada') {
                 jsonResponse(['error' => 'La orden ya fue entregada; no se puede cancelar (usa el flujo de rechazo/devolución)']); exit;
+            }
+
+            // LN-5: bloquear si hay CFDI timbrado/timbrando vigente
+            if ($facturaVigente = cotizacionesFacturaVigente($db, $cot['orden_id'])) {
+                jsonResponse(['error' => 'Esta orden tiene la factura ' . $facturaVigente . ' timbrada vigente ante el SAT — cancélala primero en Facturación antes de cancelar la orden.']); exit;
             }
 
             // V3-C4: mismo candado que admin_ordenes.php (A-14 candado 2) — si la
@@ -1173,6 +1226,11 @@ if ($method === 'PUT') {
         if ($cot['estatus'] === 'rechazada') { jsonResponse(['error' => 'Esta cotización ya fue rechazada — el saldo a favor ya se generó']); exit; }
         if ($cot['estatus'] === 'cancelada')  { jsonResponse(['error' => 'La cotización está cancelada']); exit; }
         if (!$cot['orden_id']) { jsonResponse(['error' => 'Esta cotización no tiene una orden generada']); exit; }
+
+        // LN-5: bloquear si hay CFDI timbrado/timbrando vigente
+        if ($facturaVigente = cotizacionesFacturaVigente($db, $cot['orden_id'])) {
+            jsonResponse(['error' => 'Esta orden tiene la factura ' . $facturaVigente . ' timbrada vigente ante el SAT — cancélala primero en Facturación antes de rechazarla por calidad.']); exit;
+        }
 
         $montoDevuelto = (float)($cot['saldo_pagado'] ?? 0);
         $db->beginTransaction();

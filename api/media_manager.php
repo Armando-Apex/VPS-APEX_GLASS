@@ -151,32 +151,55 @@ if ($method === 'POST' && $accion === 'subir') {
     $dirDestino = resolverRuta($BASE, $rel, true);
     if ($dirDestino === null || !is_dir($dirDestino)) jsonResponse(['error' => 'Carpeta destino no válida'], 400);
 
-    $parcial = $TMP . '/' . $uploadId . '.part';
-    $modo    = ($idx === 0) ? 'wb' : 'ab';
-    $out = fopen($parcial, $modo);
+    // EC-4: limpieza oportunista de partes huérfanas >24h (subida abandonada a
+    // medias) — sin depender de un cron nuevo, corre gratis en cada request de subida.
+    foreach (glob($TMP . '/*.part*') ?: [] as $huerfano) {
+        if (is_file($huerfano) && (time() - filemtime($huerfano)) > 86400) @unlink($huerfano);
+    }
+
+    // EC-4: cada chunk se guarda en SU PROPIO archivo (por índice), no concatenado
+    // en un único archivo compartido en orden de LLEGADA — con reintentos/red
+    // inestable el orden de llegada no está garantizado y el archivo final podía
+    // quedar corrupto en silencio (chunk 2 antes que el 1, etc.).
+    $partePropia = $TMP . '/' . $uploadId . '.part' . $idx;
+    $out = fopen($partePropia, 'wb');
     if (!$out) jsonResponse(['error' => 'No se pudo abrir archivo temporal'], 500);
     $in = fopen($_FILES['chunk']['tmp_name'], 'rb');
     while (!feof($in)) { fwrite($out, fread($in, 1024 * 256)); }
     fclose($in); fclose($out);
 
-    if (filesize($parcial) > $MAX_TOTAL) {
-        @unlink($parcial);
+    // ¿Ya están las $total partes, sin importar en qué orden llegaron?
+    $partes = [];
+    $tamanoAcumulado = 0;
+    for ($i = 0; $i < $total; $i++) {
+        $pf = $TMP . '/' . $uploadId . '.part' . $i;
+        if (!is_file($pf)) {
+            jsonResponse(['ok' => true, 'finalizado' => false, 'recibido' => $i, 'total' => $total]);
+        }
+        $partes[] = $pf;
+        $tamanoAcumulado += filesize($pf);
+    }
+
+    if ($tamanoAcumulado > $MAX_TOTAL) {
+        foreach ($partes as $pf) @unlink($pf);
         jsonResponse(['error' => 'El archivo supera el límite de 600 MB'], 400);
     }
 
-    // Última parte → finalizar
-    if ($idx === $total - 1) {
-        $nombreFinal = nombreUnico($dirDestino, $nombre);
-        $rutaFinal   = $dirDestino . '/' . $nombreFinal;
-        if (!rename($parcial, $rutaFinal)) {
-            @unlink($parcial);
-            jsonResponse(['error' => 'No se pudo guardar el archivo final'], 500);
-        }
-        @chmod($rutaFinal, 0640);
-        jsonResponse(['ok' => true, 'finalizado' => true, 'nombre' => $nombreFinal]);
+    // Todas las partes están — ensamblar en orden numérico 0→N-1 al archivo final.
+    $nombreFinal = nombreUnico($dirDestino, $nombre);
+    $rutaFinal   = $dirDestino . '/' . $nombreFinal;
+    $out = fopen($rutaFinal, 'wb');
+    if (!$out) jsonResponse(['error' => 'No se pudo crear el archivo final'], 500);
+    foreach ($partes as $pf) {
+        $in = fopen($pf, 'rb');
+        while (!feof($in)) { fwrite($out, fread($in, 1024 * 256)); }
+        fclose($in);
     }
+    fclose($out);
+    foreach ($partes as $pf) @unlink($pf);
 
-    jsonResponse(['ok' => true, 'finalizado' => false, 'recibido' => $idx + 1, 'total' => $total]);
+    @chmod($rutaFinal, 0640);
+    jsonResponse(['ok' => true, 'finalizado' => true, 'nombre' => $nombreFinal]);
 }
 
 // ── CREAR CARPETA ────────────────────────────────────────────────────────────

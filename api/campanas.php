@@ -392,7 +392,14 @@ if ($metodo === 'POST' && $accion === 'enviar') {
         jsonResponse(['error' => 'Campaña no válida'], 400);
     }
 
-    $db->prepare("UPDATE campanas SET estado='enviando' WHERE id=?")->execute([$campanaId]);
+    // EC-1: claim atómico — el SELECT de arriba confirmó el estado FUERA del
+    // UPDATE; doble clic / dos pestañas en "Enviar" podían pasar los dos el
+    // SELECT y ambos arrancar el envío (WhatsApps duplicados al mismo lote).
+    $stUpd = $db->prepare("UPDATE campanas SET estado='enviando' WHERE id=? AND estado IN ('borrador','cancelada')");
+    $stUpd->execute([$campanaId]);
+    if ($stUpd->rowCount() !== 1) {
+        jsonResponse(['error' => 'Esta campaña ya se está enviando o cambió de estado — recarga antes de reintentar.'], 409);
+    }
 
     $stmtE = $db->prepare("SELECT ce.id, ce.telefono, ce.cliente_id,
         COALESCE(ce.nombre_override, c.nombre) as nombre_cliente,

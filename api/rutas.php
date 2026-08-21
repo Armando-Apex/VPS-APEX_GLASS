@@ -478,7 +478,15 @@ if ($method === 'POST') {
             jsonResponse(['error' => "Faltan $faltan pieza(s) por escanear como cargadas antes de iniciar la ruta"]); exit;
         }
 
-        $db->prepare("UPDATE rutas SET estado='en_ruta', updated_at=NOW() WHERE id=?")->execute([$id]);
+        // LN-12: claim atómico — sin condicionar el estado actual se podía "iniciar"
+        // una ruta que ya estaba 'en_ruta' o 'completada' (doble clic / reintento),
+        // reenviando a los clientes el WhatsApp de "tu pedido va en camino" de forma
+        // espuria. Mismo patrón que VoBo/campañas del sprint P0.
+        $stUpd = $db->prepare("UPDATE rutas SET estado='en_ruta', updated_at=NOW() WHERE id=? AND estado='planificada'");
+        $stUpd->execute([$id]);
+        if ($stUpd->rowCount() !== 1) {
+            jsonResponse(['error' => 'Esta ruta ya se inició o cambió de estado — recarga antes de reintentar.'], 409); exit;
+        }
 
         $etas = calcularYGuardarEtas($db, $id);
         enviarAvisosInicioRuta($db, $id);
@@ -754,9 +762,13 @@ if ($method === 'POST') {
                 $entregadasOrden = (int)$entregadasOrden->fetchColumn();
 
                 if ($totalOrden === $entregadasOrden) {
-                    $db->prepare("UPDATE ordenes SET estado='entregada', updated_at=NOW() WHERE id=?")
-                       ->execute([$re['orden_id']]);
-                    $respuesta['orden_cerrada'] = true;
+                    // LN-4: homologado con rutas_lib.php:300 — sin este guard una orden
+                    // cancelada/rechazada mientras la ruta seguía viva podía "resucitar"
+                    // a entregada solo por terminar de escanear sus piezas (entrega física
+                    // + crédito ya dado al cliente al mismo tiempo).
+                    $stCierre = $db->prepare("UPDATE ordenes SET estado='entregada', updated_at=NOW() WHERE id=? AND estado NOT IN ('cancelada','rechazada')");
+                    $stCierre->execute([$re['orden_id']]);
+                    $respuesta['orden_cerrada'] = $stCierre->rowCount() === 1;
                 }
             }
 

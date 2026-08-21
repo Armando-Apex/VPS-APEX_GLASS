@@ -239,7 +239,17 @@ if ($method === 'POST') {
         $cot_id    = (int)($body['cotizacion_id'] ?? 0);
         $fecha     = trim($body['fecha_pago']  ?? date('Y-m-d'));
         $hora      = trim($body['hora_pago']   ?? date('H:i:s'));
-        $monto     = (float)($body['monto']    ?? 0);
+
+        // EC-7: (float)"1,250.50" da 1.0 en PHP — un monto con separador de miles
+        // se registraba por error como $1.00, sin ningún aviso. Se quita la coma
+        // ANTES del cast y se exige que lo que quede sea realmente numérico.
+        $montoRaw = $body['monto'] ?? 0;
+        if (is_string($montoRaw)) $montoRaw = str_replace(',', '', trim($montoRaw));
+        if (!is_numeric($montoRaw)) {
+            jsonResponse(['error' => 'Monto inválido: "' . $body['monto'] . '"']); exit;
+        }
+        $monto     = (float)$montoRaw;
+
         $forma     = $body['forma_pago']       ?? 'efectivo';
         $notas     = trim($body['notas']       ?? '');
 
@@ -386,23 +396,24 @@ if ($method === 'POST') {
                 }
             }
 
-            $db->commit();
-
-            // Devolver saldo actualizado (bruto desde partidas para evitar inconsistencia en c.subtotal)
-            $stmt = $db->prepare("SELECT saldo_pagado, tipo, total FROM cotizaciones c WHERE c.id = ?");
-            $stmt->execute([$cot_id]);
-            $cot = $stmt->fetch(PDO::FETCH_ASSOC);
-            // S1-01 / A-2: fórmula canónica única (maquila: c.total ya es canónico tras C-5)
-            $tots_post  = apexTotalesCotizacion($db, $cot_id);
-            $total_real = ($cot['tipo'] === 'maquila')
-                ? round((float)$cot['total'], 2)
-                : ($tots_post['total'] ?? 0);
-
-            // Marcar como pagado automáticamente si el saldo cubre el total (tolerancia $0.99)
-            if ($total_real > 0 && ($total_real - (float)$cot['saldo_pagado']) <= 0.99) {
-                $db->prepare("UPDATE cotizaciones SET estatus_pago = 'pagado', updated_at = NOW() WHERE id = ?")
+            // LN-8: movido DENTRO de la transacción (antes corría después de
+            // $db->commit(), suelto) — si este UPDATE fallaba, el dinero ya había
+            // quedado aplicado (commit hecho) pero el estatus se quedaba desfasado;
+            // y sin condicionar el estatus previo podía pisar uno puesto a mano
+            // entre el commit y este UPDATE. Se calcula el saldo nuevo in-memory
+            // (sin SELECT extra) con los valores que ya están en scope.
+            $saldo_pagado_nuevo = round((float)$pre['saldo_pagado'] + $monto_aplicar, 2);
+            if ($total_real > 0 && ($total_real - $saldo_pagado_nuevo) <= 0.99) {
+                $db->prepare("UPDATE cotizaciones SET estatus_pago = 'pagado', updated_at = NOW() WHERE id = ? AND estatus_pago <> 'pagado'")
                    ->execute([$cot_id]);
             }
+
+            $db->commit();
+
+            // Devolver saldo actualizado (bruto desde partidas para evitar inconsistencia en c.subtotal) — solo lectura, ya commiteado
+            $stmt = $db->prepare("SELECT saldo_pagado FROM cotizaciones c WHERE c.id = ?");
+            $stmt->execute([$cot_id]);
+            $cot = $stmt->fetch(PDO::FETCH_ASSOC);
 
             jsonResponse([
                 'ok'              => true,
@@ -507,13 +518,22 @@ if ($method === 'PUT') {
 
         $db->beginTransaction();
         try {
-            // Activar orden y fijar fecha de entrega real
-            $db->prepare("UPDATE ordenes SET
+            // LN-3: claim atómico — el SELECT de arriba (línea 433) confirmó
+            // 'pendiente_vobo' FUERA de la transacción; dos requests concurrentes
+            // (doble clic / dos pestañas) podían pasar los dos y correr todo el
+            // bloque de abajo dos veces (póliza + bono de referidos). Repetir la
+            // condición aquí, dentro de la transacción, y abortar si otro proceso
+            // ya la activó (mismo patrón que 'rechazar', línea ~1187).
+            $stUpd = $db->prepare("UPDATE ordenes SET
                 estado = 'activa',
                 fecha_entrega = ?,
                 updated_at = NOW()
-                WHERE id = ?
-            ")->execute([$fecha_entrega, $orden_id]);
+                WHERE id = ? AND estado = 'pendiente_vobo'
+            ");
+            $stUpd->execute([$fecha_entrega, $orden_id]);
+            if ($stUpd->rowCount() !== 1) {
+                throw new Exception('Esta orden ya no está pendiente de VoBo — otro proceso ya la activó.');
+            }
 
             // Marcar VoBo en cotización
             if ($orden['cot_id']) {

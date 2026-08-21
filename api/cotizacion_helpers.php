@@ -8,12 +8,19 @@
 // ─── Función: generar siguiente folio de COTIZACIÓN ─────────────────────────
 function generarFolio($db) {
     $db->exec("LOCK TABLES folios_control WRITE");
-    $row    = $db->query("SELECT * FROM folios_control LIMIT 1")->fetch(PDO::FETCH_ASSOC);
-    $modo   = $row['modo_cot'] ?? 'prueba';
-    $num    = ($row['num_cot'] ?? 0) + 1;
-    $db->prepare("UPDATE folios_control SET num_cot = ? WHERE id = ?")
-       ->execute([$num, $row['id']]);
-    $db->exec("UNLOCK TABLES");
+    // EC-11: try/finally — si el SELECT/UPDATE lanza una excepción a mitad,
+    // el UNLOCK de abajo nunca corría y la tabla folios_control se quedaba
+    // bloqueada (tumba la generación de folios para todo el sistema hasta que
+    // se cierre la conexión que la dejó así).
+    try {
+        $row    = $db->query("SELECT * FROM folios_control LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        $modo   = $row['modo_cot'] ?? 'prueba';
+        $num    = ($row['num_cot'] ?? 0) + 1;
+        $db->prepare("UPDATE folios_control SET num_cot = ? WHERE id = ?")
+           ->execute([$num, $row['id']]);
+    } finally {
+        $db->exec("UNLOCK TABLES");
+    }
 
     if ($modo === 'produccion') {
         return 'COT-' . str_pad($num, 4, '0', STR_PAD_LEFT);
@@ -25,16 +32,20 @@ function generarFolio($db) {
 // ─── Función: generar siguiente folio de ORDEN DE PRODUCCIÓN ────────────────
 function generarFolioOrden($db) {
     $db->exec("LOCK TABLES folios_control WRITE");
-    $row    = $db->query("SELECT * FROM folios_control LIMIT 1")->fetch(PDO::FETCH_ASSOC);
-    $letra  = $row['letra_actual'];
-    $numero = $row['numero_actual'] + 1;
-    if ($numero > 999) {
-        $numero = 1;
-        $letra  = chr(ord($letra) + 1);
+    // EC-11: mismo try/finally que generarFolio() — UNLOCK garantizado.
+    try {
+        $row    = $db->query("SELECT * FROM folios_control LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        $letra  = $row['letra_actual'];
+        $numero = $row['numero_actual'] + 1;
+        if ($numero > 999) {
+            $numero = 1;
+            $letra  = chr(ord($letra) + 1);
+        }
+        $db->prepare("UPDATE folios_control SET letra_actual = ?, numero_actual = ? WHERE id = ?")
+           ->execute([$letra, $numero, $row['id']]);
+    } finally {
+        $db->exec("UNLOCK TABLES");
     }
-    $db->prepare("UPDATE folios_control SET letra_actual = ?, numero_actual = ? WHERE id = ?")
-       ->execute([$letra, $numero, $row['id']]);
-    $db->exec("UNLOCK TABLES");
     return $letra . '-' . str_pad($numero, 3, '0', STR_PAD_LEFT);
 }
 

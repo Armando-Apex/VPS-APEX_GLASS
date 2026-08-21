@@ -331,21 +331,36 @@ if ($method === 'POST') {
                 jsonResponse(['error' => 'La lámina seleccionada no existe o está inactiva'], 422);
         }
 
-        // Número de partida
-        $n = $db->prepare("SELECT COALESCE(MAX(numero_partida),0)+1 FROM oc_partidas WHERE orden_compra_id=?");
-        $n->execute([$oc_id]);
-        $num = $n->fetchColumn();
-
         // [M-3] Flag opcional: si no viene, 0 = precio sin IVA (comportamiento actual)
         $iva_incluido = !empty($body['iva_incluido']) ? 1 : 0;
 
-        $s = $db->prepare("INSERT INTO oc_partidas
-            (orden_compra_id, numero_partida, tipo, lamina_id, oc_referencia_id,
-             descripcion, unidad, cantidad, precio_unitario, iva_incluido)
-            VALUES (?,?,?,?,?,?,?,?,?,?)");
-        $s->execute([$oc_id, $num, $tipo, $lamina_id, $oc_ref_id ?: null,
-                     $desc, $unidad, $cantidad, $precio, $iva_incluido]);
-        jsonResponse(['ok' => true, 'id' => $db->lastInsertId()]);
+        // EC-3: MAX(numero_partida)+1 sin lock ni UNIQUE — dos requests agregando
+        // partida a la misma OC al mismo tiempo podían calcular el mismo número.
+        // En vez de un ALTER TABLE (índice UNIQUE), se serializa con el mismo patrón
+        // FOR UPDATE que ya usa el resto del módulo (recepciones, pagos): el lock de
+        // fila sobre la OC padre obliga a que el segundo request espere a que el
+        // primero termine su transacción antes de leer el MAX.
+        $db->beginTransaction();
+        try {
+            $db->prepare("SELECT id FROM ordenes_compra WHERE id=? FOR UPDATE")->execute([$oc_id]);
+
+            $n = $db->prepare("SELECT COALESCE(MAX(numero_partida),0)+1 FROM oc_partidas WHERE orden_compra_id=?");
+            $n->execute([$oc_id]);
+            $num = $n->fetchColumn();
+
+            $s = $db->prepare("INSERT INTO oc_partidas
+                (orden_compra_id, numero_partida, tipo, lamina_id, oc_referencia_id,
+                 descripcion, unidad, cantidad, precio_unitario, iva_incluido)
+                VALUES (?,?,?,?,?,?,?,?,?,?)");
+            $s->execute([$oc_id, $num, $tipo, $lamina_id, $oc_ref_id ?: null,
+                         $desc, $unidad, $cantidad, $precio, $iva_incluido]);
+            $nuevoId = $db->lastInsertId();
+            $db->commit();
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => 'No se pudo agregar la partida: ' . $e->getMessage()], 500);
+        }
+        jsonResponse(['ok' => true, 'id' => $nuevoId]);
     }
 
     // ── Registrar entrega ─────────────────────────────────────
@@ -777,12 +792,56 @@ if ($method === 'POST') {
 
     // ── Cambiar estado manualmente ────────────────────────────
     if ($accion === 'cambiar_estado') {
+        // LN-6: antes solo heredaba el gate del módulo (ver_inventario, línea 13),
+        // que 'comercial' también tiene sin gestionar_inventario — cualquier
+        // comercial podía saltar una OC a 'pagada' vía API directa.
+        requirePermisoApi('gestionar_inventario');
+
         $oc_id  = (int)($body['orden_compra_id'] ?? 0);
         $estado = $body['estado'] ?? '';
+        $motivo = trim($body['motivo'] ?? '');
         $validos = ['borrador','abierta','cerrada','pagada'];
         if (!$oc_id || !in_array($estado, $validos))
             jsonResponse(['error' => 'Datos inválidos'], 422);
+
+        $stAct = $db->prepare("SELECT numero_oc, estado FROM ordenes_compra WHERE id = ?");
+        $stAct->execute([$oc_id]);
+        $ocAct = $stAct->fetch(PDO::FETCH_ASSOC);
+        if (!$ocAct) jsonResponse(['error' => 'Orden de compra no encontrada'], 404);
+        $estadoActual = $ocAct['estado'];
+
+        // LN-6: máquina de estados — adelante es libre entre pasos consecutivos
+        // (saltar borrador->pagada directo sigue sin tener sentido de negocio);
+        // hacia atrás (reabrir) es un override que requiere motivo y solo lo
+        // pueden hacer los roles de mayor confianza del módulo.
+        $ORDEN_ESTADOS = ['borrador' => 0, 'abierta' => 1, 'cerrada' => 2, 'pagada' => 3];
+        $esReversa = $ORDEN_ESTADOS[$estado] < $ORDEN_ESTADOS[$estadoActual];
+        if ($estado === $estadoActual) {
+            jsonResponse(['error' => 'La OC ya está en estado "' . $estado . '"'], 422);
+        }
+        if (!$esReversa && ($ORDEN_ESTADOS[$estado] - $ORDEN_ESTADOS[$estadoActual]) > 1) {
+            jsonResponse(['error' => 'No se puede saltar de "' . $estadoActual . '" a "' . $estado . '" directo — solo un paso a la vez.'], 422);
+        }
+        if ($esReversa) {
+            if (!in_array($user['rol'], ['dir_admin', 'dueno', 'desarrollo'])) {
+                jsonResponse(['error' => 'Solo Dirección puede reabrir una OC (' . $estadoActual . ' → ' . $estado . ')'], 403);
+            }
+            if ($motivo === '') {
+                jsonResponse(['error' => 'Para reabrir una OC (' . $estadoActual . ' → ' . $estado . ') debes escribir el motivo.'], 422);
+            }
+        }
+
         $db->prepare("UPDATE ordenes_compra SET estado=? WHERE id=?")->execute([$estado, $oc_id]);
+
+        // LN-6: bitácora siempre — quién, cuándo, de dónde a dónde y por qué (si es reversa)
+        $db->prepare("INSERT INTO correcciones_log
+            (tipo, referencia_id, folio, campo, valor_anterior, valor_nuevo, motivo, usuario)
+            VALUES ('orden_compra', ?, ?, 'estado', ?, ?, ?, ?)")
+           ->execute([
+               $oc_id, $ocAct['numero_oc'], $estadoActual, $estado,
+               $esReversa ? $motivo : ('Avance normal de flujo por ' . $user['rol']),
+               $user['nombre']
+           ]);
 
         // Auto-envío cuando dir_admin/dueno abre una OC
         $correo_enviado = false;

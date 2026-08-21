@@ -13,6 +13,78 @@ function _correosValidos($raw) {
     return $out;
 }
 
+// LN-1: conceptos (desc/cant/precio) reconstruidos en SERVIDOR a partir del folio de
+// orden — nunca confiar en lo que mande el cliente cuando hay una orden real detrás.
+// Usada tanto para prellenar el formulario (buscar_orden) como para validar lo que
+// se guarda (guardar). Regresa null si el folio no resuelve a una orden con cotización.
+function _facturapiConceptosDesdeOrden($pdo, $ordenFolio) {
+    $stmt = $pdo->prepare("SELECT id FROM ordenes WHERE folio = ? LIMIT 1");
+    $stmt->execute([$ordenFolio]);
+    $ordenId = $stmt->fetchColumn();
+    if (!$ordenId) return null;
+
+    $stmt = $pdo->prepare("SELECT id, tipo, descuento FROM cotizaciones WHERE orden_id = ? LIMIT 1");
+    $stmt->execute([$ordenId]);
+    $cot = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$cot) return null;
+
+    $cotId     = $cot['id'];
+    $esMaquila = ($cot['tipo'] ?? 'suministro') === 'maquila';
+    $descuento = (float)($cot['descuento'] ?? 0);
+
+    $conceptos = [];
+    if ($esMaquila) {
+        $stmt = $pdo->prepare("
+            SELECT mp.*, tv.nombre AS tipo_vidrio_nombre
+            FROM cotizaciones_maquila_partidas mp
+            LEFT JOIN maquila_tipos_vidrio tv ON tv.id = mp.cristal_tipo_id
+            WHERE mp.cotizacion_id = ?
+            ORDER BY mp.num_partida ASC
+        ");
+        $stmt->execute([$cotId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            $servicios = [];
+            if ($p['corte'])    $servicios[] = 'Corte';
+            if ($p['canteado']) $servicios[] = 'Canteado';
+            if ($p['taladros_pasados'] + $p['taladros_avellanados'] > 0) $servicios[] = 'Taladro';
+            if ($p['templado'])  $servicios[] = 'Templado';
+            $desc = trim(($p['tipo_vidrio_nombre'] ?: 'Vidrio') . ' ' . $p['espesor_mm'] . 'mm');
+            if ($servicios) $desc .= ' - Maquila: ' . implode('/', $servicios);
+            $conceptos[] = [
+                'desc'   => $desc,
+                'clave'  => '',
+                'unidad' => 'MTK',
+                'cant'   => round((float)$p['m2'] * (int)$p['cantidad'], 6),
+                'precio' => (float)$p['m2'] > 0 ? round((float)$p['subtotal'] / ((float)$p['m2'] * (int)$p['cantidad']), 6) : 0,
+                'iva'    => true,
+            ];
+        }
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT cristal_nombre, m2, cantidad, precio_m2_usado
+            FROM cotizaciones_partidas
+            WHERE cotizacion_id = ?
+            ORDER BY num_partida ASC
+        ");
+        $stmt->execute([$cotId]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            // precio_m2_usado es bruto (sin descuento) — aplicar el % de la cotización, igual que el resto del sistema.
+            $precioNeto = $descuento > 0
+                ? round((float)$p['precio_m2_usado'] * (1 - $descuento / 100), 6)
+                : (float)$p['precio_m2_usado'];
+            $conceptos[] = [
+                'desc'   => $p['cristal_nombre'] ?: 'Vidrio',
+                'clave'  => '',
+                'unidad' => 'MTK',
+                'cant'   => round((float)$p['m2'] * (int)$p['cantidad'], 6),
+                'precio' => $precioNeto,
+                'iva'    => true,
+            ];
+        }
+    }
+    return $conceptos;
+}
+
 // Descarga un archivo (PDF/XML) de FacturAPI autenticado; regresa el binario o null si falla
 function _descargarArchivoFacturapi($url) {
     $ch = curl_init($url);
@@ -102,66 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
     }
 
     // Relacionar con la cotización de origen vía cotizaciones.orden_id (se llena siempre al convertir, api/cotizaciones.php)
-    $stmt = $pdo->prepare("SELECT id, tipo, descuento FROM cotizaciones WHERE orden_id = ? LIMIT 1");
-    $stmt->execute([$orden['id']]);
-    $cot       = $stmt->fetch(PDO::FETCH_ASSOC);
-    $cotId     = $cot['id'] ?? null;
-    $esMaquila = ($cot['tipo'] ?? 'suministro') === 'maquila';
-    $descuento = (float)($cot['descuento'] ?? 0);
-
-    $conceptos = [];
-    if ($cotId && $esMaquila) {
-        // Maquila guarda sus renglones en cotizaciones_maquila_partidas (tabla distinta, ver UPD-273/302);
-        // subtotal ya incluye corte/canteado/taladro/horno y no lleva descuento por partida (no aplica en maquila).
-        $stmt = $pdo->prepare("
-            SELECT mp.*, tv.nombre AS tipo_vidrio_nombre
-            FROM cotizaciones_maquila_partidas mp
-            LEFT JOIN maquila_tipos_vidrio tv ON tv.id = mp.cristal_tipo_id
-            WHERE mp.cotizacion_id = ?
-            ORDER BY mp.num_partida ASC
-        ");
-        $stmt->execute([$cotId]);
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
-            $servicios = [];
-            if ($p['corte'])    $servicios[] = 'Corte';
-            if ($p['canteado']) $servicios[] = 'Canteado';
-            if ($p['taladros_pasados'] + $p['taladros_avellanados'] > 0) $servicios[] = 'Taladro';
-            if ($p['templado'])  $servicios[] = 'Templado';
-            $desc = trim(($p['tipo_vidrio_nombre'] ?: 'Vidrio') . ' ' . $p['espesor_mm'] . 'mm');
-            if ($servicios) $desc .= ' - Maquila: ' . implode('/', $servicios);
-            $conceptos[] = [
-                'desc'   => $desc,
-                'clave'  => '',
-                'unidad' => 'MTK',
-                'cant'   => round((float)$p['m2'] * (int)$p['cantidad'], 6),
-                'precio' => (float)$p['m2'] > 0 ? round((float)$p['subtotal'] / ((float)$p['m2'] * (int)$p['cantidad']), 6) : 0,
-                'iva'    => true,
-            ];
-        }
-    } elseif ($cotId) {
-        $stmt = $pdo->prepare("
-            SELECT cristal_nombre, m2, cantidad, precio_m2_usado
-            FROM cotizaciones_partidas
-            WHERE cotizacion_id = ?
-            ORDER BY num_partida ASC
-        ");
-        $stmt->execute([$cotId]);
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
-            // precio_m2_usado es bruto (sin descuento) — aplicar el % de la cotización, igual que el resto del sistema.
-            // Se redondea a 6 decimales (no 4) para no perder precisión de m2 (decimal(10,6) en BD) al multiplicar.
-            $precioNeto = $descuento > 0
-                ? round((float)$p['precio_m2_usado'] * (1 - $descuento / 100), 6)
-                : (float)$p['precio_m2_usado'];
-            $conceptos[] = [
-                'desc'   => $p['cristal_nombre'] ?: 'Vidrio',
-                'clave'  => '',
-                'unidad' => 'MTK',
-                'cant'   => round((float)$p['m2'] * (int)$p['cantidad'], 6),
-                'precio' => $precioNeto,
-                'iva'    => true,
-            ];
-        }
-    }
+    $conceptos = _facturapiConceptosDesdeOrden($pdo, $orden['folio']) ?? [];
 
     jsonResponse(['ok'=>true, 'orden'=>$orden, 'cliente'=>$cliente, 'conceptos'=>$conceptos]);
     exit;
@@ -245,6 +258,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
     $total = round($sub + $iva, 2);
 
     $ordenFolio = trim($d['orden_folio'] ?? '') ?: null;
+
+    // LN-1: si la factura se liga a una orden real, los conceptos no pueden ser lo
+    // que el cliente decida mandar — se reconstruyen en servidor desde la cotización
+    // ligada a esa orden (misma fuente que prellenó el formulario en buscar_orden) y
+    // se compara el total contra lo que el usuario intentó guardar.
+    if ($ordenFolio) {
+        $conceptosServidor = _facturapiConceptosDesdeOrden($pdo, $ordenFolio);
+        if ($conceptosServidor === null) {
+            jsonResponse(['ok'=>false,'error'=>'No se encontró la orden/cotización de origen para el folio '.$ordenFolio.'. Vuelve a buscar la orden antes de guardar.']); exit;
+        }
+        $subSrv = 0; $subGravSrv = 0;
+        foreach ($conceptosServidor as $c) {
+            $imp = round((float)$c['cant'] * (float)$c['precio'], 2);
+            $subSrv += $imp;
+            if (!empty($c['iva'])) $subGravSrv += $imp;
+        }
+        $totalSrv = round(round($subSrv, 2) + round($subGravSrv * 0.16, 2), 2);
+        if (abs($totalSrv - $total) > 0.01) {
+            jsonResponse(['ok'=>false,'error'=>'Los conceptos no coinciden con la cotización de la orden '.$ordenFolio
+                .' (esperado $'.number_format($totalSrv,2).', recibido $'.number_format($total,2)
+                .'). Vuelve a cargar la orden con "Buscar" antes de guardar.']); exit;
+        }
+    }
 
     $id = isset($d['id']) ? (int)$d['id'] : 0;
 
