@@ -47,7 +47,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $flowTokenEnvioId = null;
 
                 // Validar teléfono y wa_message_id
-                if (!$telefono || strlen($telefono) < 10 || strlen($telefono) > 15) continue;
+                if (!$telefono || strlen($telefono) < 10 || strlen($telefono) > 15) {
+                    $fromRaw = $msg['from'] ?? '';
+                    if ($fromRaw !== '' && !ctype_digit($fromRaw)) {
+                        error_log('[BSUID?] whatsapp_webhook recibio "from" no numerico (posible username/BSUID de Meta): ' . $fromRaw);
+                    }
+                    continue;
+                }
                 if (!$waId) continue;
 
                 // Protección anti-replay: ignorar wa_message_id ya procesado
