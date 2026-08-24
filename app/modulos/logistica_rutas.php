@@ -189,9 +189,6 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
 .as-piezas-loading { text-align:center; padding:20px; color:var(--c-muted); font-size:13px; }
 .as-sel-todos { background:none; border:none; color:#2563eb; font-size:11px; cursor:pointer; font-weight:600; padding:0; }
 
-/* Toast */
-.lr-toast { position:fixed; bottom:24px; right:24px; background:#0f172a; color:#fff; padding:10px 18px; border-radius:10px; font-size:13px; font-weight:500; z-index:9999; display:none; animation:fadeInUp .2s; }
-@keyframes fadeInUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 
 @media(max-width:768px){
   .lr-wrap { padding: 12px; }
@@ -225,9 +222,6 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
   .modal-btns { flex-direction: column; }
   .modal-btns .btn-cancel,
   .modal-btns .btn-confirm { width: 100%; text-align: center; }
-
-  /* Toast: abajo centrado */
-  .lr-toast { right: 12px; left: 12px; bottom: 16px; text-align: center; }
 }
 </style>
 
@@ -432,7 +426,6 @@ gmp-place-autocomplete::part(icon) { display: none !important; }
   </div>
 </div>
 
-<div id="lr-toast" class="lr-toast"></div>
 
 <script>
 var LR = (function() {
@@ -524,7 +517,7 @@ var LR = (function() {
     // Limpiar instancias de mapas anteriores
     _mapas = {};
     if (!_rutas.length) {
-      el.innerHTML = '<div class="no-rutas" style="grid-column:1/-1">No hay rutas para este día. Crea una con "+ Nueva Ruta".</div>';
+      el.innerHTML = '<div style="grid-column:1/-1">' + stateEmptyHTML('No hay rutas para este día. Crea una con "+ Nueva Ruta".', 'map-pin') + '</div>';
       return;
     }
     el.innerHTML = _rutas.map(renderUnitCard).join('');

@@ -8,6 +8,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 ?>
 <style>
 .fac-wrap { padding: 24px; max-width: 1200px; }
+.alert-warn { background:var(--c-amber-light); border:1px solid var(--c-amber); border-radius:8px; padding:10px 14px; font-size:12px; color:var(--c-amber); margin-bottom:16px; display:flex; align-items:center; gap:8px; }
 .fac-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
 .fac-title { font-size: 18px; font-weight: 600; color: #1a1a1a; flex: 1; }
 .fac-wip { font-size: 10px; background: #f59e0b; color: #000; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
@@ -185,7 +186,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 </style>
 
 <div class="fac-wrap">
-  <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;font-size:12px;color:#92400e;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+  <div class="alert-warn">
     <strong>Modo prueba:</strong> Facturas a nombre de <strong>PRUEBA DE PORTAL</strong> (CTN-259). Datos guardados solo en este navegador.
   </div>
   <div class="fac-header">

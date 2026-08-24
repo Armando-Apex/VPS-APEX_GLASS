@@ -32,6 +32,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
    12-ago-2026: nada de bloque de color, solo jerarquía tipográfica). Una regla
    fina separa el título de los campos, sin fondo ni acento — no aparece en la
    vista de edición, que conserva su encabezado de siempre (folio + acciones). */
+.alert-danger { background:var(--c-red-light); border:1.5px solid var(--c-red); border-radius:10px; padding:16px 20px; margin-bottom:18px; }
 .cot-head-min { padding-bottom: 16px; margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; }
 .cot-head-min-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
 .cot-head-min-eyebrow { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #2563eb; }
@@ -248,7 +249,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .partida-row.zebra { background:#f8fafc; }
 .partida-row:hover { background:#eff6ff; }
 .p-subhead { display:grid; grid-template-columns: 34px 190px 54px 72px 72px 115px 145px 50px 50px 50px 70px 125px 34px; gap:5px; padding:0 8px; margin-bottom:3px; }
-.p-subhead span { font-size:8px; font-weight:800; color:var(--c-muted); text-transform:uppercase; letter-spacing:.4px; text-align:center; }
+.p-subhead span { font-size:12px; font-weight:800; color:var(--c-muted); text-transform:uppercase; letter-spacing:.4px; text-align:center; }
 /* Autocomplete cliente */
 .autocomplete-wrap { position: relative; }
 .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 100; max-height: 240px; overflow-y: auto; }
@@ -310,7 +311,7 @@ async function init() {
     var data  = await res2.json();
     if (data && data.error) {
       document.getElementById('mainContent').innerHTML =
-        '<div style="padding:40px;text-align:center;color:#dc2626">Error: ' + escHtml(data.error) + '</div>';
+        '<div style="padding:40px;text-align:center;color:var(--c-red)">Error: ' + escHtml(data.error) + '</div>';
       return;
     }
     renderFormulario(data);
@@ -408,7 +409,7 @@ function renderFormulario(data) {
     // ── Fila 2: botones exclusivos dir_admin / admin (solo si hay alguno visible) ──
     var hayBotonesAdmin = ES_ADMIN && estatus !== 'cancelada' && estatus !== 'rechazada';
     if (hayBotonesAdmin) {
-      html += '<div class="acciones" style="justify-content:flex-end;padding-top:6px;border-top:1px dashed #e2e8f0;width:100%;">';
+      html += '<div class="acciones" style="justify-content:flex-end;padding-top:6px;border-top:1px dashed var(--c-border);width:100%;">';
       if (estatus === 'orden' && ES_ADMIN) {
         html += '<button class="btn btn-success btn-sm" onclick="ModCotizacion._marcarEntregada()">&#9989; Marcar Entregada</button>';
       }
@@ -435,7 +436,7 @@ function renderFormulario(data) {
   if (estatus === 'rechazada' && data.rechazo) {
     var r = data.rechazo;
     var fechaR = r.created_at ? new Date(r.created_at).toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
-    html += '<div style="background:#fff1f2;border:1.5px solid #fecaca;border-radius:10px;padding:16px 20px;margin-bottom:18px;">';
+    html += '<div class="alert-danger">';
     html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">';
     html += '<span style="font-size:18px;">&#9940;</span>';
     html += '<span style="font-weight:800;font-size:14px;color:#991b1b;text-transform:uppercase;letter-spacing:.4px;">Rechazada por Calidad</span>';
@@ -500,7 +501,7 @@ function renderFormulario(data) {
   if (esNuevo) {
     html += '<div class="field"><label>C&oacute;digo de Referido (CTN)</label>';
     html += '<input type="text" id="fReferidoCtn" placeholder="Ej: CTN-259" maxlength="20" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
-    html += '<small style="color:#64748b;">Opcional, 5% de descuento autom&aacute;tico (agosto 2026).</small></div>';
+    html += '<small style="color:var(--c-muted);">Opcional, 5% de descuento autom&aacute;tico (agosto 2026).</small></div>';
   } else if (data && parseFloat(data.descuento_referido || 0) > 0) {
     html += '<div class="field"><label>Descuento por Referido</label>';
     html += '<input type="text" readonly value="' + parseFloat(data.descuento_referido) + '% (ya aplicado)"></div>';
@@ -514,7 +515,7 @@ function renderFormulario(data) {
   if (esNuevo) {
     html += '<div class="field"><label>C&oacute;digo de Promoci&oacute;n</label>';
     html += '<input type="text" id="fPromoWaCodigo" placeholder="Ej: CTN-259PROMO" maxlength="20" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
-    html += '<small style="color:#64748b;">Opcional, descuento por volumen de piezas.</small></div>';
+    html += '<small style="color:var(--c-muted);">Opcional, descuento por volumen de piezas.</small></div>';
   } else if (data && data.promocion_id) {
     html += '<div class="field"><label>Promoci&oacute;n aplicada</label>';
     html += '<input type="text" readonly value="' + parseFloat(data.descuento || 0) + '% por volumen (ya aplicado)"></div>';
@@ -628,8 +629,8 @@ function renderFormulario(data) {
   // Totales
   html += '<div class="totales-box" id="totalesBox">';
   html += '<div class="totales-row"><span>Subtotal cristales</span><span id="tSubtotal">$0.00</span></div>';
-  html += '<div class="totales-row"><span>Descuento</span><span id="tDescuento" style="color:#dc2626">-$0.00</span></div>';
-  html += '<div class="totales-row" id="tSrvRow" style="display:none"><span>Servicios adicionales</span><span id="tServicios" style="color:#16a34a">$0.00</span></div>';
+  html += '<div class="totales-row"><span>Descuento</span><span id="tDescuento" style="color:var(--c-red)">-$0.00</span></div>';
+  html += '<div class="totales-row" id="tSrvRow" style="display:none"><span>Servicios adicionales</span><span id="tServicios" style="color:var(--c-green)">$0.00</span></div>';
   html += '<div class="totales-row"><span>Base gravable</span><span id="tBase">$0.00</span></div>';
   html += '<div class="totales-row"><span>IVA 16%</span><span id="tIva">$0.00</span></div>';
   html += '<div class="totales-row total-final"><span>TOTAL</span><span id="tTotal">$0.00</span></div>';
@@ -766,12 +767,12 @@ function renderPartidas(editable) {
     // Templado
     var templVal = (p.requiere_templado === 0 || p.requiere_templado === '0') ? 0 : 1;
     if (editable) {
-      html += '<select id="p_templ_' + i + '" style="font-size:12px;padding:6px 4px;border:1.5px solid #e2e8f0;border-radius:6px;width:100%">'
+      html += '<select id="p_templ_' + i + '" style="font-size:12px;padding:6px 4px;border:1.5px solid var(--c-border);border-radius:6px;width:100%">'
         + '<option value="1"' + (templVal===1?' selected':'') + '>S&#237;</option>'
         + '<option value="0"' + (templVal===0?' selected':'') + '>No</option>'
         + '</select>';
     } else {
-      html += '<span style="font-size:12px;font-weight:700;color:' + (templVal===1?'#16a34a':'#dc2626') + '">'
+      html += '<span style="font-size:12px;font-weight:700;color:' + (templVal===1?'var(--c-green)':'var(--c-red)') + '">'
         + (templVal===1?'S&#237;':'No') + '</span>';
     }
     // Comentarios etiqueta
@@ -1038,7 +1039,7 @@ async function retrabajoBuscarOrden() {
     var r = await fetch(API_COT + '?accion=retrabajo_buscar_orden&folio=' + encodeURIComponent(folio));
     var d = await r.json();
     if (!d.ok) {
-      info.innerHTML = '<span style="color:#dc2626">' + escHtml(d.error || 'No encontrada') + '</span>';
+      info.innerHTML = '<span style="color:var(--c-red)">' + escHtml(d.error || 'No encontrada') + '</span>';
       _retrabajoOrden = null;
       return;
     }
@@ -1046,7 +1047,7 @@ async function retrabajoBuscarOrden() {
     info.innerHTML = '<span style="color:#166534">Orden encontrada — Cliente: ' + escHtml(d.orden.cliente_nombre) + '</span>';
     await retrabajoCargarPiezas(d.orden.id);
   } catch (e) {
-    info.innerHTML = '<span style="color:#dc2626">Error de conexión</span>';
+    info.innerHTML = '<span style="color:var(--c-red)">Error de conexión</span>';
   }
 }
 
@@ -1133,7 +1134,7 @@ function retrabajoPiezaChange() {
   recalcular();
 
   if (!cristalMatch) {
-    alert('No se pudo emparejar automáticamente el cristal ("' + (pieza.cristal_corto || pieza.cristal) + '") con el catálogo. Selecciónalo manualmente en la partida.');
+    toast('No se pudo emparejar automáticamente el cristal ("' + (pieza.cristal_corto || pieza.cristal) + '") con el catálogo. Selecciónalo manualmente en la partida.', 'warn');
   }
 }
 
@@ -1162,11 +1163,11 @@ async function guardarCotizacion(btn) {
   if (btn && btn.disabled) return; // ya se está procesando este mismo clic
 
   var clienteId = document.getElementById('clienteId')?.value;
-  if (!clienteId) { alert('Selecciona un cliente'); return; }
+  if (!clienteId) { toast('Selecciona un cliente', 'error'); return; }
 
   var esRetrabajo = !!document.getElementById('fEsRetrabajo')?.checked;
   if (esRetrabajo && (!partidas[0] || !partidas[0].pieza_origen_id)) {
-    alert('Selecciona la orden, partida y pieza original a reprocesar');
+    toast('Selecciona la orden, partida y pieza original a reprocesar', 'error');
     return;
   }
 
@@ -1189,18 +1190,18 @@ async function guardarCotizacion(btn) {
       irA('cotizacion', {id: data.id}); // navega: no hace falta re-habilitar
     } else {
       if (btn) { btn.disabled = false; btn.innerHTML = '&#128190; Guardar cotización'; }
-      alert(data.error || 'Error al guardar');
+      toast(data.error || 'Error al guardar', 'error');
     }
   } catch(e) {
     if (btn) { btn.disabled = false; btn.innerHTML = '&#128190; Guardar cotización'; }
-    alert('Error de conexión');
+    toast('Error de conexión', 'error');
   }
 }
 
 // ── Guardar cambios en cotización existente ───────────────────────────────────
 async function guardarCambios() {
   var clienteId = document.getElementById('clienteId')?.value;
-  if (!clienteId) { alert('Selecciona un cliente'); return; }
+  if (!clienteId) { toast('Selecciona un cliente', 'error'); return; }
 
   var payload = armarPayload(clienteId);
   if (!payload) return;
@@ -1223,12 +1224,12 @@ async function guardarCambios() {
     var res  = await fetch(API_COT, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     var data = await res.json();
     if (data.ok) {
-      alert('Cotización actualizada');
+      toast('Cotización actualizada', 'ok');
       irA('cotizacion', {id: ID_COT});
     } else {
-      alert(data.error || 'Error al guardar');
+      toast(data.error || 'Error al guardar', 'error');
     }
-  } catch(e) { alert('Error de conexión'); }
+  } catch(e) { toast('Error de conexión', 'error'); }
 }
 
 function armarPayload(clienteId) {
@@ -1256,7 +1257,7 @@ function armarPayload(clienteId) {
       pieza_origen_id:      partidas[i] ? (partidas[i].pieza_origen_id || null) : null,
     });
   }
-  if (!partidasPayload.length) { alert('Agrega al menos una partida válida (cristal + medidas)'); return null; }
+  if (!partidasPayload.length) { toast('Agrega al menos una partida válida (cristal + medidas)', 'error'); return null; }
 
   return {
     cliente_id:     parseInt(clienteId),
@@ -1282,35 +1283,35 @@ async function convertirOrden() {
   var desc = _dataCot ? parseFloat(_dataCot.descuento || 0) : 0;
   if (desc > 10 && !ES_DIR_ADMIN) {
     if (!_authStatus || _authStatus.estatus !== 'aprobado') {
-      alert('El descuento del ' + desc + '% requiere autorización de Dirección antes de convertir a orden.');
+      toast('El descuento del ' + desc + '% requiere autorización de Dirección antes de convertir a orden.', 'error');
       return;
     }
   }
-  if (!confirm('¿Convertir esta cotización a Orden de Producción? No podrá editarse después.')) return;
+  if (!await confirmar('¿Convertir esta cotización a Orden de Producción? No podrá editarse después.', 'Convertir a orden')) return;
   var res  = await fetch(API_COT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({accion:'convertir_orden', id: ID_COT}) });
   var data = await res.json();
-  if (data.ok) { irA('cotizacion', {id: ID_COT}); } else { alert(data.error); }
+  if (data.ok) { irA('cotizacion', {id: ID_COT}); } else { toast(data.error, 'error'); }
 }
 
 async function marcarEntregada() {
-  if (!confirm('¿Marcar esta orden como entregada?')) return;
+  if (!await confirmar('¿Marcar esta orden como entregada?', 'Marcar entregada')) return;
   var res  = await fetch(API_COT, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({accion:'marcar_entregada', id: ID_COT}) });
   var data = await res.json();
-  if (data.ok) { irA('cotizacion', {id: ID_COT}); } else { alert(data.error || 'Entrega bloqueada por saldo pendiente'); }
+  if (data.ok) { irA('cotizacion', {id: ID_COT}); } else { toast(data.error || 'Entrega bloqueada por saldo pendiente', 'error'); }
 }
 
 async function autorizarEntrega() {
   var nota = prompt('Motivo de autorización (opcional):') || '';
   var res  = await fetch(API_COT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({accion:'autorizar_entrega', id: ID_COT, nota: nota}) });
   var data = await res.json();
-  if (data.ok) { irA('cotizacion', {id: ID_COT}); } else { alert(data.error); }
+  if (data.ok) { irA('cotizacion', {id: ID_COT}); } else { toast(data.error, 'error'); }
 }
 
 async function cancelar() {
-  if (!confirm('¿Cancelar esta cotización/orden? Esta acción no se puede deshacer.')) return;
+  if (!await confirmar('¿Cancelar esta cotización/orden? Esta acción no se puede deshacer.', 'Cancelar')) return;
   var res  = await fetch(API_COT, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({accion:'cancelar', id: ID_COT}) });
   var data = await res.json();
-  if (data.ok) { irA('cotizaciones'); } else { alert(data.error); }
+  if (data.ok) { irA('cotizaciones'); } else { toast(data.error, 'error'); }
 }
 
 // ── Modal Correcciones ────────────────────────────────────────────────────────
@@ -1470,7 +1471,7 @@ function _renderFormCorreccion() {
 async function guardarCorreccion() {
   var motivo = (document.getElementById('corrMotivo')?.value || '').trim();
   if (!motivo) {
-    alert('El motivo de la corrección es obligatorio.');
+    toast('El motivo de la corrección es obligatorio.', 'error');
     document.getElementById('corrMotivo').focus();
     return;
   }
@@ -1537,16 +1538,16 @@ async function guardarCorreccion() {
     if (data.ok) {
       cerrarCorreccion();
       if (data.cambios > 0) {
-        alert('Corrección aplicada. ' + data.cambios + ' campo(s) modificado(s).');
+        toast('Corrección aplicada. ' + data.cambios + ' campo(s) modificado(s).', 'ok');
       } else {
-        alert('No se detectaron cambios respecto al valor actual.');
+        toast('No se detectaron cambios respecto al valor actual.', 'warn');
       }
       irA('cotizacion', { id: ID_COT });
     } else {
-      alert(data.error || 'Error al aplicar corrección');
+      toast(data.error || 'Error al aplicar corrección', 'error');
     }
   } catch(e) {
-    alert('Error de conexión');
+    toast('Error de conexión', 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '✓ Aplicar Corrección'; }
   }
@@ -1574,7 +1575,7 @@ async function _cargarHistorial() {
       html += '<td><span class="hist-ant">'   + escHtml(h.valor_anterior || '') + '</span></td>';
       html += '<td><span class="hist-nvo">'   + escHtml(h.valor_nuevo    || '') + '</span></td>';
       html += '<td><span class="hist-motivo">' + escHtml(h.motivo || '') + '</span></td>';
-      html += '<td style="font-size:12px;color:#64748b">' + escHtml(h.usuario || '') + '</td>';
+      html += '<td style="font-size:12px;color:var(--c-muted)">' + escHtml(h.usuario || '') + '</td>';
       html += '</tr>';
     }
     html += '</tbody></table>';
@@ -1640,7 +1641,7 @@ function _renderAuthBanner() {
 async function _resolverAuth(authId, estatus) {
   var nota = (document.getElementById('authNota') || {}).value || '';
   if (estatus === 'rechazado' && !nota.trim()) {
-    alert('Escribe una nota con el motivo del rechazo'); return;
+    toast('Escribe una nota con el motivo del rechazo', 'error'); return;
   }
   try {
     var res = await fetch('../api/autorizaciones.php', {
@@ -1652,9 +1653,9 @@ async function _resolverAuth(authId, estatus) {
     if (data.ok) {
       await _cargarAuthStatus();
     } else {
-      alert(data.error || 'Error al resolver');
+      toast(data.error || 'Error al resolver', 'error');
     }
-  } catch(e) { alert('Error de conexión'); }
+  } catch(e) { toast('Error de conexión', 'error'); }
 }
 
 function pedirMotivoDescuento(pct) {
@@ -1678,7 +1679,7 @@ function pedirMotivoDescuento(pct) {
     };
     document.getElementById('motivoOkBtn').onclick = function() {
       var motivo = (document.getElementById('motivoDescTxt').value || '').trim();
-      if (!motivo) { alert('Escribe el motivo del descuento especial'); return; }
+      if (!motivo) { toast('Escribe el motivo del descuento especial', 'error'); return; }
       document.body.removeChild(el); resolve(motivo);
     };
   });
@@ -1734,8 +1735,8 @@ async function cotGuardarServicio(idx, partidaId, cotId) {
   var catEl = document.getElementById('srv-cat-' + idx);
   var undEl = document.getElementById('srv-und-' + idx);
   var pzsEl = document.getElementById('srv-pzs-' + idx);
-  if (!catEl || !catEl.value) { alert('Selecciona un servicio'); return; }
-  if (!partidaId) { alert('Error: partida sin ID. Guarda la cotización primero.'); return; }
+  if (!catEl || !catEl.value) { toast('Selecciona un servicio', 'error'); return; }
+  if (!partidaId) { toast('Error: partida sin ID. Guarda la cotización primero.', 'error'); return; }
   var btn = document.querySelector('#srv-form-' + idx + ' .btn-srv-guardar');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
   try {
@@ -1760,14 +1761,14 @@ async function cotGuardarServicio(idx, partidaId, cotId) {
       renderPartidas(_canAddSrv);
       recalcular();
     } else {
-      alert(data.error || 'Error al agregar servicio');
+      toast(data.error || 'Error al agregar servicio', 'error');
     }
-  } catch(e) { alert('Error de conexión'); }
+  } catch(e) { toast('Error de conexión', 'error'); }
   if (btn) { btn.disabled = false; btn.textContent = 'Agregar'; }
 }
 
 async function cotEliminarServicio(srvId, cotId, idx) {
-  if (!confirm('¿Eliminar este servicio?')) return;
+  if (!await confirmar('¿Eliminar este servicio?', 'Eliminar servicio')) return;
   try {
     var res = await fetch('../api/cotizaciones.php', {
       method: 'POST',
@@ -1787,9 +1788,9 @@ async function cotEliminarServicio(srvId, cotId, idx) {
       renderPartidas(_canAddSrv);
       recalcular();
     } else {
-      alert(data.error || 'Error al eliminar');
+      toast(data.error || 'Error al eliminar', 'error');
     }
-  } catch(e) { alert('Error de conexión'); }
+  } catch(e) { toast('Error de conexión', 'error'); }
 }
 
 // ── Catálogo de servicios (dir_admin) ────────────────────────────────────────
@@ -1857,7 +1858,7 @@ async function _renderCatalogo() {
     }
     listEl.innerHTML = html;
   } catch(e) {
-    listEl.innerHTML = '<div style="color:#dc2626;padding:10px">Error al cargar</div>';
+    listEl.innerHTML = '<div style="color:var(--c-red);padding:10px">Error al cargar</div>';
   }
 }
 
@@ -1865,7 +1866,7 @@ async function cotCrearServicioCat() {
   var nombre = (document.getElementById('catNombre')?.value || '').trim();
   var precio = parseFloat(document.getElementById('catPrecio')?.value || 0);
   var unidad = document.getElementById('catUnidad')?.value || 'pieza';
-  if (!nombre || precio <= 0) { alert('Escribe el nombre y un precio mayor a 0'); return; }
+  if (!nombre || precio <= 0) { toast('Escribe el nombre y un precio mayor a 0', 'error'); return; }
   try {
     var res  = await fetch('../api/servicios_catalogo.php', {
       method: 'POST',
@@ -1878,15 +1879,15 @@ async function cotCrearServicioCat() {
       document.getElementById('catPrecio').value = '';
       if (document.getElementById('catUnidad')) document.getElementById('catUnidad').value = 'pieza';
       _renderCatalogo();
-    } else { alert(data.error || 'Error'); }
-  } catch(e) { alert('Error de conexión'); }
+    } else { toast(data.error || 'Error', 'error'); }
+  } catch(e) { toast('Error de conexión', 'error'); }
 }
 
 async function cotEditarServicioCat(id) {
   var nombre = (document.getElementById('cat-nom-' + id)?.value || '').trim();
   var precio = parseFloat(document.getElementById('cat-pre-' + id)?.value || 0);
   var unidad = document.getElementById('cat-uni-' + id)?.value || 'pieza';
-  if (!nombre || precio <= 0) { alert('Nombre y precio son requeridos'); return; }
+  if (!nombre || precio <= 0) { toast('Nombre y precio son requeridos', 'error'); return; }
   try {
     var res  = await fetch('../api/servicios_catalogo.php', {
       method: 'PUT',
@@ -1896,18 +1897,18 @@ async function cotEditarServicioCat(id) {
     var data = await res.json();
     if (data.ok) {
       _renderCatalogo();
-    } else { alert(data.error || 'Error'); }
-  } catch(e) { alert('Error de conexión'); }
+    } else { toast(data.error || 'Error', 'error'); }
+  } catch(e) { toast('Error de conexión', 'error'); }
 }
 
 async function cotDesactivarServicioCat(id) {
-  if (!confirm('¿Desactivar este servicio del catálogo?')) return;
+  if (!await confirmar('¿Desactivar este servicio del catálogo?', 'Desactivar servicio')) return;
   try {
     var res  = await fetch('../api/servicios_catalogo.php?id=' + id, { method: 'DELETE' });
     var data = await res.json();
     if (data.ok) { _renderCatalogo(); }
-    else { alert(data.error || 'Error'); }
-  } catch(e) { alert('Error de conexión'); }
+    else { toast(data.error || 'Error', 'error'); }
+  } catch(e) { toast('Error de conexión', 'error'); }
 }
 
 // ── Rechazo por Calidad ───────────────────────────────────────────────────────
@@ -1931,7 +1932,7 @@ function cerrarRechazo() {
 async function confirmarRechazo() {
   var motivo = (document.getElementById('rechazoMotivoInput') || {}).value || '';
   motivo = motivo.trim();
-  if (!motivo) { alert('Escribe el motivo del rechazo'); return; }
+  if (!motivo) { toast('Escribe el motivo del rechazo', 'error'); return; }
 
   var btn = document.getElementById('rechazoConfirmBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; }
@@ -1947,14 +1948,14 @@ async function confirmarRechazo() {
     var data = await res.json();
     if (data.ok) {
       cerrarRechazo();
-      alert('Orden rechazada correctamente. $' + parseFloat(data.monto_devuelto).toFixed(2) + ' transferidos a Saldo a Favor del cliente.');
+      toast('Orden rechazada correctamente. $' + parseFloat(data.monto_devuelto).toFixed(2) + ' transferidos a Saldo a Favor del cliente.', 'ok');
       irA('cotizacion', {id: cotId});
     } else {
-      alert('Error: ' + (data.error || 'desconocido'));
+      toast('Error: ' + (data.error || 'desconocido'), 'error');
       if (btn) { btn.disabled = false; btn.textContent = 'Confirmar rechazo'; }
     }
   } catch(e) {
-    alert('Error de red');
+    toast('Error de red', 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Confirmar rechazo'; }
   }
 }
@@ -2040,7 +2041,7 @@ function renderArchivos(folioOrden, lista) {
           + '<span class="arch-file-name">' + icono + ' ' + escHtml(a.nombre_original || '') + '</span>'
           + '<span class="arch-file-meta">' + escHtml(a.subido_por || '') + '</span>'
           + '<button class="btn-arch-ver" onclick="window.open(\'' + API_ARCH + '?accion=descargar&id=' + a.id + '\',\'_blank\')">&#128065; Ver</button>'
-          + (ES_DIR_ADMIN ? '<button class="btn-arch-ver" style="color:#dc2626;border-color:#fca5a5" onclick="ModCotizacion._borrarArchivo(' + a.id + ',\'' + escJs(folioOrden) + '\')">&#128465; Borrar</button>' : '')
+          + (ES_DIR_ADMIN ? '<button class="btn-arch-ver" style="color:var(--c-red);border-color:#fca5a5" onclick="ModCotizacion._borrarArchivo(' + a.id + ',\'' + escJs(folioOrden) + '\')">&#128465; Borrar</button>' : '')
           + '</div>';
       }).join('') + '</div>'
     : '<div class="arch-empty">Sin archivos adjuntos</div>';
@@ -2077,8 +2078,8 @@ function subirArchivo(folioOrden) {
     .finally(function() { btn.disabled = false; btn.textContent = '&#8679; Subir'; });
 }
 
-function borrarArchivo(id, folioOrden) {
-  if (!confirm('¿Borrar este archivo? Esta acción no se puede deshacer.')) return;
+async function borrarArchivo(id, folioOrden) {
+  if (!await confirmar('¿Borrar este archivo? Esta acción no se puede deshacer.', 'Borrar archivo')) return;
   fetch(API_ARCH + '?accion=borrar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -2087,9 +2088,9 @@ function borrarArchivo(id, folioOrden) {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.ok) { cargarArchivos(folioOrden); }
-      else { alert(d.error || 'Error al borrar'); }
+      else { toast(d.error || 'Error al borrar', 'error'); }
     })
-    .catch(function() { alert('Error de conexión'); });
+    .catch(function() { toast('Error de conexión', 'error'); });
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -2143,7 +2144,7 @@ return {
   <div style="background:#fff;border-radius:10px;width:520px;max-width:95vw;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <h3 style="margin:0;font-size:16px;color:#7f1d1d;">&#9940; Rechazo por calidad</h3>
-      <button onclick="cerrarRechazo()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;">&#10005;</button>
+      <button onclick="cerrarRechazo()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--c-muted);">&#10005;</button>
     </div>
     <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;color:#7f1d1d;">
       <strong>Atenci&oacute;n:</strong> Esta acci&oacute;n marcar&aacute; la orden como rechazada y mover&aacute; el saldo pagado a <strong>Saldo a Favor</strong> del cliente.
@@ -2151,11 +2152,11 @@ return {
     <div style="margin-bottom:14px;">
       <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">Motivo del rechazo *</label>
       <textarea id="rechazoMotivoInput" placeholder="Describe los errores de producci&oacute;n: medidas incorrectas, calidad del vidrio, etc." maxlength="1000"
-        style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;height:120px;resize:vertical;font-family:inherit;"></textarea>
+        style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--c-border);border-radius:6px;font-size:13px;height:120px;resize:vertical;font-family:inherit;"></textarea>
     </div>
     <div id="rechazoMontoInfo" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#166534;"></div>
     <div style="display:flex;justify-content:flex-end;gap:10px;">
-      <button onclick="cerrarRechazo()" style="padding:9px 20px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;font-size:13px;cursor:pointer;">Cancelar</button>
+      <button onclick="cerrarRechazo()" style="padding:9px 20px;border:1px solid var(--c-border);border-radius:6px;background:var(--c-white);font-size:13px;cursor:pointer;">Cancelar</button>
       <button id="rechazoConfirmBtn" onclick="confirmarRechazo()" style="padding:9px 20px;background:#7f1d1d;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Confirmar rechazo</button>
     </div>
   </div>

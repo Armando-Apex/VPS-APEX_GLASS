@@ -88,6 +88,7 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','adm
 .bubble-clip{background:#fff;color:#475569;}
 .bubble-emoji{background:var(--c-amber);color:#fff;}
 .bubble-loc{background:var(--c-green);color:#fff;}
+.bubble-banco{background:var(--c-blue);color:#fff;}
 .conv-bubble-label{font-size:11px;background:rgba(0,0,0,.7);color:#fff;border-radius:4px;padding:2px 7px;white-space:nowrap;pointer-events:none;}
 @keyframes bubbleIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
 /* ── Emoji panel (arriba derecha del área de input) ── */
@@ -1195,6 +1196,7 @@ var ModCampanas = (function() {
                 '<input type="file" id="cmpFileInput" accept="image/*,.pdf,.xml" style="display:none;" onchange="window.cmpArchivoSeleccionado(this)">' +
                 '<div class="conv-actions-wrap">' +
                 '<div class="conv-bubbles hidden" id="cmpBubblesMenu">' +
+                '<div class="conv-bubble-item"><span class="conv-bubble-label">Datos bancarios</span><button class="bubble-banco" onclick="window.cmpEnviarDatosBancarios()" title="Enviar datos bancarios">&#127974;</button></div>' +
                 '<div class="conv-bubble-item"><span class="conv-bubble-label">Ubicaci&oacute;n</span><button class="bubble-loc" onclick="window.cmpEnviarUbicacion()" title="Enviar ubicaci&oacute;n">&#128205;</button></div>' +
                 '<div class="conv-bubble-item"><span class="conv-bubble-label">Emoji</span><button class="bubble-emoji" id="cmpBtnEmoji" onclick="window.cmpToggleEmojis()" title="Emojis">&#128512;</button></div>' +
                 '<div class="conv-bubble-item"><span class="conv-bubble-label">Archivo</span><button class="bubble-clip" onclick="document.getElementById(\'cmpFileInput\').click();window.cmpCerrarBurbujas();" title="Adjuntar archivo">&#128206;</button></div>' +
@@ -1758,6 +1760,36 @@ var ModCampanas = (function() {
         .catch(function() { alert('Error de red al enviar la ubicación'); });
     }
 
+    // ── Datos bancarios (mensaje de texto fijo, mismo endpoint/candado de ventana 24h que un mensaje normal) ──
+    var _MSG_DATOS_BANCARIOS =
+        '*Datos Bancarios*\n' +
+        'Templadora Noreste S.A. de C.V.\n\n' +
+        'Banco\n' +
+        'BBVA\n\n' +
+        'Cuenta\n' +
+        '0196573215\n\n' +
+        'CLABE Interbancaria\n' +
+        '012580001965732153';
+
+    function enviarDatosBancarios() {
+        if (!_convActiva) return;
+        cerrarBurbujas();
+        fetch('/produccion/api/campanas.php?accion=responder', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({conversacion_id: _convActiva, mensaje: _MSG_DATOS_BANCARIOS, reply_to_wa_id: '', reply_preview: ''})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                cargarMensajes(_convActiva);
+            } else {
+                alert('Error al enviar datos bancarios: ' + (data.error || 'desconocido'));
+            }
+        })
+        .catch(function() { alert('Error de red al enviar los datos bancarios'); });
+    }
+
     // ── Modal Contacto: editar prospecto/desconocido y pasar a Cliente ──
     function abrirContacto(convId) {
         _contactoConvId = convId;
@@ -1865,6 +1897,7 @@ var ModCampanas = (function() {
     window.cmpToggleEmojis        = toggleEmojis;
     window.cmpInsertarEmoji       = insertarEmoji;
     window.cmpEnviarUbicacion     = enviarUbicacion;
+    window.cmpEnviarDatosBancarios = enviarDatosBancarios;
     window.cmpAbrirContacto       = abrirContacto;
     window.cmpCerrarContacto      = cerrarContacto;
     window.cmpGuardarContacto     = guardarContacto;

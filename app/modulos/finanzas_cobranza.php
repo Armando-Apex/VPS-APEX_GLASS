@@ -304,7 +304,7 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
       </div>
       <div class="sf-modal-body">
         <div class="sf-form-row">
-          <label class="sf-form-label">Cliente <span style="color:#ef4444">*</span></label>
+          <label class="sf-form-label" for="sf-cli-busq">Cliente <span style="color:#ef4444">*</span></label>
           <div class="sf-cli-autocomplete">
             <input class="sf-form-input" id="sf-cli-busq" type="text" placeholder="Buscar cliente..." oninput="sfBuscarCliente()" autocomplete="off">
             <div class="sf-cli-lista" id="sf-cli-lista"></div>
@@ -312,19 +312,19 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
           </div>
         </div>
         <div class="sf-form-row">
-          <label class="sf-form-label">Monto <span style="color:#ef4444">*</span></label>
+          <label class="sf-form-label" for="sf-monto">Monto <span style="color:#ef4444">*</span></label>
           <input class="sf-form-input" id="sf-monto" type="number" min="0.01" step="0.01" placeholder="0.00">
         </div>
         <div class="sf-form-row">
-          <label class="sf-form-label">Fecha <span style="color:#ef4444">*</span></label>
+          <label class="sf-form-label" for="sf-fecha">Fecha <span style="color:#ef4444">*</span></label>
           <input class="sf-form-input" id="sf-fecha" type="date">
         </div>
         <div class="sf-form-row">
-          <label class="sf-form-label">Referencia / No. de transferencia</label>
+          <label class="sf-form-label" for="sf-ref">Referencia / No. de transferencia</label>
           <input class="sf-form-input" id="sf-ref" type="text" placeholder="Ej. SPEI-123456">
         </div>
         <div class="sf-form-row">
-          <label class="sf-form-label">Anotaciones</label>
+          <label class="sf-form-label" for="sf-notas">Anotaciones</label>
           <input class="sf-form-input" id="sf-notas" type="text" placeholder="Notas adicionales...">
         </div>
         <div class="sf-form-row" style="border-top:1px solid #f1f5f9;padding-top:12px;margin-top:4px">
@@ -335,12 +335,12 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
         </div>
         <div id="sf-ap-box" style="display:none">
           <div class="sf-form-row">
-            <label class="sf-form-label">Vigencia de la garant&#237;a de precio (d&#237;as) <span style="color:#ef4444">*</span></label>
+            <label class="sf-form-label" for="sf-ap-vigencia">Vigencia de la garant&#237;a de precio (d&#237;as) <span style="color:#ef4444">*</span></label>
             <input class="sf-form-input" id="sf-ap-vigencia" type="number" min="1" max="45" value="7">
             <div style="font-size:11px;color:#64748b;margin-top:4px">Hasta 7 d&#237;as: aplica directo. M&#225;s de 7 d&#237;as (hasta 45): requiere VoBo del Director antes de tener validez. El dinero nunca vence, solo la garant&#237;a de precio.</div>
           </div>
           <div class="sf-form-row">
-            <label class="sf-form-label">Agregar producto apartado</label>
+            <label class="sf-form-label" for="sf-ap-cristal">Agregar producto apartado</label>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
               <select class="sf-form-input" id="sf-ap-cristal" style="flex:2;min-width:160px" onchange="sfApPrellenar()"><option value="">Producto...</option></select>
               <input class="sf-form-input" id="sf-ap-precio" type="number" min="0.01" step="0.01" placeholder="Precio/m&#178; pactado" style="flex:1;min-width:120px">
@@ -364,11 +364,11 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
   <!-- Filtros -->
   <div class="filtros">
     <div class="filtro-field">
-      <label>Cliente / Folio</label>
+      <label for="f-q">Cliente / Folio</label>
       <input type="text" id="f-q" placeholder="Buscar..." oninput="ModFinanzasCobranza._filtrar()">
     </div>
     <div class="filtro-field">
-      <label>Estado orden</label>
+      <label for="f-estado">Estado orden</label>
       <select id="f-estado" onchange="ModFinanzasCobranza._filtrar()">
         <option value="">Todos</option>
         <option value="pendiente_vobo">Pendiente VoBo</option>
@@ -377,7 +377,7 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
       </select>
     </div>
     <div class="filtro-field">
-      <label>Estado pago</label>
+      <label for="f-pago">Estado pago</label>
       <select id="f-pago" onchange="ModFinanzasCobranza._filtrar()">
         <option value="">Todos</option>
         <option value="sin_pago">Sin pago</option>
@@ -386,13 +386,13 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
       </select>
     </div>
     <div class="filtro-field">
-      <label>Asesor</label>
+      <label for="f-asesor">Asesor</label>
       <select id="f-asesor" onchange="ModFinanzasCobranza._filtrar()">
         <option value="">Todos</option>
       </select>
     </div>
     <div class="filtro-field">
-      <label>Retrabajo</label>
+      <label for="f-retrabajo">Retrabajo</label>
       <select id="f-retrabajo" onchange="ModFinanzasCobranza._filtrar()">
         <option value="">Todos</option>
         <option value="sin">Sin retrabajo</option>
@@ -400,11 +400,11 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
       </select>
     </div>
     <div class="filtro-field">
-      <label>Desde</label>
+      <label for="f-desde">Desde</label>
       <input type="date" id="f-desde" onchange="ModFinanzasCobranza._filtrar()">
     </div>
     <div class="filtro-field">
-      <label>Hasta</label>
+      <label for="f-hasta">Hasta</label>
       <input type="date" id="f-hasta" onchange="ModFinanzasCobranza._filtrar()">
     </div>
     <button class="btn-limpiar" onclick="ModFinanzasCobranza._limpiar()">&#10005; Limpiar</button>

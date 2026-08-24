@@ -26,7 +26,7 @@ $nombre   = $_SESSION['user_name'] ?? 'Operador';
 <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
 <link rel="manifest" href="/favicon/site.webmanifest">
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>APEX GLASS — Corte</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

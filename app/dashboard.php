@@ -103,6 +103,8 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
 .sidebar-icon{width:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:inherit;}
 .sidebar-link:focus-visible{outline:2px solid var(--c-blue);outline-offset:-2px;border-radius:4px;}
 .topbar-hamburger:focus-visible,.notif-btn:focus-visible{outline:2px solid #60a5fa;outline-offset:2px;border-radius:4px;}
+/* UX-19: foco visible por defecto para toda la app + módulos SPA (botones, inputs, links, etc. que no definan su propio :focus-visible) */
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--c-blue);outline-offset:2px;border-radius:4px;}
 .sidebar-link{cursor:pointer;}
 .sidebar{scrollbar-width:thin;scrollbar-color:#e2e8f0 transparent;}
 .topbar-logout{padding:8px 10px;min-height:44px;display:flex;align-items:center;}
@@ -113,6 +115,9 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--c-bg);color
 .spa-loading.show{display:flex;}
 .spa-spinner{width:36px;height:36px;border:3px solid #e2e8f0;border-top-color:var(--c-blue);border-radius:50%;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
 .spa-loading-txt{font-size:13px;color:var(--c-muted);}
 
 /* ── Móvil ────────────────────────────────────────────────────────────────── */

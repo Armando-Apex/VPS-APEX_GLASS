@@ -263,7 +263,7 @@ async function cliCargar() {
 function renderTabla() {
   const lista = _cliData;
   if (!lista.length) {
-    document.getElementById('cli-tbody').innerHTML = '<tr><td colspan="6" class="loading-msg">Sin resultados</td></tr>'; return;
+    document.getElementById('cli-tbody').innerHTML = '<tr><td colspan="6">' + stateEmptyHTML('Sin resultados', 'users') + '</td></tr>'; return;
   }
   document.getElementById('cli-tbody').innerHTML = lista.map(c => {
     const nombre = c.razon_social || c.nombre || '&#8212;';
@@ -433,10 +433,10 @@ window.cliToggleCiudad = function() {
 
 window.cliGuardarNuevo = async function() {
   const razon = document.getElementById('new-razon').value.trim();
-  if (!razon) { alert('La razón social es obligatoria'); document.getElementById('new-razon').focus(); return; }
+  if (!razon) { toast('La razón social es obligatoria','error'); document.getElementById('new-razon').focus(); return; }
   const localidad = document.getElementById('new-localidad').value;
   const ciudad    = document.getElementById('new-ciudad').value.trim();
-  if (localidad === 'foraneo' && !ciudad) { alert('La ciudad es obligatoria para clientes foráneos'); document.getElementById('new-ciudad').focus(); return; }
+  if (localidad === 'foraneo' && !ciudad) { toast('La ciudad es obligatoria para clientes foráneos','error'); document.getElementById('new-ciudad').focus(); return; }
 
   const btn = document.getElementById('cli-btn-guardar');
   btn.disabled = true; btn.textContent = 'Guardando...';
@@ -459,7 +459,7 @@ window.cliGuardarNuevo = async function() {
     await cliCargar();
     cliAbrirPanel(d.id);
   } catch(e) {
-    alert('Error al guardar: ' + e.message);
+    toast('Error al guardar: ' + e.message, 'error');
   } finally {
     btn.disabled = false; btn.textContent = 'Guardar Cliente';
   }
@@ -469,7 +469,7 @@ window.cliGenerarPass = async function(id) {
   const c = _cliData.find(x => x.id == id);
   const nombre = c ? (c.razon_social || c.nombre) : 'este cliente';
   if (c && c.portal_password) {
-    if (!confirm(`¿Regenerar contraseña de ${nombre}?\nLa contraseña actual quedará inválida.`)) return;
+    if (!await confirmar('¿Regenerar contraseña de ' + nombre + '?\nLa contraseña actual quedará inválida.', 'Regenerar contraseña')) return;
   }
   try {
     const fd = new FormData();
@@ -487,14 +487,14 @@ window.cliGenerarPass = async function(id) {
     const eyeEl = document.getElementById('panel-pass-eye');
     if (valEl) valEl.textContent = d.password;
     if (eyeEl) eyeEl.innerHTML   = '&#128064; Ocultar';
-  } catch(e) { alert('Error: ' + e.message); }
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
 };
 
 window.cliEnviarAccesoWA = async function(id) {
   const c = _cliData.find(x => x.id == id);
   const nombre = c ? (c.razon_social || c.nombre) : 'este cliente';
   const accion = c && !c.portal_password ? 'Generar contraseña y enviar acceso' : 'Reenviar acceso al portal';
-  if (!confirm(accion + ' por WhatsApp a ' + nombre + '?')) return;
+  if (!await confirmar(accion + ' por WhatsApp a ' + nombre + '?', 'Enviar por WhatsApp')) return;
   const btn = document.getElementById('btn-enviar-wa-' + id);
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
   try {
@@ -509,7 +509,7 @@ window.cliEnviarAccesoWA = async function(id) {
     if (btn) { btn.disabled = false; btn.textContent = '✓ Enviado'; }
     setTimeout(function() { if (btn) { btn.textContent = '📱 Enviar por WA'; } }, 3000);
   } catch(e) {
-    alert('Error: ' + e.message);
+    toast('Error: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = '📱 Enviar por WA'; }
   }
 };
@@ -537,7 +537,7 @@ window.cliGuardarNombre = async function(id) {
   if (!input) return;
   const nuevoNombre = input.value.trim().toUpperCase();
 
-  if (!nuevoNombre) { alert('El nombre no puede estar vacío'); return; }
+  if (!nuevoNombre) { toast('El nombre no puede estar vacío', 'error'); return; }
 
   const c = _cliData.find(x => x.id == id);
   const actual = (c?.razon_social || c?.nombre || '').toUpperCase();
@@ -558,7 +558,7 @@ window.cliGuardarNombre = async function(id) {
     }
     renderTabla();
     cliAbrirPanel(id);
-  } catch(e) { alert('Error: ' + e.message); }
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
 };
 
 window.cliEditarContacto = function(id) {
@@ -599,7 +599,7 @@ window.cliGuardarContacto = async function(id) {
     if (idx >= 0) _cliData[idx].contacto = nuevoContacto;
     renderTabla();
     cliAbrirPanel(id);
-  } catch(e) { alert('Error: ' + e.message); }
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
 };
 
 const CAMPOS_EDITABLES = {
@@ -647,7 +647,7 @@ window.cliGuardarTelefono = async function(id, campo) {
     var idx = _cliData.findIndex(x => x.id == id);
     if (idx >= 0) _cliData[idx][campo] = nuevoValor;
     cliAbrirPanel(id);
-  } catch(e) { alert('Error: ' + e.message); }
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
 };
 
 // ── Datos Fiscales ────────────────────────────────────────────────────────────

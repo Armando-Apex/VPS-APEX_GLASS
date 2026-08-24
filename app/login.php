@@ -27,7 +27,7 @@ if (!empty($_SESSION['user_id'])) {
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-  font-family: -apple-system, 'Helvetica Neue', sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
   background: #0d0d0f; min-height: 100dvh;
   display: flex; align-items: center; justify-content: center; padding: 20px;
 }
@@ -55,6 +55,7 @@ body {
   transition: opacity .15s;
 }
 .btn:active { opacity: .8; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid #f5a623; outline-offset: 2px; }
 .error {
   background: #2d1515; border: 1px solid #5a1e1e; border-radius: 8px;
   padding: 11px 14px; font-size: 13px; color: #ff8080;
@@ -80,13 +81,13 @@ body {
     <h1>APEX GLASS</h1>
     <p>Sistema de Produccion</p>
   </div>
-  <div class="error" id="errorMsg"></div>
+  <div class="error" id="errorMsg" role="alert" tabindex="-1"></div>
   <div class="field">
-    <label>Usuario</label>
+    <label for="usuario">Usuario</label>
     <input type="text" id="usuario" autocomplete="username" autocapitalize="none" autocorrect="off">
   </div>
   <div class="field">
-    <label>Contrasena</label>
+    <label for="password">Contrasena</label>
     <input type="password" id="password" autocomplete="current-password">
   </div>
   <button class="btn" id="btnLogin" onclick="doLogin()">Entrar</button>
@@ -136,6 +137,7 @@ function showErr(msg) {
   const el = document.getElementById('errorMsg');
   el.textContent = msg;
   el.classList.add('show');
+  el.focus();
 }
 </script>
 </body>

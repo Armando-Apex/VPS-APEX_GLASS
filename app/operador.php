@@ -40,7 +40,7 @@ $user = [
 <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
 <link rel="manifest" href="/favicon/site.webmanifest">
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>APEX GLASS — Operador</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -55,9 +55,10 @@ $user = [
   --red:     #ff4757;
   --blue:    #4a9eff;
 }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 body {
   background: var(--bg); color: var(--text);
-  font-family: -apple-system, 'Helvetica Neue', sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
   min-height: 100dvh; overflow-x: hidden;
 }
 
@@ -156,6 +157,9 @@ body {
   border-radius: 1px; animation: scanAnim 2s ease-in-out infinite;
 }
 @keyframes scanAnim { 0%,100% { top: 8px; } 50% { top: 188px; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
 
 .scan-status {
   position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
@@ -488,7 +492,7 @@ body.chofer-mode .result-panel { padding: 0; display: flex; flex-direction: colu
 
     <!-- Botón "Cortar": inicia la sesión (elegir lámina) — solo estación 'corte' -->
     <button id="btnIniciarCorte" onclick="abrirWizardCorte()" style="display:none;width:100%;margin-bottom:10px;
-      padding:16px;background:#f5a623;color:#000;border:none;border-radius:12px;font-size:15px;font-weight:800;
+      padding:16px;background:var(--accent);color:#000;border:none;border-radius:12px;font-size:15px;font-weight:800;
       cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3)">✂️ Cortar</button>
 
     <!-- Franja de sesión de corte activa: escanea con la cámara mientras esto está visible.
@@ -496,7 +500,7 @@ body.chofer-mode .result-panel { padding: 0; display: flex; flex-direction: colu
          piezas + Avanzar a canto) — no hay botón de avance directo aquí. -->
     <div id="franjaSesionCorte" style="display:none;margin-bottom:10px;
       background:#18181c;border:1.5px solid #f5a623;border-radius:12px;padding:12px 14px;box-shadow:0 4px 14px rgba(0,0,0,.3)">
-      <div style="font-size:13px;color:#f5a623;font-weight:800;margin-bottom:8px" id="franjaSesionInfo">Sesión activa</div>
+      <div style="font-size:13px;color:var(--accent);font-weight:800;margin-bottom:8px" id="franjaSesionInfo">Sesión activa</div>
       <button onclick="wizAbrirRevision()" style="width:100%;padding:12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:800;cursor:pointer">✂️ Empezar a cortar</button>
     </div>
 
@@ -509,7 +513,7 @@ body.chofer-mode .result-panel { padding: 0; display: flex; flex-direction: colu
     <div id="busquedaPanel" style="display:none;margin-top:8px;background:#1e1e24;border-radius:12px;overflow:hidden;max-height:55vh;overflow-y:auto"></div>
 
     <input type="file" id="inputFotoQR" accept="image/*" capture="environment" style="display:none" onchange="procesarFotoQR(this)">
-    <button id="btnFotoQR" onclick="document.getElementById('inputFotoQR').click()" style="display:none;width:100%;margin-top:10px;padding:14px;background:#2a2a32;color:#f0f0f0;border:1.5px solid #3a3a44;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">
+    <button id="btnFotoQR" onclick="document.getElementById('inputFotoQR').click()" style="display:none;width:100%;margin-top:10px;padding:14px;background:var(--border);color:var(--text);border:1.5px solid #3a3a44;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">
       📸 Tomar foto del QR
     </button>
   </div>
@@ -519,13 +523,13 @@ body.chofer-mode .result-panel { padding: 0; display: flex; flex-direction: colu
 <div class="modal-bg" id="modalOmision">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
-    <div class="modal-title" style="color:#f5a623">&#9888;&#65039; Omisi&oacute;n detectada</div>
+    <div class="modal-title" style="color:var(--accent)">&#9888;&#65039; Omisi&oacute;n detectada</div>
     <div class="modal-sub" id="omisionSub">—</div>
-    <div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.25);border-radius:12px;padding:14px;margin-bottom:18px;font-size:13px;line-height:1.6;color:#f0f0f0">
+    <div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.25);border-radius:12px;padding:14px;margin-bottom:18px;font-size:13px;line-height:1.6;color:var(--text)">
       Si confirmas, la omisi&oacute;n quedar&aacute; registrada y podr&aacute;s continuar con tu proceso.<br>
-      <strong style="color:#f5a623">La supervisi&oacute;n podr&aacute; ver este registro.</strong>
+      <strong style="color:var(--accent)">La supervisi&oacute;n podr&aacute; ver este registro.</strong>
     </div>
-    <button class="btn-confirmar" style="background:#f5a623;color:#000" onclick="confirmarOmision()">&#10003; Confirmar y continuar</button>
+    <button class="btn-confirmar" style="background:var(--accent);color:#000" onclick="confirmarOmision()">&#10003; Confirmar y continuar</button>
     <button class="btn-cancelar" onclick="cerrarModalOmision()">Cancelar</button>
   </div>
 </div>
@@ -811,7 +815,7 @@ function mostrarBotonReintentar() {
   btn.id = 'btnReintentar';
   btn.textContent = '🔄 REINTENTAR CÁMARA';
   btn.style.cssText = 'display:block;width:100%;margin-top:10px;padding:16px;' +
-    'background:#f5a623;color:#000;border:none;border-radius:10px;' +
+    'background:var(--accent);color:#000;border:none;border-radius:10px;' +
     'font-size:16px;font-weight:800;cursor:pointer;';
   btn.onclick = function() {
     btn.remove();
@@ -1730,28 +1734,28 @@ function wizAbrirRevision() {
 
 function renderCorteRevision() {
   var rows = sesionCorte.piezas.map(function(p) {
-    return '<div style="display:flex;justify-content:space-between;align-items:center;background:#252530;border-radius:10px;padding:10px 12px;margin-bottom:6px;border:1.5px solid #2a2a32">' +
+    return '<div style="display:flex;justify-content:space-between;align-items:center;background:#252530;border-radius:10px;padding:10px 12px;margin-bottom:6px;border:1.5px solid var(--border)">' +
       '<div><div style="font-size:13px;font-weight:700">' + p.folio + ' · P' + p.partida + '</div>' +
-      '<div style="font-size:11px;color:#6b6b7a">' + (p.cristal_corto || p.cristal || '') + ' · ' + p.ancho_mm + '×' + p.alto_mm + 'mm</div></div>' +
-      '<button onclick="wizQuitarDeSesion(' + p.id + ')" style="background:none;border:1.5px solid rgba(255,71,87,.4);color:#ff4757;border-radius:8px;padding:6px 12px;font-weight:800;cursor:pointer">✕</button>' +
+      '<div style="font-size:11px;color:var(--muted)">' + (p.cristal_corto || p.cristal || '') + ' · ' + p.ancho_mm + '×' + p.alto_mm + 'mm</div></div>' +
+      '<button onclick="wizQuitarDeSesion(' + p.id + ')" style="background:none;border:1.5px solid rgba(255,71,87,.4);color:var(--red);border-radius:8px;padding:6px 12px;font-weight:800;cursor:pointer">✕</button>' +
       '</div>';
-  }).join('') || '<div style="text-align:center;color:#6b6b7a;padding:14px">Aún no has escaneado ninguna pieza</div>';
+  }).join('') || '<div style="text-align:center;color:var(--muted);padding:14px">Aún no has escaneado ninguna pieza</div>';
 
   var rowsRemovidas = sesionCorte.removidas.map(function(p) {
     return '<div style="display:flex;justify-content:space-between;align-items:center;background:#1c1c22;border-radius:10px;padding:10px 12px;margin-bottom:6px;border:1.5px dashed rgba(255,71,87,.3);opacity:.75">' +
       '<div><div style="font-size:13px;font-weight:700;text-decoration:line-through">' + p.folio + ' · P' + p.partida + '</div>' +
-      '<div style="font-size:11px;color:#6b6b7a">' + (p.cristal_corto || p.cristal || '') + ' · ' + p.ancho_mm + '×' + p.alto_mm + 'mm</div></div>' +
+      '<div style="font-size:11px;color:var(--muted)">' + (p.cristal_corto || p.cristal || '') + ' · ' + p.ancho_mm + '×' + p.alto_mm + 'mm</div></div>' +
       '<button onclick="wizDeshacerRemocion(' + p.id + ')" style="background:none;border:1.5px solid rgba(34,197,94,.4);color:#22c55e;border-radius:8px;padding:6px 12px;font-weight:800;cursor:pointer">↩ Deshacer</button>' +
       '</div>';
   }).join('');
 
   document.getElementById('corteWizardBody').innerHTML =
-    '<div style="font-size:12px;color:#6b6b7a;margin-bottom:8px">' + sesionCorte.piezas.length + ' pieza(s) — pasarán a CORTADO al avanzar a canto</div>' +
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">' + sesionCorte.piezas.length + ' pieza(s) — pasarán a CORTADO al avanzar a canto</div>' +
     rows +
-    (rowsRemovidas ? '<div style="font-size:11px;color:#6b6b7a;margin:12px 0 6px">Quitadas de esta sesión (rotas/error)</div>' + rowsRemovidas : '') +
+    (rowsRemovidas ? '<div style="font-size:11px;color:var(--muted);margin:12px 0 6px">Quitadas de esta sesión (rotas/error)</div>' + rowsRemovidas : '') +
     '<button class="btn-action go" style="margin-top:12px;background:#16a34a" onclick="wizAvanzarACanto()" ' + (!sesionCorte.piezas.length ? 'disabled' : '') + '>✅ Avanzar a canto</button>' +
     '<button class="btn-sec" style="margin-top:8px;width:100%" onclick="cerrarWizardCorte()">Seguir escaneando</button>' +
-    '<button class="btn-sec" style="margin-top:8px;width:100%;color:#ff4757;border-color:rgba(255,71,87,.4)" onclick="wizCancelarSesion()">Cancelar sesión completa</button>';
+    '<button class="btn-sec" style="margin-top:8px;width:100%;color:var(--red);border-color:rgba(255,71,87,.4)" onclick="wizCancelarSesion()">Cancelar sesión completa</button>';
 }
 
 function wizQuitarDeSesion(piezaId) {
@@ -1782,9 +1786,9 @@ function wizCancelarSesion() {
   document.getElementById('corteWizardBody').innerHTML =
     '<div style="text-align:center;padding:10px 0 18px">' +
       '<div style="font-size:15px;font-weight:800;margin-bottom:6px">¿Cancelar la sesión completa?</div>' +
-      '<div style="font-size:12px;color:#6b6b7a">Las ' + sesionCorte.piezas.length + ' pieza(s) escaneadas se descartan. No se toca la BD — ninguna pieza fue marcada cortado todavía.</div>' +
+      '<div style="font-size:12px;color:var(--muted)">Las ' + sesionCorte.piezas.length + ' pieza(s) escaneadas se descartan. No se toca la BD — ninguna pieza fue marcada cortado todavía.</div>' +
     '</div>' +
-    '<button class="btn-action" style="background:#ff4757;color:#fff" onclick="wizConfirmarCancelarSesion()">Sí, cancelar sesión</button>' +
+    '<button class="btn-action" style="background:var(--red);color:#fff" onclick="wizConfirmarCancelarSesion()">Sí, cancelar sesión</button>' +
     '<button class="btn-sec" style="margin-top:8px;width:100%" onclick="renderCorteRevision()">No, seguir aquí</button>';
 }
 
@@ -1992,7 +1996,7 @@ async function buscarPorNumero() {
 
   const panel = document.getElementById('busquedaPanel');
   panel.style.display = 'block';
-  panel.innerHTML = '<div style="padding:16px;text-align:center;color:#6b6b7a;font-size:13px">Buscando...</div>';
+  panel.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">Buscando...</div>';
 
   try {
     const est = session.estacion || session.rol || '';
@@ -2000,7 +2004,7 @@ async function buscarPorNumero() {
     const data = await res.json();
 
     if (data.error || !data.ordenes?.length) {
-      panel.innerHTML = '<div style="padding:16px;text-align:center;color:#ff4757;font-size:13px">No se encontraron ordenes con ese numero</div>';
+      panel.innerHTML = '<div style="padding:16px;text-align:center;color:var(--red);font-size:13px">No se encontraron ordenes con ese numero</div>';
       return;
     }
 
@@ -2009,9 +2013,9 @@ async function buscarPorNumero() {
       const piezas = orden.piezas || [];
       if (!piezas.length) continue;
 
-      html += `<div style="border-bottom:1px solid #2a2a32;padding:10px 14px">
-        <div style="font-size:14px;font-weight:800;color:#f5a623">${orden.folio}</div>
-        <div style="font-size:11px;color:#6b6b7a;margin-bottom:8px">${orden.cliente_nombre||''}</div>`;
+      html += `<div style="border-bottom:1px solid var(--border);padding:10px 14px">
+        <div style="font-size:14px;font-weight:800;color:var(--accent)">${orden.folio}</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${orden.cliente_nombre||''}</div>`;
 
       for (const p of piezas) {
         const tags = [];
@@ -2021,15 +2025,15 @@ async function buscarPorNumero() {
 
         html += `<div onclick="seleccionarPieza('${p.qr_code}')" style="
           background:#252530;border-radius:10px;padding:10px 12px;
-          margin-bottom:6px;cursor:pointer;border:1.5px solid #2a2a32;
+          margin-bottom:6px;cursor:pointer;border:1.5px solid var(--border);
           transition:border-color .15s" 
           onmousedown="this.style.borderColor='#f5a623'" 
           onmouseup="this.style.borderColor='#2a2a32'">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div>
-              <span style="font-size:13px;font-weight:700;color:#f0f0f0">P${p.partida} &bull; Pieza ${p.pieza_num}/${p.pieza_total}</span>
-              <div style="font-size:11px;color:#6b6b7a;margin-top:2px">${p.cristal_corto||p.cristal||''} &bull; ${p.ancho_mm}&times;${p.alto_mm}mm</div>
-              ${tags.length ? '<div style="font-size:10px;color:#f5a623;margin-top:2px">' + tags.join(' &middot; ') + '</div>' : ''}
+              <span style="font-size:13px;font-weight:700;color:var(--text)">P${p.partida} &bull; Pieza ${p.pieza_num}/${p.pieza_total}</span>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">${p.cristal_corto||p.cristal||''} &bull; ${p.ancho_mm}&times;${p.alto_mm}mm</div>
+              ${tags.length ? '<div style="font-size:10px;color:var(--accent);margin-top:2px">' + tags.join(' &middot; ') + '</div>' : ''}
             </div>
             <div style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:#1a1a2e;color:var(--c-muted)">
               ${p.estatus.toUpperCase()}
@@ -2041,12 +2045,12 @@ async function buscarPorNumero() {
     }
 
     if (!html) {
-      panel.innerHTML = '<div style="padding:16px;text-align:center;color:#6b6b7a;font-size:13px">No hay piezas disponibles para esta estacion</div>';
+      panel.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">No hay piezas disponibles para esta estacion</div>';
     } else {
       panel.innerHTML = html;
     }
   } catch(e) {
-    panel.innerHTML = '<div style="padding:16px;text-align:center;color:#ff4757;font-size:13px">Error de conexion</div>';
+    panel.innerHTML = '<div style="padding:16px;text-align:center;color:var(--red);font-size:13px">Error de conexion</div>';
   }
 }
 

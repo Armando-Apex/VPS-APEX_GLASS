@@ -59,8 +59,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 /* Tabla */
 .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
 .section-title { font-size: 15px; font-weight: 700; color: #1e293b; }
-.table-wrap { background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table-wrap { background: white; border-radius: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13px; }
 th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #64748b; background: #f8fafc; border-bottom: 1px solid var(--c-border); white-space: nowrap; }
 td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; color: #374151; vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
@@ -410,7 +410,7 @@ tr:hover td { background: #f8fafc; }
           <input type="text" id="laminaNotas" class="form-input" placeholder="Observaciones opcionales">
         </div>
       </div>
-      <div id="laminaM2Preview" style="margin-top:12px;font-size:13px;color:#2563eb;font-weight:700;"></div>
+      <div id="laminaM2Preview" style="margin-top:12px;font-size:13px;color:var(--c-blue);font-weight:700;"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="invCerrarModal('modalLamina')">Cancelar</button>
@@ -428,8 +428,8 @@ tr:hover td { background: #f8fafc; }
     </div>
     <div class="modal-body">
       <input type="hidden" id="ajusteLaminaId">
-      <div id="ajusteLaminaInfo" style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:4px"></div>
-      <div id="ajusteStockActual" style="font-size:13px;color:#64748b;margin-bottom:14px"></div>
+      <div id="ajusteLaminaInfo" style="font-size:14px;font-weight:700;color:var(--c-dark);margin-bottom:4px"></div>
+      <div id="ajusteStockActual" style="font-size:13px;color:var(--c-muted);margin-bottom:14px"></div>
       <div class="form-grid">
         <div class="form-group">
           <label class="form-label">Stock correcto (l&#225;minas) *</label>
@@ -502,7 +502,7 @@ tr:hover td { background: #f8fafc; }
       </div>
       <div id="compraPreview" style="margin-top:14px;padding:12px;background:#f0f9ff;border-radius:8px;display:none">
         <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:4px">COSTO REAL ESTIMADO</div>
-        <div id="compraPreviewTxt" style="font-size:14px;color:#1e293b;font-weight:700"></div>
+        <div id="compraPreviewTxt" style="font-size:14px;color:var(--c-text);font-weight:700"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -532,13 +532,13 @@ tr:hover td { background: #f8fafc; }
         </div>
       </div>
       <div style="margin-top:16px">
-        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--c-muted);margin-bottom:10px">
           Cantidad recibida por partida
         </div>
         <div id="entregaPartidas"></div>
       </div>
       <div id="entregaPreview" style="margin-top:14px;padding:12px;background:#f0fdf4;border-radius:8px;display:none">
-        <div style="font-size:12px;font-weight:700;color:#16a34a;margin-bottom:4px">&#10003; Esta entrega completa la OC</div>
+        <div style="font-size:12px;font-weight:700;color:var(--c-green);margin-bottom:4px">&#10003; Esta entrega completa la OC</div>
         <div style="font-size:12px;color:#374151" id="entregaPreviewTxt"></div>
       </div>
     </div>
@@ -663,7 +663,7 @@ tr:hover td { background: #f8fafc; }
           <option value="m2">Por m&#178; (proporcional al &#225;rea)</option>
         </select>
       </div>
-      <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:8px">Compras en inventario</div>
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--c-muted);margin-bottom:8px">Compras en inventario</div>
       <div id="dfComprasLista" style="max-height:320px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px"></div>
       <div id="dfPreview" style="display:none;margin-top:12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-size:13px;color:#0369a1;font-weight:600">
         <span id="dfPreviewTxt"></span>
@@ -729,7 +729,7 @@ tr:hover td { background: #f8fafc; }
           <select id="consumoLaminaId" class="form-select">
             <option value="">Selecciona una l&#225;mina&#8230;</option>
           </select>
-          <div id="consumoStockInfo" style="font-size:12px;color:#64748b;margin-top:4px"></div>
+          <div id="consumoStockInfo" style="font-size:12px;color:var(--c-muted);margin-top:4px"></div>
         </div>
         <div class="form-group">
           <label class="form-label">Cantidad usada *</label>
@@ -843,9 +843,9 @@ async function cargarStock() {
       var estadoBadge = l.alerta_stock==1
         ? '<span class="badge badge-alerta">' + iconoJS('alert-triangle') + ' Stock bajo</span>'
         : '<span class="badge badge-ok">&#10003; OK</span>';
-      var acciones = puedeGestionar ? '<button class="btn-icon" title="Editar" onclick="invEditarLamina('+l.id+')">'+iconoJS('edit-2')+'</button>' : '';
+      var acciones = puedeGestionar ? '<button class="btn-icon" title="Editar" aria-label="Editar" onclick="invEditarLamina('+l.id+')">'+iconoJS('edit-2')+'</button>' : '';
       if (puedeAjustarStock) {
-        acciones += '<button class="btn-icon" title="Ajustar stock" onclick="invAbrirAjusteStock('+l.id+')">'+iconoJS('refresh-cw')+'</button>';
+        acciones += '<button class="btn-icon" title="Ajustar stock" aria-label="Ajustar stock" onclick="invAbrirAjusteStock('+l.id+')">'+iconoJS('refresh-cw')+'</button>';
       }
       return '<tr>'+
         '<td><strong>'+(tipoLabel[l.tipo]||l.tipo)+'</strong></td>'+
@@ -853,7 +853,7 @@ async function cargarStock() {
         '<td style="white-space:nowrap">'+((l.ancho_mm/10).toFixed(0))+' &#215; '+((l.alto_mm/10).toFixed(0))+' cm</td>'+
         '<td>'+fmt(l.m2,2)+' m&#178;</td>'+
         '<td><strong>'+stock+'</strong> l&#225;m.</td>'+
-        '<td><div class="stock-bar-wrap"><div class="stock-bar"><div class="stock-fill '+cls+'" style="width:'+barW+'%"></div></div><div class="stock-pct">'+(pct !== null ? pct+'%' : '&#8212;')+'</div></div><div style="font-size:11px;color:#64748b;margin-top:2px">'+fmt(stockM2,1)+' m&#178;</div></td>'+
+        '<td><div class="stock-bar-wrap"><div class="stock-bar"><div class="stock-fill '+cls+'" style="width:'+barW+'%"></div></div><div class="stock-pct">'+(pct !== null ? pct+'%' : '&#8212;')+'</div></div><div style="font-size:11px;color:var(--c-muted);margin-top:2px">'+fmt(stockM2,1)+' m&#178;</div></td>'+
         '<td>'+(rM2>0 ? fmt(rM2,1)+' m&#178;' : '<span style="color:var(--c-muted)">&#8212;</span>')+'</td>'+
         '<td>'+fmtPeso(l.costo_prom_m2)+'/m&#178;</td>'+
         '<td>'+estadoBadge+'</td>'+
@@ -878,13 +878,13 @@ async function cargarCompras() {
     $('invTbodyCompras').innerHTML = compras.map(function(c){
       return '<tr>'+
         '<td>'+fmtFecha(c.fecha_compra)+'</td>'+
-        '<td><strong>'+(tipoLabel[c.lamina_tipo]||c.lamina_tipo)+'</strong><div style="font-size:11px;color:#64748b">'+c.lamina_espesor+'mm &middot; '+((c.lamina_ancho/10).toFixed(0))+'&#215;'+((c.lamina_alto/10).toFixed(0))+'cm</div></td>'+
+        '<td><strong>'+(tipoLabel[c.lamina_tipo]||c.lamina_tipo)+'</strong><div style="font-size:11px;color:var(--c-muted)">'+c.lamina_espesor+'mm &middot; '+((c.lamina_ancho/10).toFixed(0))+'&#215;'+((c.lamina_alto/10).toFixed(0))+'cm</div></td>'+
         '<td>'+(c.proveedor_nombre||'&#8212;')+'</td>'+
         '<td><strong>'+c.cantidad_laminas+'</strong> l&#225;m.</td>'+
         '<td>'+fmtPeso(c.precio_unitario)+'</td>'+
-        '<td>'+(fleteLabel[c.flete_tipo]||c.flete_tipo)+(parseFloat(c.costo_flete_total)>0 ? '<div style="font-size:11px;color:#64748b">'+fmtPeso(c.costo_flete_total)+' total</div>' : '')+'</td>'+
+        '<td>'+(fleteLabel[c.flete_tipo]||c.flete_tipo)+(parseFloat(c.costo_flete_total)>0 ? '<div style="font-size:11px;color:var(--c-muted)">'+fmtPeso(c.costo_flete_total)+' total</div>' : '')+'</td>'+
         '<td><strong>'+fmtPeso(c.costo_real_unitario)+'</strong></td>'+
-        '<td style="font-size:12px;color:#64748b">'+(c.referencia||'&#8212;')+'</td>'+
+        '<td style="font-size:12px;color:var(--c-muted)">'+(c.referencia||'&#8212;')+'</td>'+
         '<td style="font-size:12px;color:var(--c-muted)">'+(c.registrado_por||'&#8212;')+'</td>'+
         '</tr>';
     }).join('');
@@ -907,9 +907,9 @@ async function cargarProveedores() {
         '<td>'+(p.contacto||'&#8212;')+'</td>'+
         '<td>'+(p.telefono||'&#8212;')+'</td>'+
         '<td>'+(p.email||'&#8212;')+'</td>'+
-        '<td style="font-size:12px;color:#64748b">'+(p.notas||'&#8212;')+'</td>'+
+        '<td style="font-size:12px;color:var(--c-muted)">'+(p.notas||'&#8212;')+'</td>'+
         '<td>'+(p.activo==1 ? '<span class="badge badge-ok">Activo</span>' : '<span class="badge badge-gray">Inactivo</span>')+'</td>'+
-        (puedeGestionar ? '<td><button class="btn-icon" title="Editar" onclick="invEditarProveedor('+p.id+')">'+iconoJS('edit-2')+'</button></td>' : '')+
+        (puedeGestionar ? '<td><button class="btn-icon" title="Editar" aria-label="Editar" onclick="invEditarProveedor('+p.id+')">'+iconoJS('edit-2')+'</button></td>' : '')+
         '</tr>';
     }).join('');
   } catch(e) { console.error(e); }
@@ -975,14 +975,14 @@ async function invGuardarLamina() {
     notas:       $('laminaNotas').value,
   };
   if (!payload.tipo || !payload.espesor_mm || !payload.ancho_mm || !payload.alto_mm)
-    return alert('Completa todos los campos obligatorios');
+    return toast('Completa todos los campos obligatorios', 'error');
   var r = await fetch('../api/laminas.php', {
     method: id ? 'PUT' : 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify(payload)
   });
   var d = await r.json();
-  if (d.error) return alert(d.error);
+  if (d.error) return toast(d.error, 'error');
   invCerrarModal('modalLamina');
   cargarStock();
 }
@@ -1045,14 +1045,14 @@ async function invGuardarCompra() {
     notas:             $('compraNotas').value,
   };
   if (!payload.lamina_id || !payload.proveedor_id || !payload.cantidad_laminas || !payload.precio_unitario)
-    return alert('Completa los campos obligatorios');
+    return toast('Completa los campos obligatorios', 'error');
   var r = await fetch('../api/inventario.php', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify(payload)
   });
   var d = await r.json();
-  if (d.error) return alert(d.error);
+  if (d.error) return toast(d.error, 'error');
   invCerrarModal('modalCompra');
   cargarCompras();
   cargarStock();
@@ -1092,14 +1092,14 @@ async function invGuardarProveedor() {
     email:    $('provEmail').value.trim(),
     notas:    $('provNotas').value.trim(),
   };
-  if (!payload.nombre) return alert('El nombre es obligatorio');
+  if (!payload.nombre) return toast('El nombre es obligatorio', 'error');
   var r = await fetch('../api/proveedores.php', {
     method: id ? 'PUT' : 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify(payload)
   });
   var d = await r.json();
-  if (d.error) return alert(d.error);
+  if (d.error) return toast(d.error, 'error');
   invCerrarModal('modalProveedor');
   cargarProveedores();
 }
@@ -1130,7 +1130,7 @@ async function cargarOC() {
         pagoTxt = o.fecha_pago_programada ? (diasPago < 0 ? Math.abs(diasPago)+' d&#237;as vencida' : diasPago === 0 ? 'Hoy' : diasPago+' d&#237;as') : '&#8212;';
       }
       return '<tr>'+
-        '<td><strong style="color:#2563eb;cursor:pointer" onclick="ocVerDetalle('+o.id+')">'+o.numero_oc+'</strong></td>'+
+        '<td><strong style="color:var(--c-blue);cursor:pointer" onclick="ocVerDetalle('+o.id+')">'+o.numero_oc+'</strong></td>'+
         '<td>'+fmtFecha(o.fecha_oc)+'</td>'+
         '<td>'+o.proveedor+'</td>'+
         '<td style="text-align:center">'+o.num_partidas+'</td>'+
@@ -1139,7 +1139,7 @@ async function cargarOC() {
         '<td style="min-width:120px"><div class="stock-bar-wrap"><div class="stock-bar"><div class="stock-fill '+barCls+'" style="width:'+pct+'%"></div></div><div class="stock-pct">'+pct+'%</div></div></td>'+
         '<td style="color:'+pagoClr+';font-weight:600;font-size:12px">'+(o.fecha_pago_programada ? fmtFecha(o.fecha_pago_programada)+'<br><small>'+pagoTxt+'</small>' : '&#8212;')+'</td>'+
         '<td><span class="badge '+(estadoClr[o.estado]||'badge-gray')+'">'+(estadoLbl[o.estado]||o.estado)+'</span></td>'+
-        (puedeGestionar ? '<td style="white-space:nowrap"><button class="btn-icon" title="Ver detalle" onclick="ocVerDetalle('+o.id+')">&#128203;</button>'+((o.estado==='cerrada' || o.estado==='abierta') ? '<button class="btn-icon" title="Registrar pago" onclick="ocAbrirPago('+o.id+')">&#128176;</button>' : '')+(o.es_solo_flete && o.estado==='abierta' ? '<button class="btn-icon" title="Distribuir flete a inventario" style="color:#f59e0b" data-df-id="'+escAttr(o.id)+'" data-df-oc="'+escAttr(o.numero_oc)+'" onclick="ocAbrirDistribuir(this.dataset.dfId,this.dataset.dfOc)">&#128666;</button>' : '')+'</td>' : '<td></td>')+
+        (puedeGestionar ? '<td style="white-space:nowrap"><button class="btn-icon" title="Ver detalle" aria-label="Ver detalle" onclick="ocVerDetalle('+o.id+')">&#128203;</button>'+((o.estado==='cerrada' || o.estado==='abierta') ? '<button class="btn-icon" title="Registrar pago" aria-label="Registrar pago" onclick="ocAbrirPago('+o.id+')">&#128176;</button>' : '')+(o.es_solo_flete && o.estado==='abierta' ? '<button class="btn-icon" title="Distribuir flete a inventario" aria-label="Distribuir flete a inventario" style="color:#f59e0b" data-df-id="'+escAttr(o.id)+'" data-df-oc="'+escAttr(o.numero_oc)+'" onclick="ocAbrirDistribuir(this.dataset.dfId,this.dataset.dfOc)">&#128666;</button>' : '')+'</td>' : '<td></td>')+
         '</tr>';
     }).join('');
   } catch(e) { console.error(e); }
@@ -1180,16 +1180,16 @@ async function cargarCalendario() {
       var clr   = dias < 0 ? '#dc2626' : dias <= 7 ? '#f59e0b' : '#16a34a';
       var lbl   = dias < 0 ? Math.abs(dias)+' d&#237;as vencida' : dias === 0 ? 'Hoy' : dias+' d&#237;as';
       return '<tr>'+
-        '<td><strong style="color:#2563eb;cursor:pointer" onclick="ocVerDetalle('+p.id+')">'+p.numero_oc+'</strong></td>'+
+        '<td><strong style="color:var(--c-blue);cursor:pointer" onclick="ocVerDetalle('+p.id+')">'+p.numero_oc+'</strong></td>'+
         '<td>'+p.proveedor+'</td>'+
         '<td>'+fmtFecha(p.fecha_oc)+'</td>'+
         '<td>'+fmtPeso(p.total_con_iva)+'</td>'+
-        '<td style="color:#16a34a">'+fmtPeso(p.pagado)+'</td>'+
+        '<td style="color:var(--c-green)">'+fmtPeso(p.pagado)+'</td>'+
         '<td><strong style="color:'+(saldo > 0 ? '#dc2626' : '#16a34a')+'">'+fmtPeso(saldo)+'</strong></td>'+
         '<td>'+fmtFecha(p.fecha_pago_programada)+'</td>'+
         '<td style="color:'+clr+';font-weight:700">'+lbl+'</td>'+
         '<td><span class="badge '+(p.estado==='pagada'?'badge-ok':'badge-warn')+'">'+p.estado+'</span></td>'+
-        (puedeGestionar ? '<td>'+((p.estado==='cerrada' || p.estado==='abierta') ? '<button class="btn-icon" title="Registrar pago" onclick="ocAbrirPago('+p.id+')">&#128176;</button>' : '')+'</td>' : '<td></td>')+
+        (puedeGestionar ? '<td>'+((p.estado==='cerrada' || p.estado==='abierta') ? '<button class="btn-icon" title="Registrar pago" aria-label="Registrar pago" onclick="ocAbrirPago('+p.id+')">&#128176;</button>' : '')+'</td>' : '<td></td>')+
         '</tr>';
     }).join('');
   } catch(e) { console.error(e); }
@@ -1214,7 +1214,7 @@ async function ocVerDetalle(id) {
 
     var html =
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px">'+
-      '<div><span style="font-size:11px;color:var(--c-muted);text-transform:uppercase">Proveedor</span><br><strong>'+oc.proveedor_nombre+'</strong><br><span style="font-size:12px;color:#64748b">'+(oc.proveedor_telefono||'')+'</span></div>'+
+      '<div><span style="font-size:11px;color:var(--c-muted);text-transform:uppercase">Proveedor</span><br><strong>'+oc.proveedor_nombre+'</strong><br><span style="font-size:12px;color:var(--c-muted)">'+(oc.proveedor_telefono||'')+'</span></div>'+
       '<div><span style="font-size:11px;color:var(--c-muted);text-transform:uppercase">Fecha OC</span><br><strong>'+fmtFecha(oc.fecha_oc)+'</strong></div>'+
       '<div><span style="font-size:11px;color:var(--c-muted);text-transform:uppercase">Estado</span><br>'+
         '<span class="badge '+(estadoBadge[oc.estado]||'badge-gray')+'">'+oc.estado+'</span>'+
@@ -1226,7 +1226,7 @@ async function ocVerDetalle(id) {
       '</div>'+
 
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
-        '<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#64748b">Partidas</div>'+
+        '<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--c-muted)">Partidas</div>'+
         '<div style="display:flex;gap:8px">'+
           '<a class="btn btn-ghost btn-sm" href="imprimir_orden_compra.php?id='+oc.id+'" target="_blank" rel="noopener">&#128438; Imprimir OC</a>'+
           (puedeEditarHeader ? '<button class="btn btn-primary btn-sm" onclick="ocAbrirAgregarPartida('+oc.id+')">+ Agregar partida</button>' : '')+
@@ -1247,39 +1247,39 @@ async function ocVerDetalle(id) {
             '<td>'+p.cantidad+' '+p.unidad+'</td>'+
             '<td>'+fmtPeso(p.precio_unitario)+'</td>'+
             '<td>'+fmtPeso(p.importe)+'</td>'+
-            '<td>'+(parseFloat(p.cantidad_recibida||0)>0 ? '<strong style="color:#16a34a">'+p.cantidad_recibida+'</strong>' : '0')+'/'+p.cantidad+'</td>'+
+            '<td>'+(parseFloat(p.cantidad_recibida||0)>0 ? '<strong style="color:var(--c-green)">'+p.cantidad_recibida+'</strong>' : '0')+'/'+p.cantidad+'</td>'+
             '<td style="white-space:nowrap">'+
-              (puedeEditarPartida ? '<button class="btn-icon" title="Editar" onclick="npEditar('+oc.id+','+p.id+','+p.cantidad+','+p.precio_unitario+',\''+descEsc+'\',\''+p.unidad+'\')">'+iconoJS('edit-2')+'</button>' : '')+
-              (puedeEditarPartida ? '<button class="btn-icon" title="Eliminar partida" style="color:#dc2626" onclick="npEliminar('+oc.id+','+p.id+',\''+descEsc+'\')">&#128465;</button>' : '')+
+              (puedeEditarPartida ? '<button class="btn-icon" title="Editar" aria-label="Editar" onclick="npEditar('+oc.id+','+p.id+','+p.cantidad+','+p.precio_unitario+',\''+descEsc+'\',\''+p.unidad+'\')">'+iconoJS('edit-2')+'</button>' : '')+
+              (puedeEditarPartida ? '<button class="btn-icon" title="Eliminar partida" aria-label="Eliminar partida" style="color:var(--c-red)" onclick="npEliminar('+oc.id+','+p.id+',\''+descEsc+'\')">&#128465;</button>' : '')+
             '</td>'+
             '</tr>';
         }).join('')+
-        '<tr style="background:#f8fafc;font-weight:700"><td colspan="5" style="text-align:right">Subtotal s/IVA:</td><td colspan="2">'+fmtPeso(subtotal)+'</td></tr>'+
-        '<tr style="background:#f8fafc"><td colspan="5" style="text-align:right">IVA (16%):</td><td colspan="2">'+fmtPeso(iva)+'</td></tr>'+
-        '<tr style="background:#f8fafc;font-weight:800;font-size:15px"><td colspan="5" style="text-align:right">TOTAL:</td><td colspan="2">'+fmtPeso(total)+'</td></tr>'+
+        '<tr style="background:var(--c-bg);font-weight:700"><td colspan="5" style="text-align:right">Subtotal s/IVA:</td><td colspan="2">'+fmtPeso(subtotal)+'</td></tr>'+
+        '<tr style="background:var(--c-bg)"><td colspan="5" style="text-align:right">IVA (16%):</td><td colspan="2">'+fmtPeso(iva)+'</td></tr>'+
+        '<tr style="background:var(--c-bg);font-weight:800;font-size:15px"><td colspan="5" style="text-align:right">TOTAL:</td><td colspan="2">'+fmtPeso(total)+'</td></tr>'+
         '</tbody>'+
       '</table>';
 
     if ((oc.entregas||[]).length) {
-      html += '<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:8px">Entregas recibidas</div>'+
+      html += '<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--c-muted);margin-bottom:8px">Entregas recibidas</div>'+
         '<table class="rd-modal-table" style="margin-bottom:16px"><thead><tr><th>Fecha</th><th>Detalle</th><th>Registr&#243;</th><th>Cierra OC</th></tr></thead><tbody>'+
         (oc.entregas||[]).map(function(e){
-          return '<tr><td>'+fmtFecha(e.fecha_entrega)+'</td><td style="font-size:12px">'+(e.resumen||'&#8212;')+'</td><td style="color:#64748b">'+(e.registrado_por||'&#8212;')+'</td><td>'+(e.cierra_oc==1?'<span class="badge badge-ok">&#10003; S&#237;</span>':'&#8212;')+'</td></tr>';
+          return '<tr><td>'+fmtFecha(e.fecha_entrega)+'</td><td style="font-size:12px">'+(e.resumen||'&#8212;')+'</td><td style="color:var(--c-muted)">'+(e.registrado_por||'&#8212;')+'</td><td>'+(e.cierra_oc==1?'<span class="badge badge-ok">&#10003; S&#237;</span>':'&#8212;')+'</td></tr>';
         }).join('')+
         '</tbody></table>';
     }
 
     if ((oc.pagos||[]).length) {
-      html += '<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:8px">Pagos</div>'+
+      html += '<div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--c-muted);margin-bottom:8px">Pagos</div>'+
         '<table class="rd-modal-table"><thead><tr><th>Fecha</th><th>Monto</th><th>IVA</th><th>Referencia</th><th>Registr&#243;</th></tr></thead><tbody>'+
         (oc.pagos||[]).map(function(pg){
-          return '<tr><td>'+fmtFecha(pg.fecha_pago)+'</td><td><strong>'+fmtPeso(pg.monto)+'</strong></td><td>'+(pg.incluye_iva==1?'Con IVA':'Sin IVA')+'</td><td style="color:#64748b">'+(pg.referencia||'&#8212;')+'</td><td style="color:#64748b">'+(pg.registrado_por||'&#8212;')+'</td></tr>';
+          return '<tr><td>'+fmtFecha(pg.fecha_pago)+'</td><td><strong>'+fmtPeso(pg.monto)+'</strong></td><td>'+(pg.incluye_iva==1?'Con IVA':'Sin IVA')+'</td><td style="color:var(--c-muted)">'+(pg.referencia||'&#8212;')+'</td><td style="color:var(--c-muted)">'+(pg.registrado_por||'&#8212;')+'</td></tr>';
         }).join('')+
         '</tbody></table>';
     }
 
     $('modalOCBody').innerHTML = html;
-  } catch(e) { $('modalOCBody').innerHTML = '<div style="color:#dc2626;padding:20px">Error al cargar</div>'; }
+  } catch(e) { $('modalOCBody').innerHTML = '<div style="color:var(--c-red);padding:20px">Error al cargar</div>'; }
 }
 
 // ── OC: Crear nueva ──────────────────────────────────────────
@@ -1307,13 +1307,13 @@ async function ocGuardarNueva() {
     dias_credito: parseInt($('ocDiasCredito').value)||0,
     notas:        $('ocNotas').value.trim(),
   };
-  if (!payload.proveedor_id || !payload.fecha_oc) return alert('Proveedor y fecha son obligatorios');
+  if (!payload.proveedor_id || !payload.fecha_oc) return toast('Proveedor y fecha son obligatorios', 'error');
   var r = await fetch('../api/ordenes_compra.php', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
   var d = await r.json();
-  if (d.error) return alert(d.error);
+  if (d.error) return toast(d.error, 'error');
   invCerrarModal('modalNuevaOC');
   cargarOC();
-  alert('OC ' + d.numero_oc + ' creada. Ahora puedes agregar las partidas desde el detalle.');
+  toast('OC ' + d.numero_oc + ' creada. Ahora puedes agregar las partidas desde el detalle.', 'ok');
   ocVerDetalle(d.id);
   invAbrirModal('modalDetalleOC');
 }
@@ -1327,7 +1327,7 @@ async function ocAbrirAgregarPartida(ocId) {
     return '<option value="'+l.id+'" data-m2="'+l.m2+'" data-desc="'+(tipoLabel[l.tipo]||l.tipo)+' '+l.espesor_mm+'MM - '+Math.round(l.ancho_mm/10)+'x'+Math.round(l.alto_mm/10)+'">'+(tipoLabel[l.tipo]||l.tipo)+' '+l.espesor_mm+'mm '+Math.round(l.ancho_mm/10)+'&#215;'+Math.round(l.alto_mm/10)+'cm ('+parseFloat(l.m2).toFixed(2)+' m&#178;)</option>';
   }).join('');
   var html = '<div style="padding:4px 0 16px">'+
-    '<div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:12px">Nueva partida</div>'+
+    '<div style="font-size:13px;font-weight:700;color:var(--c-text);margin-bottom:12px">Nueva partida</div>'+
     '<div class="form-grid">'+
       '<div class="form-group form-full"><label class="form-label">Tipo *</label>'+
         '<select id="npTipo" class="form-select" onchange="npToggleTipo()"><option value="lamina">L&aacute;mina</option><option value="flete">Flete / Entrega</option><option value="otro">Otro servicio</option></select></div>'+
@@ -1419,10 +1419,10 @@ async function npGuardar(ocId) {
     iva_incluido:    $('npIvaIncluido').checked ? 1 : 0,
   };
   if (!payload.descripcion || !payload.cantidad || !payload.precio_unitario)
-    return alert('Completa todos los campos obligatorios');
+    return toast('Completa todos los campos obligatorios', 'error');
   var r = await fetch('../api/ordenes_compra.php', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
   var d = await r.json();
-  if (d.error) return alert(d.error);
+  if (d.error) return toast(d.error, 'error');
   ocVerDetalle(ocId);
   cargarOC();
 }
@@ -1437,17 +1437,17 @@ function npEditar(ocId, partId, cantidad, precio, desc, unidad) {
   fetch('../api/ordenes_compra.php', {
     method: 'PUT', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({accion:'actualizar_partida', id:partId, descripcion:nuevaDesc, unidad:unidad, cantidad:parseFloat(nuevaCant), precio_unitario:parseFloat(nuevoPrecio)})
-  }).then(function(r){ return r.json(); }).then(function(d){ if(d.error) return alert(d.error); ocVerDetalle(ocId); cargarOC(); });
+  }).then(function(r){ return r.json(); }).then(function(d){ if(d.error) return toast(d.error, 'error'); ocVerDetalle(ocId); cargarOC(); });
 }
 
 async function npEliminar(ocId, partId, desc) {
-  if (!confirm('¿Eliminar partida "' + desc + '"?\n\nEsta acción no se puede deshacer.')) return;
+  if (!await confirmar('¿Eliminar partida "' + desc + '"?\n\nEsta acción no se puede deshacer.', 'Eliminar partida')) return;
   var r = await fetch('../api/ordenes_compra.php', {
     method: 'DELETE', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({accion:'eliminar_partida', id:partId})
   });
   var d = await r.json();
-  if (d.error) return alert(d.error);
+  if (d.error) return toast(d.error, 'error');
   ocVerDetalle(ocId);
   cargarOC();
 }
@@ -1455,7 +1455,7 @@ async function npEliminar(ocId, partId, desc) {
 async function ocCambiarEstado(ocId, estado) {
   var r = await fetch('../api/ordenes_compra.php', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({accion:'cambiar_estado', orden_compra_id:ocId, estado:estado})});
   var d = await r.json();
-  if (d.error) return alert(d.error);
+  if (d.error) return toast(d.error, 'error');
   ocVerDetalle(ocId);
   cargarOC();
 }
@@ -1471,16 +1471,16 @@ async function ocAbrirEntrega(ocId) {
   $('modalEntregaTitulo').textContent = 'Registrar entrega \u2014 '+oc.numero_oc;
   _entregaPartidas = (oc.partidas||[]).filter(function(p){ return p.tipo==='lamina' && parseFloat(p.cantidad_recibida) < parseFloat(p.cantidad); });
   if (!_entregaPartidas.length) {
-    $('entregaPartidas').innerHTML = '<div style="color:#16a34a;padding:12px">&#10003; Todas las partidas ya fueron recibidas</div>';
+    $('entregaPartidas').innerHTML = '<div style="color:var(--c-green);padding:12px">&#10003; Todas las partidas ya fueron recibidas</div>';
   } else {
     $('entregaPartidas').innerHTML = _entregaPartidas.map(function(p){
       var pendiente = parseFloat(p.cantidad) - parseFloat(p.cantidad_recibida);
       return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f1f5f9">'+
         '<div style="flex:1"><div style="font-size:13px;font-weight:600">'+p.descripcion+'</div>'+
-        '<div style="font-size:11px;color:#64748b">Pendiente: '+pendiente+' '+p.unidad+'</div></div>'+
+        '<div style="font-size:11px;color:var(--c-muted)">Pendiente: '+pendiente+' '+p.unidad+'</div></div>'+
         '<div style="display:flex;align-items:center;gap:6px">'+
         '<input type="number" id="ent_'+p.id+'" class="form-input" style="width:90px" min="0" max="'+pendiente+'" step="1" value="'+pendiente+'" oninput="entregaActualizarPreview('+ocId+')">'+
-        '<span style="font-size:12px;color:#64748b">'+p.unidad+'</span></div></div>';
+        '<span style="font-size:12px;color:var(--c-muted)">'+p.unidad+'</span></div></div>';
     }).join('');
     setTimeout(function(){ entregaActualizarPreview(ocId); }, 100);
   }
@@ -1508,21 +1508,21 @@ async function entregaGuardar() {
   var ocId  = parseInt($('entregaOcId').value);
   var fecha = $('entregaFecha').value;
   var notas = $('entregaNotas').value.trim();
-  if (!fecha) return alert('La fecha es obligatoria');
+  if (!fecha) return toast('La fecha es obligatoria', 'error');
   var detalle = _entregaPartidas
     .map(function(p){ return {oc_partida_id:p.id, cantidad_recibida:parseFloat(document.getElementById('ent_'+p.id) ? document.getElementById('ent_'+p.id).value : 0)||0}; })
     .filter(function(d){ return d.cantidad_recibida > 0; });
-  if (!detalle.length) return alert('Ingresa al menos una cantidad mayor a 0');
+  if (!detalle.length) return toast('Ingresa al menos una cantidad mayor a 0', 'error');
   var r = await fetch('../api/ordenes_compra.php', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({accion:'registrar_entrega', orden_compra_id:ocId, fecha_entrega:fecha, notas:notas, detalle:detalle})
   });
   var d = await r.json();
-  if (d.error) return alert(d.error);
+  if (d.error) return toast(d.error, 'error');
   invCerrarModal('modalEntrega');
   cargarOC();
   cargarStock();
-  if (d.cerro_oc) alert('&#10003; Entrega registrada. La OC qued\u00f3 completamente recibida. Se calcul\u00f3 la fecha de pago.');
+  if (d.cerro_oc) toast('&#10003; Entrega registrada. La OC qued\u00f3 completamente recibida. Se calcul\u00f3 la fecha de pago.', 'ok');
   ocVerDetalle(ocId);
   invAbrirModal('modalDetalleOC');
 }
@@ -1547,10 +1547,10 @@ async function ocGuardarPago() {
     referencia:      $('pagoRef').value.trim(),
     notas:           $('pagoNotas').value.trim(),
   };
-  if (!payload.monto) return alert('El monto es obligatorio');
+  if (!payload.monto) return toast('El monto es obligatorio', 'error');
   var r = await fetch('../api/ordenes_compra.php', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
   var d = await r.json();
-  if (d.error) return alert(d.error);
+  if (d.error) return toast(d.error, 'error');
   invCerrarModal('modalPago');
   cargarOC();
   cargarCalendario();
@@ -1575,7 +1575,7 @@ async function ocAbrirDistribuir(ocId, numeroOc) {
     var compras   = d.compras || [];
     $('dfMontoFlete').textContent = fmtPeso(_dfTotalFlete);
     if (!compras.length) {
-      $('dfComprasLista').innerHTML = '<div style="color:var(--c-muted);padding:12px">No hay compras en inventario con stock disponible.</div>';
+      $('dfComprasLista').innerHTML = stateEmptyHTML('No hay compras en inventario con stock disponible.', 'package');
       return;
     }
     var ocAnterior = null;
@@ -1583,7 +1583,7 @@ async function ocAbrirDistribuir(ocId, numeroOc) {
       var header = '';
       var ocLabel = c.oc_numero ? c.oc_numero : 'Sin OC';
       if (ocLabel !== ocAnterior) {
-        header = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;padding:8px 0 4px">' + ocLabel + '</div>';
+        header = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--c-muted);padding:8px 0 4px">' + ocLabel + '</div>';
         ocAnterior = ocLabel;
       }
       return header +
@@ -1591,13 +1591,13 @@ async function ocAbrirDistribuir(ocId, numeroOc) {
         '<input type="checkbox" class="df-check" data-id="'+c.id+'" data-cant="'+c.cantidad_laminas+'" data-m2="'+c.m2+'" checked onchange="dfPreview()">'+
         '<div style="flex:1">'+
           '<div style="font-size:13px;font-weight:600">'+c.lamina_desc+'</div>'+
-          '<div style="font-size:11px;color:#64748b">'+c.cantidad_laminas+' lám · '+c.m2+' m²/lám · Costo actual: '+fmtPeso(c.costo_real_unitario)+'/lám</div>'+
+          '<div style="font-size:11px;color:var(--c-muted)">'+c.cantidad_laminas+' lám · '+c.m2+' m²/lám · Costo actual: '+fmtPeso(c.costo_real_unitario)+'/lám</div>'+
         '</div>'+
-        '<div id="df_prev_'+c.id+'" style="font-size:12px;color:#2563eb;font-weight:600;min-width:90px;text-align:right"></div>'+
+        '<div id="df_prev_'+c.id+'" style="font-size:12px;color:var(--c-blue);font-weight:600;min-width:90px;text-align:right"></div>'+
         '</label>';
     }).join('');
     dfPreview();
-  } catch(e) { $('dfComprasLista').innerHTML = '<div style="color:#dc2626;padding:12px">Error al cargar compras.</div>'; }
+  } catch(e) { $('dfComprasLista').innerHTML = '<div style="color:var(--c-red);padding:12px">Error al cargar compras.</div>'; }
 }
 
 function dfPreview() {
@@ -1632,19 +1632,19 @@ function dfPreview() {
 
 async function dfConfirmar() {
   var checks = document.querySelectorAll('.df-check:checked');
-  if (!checks.length) return alert('Selecciona al menos una compra');
+  if (!checks.length) return toast('Selecciona al menos una compra', 'error');
   var compra_ids = Array.from(checks).map(function(ch){ return parseInt(ch.dataset.id); });
-  if (!confirm('¿Distribuir $' + _dfTotalFlete.toLocaleString('es-MX', {minimumFractionDigits:2}) + ' de flete entre ' + compra_ids.length + ' compra(s) y cerrar la OC?')) return;
+  if (!await confirmar('¿Distribuir $' + _dfTotalFlete.toLocaleString('es-MX', {minimumFractionDigits:2}) + ' de flete entre ' + compra_ids.length + ' compra(s) y cerrar la OC?', 'Distribuir flete')) return;
   var r = await fetch('../api/ordenes_compra.php', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({accion:'distribuir_flete', oc_id:_dfOcId, compra_ids:compra_ids, metodo:_dfMetodo})
   });
   var d = await r.json();
-  if (d.error) return alert(d.error);
+  if (d.error) return toast(d.error, 'error');
   invCerrarModal('modalDistribuirFlete');
   cargarOC();
   cargarStock();
-  alert('✅ Flete de ' + fmtPeso(d.total_flete) + ' distribuido en ' + d.registros + ' compra(s). La OC quedó cerrada.');
+  toast('✅ Flete de ' + fmtPeso(d.total_flete) + ' distribuido en ' + d.registros + ' compra(s). La OC quedó cerrada.', 'ok');
 }
 
 // ── Consumo Diario ────────────────────────────────────────────
@@ -1669,14 +1669,14 @@ async function cargarConsumo() {
       return '<tr>' +
         '<td>' + escAttr(m.fecha) + '</td>' +
         '<td><strong>' + nombre + '</strong></td>' +
-        '<td style="color:#64748b">' + dim + '</td>' +
+        '<td style="color:var(--c-muted)">' + dim + '</td>' +
         '<td><span class="badge badge-info">' + escAttr(m.cantidad_laminas) + ' l&#225;m.</span></td>' +
-        '<td style="color:#64748b;font-size:12px;max-width:320px">' + detalle + '</td>' +
+        '<td style="color:var(--c-muted);font-size:12px;max-width:320px">' + detalle + '</td>' +
         '<td style="color:var(--c-muted);font-size:12px">' + (m.operador_nombre ? escAttr(m.operador_nombre) : '&#8212;') + '</td>' +
       '</tr>';
     }).join('');
   } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#dc2626;padding:20px">Error al cargar</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--c-red);padding:20px">Error al cargar</td></tr>';
   }
 }
 
@@ -1727,9 +1727,9 @@ async function invRegistrarConsumo() {
   var fecha    = document.getElementById('consumoFecha').value;
   var notas    = document.getElementById('consumoNotas').value.trim();
 
-  if (!laminaId)             return alert('Selecciona una lámina');
-  if (!cantidad || cantidad < 1) return alert('Ingresa una cantidad válida');
-  if (!fecha)                return alert('Ingresa la fecha');
+  if (!laminaId)             return toast('Selecciona una lámina', 'error');
+  if (!cantidad || cantidad < 1) return toast('Ingresa una cantidad válida', 'error');
+  if (!fecha)                return toast('Ingresa la fecha', 'error');
 
   var btn = document.querySelector('#modalConsumo .btn-primary');
   btn.disabled = true;
@@ -1742,13 +1742,13 @@ async function invRegistrarConsumo() {
       body: JSON.stringify({accion:'registrar_uso', lamina_id:laminaId, cantidad_laminas:cantidad, fecha:fecha, notas:notas, ordenes:[]})
     });
     var d = await r.json();
-    if (d.error) { alert(d.error); return; }
+    if (d.error) { toast(d.error, 'error'); return; }
     invCerrarModal('modalConsumo');
     cargarConsumo();
     cargarStock();
-    alert('✅ Consumo de ' + cantidad + ' lámina(s) registrado correctamente');
+    toast('✅ Consumo de ' + cantidad + ' lámina(s) registrado correctamente', 'ok');
   } catch(e) {
-    alert('Error de conexión');
+    toast('Error de conexión', 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Registrar';
@@ -1799,11 +1799,11 @@ async function invGuardarAjusteStock() {
   var destino  = parseInt(document.getElementById('ajusteCantidad').value);
   var motivo   = document.getElementById('ajusteMotivo').value.trim();
 
-  if (isNaN(destino) || destino < 0) return alert('Ingresa el stock correcto');
-  if (!motivo) return alert('El motivo es obligatorio');
+  if (isNaN(destino) || destino < 0) return toast('Ingresa el stock correcto', 'error');
+  if (!motivo) return toast('El motivo es obligatorio', 'error');
   var dif = _ajusteStockActual - destino;
-  if (dif <= 0) return alert(dif === 0 ? 'Ya coincide con el stock actual, no hay nada que ajustar' : 'No se puede aumentar el stock desde aquí — usa "Registrar compra"');
-  if (!confirm('¿Ajustar stock de ' + _ajusteStockActual + ' a ' + destino + ' lámina(s)? Esta acción no se puede deshacer desde aquí.')) return;
+  if (dif <= 0) return toast(dif === 0 ? 'Ya coincide con el stock actual, no hay nada que ajustar' : 'No se puede aumentar el stock desde aquí — usa "Registrar compra"', 'error');
+  if (!await confirmar('¿Ajustar stock de ' + _ajusteStockActual + ' a ' + destino + ' lámina(s)? Esta acción no se puede deshacer desde aquí.', 'Ajustar stock')) return;
 
   var btn = document.querySelector('#modalAjusteStock .btn-primary');
   btn.disabled = true;
@@ -1816,12 +1816,12 @@ async function invGuardarAjusteStock() {
       body: JSON.stringify({accion:'ajustar_stock', lamina_id:laminaId, cantidad:dif, motivo:motivo})
     });
     var d = await r.json();
-    if (d.error) { alert(d.error); return; }
+    if (d.error) { toast(d.error, 'error'); return; }
     invCerrarModal('modalAjusteStock');
     cargarStock();
-    alert('✅ Stock ajustado a ' + destino + ' lámina(s)');
+    toast('✅ Stock ajustado a ' + destino + ' lámina(s)', 'ok');
   } catch(e) {
-    alert('Error de conexión');
+    toast('Error de conexión', 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Ajustar stock';
