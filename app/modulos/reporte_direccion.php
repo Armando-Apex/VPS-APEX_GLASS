@@ -785,6 +785,58 @@ function rvRender(data) {
     });
     html += '</tbody></table></div>';
   }
+
+  var granLbl2 = rvGran === 'dia' ? 'D&#237;a' : (rvGran === 'semana' ? 'Semana' : 'Mes');
+
+  // ── Tabla 2: Retrabajo del período (costo, no venta) ──
+  var retrabajo = data.retrabajo || [];
+  html += '<div class="section-title" style="margin-top:24px">Retrabajo del per&#237;odo &#8212; costo, no venta</div>';
+  if (retrabajo.length === 0) {
+    html += '<div class="loading" style="padding:24px">Sin retrabajo en este per&#237;odo</div>';
+  } else {
+    html += '<div class="table-card"><table><thead><tr>' +
+      '<th>#Orden</th><th>Asesor</th><th>Cliente</th>' +
+      '<th style="text-align:right">Valor de la Pieza</th>' +
+      '<th style="text-align:right">Acumulado en Retrabajo del ' + granLbl2 + '</th>' +
+    '</tr></thead><tbody>';
+    retrabajo.forEach(function(o) {
+      html += '<tr>' +
+        '<td><strong style="color:var(--blue)">' + esc(o.folio) + '</strong></td>' +
+        '<td>' + esc(o.asesor_nombre || '&#8212;') + '</td>' +
+        '<td>' + esc(o.cliente_nombre) + '</td>' +
+        '<td style="text-align:right;color:var(--red)">' + fmtMXN(o.total) + '</td>' +
+        '<td style="text-align:right;color:var(--muted)">' + fmtMXN(o.acumulado) + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // ── Tabla 3: Saldos a Favor nuevos registrados en el período ──
+  var saldosFavor = data.saldos_favor || [];
+  html += '<div class="section-title" style="margin-top:24px">Saldos a Favor registrados en el per&#237;odo</div>';
+  if (saldosFavor.length === 0) {
+    html += '<div class="loading" style="padding:24px">Sin saldos a favor nuevos en este per&#237;odo</div>';
+  } else {
+    var tipoLbl = { deposito: 'Dep&#243;sito', referido: 'Bono referido' };
+    html += '<div class="table-card"><table><thead><tr>' +
+      '<th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Registr&#243; / Referencia</th>' +
+      '<th style="text-align:right">Monto</th>' +
+      '<th style="text-align:right">Acumulado del ' + granLbl2 + '</th>' +
+    '</tr></thead><tbody>';
+    saldosFavor.forEach(function(s) {
+      var refTxt = s.referencia || s.notas || s.creado_por || '&#8212;';
+      html += '<tr>' +
+        '<td>' + esc(s.fecha) + '</td>' +
+        '<td>' + esc(s.cliente_nombre) + '</td>' +
+        '<td>' + esc(tipoLbl[s.tipo] || s.tipo) + '</td>' +
+        '<td>' + esc(refTxt) + '</td>' +
+        '<td style="text-align:right;color:var(--green);font-weight:700">' + fmtMXN(s.monto) + '</td>' +
+        '<td style="text-align:right;color:var(--muted)">' + fmtMXN(s.acumulado) + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
   document.getElementById('rvMain').innerHTML = html;
 }
 

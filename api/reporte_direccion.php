@@ -97,9 +97,75 @@ if ($accion === 'ventas_cobranza') {
         ];
     }
 
+    // ── Tabla 2: órdenes de Retrabajo del período (costo, no venta) ──
+    // Mismo criterio de fecha/estado que la tabla de ventas, pero es_retrabajo=1.
+    // Se reporta aparte para que Dirección vea cuánto está costando el retrabajo
+    // sin que se mezcle con las ventas reales de arriba.
+    $stmtR = $pdo->prepare("
+        SELECT o.folio, COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) AS fecha_orden,
+               c.asesor_nombre, c.total, cl.nombre AS cliente_nombre
+        FROM ordenes o
+        JOIN cotizaciones c ON c.orden_id = o.id
+        JOIN clientes cl ON cl.id = c.cliente_id
+        WHERE o.estado IN ('activa','entregada')
+          AND c.es_retrabajo = 1
+          AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
+        ORDER BY fecha_orden ASC, o.id ASC
+    ");
+    $stmtR->execute([$desde, $hasta]);
+    $acumRetrabajo = 0;
+    $retrabajoRows = [];
+    foreach ($stmtR->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $total = round((float)$r['total'], 2);
+        $acumRetrabajo = round($acumRetrabajo + $total, 2);
+        $retrabajoRows[] = [
+            'folio'          => $r['folio'],
+            'fecha_orden'    => $r['fecha_orden'],
+            'asesor_nombre'  => $r['asesor_nombre'],
+            'cliente_nombre' => $r['cliente_nombre'],
+            'total'          => $total,
+            'acumulado'      => $acumRetrabajo,
+        ];
+    }
+
+    // ── Tabla 3: Saldos a Favor nuevos (depósitos + bono de referido) del período ──
+    // Solo altas de saldo (dinero que entra), no 'aplicacion' (cuando se devenga en
+    // una orden real) ni 'ajuste' — es específicamente para que Dirección vea el
+    // dinero nuevo que se está registrando como saldo a favor.
+    $stmtSF = $pdo->prepare("
+        SELECT sf.fecha, sf.tipo, sf.monto, sf.referencia, sf.notas, sf.creado_por,
+               cl.nombre AS cliente_nombre
+        FROM clientes_saldo_favor sf
+        JOIN clientes cl ON cl.id = sf.cliente_id
+        WHERE sf.tipo IN ('deposito','referido')
+          AND sf.fecha BETWEEN ? AND ?
+        ORDER BY sf.fecha ASC, sf.id ASC
+    ");
+    $stmtSF->execute([$desde, $hasta]);
+    $acumSaldoFavor = 0;
+    $saldoFavorRows = [];
+    foreach ($stmtSF->fetchAll(PDO::FETCH_ASSOC) as $s) {
+        $monto = round((float)$s['monto'], 2);
+        $acumSaldoFavor = round($acumSaldoFavor + $monto, 2);
+        $saldoFavorRows[] = [
+            'fecha'          => $s['fecha'],
+            'tipo'           => $s['tipo'],
+            'cliente_nombre' => $s['cliente_nombre'],
+            'monto'          => $monto,
+            'referencia'     => $s['referencia'],
+            'notas'          => $s['notas'],
+            'creado_por'     => $s['creado_por'],
+            'acumulado'      => $acumSaldoFavor,
+        ];
+    }
+
     jsonResponse([
         'periodo' => ['gran' => $gran, 'desde' => $desde, 'hasta' => $hasta, 'label' => $label],
         'ordenes' => $rows,
+        'retrabajo' => $retrabajoRows,
+        'retrabajo_total' => $acumRetrabajo,
+        'saldos_favor' => $saldoFavorRows,
+        'saldos_favor_total' => $acumSaldoFavor,
     ]);
 }
 
