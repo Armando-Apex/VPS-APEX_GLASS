@@ -168,7 +168,7 @@ if ($accion === 'ventas_cobranza') {
     // una orden real) ni 'ajuste' — es específicamente para que Dirección vea el
     // dinero nuevo que se está registrando como saldo a favor.
     $stmtSF = $pdo->prepare("
-        SELECT sf.fecha, sf.tipo, sf.monto, sf.referencia, sf.notas, sf.creado_por,
+        SELECT sf.id, sf.cliente_id, sf.fecha, sf.tipo, sf.monto, sf.referencia, sf.notas, sf.creado_por,
                cl.nombre AS cliente_nombre
         FROM clientes_saldo_favor sf
         JOIN clientes cl ON cl.id = sf.cliente_id
@@ -177,11 +177,38 @@ if ($accion === 'ventas_cobranza') {
         ORDER BY sf.fecha ASC, sf.id ASC
     ");
     $stmtSF->execute([$desde, $hasta]);
+    $sfPeriodo = $stmtSF->fetchAll(PDO::FETCH_ASSOC);
+
+    // Saldo previo/posterior por cliente: hay que ver el HISTÓRICO completo del
+    // cliente (todos los tipos: deposito/aplicacion/ajuste/referido), no solo lo
+    // que cae dentro del período — el saldo de un cliente no arranca en $desde.
+    $saldoAntesDespues = [];
+    if ($sfPeriodo) {
+        $clienteIds = array_values(array_unique(array_column($sfPeriodo, 'cliente_id')));
+        $inCl = implode(',', array_fill(0, count($clienteIds), '?'));
+        $stmtHist = $pdo->prepare("
+            SELECT id, cliente_id, monto
+            FROM clientes_saldo_favor
+            WHERE cliente_id IN ($inCl)
+            ORDER BY fecha ASC, id ASC
+        ");
+        $stmtHist->execute($clienteIds);
+        $runningPorCliente = [];
+        foreach ($stmtHist->fetchAll(PDO::FETCH_ASSOC) as $h) {
+            $cid = $h['cliente_id'];
+            $antes = $runningPorCliente[$cid] ?? 0.0;
+            $despues = round($antes + (float)$h['monto'], 2);
+            $saldoAntesDespues[$h['id']] = ['antes' => round($antes, 2), 'despues' => $despues];
+            $runningPorCliente[$cid] = $despues;
+        }
+    }
+
     $acumSaldoFavor = 0;
     $saldoFavorRows = [];
-    foreach ($stmtSF->fetchAll(PDO::FETCH_ASSOC) as $s) {
+    foreach ($sfPeriodo as $s) {
         $monto = round((float)$s['monto'], 2);
         $acumSaldoFavor = round($acumSaldoFavor + $monto, 2);
+        $sd = $saldoAntesDespues[$s['id']] ?? ['antes' => 0, 'despues' => $monto];
         $saldoFavorRows[] = [
             'fecha'          => $s['fecha'],
             'tipo'           => $s['tipo'],
@@ -191,6 +218,8 @@ if ($accion === 'ventas_cobranza') {
             'notas'          => $s['notas'],
             'creado_por'     => $s['creado_por'],
             'acumulado'      => $acumSaldoFavor,
+            'saldo_previo'   => $sd['antes'],
+            'saldo_posterior'=> $sd['despues'],
         ];
     }
 

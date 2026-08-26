@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 26 agosto 2026 | Próximo UPD disponible: UPD-546
+# Última actualización: 26 agosto 2026 | Próximo UPD disponible: UPD-547
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -646,4 +646,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-545 | 26-ago-2026 | Armando | Fix visual: "Depósito" salía literal como `Dep&#243;sito` en la tabla de Saldos a Favor (Reporte Dirección) — la etiqueta usaba la entidad HTML `&#243;` pero pasaba por `esc()`, que escapa el `&` a `&amp;` antes de insertarse, así que el navegador mostraba el código en vez del acento. Cambiado a carácter UTF-8 directo (`Depósito`) — el archivo ya declara `<meta charset="UTF-8">`, así que se renderiza bien. De paso se encontró y corrigió el mismo patrón en 2 sitios preexistentes (`&#8212;` como fallback de `asesor_nombre`, ambas tablas) y 1 en el código nuevo de UPD-544 (fallback de `registrado_por` en el desglose de pagos) — los 3 nunca se habían notado porque esos campos casi nunca vienen vacíos; se cambiaron todos a el carácter — real por consistencia. `php -l` OK + `node --check` del `<script>` embebido. |
 
-**Próximo UPD disponible: UPD-546**
+| UPD-546 | 26-ago-2026 | Armando | Tabla "Saldos a Favor" del Reporte Dirección — 2 columnas nuevas "Saldo Previo" y "Saldo Posterior" por depósito/bono, para ver de un vistazo cuánto tenía el cliente antes del abono y cuánto le queda después. `api/reporte_direccion.php` `accion=ventas_cobranza`: como el saldo de un cliente no arranca en `$desde` del período, se trae el HISTÓRICO COMPLETO de `clientes_saldo_favor` (los 4 tipos: deposito/aplicacion/ajuste/referido, no solo lo mostrado en la tabla) de los clientes que aparecen en el período, se calcula el saldo corrido en PHP (ordenado por fecha/id) y se le pega `saldo_previo`/`saldo_posterior` a cada fila de depósito/referido que ya se mostraba. `app/modulos/reporte_direccion.php` agrega las 2 columnas a la tabla. Verificado a mano con un cliente real de 14 movimientos mezclados (depósitos + aplicaciones desde jun-2026): la secuencia calculada cuadra exacto (ej. depósito de $60,320 el 17-jul: previo $1,332.28 → posterior $61,652.28). `php -l` OK + `node --check` del `<script>` embebido. Sin prueba visual en navegador — pendiente que Armando lo confirme viéndolo en vivo. |
+
+**Próximo UPD disponible: UPD-547**

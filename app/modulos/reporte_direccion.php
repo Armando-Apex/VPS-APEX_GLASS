@@ -841,7 +841,9 @@ function rvRender(data) {
     var tipoLbl = { deposito: 'Depósito', referido: 'Bono referido' };
     html += '<div class="table-card"><table><thead><tr>' +
       '<th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Registr&#243; / Referencia</th>' +
+      '<th style="text-align:right">Saldo Previo</th>' +
       '<th style="text-align:right">Monto</th>' +
+      '<th style="text-align:right">Saldo Posterior</th>' +
       '<th style="text-align:right">Acumulado del ' + granLbl2 + '</th>' +
     '</tr></thead><tbody>';
     saldosFavor.forEach(function(s) {
@@ -851,7 +853,9 @@ function rvRender(data) {
         '<td>' + esc(s.cliente_nombre) + '</td>' +
         '<td>' + esc(tipoLbl[s.tipo] || s.tipo) + '</td>' +
         '<td>' + esc(refTxt) + '</td>' +
+        '<td style="text-align:right;color:var(--muted)">' + fmtPeso(s.saldo_previo) + '</td>' +
         '<td style="text-align:right;color:var(--green);font-weight:700">' + fmtPeso(s.monto) + '</td>' +
+        '<td style="text-align:right;font-weight:700">' + fmtPeso(s.saldo_posterior) + '</td>' +
         '<td style="text-align:right;color:var(--muted)">' + fmtPeso(s.acumulado) + '</td>' +
       '</tr>';
     });
