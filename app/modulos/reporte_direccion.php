@@ -777,10 +777,10 @@ function rvRender(data) {
         '<td><strong style="color:var(--blue)">' + esc(o.folio) + '</strong></td>' +
         '<td>' + esc(o.asesor_nombre || '&#8212;') + '</td>' +
         '<td>' + esc(o.cliente_nombre) + '</td>' +
-        '<td style="text-align:right;color:var(--green)">' + fmtMXN(o.anticipo) + '</td>' +
-        '<td style="text-align:right;color:' + restanteColor + '">' + fmtMXN(o.restante) + '</td>' +
-        '<td style="text-align:right;font-weight:700">' + fmtMXN(o.total) + '</td>' +
-        '<td style="text-align:right;color:var(--muted)">' + fmtMXN(o.acumulado) + '</td>' +
+        '<td style="text-align:right;color:var(--green)">' + fmtPeso(o.anticipo) + '</td>' +
+        '<td style="text-align:right;color:' + restanteColor + '">' + fmtPeso(o.restante) + '</td>' +
+        '<td style="text-align:right;font-weight:700">' + fmtPeso(o.total) + '</td>' +
+        '<td style="text-align:right;color:var(--muted)">' + fmtPeso(o.acumulado) + '</td>' +
       '</tr>';
     });
     html += '</tbody></table></div>';
@@ -804,8 +804,8 @@ function rvRender(data) {
         '<td><strong style="color:var(--blue)">' + esc(o.folio) + '</strong></td>' +
         '<td>' + esc(o.asesor_nombre || '&#8212;') + '</td>' +
         '<td>' + esc(o.cliente_nombre) + '</td>' +
-        '<td style="text-align:right;color:var(--red)">' + fmtMXN(o.total) + '</td>' +
-        '<td style="text-align:right;color:var(--muted)">' + fmtMXN(o.acumulado) + '</td>' +
+        '<td style="text-align:right;color:var(--red)">' + fmtPeso(o.total) + '</td>' +
+        '<td style="text-align:right;color:var(--muted)">' + fmtPeso(o.acumulado) + '</td>' +
       '</tr>';
     });
     html += '</tbody></table></div>';
@@ -830,8 +830,8 @@ function rvRender(data) {
         '<td>' + esc(s.cliente_nombre) + '</td>' +
         '<td>' + esc(tipoLbl[s.tipo] || s.tipo) + '</td>' +
         '<td>' + esc(refTxt) + '</td>' +
-        '<td style="text-align:right;color:var(--green);font-weight:700">' + fmtMXN(s.monto) + '</td>' +
-        '<td style="text-align:right;color:var(--muted)">' + fmtMXN(s.acumulado) + '</td>' +
+        '<td style="text-align:right;color:var(--green);font-weight:700">' + fmtPeso(s.monto) + '</td>' +
+        '<td style="text-align:right;color:var(--muted)">' + fmtPeso(s.acumulado) + '</td>' +
       '</tr>';
     });
     html += '</tbody></table></div>';
