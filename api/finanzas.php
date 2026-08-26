@@ -310,11 +310,15 @@ if ($method === 'POST') {
             }
             $excedente       = round($monto - $saldo_pendiente, 2);
 
-            // A-10: TODO excedente real (> $0.01 de tolerancia de redondeo) va a una
-            // cuenta explícita (saldo a favor). Nada se "absorbe": saldo_pagado
-            // nunca queda por encima del total y por_cobrar nunca se subestima.
-            $monto_aplicar = ($excedente > 0.01) ? $saldo_pendiente : $monto;
-            $depositar_favor = ($excedente > 0.01) ? $excedente : 0.0;
+            // A-10: excedente real va a una cuenta explícita (saldo a favor) — pero
+            // solo si es >= $10 (Armando, 26-ago-2026): un excedente menor (ej. deuda
+            // de $994 pagada con $1000) no vale la pena convertirlo en un depósito
+            // formal de saldo a favor — se registra el pago completo tal cual y el
+            // residuo queda absorbido por ahora, sin mecanismo de registro aparte
+            // todavía (pendiente que Armando defina cómo tratar esos pesos/centavos).
+            $UMBRAL_EXCEDENTE_SALDO_FAVOR = 10.00;
+            $monto_aplicar = ($excedente >= $UMBRAL_EXCEDENTE_SALDO_FAVOR) ? $saldo_pendiente : $monto;
+            $depositar_favor = ($excedente >= $UMBRAL_EXCEDENTE_SALDO_FAVOR) ? $excedente : 0.0;
 
             // Insertar pago (por el monto que realmente se aplica a la orden)
             $db->prepare("INSERT INTO cotizacion_pagos
