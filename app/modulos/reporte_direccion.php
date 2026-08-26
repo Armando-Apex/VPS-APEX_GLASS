@@ -99,6 +99,25 @@ thead th {
 }
 tbody tr { border-bottom:1px solid var(--border-lt); transition:background .1s; }
 tbody tr:hover { background:#fafbfc; }
+.rv-folio-link { cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
+.rv-pagos-panel { display:none; }
+.rv-pagos-panel.open { display:table-row; }
+.rv-pagos-panel td { background:var(--bg); padding:12px 16px !important; }
+.rv-pagos-inner { display:flex; flex-direction:column; gap:6px; }
+.rv-pago-item {
+  display:flex; align-items:center; gap:14px; font-size:12px;
+  background:var(--surface); border:1px solid var(--border-lt); border-radius:6px;
+  padding:6px 12px;
+}
+.rv-pago-fecha { color:var(--muted); min-width:110px; }
+.rv-pago-forma {
+  font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
+  color:var(--blue); background:var(--blue-lt); border-radius:4px; padding:2px 7px;
+}
+.rv-pago-notas { color:var(--muted-lt); flex:1; }
+.rv-pago-monto { font-weight:700; color:var(--green); margin-left:auto; }
+.rv-pago-por { color:var(--muted-lt); min-width:110px; text-align:right; }
+.rv-sin-pagos { font-size:12px; color:var(--muted-lt); padding:4px 0; }
 tbody td { padding:9px 14px; font-size:13px; color:var(--text); }
 tfoot tr { background:var(--bg); font-weight:700; border-top:1px solid var(--border); }
 tfoot td { padding:9px 14px; font-size:13px; }
@@ -774,14 +793,15 @@ function rvRender(data) {
     ordenes.forEach(function(o) {
       var restanteColor = parseFloat(o.restante) > 0.005 ? 'var(--red)' : 'var(--muted-lt)';
       html += '<tr>' +
-        '<td><strong style="color:var(--blue)">' + esc(o.folio) + '</strong></td>' +
+        '<td><strong class="rv-folio-link" style="color:var(--blue)" onclick="rvTogglePagos(' + o.cotizacion_id + ')">' + esc(o.folio) + '</strong></td>' +
         '<td>' + esc(o.asesor_nombre || '&#8212;') + '</td>' +
         '<td>' + esc(o.cliente_nombre) + '</td>' +
         '<td style="text-align:right;color:var(--green)">' + fmtPeso(o.anticipo) + '</td>' +
         '<td style="text-align:right;color:' + restanteColor + '">' + fmtPeso(o.restante) + '</td>' +
         '<td style="text-align:right;font-weight:700">' + fmtPeso(o.total) + '</td>' +
         '<td style="text-align:right;color:var(--muted)">' + fmtPeso(o.acumulado) + '</td>' +
-      '</tr>';
+      '</tr>' +
+      '<tr class="rv-pagos-panel" id="rv-pagos-' + o.cotizacion_id + '"><td colspan="7">' + rvPagosHTML(o.pagos) + '</td></tr>';
     });
     html += '</tbody></table></div>';
   }
@@ -801,12 +821,13 @@ function rvRender(data) {
     '</tr></thead><tbody>';
     retrabajo.forEach(function(o) {
       html += '<tr>' +
-        '<td><strong style="color:var(--blue)">' + esc(o.folio) + '</strong></td>' +
+        '<td><strong class="rv-folio-link" style="color:var(--blue)" onclick="rvTogglePagos(' + o.cotizacion_id + ')">' + esc(o.folio) + '</strong></td>' +
         '<td>' + esc(o.asesor_nombre || '&#8212;') + '</td>' +
         '<td>' + esc(o.cliente_nombre) + '</td>' +
         '<td style="text-align:right;color:var(--red)">' + fmtPeso(o.total) + '</td>' +
         '<td style="text-align:right;color:var(--muted)">' + fmtPeso(o.acumulado) + '</td>' +
-      '</tr>';
+      '</tr>' +
+      '<tr class="rv-pagos-panel" id="rv-pagos-' + o.cotizacion_id + '"><td colspan="5">' + rvPagosHTML(o.pagos) + '</td></tr>';
     });
     html += '</tbody></table></div>';
   }
@@ -840,6 +861,34 @@ function rvRender(data) {
   document.getElementById('rvMain').innerHTML = html;
 }
 
+var FORMA_LABELS_RV = {efectivo:'Efectivo', tarjeta:'Tarjeta', transferencia:'Transferencia', saldo_favor:'Saldo a Favor'};
+
+// Desglose de pagos por orden — solo informativo (sin acciones), al dar clic en #Orden.
+function rvPagosHTML(pagos) {
+  var html = '<div class="rv-pagos-inner">';
+  if (!pagos || !pagos.length) {
+    html += '<div class="rv-sin-pagos">Sin pagos registrados</div>';
+  } else {
+    pagos.forEach(function(p) {
+      var fl = FORMA_LABELS_RV[p.forma_pago] || p.forma_pago;
+      html += '<div class="rv-pago-item">' +
+        '<span class="rv-pago-fecha">' + esc(p.fecha_pago) + ' ' + esc((p.hora_pago||'').substring(0,5)) + '</span>' +
+        '<span class="rv-pago-forma">' + esc(fl) + '</span>' +
+        (p.notas ? '<span class="rv-pago-notas">' + esc(p.notas) + '</span>' : '<span class="rv-pago-notas"></span>') +
+        '<span class="rv-pago-monto">' + fmtPeso(p.monto) + '</span>' +
+        '<span class="rv-pago-por">por ' + esc(p.registrado_por || '&#8212;') + '</span>' +
+      '</div>';
+    });
+  }
+  html += '</div>';
+  return html;
+}
+
+function rvTogglePagos(cotizacionId) {
+  var panel = document.getElementById('rv-pagos-' + cotizacionId);
+  if (panel) panel.classList.toggle('open');
+}
+
 rdCargar();
 setInterval(rdCargar, 300000);
 
@@ -850,6 +899,7 @@ window.rdTabSwitch     = rdTabSwitch;
 window.rvSetGran       = rvSetGran;
 window.rvNav           = rvNav;
 window.rvHoy           = rvHoy;
+window.rvTogglePagos   = rvTogglePagos;
 return { init: rdCargar };
 })();
 ModReporte.init();

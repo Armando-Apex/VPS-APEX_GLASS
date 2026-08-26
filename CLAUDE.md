@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 26 agosto 2026 | Próximo UPD disponible: UPD-544
+# Última actualización: 26 agosto 2026 | Próximo UPD disponible: UPD-545
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -642,4 +642,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-543 | 26-ago-2026 | Armando | Seguimiento a UPD-542: las 3 tablas de la pestaña "Ventas y Cobranza" (la original + Retrabajo + Saldos a Favor) usaban `fmtMXN()` (redondea a pesos enteros, pensado para tarjetas KPI grandes) — cambiadas a `fmtPeso()` (2 decimales, ya existente en `utils.js`) a petición de Armando para ver los centavos exactos en los montos de estas tablas. Solo se tocaron las celdas de las 3 tablas de `rvRender()`; las tarjetas KPI de la pestaña Resumen (`fin.ventas`, `fin.cobrado`, etc.) se dejaron con `fmtMXN()` sin cambio, fuera del alcance de lo pedido. `php -l` OK + `node --check` del `<script>` embebido. |
 
-**Próximo UPD disponible: UPD-544**
+| UPD-544 | 26-ago-2026 | Armando | **Desglose de pagos al dar clic en #Orden, en las tablas "Ventas y Cobranza" y "Retrabajo" del Reporte Dirección — solo informativo, sin acciones (a diferencia del panel de Cobranza que sí permite registrar pago).** `api/reporte_direccion.php` `accion=ventas_cobranza`: nuevo helper `pagosPorCotizacionRV()` que trae el detalle de `cotizacion_pagos` (fecha, hora, monto, forma, notas, registrado por) por cotización, con el mismo corte `fecha_pago <= $hasta` que ya usa el cálculo de anticipo/restante — para que la suma de lo listado siempre cuadre contra esas columnas; agregado a las 2 tablas que tienen folio (Ventas y Retrabajo), no aplica a la tabla de Saldos a Favor (no tiene orden). `app/modulos/reporte_direccion.php`: el folio ahora es clicable (`rvTogglePagos()`) y expande una fila oculta debajo con la lista de pagos (`rvPagosHTML()`) — mismo patrón visual de "pago-row" que ya usa Cobranza pero sin el formulario de registrar pago, puramente de lectura. Verificado con datos reales de producción (pagos mixtos transferencia+saldo_favor del mismo día en COT-1450). `php -l` OK + `node --check` del `<script>` embebido. Sin prueba visual en navegador — pendiente que Armando lo confirme viéndolo en vivo. |
+
+**Próximo UPD disponible: UPD-545**

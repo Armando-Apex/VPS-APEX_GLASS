@@ -47,6 +47,33 @@ if ($accion === 'ventas_cobranza') {
     $desde = $desdeD->format('Y-m-d');
     $hasta = $hastaD->format('Y-m-d');
 
+    // Desglose de pagos por cotización (solo informativo, para el clic en #Orden) —
+    // mismo corte fecha_pago <= $hasta que ya usa el anticipo/restante de la tabla,
+    // para que la suma de lo listado siempre cuadre contra esas columnas.
+    function pagosPorCotizacionRV(PDO $pdo, array $cotIds, string $hasta): array {
+        if (!$cotIds) return [];
+        $in = implode(',', array_fill(0, count($cotIds), '?'));
+        $stmt = $pdo->prepare("
+            SELECT cotizacion_id, fecha_pago, hora_pago, monto, forma_pago, notas, registrado_por
+            FROM cotizacion_pagos
+            WHERE cotizacion_id IN ($in) AND fecha_pago <= ?
+            ORDER BY fecha_pago ASC, hora_pago ASC
+        ");
+        $stmt->execute(array_merge($cotIds, [$hasta]));
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            $out[$p['cotizacion_id']][] = [
+                'fecha_pago'     => $p['fecha_pago'],
+                'hora_pago'      => $p['hora_pago'],
+                'monto'          => round((float)$p['monto'], 2),
+                'forma_pago'     => $p['forma_pago'],
+                'notas'          => $p['notas'],
+                'registrado_por' => $p['registrado_por'],
+            ];
+        }
+        return $out;
+    }
+
     $stmtO = $pdo->prepare("
         SELECT o.folio, COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) AS fecha_orden,
                c.id AS cotizacion_id, c.asesor_nombre, c.total,
@@ -78,6 +105,8 @@ if ($accion === 'ventas_cobranza') {
         }
     }
 
+    $pagosDetalle = pagosPorCotizacionRV($pdo, array_column($ordenes, 'cotizacion_id'), $hasta);
+
     $acumulado = 0;
     $rows = [];
     foreach ($ordenes as $o) {
@@ -94,6 +123,8 @@ if ($accion === 'ventas_cobranza') {
             'anticipo'       => $anticipo,
             'restante'       => $restante,
             'acumulado'      => $acumulado,
+            'cotizacion_id'  => (int)$o['cotizacion_id'],
+            'pagos'          => $pagosDetalle[$o['cotizacion_id']] ?? [],
         ];
     }
 
@@ -103,7 +134,7 @@ if ($accion === 'ventas_cobranza') {
     // sin que se mezcle con las ventas reales de arriba.
     $stmtR = $pdo->prepare("
         SELECT o.folio, COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) AS fecha_orden,
-               c.asesor_nombre, c.total, cl.nombre AS cliente_nombre
+               c.id AS cotizacion_id, c.asesor_nombre, c.total, cl.nombre AS cliente_nombre
         FROM ordenes o
         JOIN cotizaciones c ON c.orden_id = o.id
         JOIN clientes cl ON cl.id = c.cliente_id
@@ -113,9 +144,11 @@ if ($accion === 'ventas_cobranza') {
         ORDER BY fecha_orden ASC, o.id ASC
     ");
     $stmtR->execute([$desde, $hasta]);
+    $retrabajoOrdenes = $stmtR->fetchAll(PDO::FETCH_ASSOC);
+    $pagosDetalleRetrabajo = pagosPorCotizacionRV($pdo, array_column($retrabajoOrdenes, 'cotizacion_id'), $hasta);
     $acumRetrabajo = 0;
     $retrabajoRows = [];
-    foreach ($stmtR->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    foreach ($retrabajoOrdenes as $r) {
         $total = round((float)$r['total'], 2);
         $acumRetrabajo = round($acumRetrabajo + $total, 2);
         $retrabajoRows[] = [
@@ -125,6 +158,8 @@ if ($accion === 'ventas_cobranza') {
             'cliente_nombre' => $r['cliente_nombre'],
             'total'          => $total,
             'acumulado'      => $acumRetrabajo,
+            'cotizacion_id'  => (int)$r['cotizacion_id'],
+            'pagos'          => $pagosDetalleRetrabajo[$r['cotizacion_id']] ?? [],
         ];
     }
 
