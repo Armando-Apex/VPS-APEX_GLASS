@@ -439,11 +439,25 @@ if ($recurso === 'cotizacion') {
             if ((int)$stmtRuta->fetchColumn() > 0) {
                 jsonResponse(['error' => 'La orden va en una ruta en curso; quítala de la ruta antes de cancelarla']); exit;
             }
+
+            // BLV-1: mismo candado que ya tiene api/cotizaciones.php (LN-5) — bloquear si
+            // hay CFDI timbrado/timbrando vigente, para no regalar saldo a favor mientras
+            // el cliente se queda con la factura fiscal.
+            if ($facturaVigente = cotizacionesFacturaVigente($db, $cotM['orden_id'])) {
+                jsonResponse(['error' => 'Esta orden tiene la factura ' . $facturaVigente . ' timbrada vigente ante el SAT — cancélala primero en Facturación antes de cancelar la orden.']); exit;
+            }
         }
 
         $db->beginTransaction();
         try {
-            $db->prepare("UPDATE cotizaciones SET estatus='cancelada', updated_at=NOW() WHERE id=?")->execute([$id]);
+            // BLV-4: claim atómico, mismo patrón ya usado en api/cotizaciones.php (rechazar) —
+            // evita que doble clic/dos pestañas dupliquen el saldo a favor de abajo.
+            $stCancelM = $db->prepare("UPDATE cotizaciones SET estatus='cancelada', updated_at=NOW()
+                                       WHERE id=? AND estatus NOT IN ('cancelada','rechazada')");
+            $stCancelM->execute([$id]);
+            if ($stCancelM->rowCount() === 0) {
+                throw new Exception('La cotización ya fue cancelada o rechazada por otro proceso');
+            }
             if ($cotM['orden_id']) {
                 $db->prepare("UPDATE ordenes SET estado='cancelada', updated_at=NOW() WHERE id=? AND estado != 'entregada'")
                    ->execute([$cotM['orden_id']]);

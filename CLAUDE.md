@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 24 agosto 2026 | Próximo UPD disponible: UPD-538
+# Última actualización: 26 agosto 2026 | Próximo UPD disponible: UPD-540
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -633,4 +633,6 @@ Al terminar cualquier sesión con cambios:
 
 | UPD-538 | 24-ago-2026 | Armando | Seguimiento a UPD-537 (username/BSUID WhatsApp). Decisión: no construir la migración completa por adelantado — bajo impacto real hoy y el mecanismo de Meta puede seguir cambiando. Se agregó solo un canario barato: `api/whatsapp_webhook.php`, cuando el `from` de un mensaje entrante no pasa la validación numérica (10-15 dígitos) y además no es puramente numérico, ahora se loggea `[BSUID?] ... : <valor>` en error_log antes de descartar el mensaje (antes se perdía en silencio, sin rastro). Sin cambio de comportamiento para tráfico normal — solo visibilidad para detectar el momento exacto en que Meta empiece a mandar BSUID real, y disparar entonces la migración de los 4 puntos ya documentados (sección 12). `php -l` OK. |
 
-**Próximo UPD disponible: UPD-539**
+| UPD-539 | 26-ago-2026 | Mando | **Auditoría 2ª pasada (25-ago), Franja 1 sin BLO-02.** BLV-1: cancelar maquila ahora checa CFDI vigente (`cotizacionesFacturaVigente()` movida a `cotizacion_helpers.php`, compartida con `cotizaciones.php`). BLV-4: claim atómico en `cancelar` (cotizaciones.php y maquila.php) contra doble saldo a favor por doble clic. BLO-01: `actualizar_partida` (PUT, ordenes_compra.php) ya rechaza cantidad/precio negativos. BLV-5: `correcciones.php` bloquea correcciones monetarias con CFDI vigente y ya no esconde sobrepago con `max(0,...)` — el excedente se mueve a saldo a favor. Sin prueba en BD (esta sesión no tiene acceso a MySQL) — solo `php -l`, pendiente prueba visual. BLO-02 (flete) queda pendiente aparte por su mayor riesgo en Contabilidad. |
+
+**Próximo UPD disponible: UPD-540**

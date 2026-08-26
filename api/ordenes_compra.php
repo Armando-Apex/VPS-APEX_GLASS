@@ -986,7 +986,9 @@ if ($method === 'PUT') {
         $unidad  = strtoupper(trim($body['unidad'] ?? 'LAMINA'));
         $cant    = (float)($body['cantidad'] ?? 0);
         $precio  = (float)($body['precio_unitario'] ?? 0);
-        if (!$desc || !$cant || !$precio) jsonResponse(['error' => 'Faltan datos'], 422);
+        // BLO-01: chequeo falsy dejaba pasar cantidad/precio negativos (truthy en PHP) —
+        // mismo criterio que ya usa agregar_partida (A-3, L.320).
+        if (!$desc || $cant <= 0 || $precio <= 0) jsonResponse(['error' => 'Faltan campos requeridos (cantidad y precio deben ser mayores a 0)'], 422);
         $db->prepare("UPDATE oc_partidas SET descripcion=?, unidad=?, cantidad=?, precio_unitario=?
             WHERE id=?")
            ->execute([$desc, $unidad, $cant, $precio, $id]);

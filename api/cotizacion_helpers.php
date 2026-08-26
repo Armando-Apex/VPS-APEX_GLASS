@@ -5,6 +5,23 @@
 //  Usado por api/cotizaciones.php y api/maquila.php
 // ============================================================
 
+// LN-5 / BLV-1: una orden con CFDI timbrado (o en proceso de timbrado) vigente ante el SAT
+// no debe poder cancelarse/rechazarse — eso movería el dinero a saldo a favor
+// mientras el cliente se queda con la factura fiscal válida (doble beneficio).
+// Regresa el folio_interno de la factura que bloquea, o null si no hay ninguna.
+// Movida aquí (desde api/cotizaciones.php) para que api/maquila.php la reuse — BLV-1.
+function cotizacionesFacturaVigente(PDO $db, $ordenId) {
+    if (!$ordenId) return null;
+    $stO = $db->prepare("SELECT folio FROM ordenes WHERE id = ?");
+    $stO->execute([$ordenId]);
+    $ordenFolio = $stO->fetchColumn();
+    if (!$ordenFolio) return null;
+
+    $stF = $db->prepare("SELECT folio_interno FROM facturas WHERE orden_folio = ? AND estatus IN ('timbrada','timbrando') LIMIT 1");
+    $stF->execute([$ordenFolio]);
+    return $stF->fetchColumn() ?: null;
+}
+
 // ─── Función: generar siguiente folio de COTIZACIÓN ─────────────────────────
 function generarFolio($db) {
     $db->exec("LOCK TABLES folios_control WRITE");

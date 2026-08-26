@@ -23,21 +23,8 @@ require_once __DIR__ . '/helpers/totales.php';    // A-2: fórmula canónica de 
 require_once __DIR__ . '/helpers/referidos_lib.php'; // Esquema de Referidos (promo agosto 2026)
 require_once __DIR__ . '/helpers/promo_wa_lib.php';   // Promo Estados WhatsApp por volumen (15-ago-2026)
 
-// LN-5: una orden con CFDI timbrado (o en proceso de timbrado) vigente ante el SAT
-// no debe poder cancelarse/rechazarse — eso movería el dinero a saldo a favor
-// mientras el cliente se queda con la factura fiscal válida (doble beneficio).
-// Regresa el folio_interno de la factura que bloquea, o null si no hay ninguna.
-function cotizacionesFacturaVigente(PDO $db, $ordenId) {
-    if (!$ordenId) return null;
-    $stO = $db->prepare("SELECT folio FROM ordenes WHERE id = ?");
-    $stO->execute([$ordenId]);
-    $ordenFolio = $stO->fetchColumn();
-    if (!$ordenFolio) return null;
-
-    $stF = $db->prepare("SELECT folio_interno FROM facturas WHERE orden_folio = ? AND estatus IN ('timbrada','timbrando') LIMIT 1");
-    $stF->execute([$ordenFolio]);
-    return $stF->fetchColumn() ?: null;
-}
+// cotizacionesFacturaVigente() vive ahora en cotizacion_helpers.php (BLV-1, 26-ago-2026)
+// para que api/maquila.php también la use — no duplicar aquí.
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
 if ($method === 'GET') {
@@ -1182,8 +1169,15 @@ if ($method === 'PUT') {
 
         $db->beginTransaction();
         try {
-            // Cancelar ambas puntas
-            $db->prepare("UPDATE cotizaciones SET estatus='cancelada', updated_at=NOW() WHERE id=?")->execute([$id]);
+            // BLV-4: claim atómico, mismo patrón que 'rechazar' (:1230-1236) — evita que
+            // doble clic/dos pestañas cancelando a la vez pasen ambas el pre-chequeo de
+            // arriba y duplique el INSERT de saldo a favor más abajo.
+            $stCancel = $db->prepare("UPDATE cotizaciones SET estatus='cancelada', updated_at=NOW()
+                                      WHERE id=? AND estatus NOT IN ('cancelada','rechazada')");
+            $stCancel->execute([$id]);
+            if ($stCancel->rowCount() === 0) {
+                throw new Exception('La cotización ya fue cancelada o rechazada por otro proceso');
+            }
             if ($cot['orden_id']) {
                 $db->prepare("UPDATE ordenes SET estado='cancelada', updated_at=NOW() WHERE id=? AND estado != 'entregada'")
                    ->execute([$cot['orden_id']]);

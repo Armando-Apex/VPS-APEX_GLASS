@@ -8,6 +8,7 @@
 require_once 'config.php';
 require_once 'permisos.php';
 require_once __DIR__ . '/helpers/totales.php'; // A-2/C-5: fórmula canónica, ramifica maquila
+require_once 'cotizacion_helpers.php'; // BLV-5: cotizacionesFacturaVigente()
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: https://apex.glass');
@@ -58,6 +59,28 @@ if ($method === 'POST') {
     $folio      = $cot['folio'];
     $es_orden   = ($cot['estatus'] === 'orden');
     $cambios    = 0;
+
+    // BLV-5: $es_orden se calculaba y nunca se usaba — bloquear correcciones que
+    // afectan el monto (descuento, precio/medidas/cantidad de partida, eliminar
+    // partida) sobre una orden con CFDI timbrado/timbrando vigente. Sin esto,
+    // dir_admin podía corregir precios de una orden ya facturada y el CFDI se
+    // quedaba con un monto distinto al nuevo total canónico, sin avisar.
+    if ($es_orden && $cot['orden_id']) {
+        $tocaMonetario = array_key_exists('descuento', $body['cambios_header'] ?? [])
+            || !empty($body['eliminar_partidas']);
+        if (!$tocaMonetario) {
+            foreach ($body['cambios_partidas'] ?? [] as $pc) {
+                if (array_key_exists('precio_unitario', $pc) || array_key_exists('precio_m2_usado', $pc)
+                    || array_key_exists('cantidad', $pc) || array_key_exists('ancho', $pc) || array_key_exists('alto', $pc)) {
+                    $tocaMonetario = true;
+                    break;
+                }
+            }
+        }
+        if ($tocaMonetario && ($facturaVigente = cotizacionesFacturaVigente($db, $cot['orden_id']))) {
+            jsonResponse(['error' => 'Esta orden tiene la factura ' . $facturaVigente . ' timbrada vigente ante el SAT — no se pueden corregir montos, precios, medidas o cantidades. Cancela la factura primero en Facturación.'], 422);
+        }
+    }
 
     $db->beginTransaction();
     try {
@@ -433,18 +456,46 @@ if ($method === 'POST') {
             // El helper también incluye servicios_subtotal en el total.
             $tots = apexTotalesCotizacion($db, $cot_id);
 
-            $nuevo_total     = $tots['total'];
-            $saldo_pagado    = (float)$cot['saldo_pagado'];
-            $nuevo_pendiente = max(0, round($nuevo_total - $saldo_pagado, 2));
+            $nuevo_total        = $tots['total'];
+            $saldo_pagado       = (float)$cot['saldo_pagado'];
+            $nuevo_pendiente    = max(0, round($nuevo_total - $saldo_pagado, 2));
+            $nuevo_saldo_pagado = $saldo_pagado;
+
+            // BLV-5: max(0,...) escondía el sobrepago cuando una corrección baja el
+            // total por debajo de lo ya cobrado (ej. reducir descuento/cantidad tras
+            // haber cobrado con el monto anterior) — mover el excedente a saldo a
+            // favor del cliente en vez de dejarlo invisible, mismo patrón que ya usan
+            // cancelar/rechazar en cotizaciones.php.
+            $excedente = round($saldo_pagado - $nuevo_total, 2);
+            if ($excedente > 0.01 && $cot['cliente_id']) {
+                $db->prepare("INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
+                              VALUES (?, 'deposito', ?, CURDATE(), ?, ?, ?, ?)")
+                   ->execute([
+                       $cot['cliente_id'], $excedente,
+                       'Corrección ' . $folio,
+                       'Excedente por corrección que redujo el total por debajo de lo ya cobrado',
+                       $cot_id, $usuario
+                   ]);
+                $nuevo_saldo_pagado = $nuevo_total;
+
+                $db->prepare("
+                    INSERT INTO correcciones_log
+                        (tipo, referencia_id, folio, campo, valor_anterior, valor_nuevo, motivo, usuario)
+                    VALUES ('cotizacion', ?, ?, 'saldo_pagado', ?, ?, ?, ?)
+                ")->execute([
+                    $cot_id, $folio, $saldo_pagado, $nuevo_saldo_pagado,
+                    'Excedente $' . $excedente . ' movido a saldo a favor por corrección', $usuario,
+                ]);
+            }
 
             $db->prepare("
                 UPDATE cotizaciones
-                SET subtotal = ?, iva = ?, total = ?, saldo_pendiente = ?, updated_at = NOW()
+                SET subtotal = ?, iva = ?, total = ?, saldo_pendiente = ?, saldo_pagado = ?, updated_at = NOW()
                 WHERE id = ?
             ")->execute([
                 $tots['subtotal'],
                 $tots['iva'],
-                $nuevo_total, $nuevo_pendiente, $cot_id,
+                $nuevo_total, $nuevo_pendiente, $nuevo_saldo_pagado, $cot_id,
             ]);
         }
 
