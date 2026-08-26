@@ -776,7 +776,7 @@ function rvCargar() {
 function rvRender(data) {
   var p = data.periodo || {};
   var lbl = document.getElementById('rvLabel');
-  if (lbl) lbl.textContent = p.label || '&#8212;';
+  if (lbl) lbl.textContent = p.label || '—';
   var ordenes = data.ordenes || [];
   var html = '';
   if (ordenes.length === 0) {
@@ -794,7 +794,7 @@ function rvRender(data) {
       var restanteColor = parseFloat(o.restante) > 0.005 ? 'var(--red)' : 'var(--muted-lt)';
       html += '<tr>' +
         '<td><strong class="rv-folio-link" style="color:var(--blue)" onclick="rvTogglePagos(' + o.cotizacion_id + ')">' + esc(o.folio) + '</strong></td>' +
-        '<td>' + esc(o.asesor_nombre || '&#8212;') + '</td>' +
+        '<td>' + esc(o.asesor_nombre || '—') + '</td>' +
         '<td>' + esc(o.cliente_nombre) + '</td>' +
         '<td style="text-align:right;color:var(--green)">' + fmtPeso(o.anticipo) + '</td>' +
         '<td style="text-align:right;color:' + restanteColor + '">' + fmtPeso(o.restante) + '</td>' +
@@ -822,7 +822,7 @@ function rvRender(data) {
     retrabajo.forEach(function(o) {
       html += '<tr>' +
         '<td><strong class="rv-folio-link" style="color:var(--blue)" onclick="rvTogglePagos(' + o.cotizacion_id + ')">' + esc(o.folio) + '</strong></td>' +
-        '<td>' + esc(o.asesor_nombre || '&#8212;') + '</td>' +
+        '<td>' + esc(o.asesor_nombre || '—') + '</td>' +
         '<td>' + esc(o.cliente_nombre) + '</td>' +
         '<td style="text-align:right;color:var(--red)">' + fmtPeso(o.total) + '</td>' +
         '<td style="text-align:right;color:var(--muted)">' + fmtPeso(o.acumulado) + '</td>' +
@@ -838,14 +838,14 @@ function rvRender(data) {
   if (saldosFavor.length === 0) {
     html += '<div class="loading" style="padding:24px">Sin saldos a favor nuevos en este per&#237;odo</div>';
   } else {
-    var tipoLbl = { deposito: 'Dep&#243;sito', referido: 'Bono referido' };
+    var tipoLbl = { deposito: 'Depósito', referido: 'Bono referido' };
     html += '<div class="table-card"><table><thead><tr>' +
       '<th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Registr&#243; / Referencia</th>' +
       '<th style="text-align:right">Monto</th>' +
       '<th style="text-align:right">Acumulado del ' + granLbl2 + '</th>' +
     '</tr></thead><tbody>';
     saldosFavor.forEach(function(s) {
-      var refTxt = s.referencia || s.notas || s.creado_por || '&#8212;';
+      var refTxt = s.referencia || s.notas || s.creado_por || '—';
       html += '<tr>' +
         '<td>' + esc(s.fecha) + '</td>' +
         '<td>' + esc(s.cliente_nombre) + '</td>' +
@@ -876,7 +876,7 @@ function rvPagosHTML(pagos) {
         '<span class="rv-pago-forma">' + esc(fl) + '</span>' +
         (p.notas ? '<span class="rv-pago-notas">' + esc(p.notas) + '</span>' : '<span class="rv-pago-notas"></span>') +
         '<span class="rv-pago-monto">' + fmtPeso(p.monto) + '</span>' +
-        '<span class="rv-pago-por">por ' + esc(p.registrado_por || '&#8212;') + '</span>' +
+        '<span class="rv-pago-por">por ' + esc(p.registrado_por || '—') + '</span>' +
       '</div>';
     });
   }
