@@ -538,6 +538,9 @@ function estadoPago(total, pagado) {
 function renderKpis() {
   var total = 0, cobrado = 0;
   _lista.forEach(function(o) {
+    // Retrabajo no es venta ni cobro real (la empresa absorbe el costo, ver P&L 5.5) —
+    // nunca debe sumar en las tarjetas de dinero, aunque el filtro esté en "Todos".
+    if (+o.es_retrabajo === 1) return;
     total   += parseFloat(o.total||0);
     cobrado += parseFloat(o.saldo_pagado||0);
   });

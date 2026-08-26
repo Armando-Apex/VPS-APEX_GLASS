@@ -55,6 +55,7 @@ if ($accion === 'ventas_cobranza') {
         JOIN cotizaciones c ON c.orden_id = o.id
         JOIN clientes cl ON cl.id = c.cliente_id
         WHERE o.estado IN ('activa','entregada')
+          AND c.es_retrabajo = 0
           AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
         ORDER BY fecha_orden ASC, o.id ASC
     ");
