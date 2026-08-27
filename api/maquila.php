@@ -212,6 +212,7 @@ if ($recurso === 'cotizacion') {
     $ciudad       = trim($body['ciudad_destino'] ?? '');
     $tipo_entrega = in_array($body['tipo_entrega'] ?? '', ['domicilio','planta']) ? $body['tipo_entrega'] : 'domicilio';
     $partidas     = $body['partidas'] ?? [];
+    $descuento    = max(0, min(100, (float)($body['descuento'] ?? 0))); // mismo clamp que cotizaciones.php
 
     if (!$cliente_id)      { jsonResponse(['error' => 'Cliente requerido']); exit; }
     if (empty($partidas))  { jsonResponse(['error' => 'Se requiere al menos una partida']); exit; }
@@ -225,18 +226,22 @@ if ($recurso === 'cotizacion') {
     $fecha_entrega = calcularFechaEntrega($db, date('Y-m-d'), $localidad, $ciudad);
 
     $partidas_calc = [];
-    $subtotal_total = 0;
+    $bruto_total = 0;
     foreach ($partidas as $p) {
         $calc = calcularPartidaMaquila($db, $p);
         if ($calc === null) continue;
         if (isset($calc['__error'])) { jsonResponse(['error' => $calc['__error']]); exit; }
         $partidas_calc[] = $calc;
-        $subtotal_total += $calc['subtotal'];
+        $bruto_total += $calc['subtotal'];
     }
     if (empty($partidas_calc)) { jsonResponse(['error' => 'Ninguna partida válida']); exit; }
 
-    $iva_total   = round($subtotal_total * 0.16, 2);
-    $total_final = round($subtotal_total + $iva_total, 2);
+    // El descuento se aplica al bruto de las partidas, igual que en cotizaciones
+    // normales (api/helpers/totales.php::apexTotales) — maquila no tiene servicios
+    // adicionales aparte, así que la base gravable es directo el subtotal neto.
+    $subtotal_total = round($bruto_total * (1 - $descuento / 100), 2);
+    $iva_total      = round($subtotal_total * 0.16, 2);
+    $total_final    = round($subtotal_total + $iva_total, 2);
 
     $folio = generarFolio($db);
 
@@ -245,13 +250,13 @@ if ($recurso === 'cotizacion') {
         $db->prepare("INSERT INTO cotizaciones
             (folio, fecha, cliente_id, cliente_nombre, asesor_id, asesor_nombre,
              proyecto, tipo_entrega, localidad, ciudad_destino, fecha_entrega,
-             subtotal, iva, total, saldo_pendiente, estatus, tipo)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             descuento, subtotal, iva, total, saldo_pendiente, estatus, tipo)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ")->execute([
             $folio, date('Y-m-d'), $cliente_id, $cliente_nombre,
             $usuario_id, $usuario_nombre, $proyecto, $tipo_entrega,
             $localidad, $ciudad, $fecha_entrega,
-            $subtotal_total, $iva_total, $total_final, $total_final,
+            $descuento, $subtotal_total, $iva_total, $total_final, $total_final,
             'cotizacion', 'maquila'
         ]);
         $cot_id = $db->lastInsertId();
@@ -281,6 +286,17 @@ if ($recurso === 'cotizacion') {
         }
 
         $db->commit();
+
+        // Mismo candado que cotizaciones.php: descuento >10% requiere autorización
+        // de Dirección antes de poder convertir la cotización a orden.
+        if ($descuento > 10 && !in_array($rol, ['dir_admin', 'desarrollo'])) {
+            $motivo_auth = trim($body['motivo_descuento'] ?? '');
+            try {
+                $db->prepare("INSERT INTO autorizaciones_descuento (cotizacion_id, folio, descuento, motivo, solicitado_por) VALUES (?,?,?,?,?)")
+                   ->execute([$cot_id, $folio, $descuento, $motivo_auth, $usuario_nombre]);
+            } catch (Exception $ignored) {}
+        }
+
         jsonResponse(['ok' => true, 'id' => $cot_id, 'folio' => $folio]);
         exit;
     } catch (Exception $e) {
@@ -323,20 +339,22 @@ if ($recurso === 'cotizacion') {
             }
         }
 
-        $partidas = $body['partidas'] ?? [];
+        $partidas  = $body['partidas'] ?? [];
+        $descuento = max(0, min(100, (float)($body['descuento'] ?? 0)));
         if (empty($partidas)) { jsonResponse(['error' => 'Se requiere al menos una partida']); exit; }
 
         $partidas_calc = [];
-        $subtotal_total = 0;
+        $bruto_total = 0;
         foreach ($partidas as $p) {
             $calc = calcularPartidaMaquila($db, $p);
             if ($calc === null) continue;
             if (isset($calc['__error'])) { jsonResponse(['error' => $calc['__error']]); exit; }
             $partidas_calc[] = $calc;
-            $subtotal_total += $calc['subtotal'];
+            $bruto_total += $calc['subtotal'];
         }
         if (empty($partidas_calc)) { jsonResponse(['error' => 'Ninguna partida válida']); exit; }
 
+        $subtotal_total  = round($bruto_total * (1 - $descuento / 100), 2);
         $iva_total       = round($subtotal_total * 0.16, 2);
         $total_final     = round($subtotal_total + $iva_total, 2);
         $saldo_pagado    = (float)($cot['saldo_pagado'] ?? 0);
@@ -350,8 +368,8 @@ if ($recurso === 'cotizacion') {
                 $partidas_antes = $sp->fetchAll(PDO::FETCH_ASSOC);
             }
 
-            $db->prepare("UPDATE cotizaciones SET subtotal=?, iva=?, total=?, saldo_pendiente=?, updated_at=NOW() WHERE id=?")
-               ->execute([$subtotal_total, $iva_total, $total_final, $saldo_pendiente, $id]);
+            $db->prepare("UPDATE cotizaciones SET descuento=?, subtotal=?, iva=?, total=?, saldo_pendiente=?, updated_at=NOW() WHERE id=?")
+               ->execute([$descuento, $subtotal_total, $iva_total, $total_final, $saldo_pendiente, $id]);
 
             $db->prepare("DELETE FROM cotizaciones_maquila_partidas WHERE cotizacion_id = ?")->execute([$id]);
 
@@ -394,6 +412,35 @@ if ($recurso === 'cotizacion') {
             }
 
             $db->commit();
+
+            // C-2: invalidar aprobaciones previas cuyo % ya no coincide con el actual
+            // (mismo criterio que api/cotizaciones.php).
+            $db->prepare("UPDATE autorizaciones_descuento
+                SET estatus = 'rechazado', nota_resolucion = ?, fecha_resolucion = NOW()
+                WHERE cotizacion_id = ? AND estatus = 'aprobado' AND descuento <> ?")
+               ->execute([
+                   'Invalidada automáticamente: el descuento cambió a ' . $descuento . '% — requiere nueva autorización',
+                   $id, $descuento
+               ]);
+
+            if ($descuento > 10 && !in_array($rol, ['dir_admin', 'desarrollo'])) {
+                $motivo_auth = trim($body['motivo_descuento'] ?? '');
+                $chk = $db->prepare("SELECT id, descuento, estatus FROM autorizaciones_descuento WHERE cotizacion_id = ? ORDER BY fecha_solicitud DESC LIMIT 1");
+                $chk->execute([$id]);
+                $ultima = $chk->fetch(PDO::FETCH_ASSOC);
+
+                if (!$ultima) {
+                    $db->prepare("INSERT INTO autorizaciones_descuento (cotizacion_id, folio, descuento, motivo, solicitado_por) VALUES (?,?,?,?,?)")
+                       ->execute([$id, $cot['folio'], $descuento, $motivo_auth, $usuario_nombre]);
+                } elseif ($ultima['estatus'] === 'pendiente') {
+                    $db->prepare("UPDATE autorizaciones_descuento SET descuento=?, motivo=?, fecha_solicitud=NOW() WHERE id=?")
+                       ->execute([$descuento, $motivo_auth, $ultima['id']]);
+                } elseif ($ultima['estatus'] === 'rechazado' || ((float)$ultima['descuento'] !== $descuento && $ultima['estatus'] === 'aprobado')) {
+                    $db->prepare("INSERT INTO autorizaciones_descuento (cotizacion_id, folio, descuento, motivo, solicitado_por) VALUES (?,?,?,?,?)")
+                       ->execute([$id, $cot['folio'], $descuento, $motivo_auth, $usuario_nombre]);
+                }
+            }
+
             jsonResponse(['ok' => true]);
             exit;
         } catch (Exception $e) {

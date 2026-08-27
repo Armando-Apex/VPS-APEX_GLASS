@@ -322,6 +322,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
           <option value="foraneo">For&aacute;neo</option>
         </select>
       </div>
+      <div class="field">
+        <label>Descuento %</label>
+        <input type="number" id="mn_descuento" min="0" max="100" step="0.01" value="0" oninput="ModMaquilaNueva._descuentoCambio()">
+      </div>
     </div>
   </div>
 
@@ -332,6 +336,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   </div>
 
   <div class="totales-box">
+    <div class="totales-row"><span>Subtotal</span><span>$<span id="mn_subtotal">0.00</span></span></div>
+    <div class="totales-row" id="mn_descuento_row" style="display:none;color:#dc2626;"><span id="mn_descuento_lbl">Descuento</span><span>-$<span id="mn_descuento_monto">0.00</span></span></div>
+    <div class="totales-row"><span>IVA</span><span>$<span id="mn_iva">0.00</span></span></div>
     <div class="totales-row"><span>Total</span><span>$<span id="mn_total">0.00</span></span></div>
   </div>
 
@@ -350,6 +357,7 @@ var tiposVidrio = [];
 var precios = [];
 var partidas = [];
 var clienteId = 0;
+var descuento = 0;
 var esOrdenEdit = false;
 var _buscarTimer = null;
 var ESPESORES = [5,6,9,12];
@@ -375,6 +383,8 @@ async function cargarCatalogos() {
     document.getElementById('mn_cliente_busqueda').value = cot.cliente_nombre || '';
     document.getElementById('mn_cliente_busqueda').disabled = true;
     document.getElementById('mn_localidad').value = cot.localidad || 'local';
+    descuento = parseFloat(cot.descuento) || 0;
+    document.getElementById('mn_descuento').value = descuento;
     esOrdenEdit = (cot.estatus === 'orden');
     if (esOrdenEdit) {
       document.getElementById('mn_card_correccion').style.display = 'block';
@@ -564,9 +574,29 @@ function render() {
   }
   document.getElementById('mn_partidas').innerHTML = html;
 
-  var totalGeneral = 0;
-  for (var j = 0; j < partidas.length; j++) totalGeneral += subtotalPartida(partidas[j]);
-  document.getElementById('mn_total').textContent = (totalGeneral * 1.16).toFixed(2);
+  var bruto = 0;
+  for (var j = 0; j < partidas.length; j++) bruto += subtotalPartida(partidas[j]);
+  var descPct   = Math.max(0, Math.min(100, descuento || 0));
+  var descMonto = bruto * descPct / 100;
+  var neto      = bruto - descMonto;
+  var iva       = neto * 0.16;
+  document.getElementById('mn_subtotal').textContent = bruto.toFixed(2);
+  var descRow = document.getElementById('mn_descuento_row');
+  if (descPct > 0) {
+    descRow.style.display = '';
+    document.getElementById('mn_descuento_lbl').textContent = 'Descuento (' + descPct + '%)';
+    document.getElementById('mn_descuento_monto').textContent = descMonto.toFixed(2);
+  } else {
+    descRow.style.display = 'none';
+  }
+  document.getElementById('mn_iva').textContent = iva.toFixed(2);
+  document.getElementById('mn_total').textContent = (neto + iva).toFixed(2);
+}
+
+function descuentoCambio() {
+  var v = parseFloat(document.getElementById('mn_descuento').value);
+  descuento = Math.max(0, Math.min(100, isNaN(v) ? 0 : v));
+  render();
 }
 
 async function guardar() {
@@ -578,8 +608,8 @@ async function guardar() {
 
   try {
     var body = editId
-      ? { recurso: 'cotizacion', accion: 'actualizar', id: editId, partidas: partidas, motivo: motivo }
-      : { recurso: 'cotizacion', accion: 'crear', cliente_id: clienteId, localidad: localidad, partidas: partidas };
+      ? { recurso: 'cotizacion', accion: 'actualizar', id: editId, partidas: partidas, motivo: motivo, descuento: descuento }
+      : { recurso: 'cotizacion', accion: 'crear', cliente_id: clienteId, localidad: localidad, partidas: partidas, descuento: descuento };
     var res = await fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -606,6 +636,7 @@ return {
   _campo: actualizarCampo,
   _buscarCliente: buscarCliente,
   _seleccionarCliente: seleccionarCliente,
+  _descuentoCambio: descuentoCambio,
   _guardar: guardar,
   _volver: volver
 };

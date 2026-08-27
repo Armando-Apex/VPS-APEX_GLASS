@@ -34,14 +34,14 @@ function apexTotalesCotizacion(PDO $db, $cotizacion_id) {
     if (!$cot) return null;
 
     if (($cot['tipo'] ?? '') === 'maquila') {
-        // Maquila: las partidas viven en cotizaciones_maquila_partidas y
-        // ya traen su subtotal calculado por api/maquila.php (sin descuento,
-        // ni siquiera el manual — el descuento de maquila se aplica distinto,
-        // a nivel partida en api/maquila.php). Referidos: mismo criterio,
-        // no aplica por esta vía para maquila.
+        // Maquila: las partidas viven en cotizaciones_maquila_partidas y ya traen
+        // su subtotal BRUTO (catálogo, sin descuento) calculado por api/maquila.php.
+        // El descuento manual (cotizaciones.descuento) se aplica aquí al bruto,
+        // igual que en cotizaciones normales — maquila no tiene descuento_referido
+        // ni servicios adicionales aparte (UPD-553).
         $st = $db->prepare("SELECT COALESCE(SUM(subtotal),0) FROM cotizaciones_maquila_partidas WHERE cotizacion_id = ?");
         $st->execute([(int)$cotizacion_id]);
-        return apexTotales((float)$st->fetchColumn(), 0, (float)$cot['servicios_subtotal']);
+        return apexTotales((float)$st->fetchColumn(), (float)$cot['descuento'], (float)$cot['servicios_subtotal']);
     }
 
     // Descuento efectivo = manual (asesor) + automático de cliente referido (suma, no cascada).

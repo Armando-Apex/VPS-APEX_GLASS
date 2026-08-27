@@ -518,14 +518,14 @@ function waEnviar() {
         <td colspan="2"></td>
       </tr>
       <?php if (empty($servicios_det)): ?>
-      <tr style="background:#f0fdf4;">
+      <tr>
         <td></td>
         <td colspan="3" style="color:#15803d;font-size:10px;padding-left:14px;">Filo Muerto</td>
         <td class="right"></td>
       </tr>
       <?php endif; ?>
       <?php foreach ($servicios_det as $srv): ?>
-      <tr style="background:#f0fdf4;">
+      <tr>
         <td></td>
         <td colspan="3" style="color:#15803d;font-size:10px;padding-left:14px;">
           <?= $srv['nombre'] ?> &mdash; <?= $srv['detalle'] ?>
