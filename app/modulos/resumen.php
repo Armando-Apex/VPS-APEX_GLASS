@@ -1,15 +1,41 @@
 <?php
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
-requirePermiso('ver_dashboard');
+require_once __DIR__ . '/../../api/helpers/icons.php';
+$user = requirePermiso('ver_dashboard');
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=resumen'); exit;
 }
 header('Content-Type: text/html; charset=utf-8');
+
+$primerNombre = trim(explode(' ', trim($user['nombre'] ?? ''))[0] ?? '');
+$hora   = (int)date('G');
+$saludo = $hora < 12 ? 'Buenos d&#237;as' : ($hora < 19 ? 'Buenas tardes' : 'Buenas noches');
+$DIAS   = ['Sunday'=>'Domingo','Monday'=>'Lunes','Tuesday'=>'Martes','Wednesday'=>'Mi&#233;rcoles','Thursday'=>'Jueves','Friday'=>'Viernes','Saturday'=>'S&#225;bado'];
+$MESES  = ['January'=>'enero','February'=>'febrero','March'=>'marzo','April'=>'abril','May'=>'mayo','June'=>'junio','July'=>'julio','August'=>'agosto','September'=>'septiembre','October'=>'octubre','November'=>'noviembre','December'=>'diciembre'];
+$fechaFmt = $DIAS[date('l')] . ' ' . (int)date('j') . ' de ' . $MESES[date('F')];
 ?>
 <meta charset="UTF-8">
 <style>
 .res-wrap { padding: 20px 24px; }
+
+/* Bienvenida corporativa */
+.res-hero { position: relative; background: #0f172a; border-radius: 16px; padding: 26px 28px; margin-bottom: 22px; overflow: hidden; }
+.res-hero::before { content:''; position:absolute; inset:0; background: linear-gradient(115deg, transparent 42%, rgba(255,255,255,.055) 50%, transparent 58%); pointer-events:none; }
+.res-hero-in { position: relative; }
+.res-hero-eyebrow { font-family:'Syncopate',sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 2.5px; color: #60a5fa; text-transform: uppercase; margin-bottom: 12px; }
+.res-hero-greet { font-size: 21px; font-weight: 700; color: #fff; }
+.res-hero-date { font-size: 13px; color: #94a3b8; margin-top: 4px; text-transform: capitalize; }
+
+.kpi-section { margin-bottom: 20px; }
+.kpi-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #64748b; margin-bottom: 8px; padding-left: 2px; }
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.kpi-card { background: #fff; border-radius: 12px; padding: 15px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); display: flex; align-items: flex-start; gap: 12px; cursor: pointer; transition: box-shadow .15s, transform .15s; border: none; text-align: left; width: 100%; font-family: inherit; }
+.kpi-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.09); transform: translateY(-1px); }
+.kpi-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.kpi-value { font-size: 21px; font-weight: 800; color: #1e293b; line-height: 1.15; }
+.kpi-lbl { font-size: 12px; color: #64748b; margin-top: 2px; }
+
 .stats-row { display: flex; gap: 10px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 4px; }
 .stat-card { background: #fff; border-radius: 12px; padding: 16px 18px; min-width: 110px; flex: 1;
   box-shadow: 0 1px 3px rgba(0,0,0,.06); border-top: 3px solid transparent; text-align: center; }
@@ -44,6 +70,13 @@ tbody td { padding: 10px 14px; font-size: 13px; }
 
 @media(max-width:768px){
   .res-wrap { padding: 12px; }
+
+  .res-hero { padding: 18px 16px; border-radius: 12px; margin-bottom: 16px; }
+  .res-hero-greet { font-size: 17px; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .kpi-card { padding: 12px; }
+  .kpi-value { font-size: 18px; }
+  .kpi-section { margin-bottom: 16px; }
 
   /* Stats: grid 4 columnas apretadas */
   .stats-row {
@@ -80,6 +113,26 @@ tbody td { padding: 10px 14px; font-size: 13px; }
 </style>
 
 <div class="res-wrap">
+  <div class="res-hero">
+    <div class="res-hero-in">
+      <div class="res-hero-eyebrow">Apex Glass &middot; Producci&#243;n</div>
+      <div class="res-hero-greet"><?= $saludo ?><?= $primerNombre !== '' ? ', ' . htmlspecialchars($primerNombre, ENT_QUOTES) : '' ?></div>
+      <div class="res-hero-date"><?= $fechaFmt ?></div>
+    </div>
+  </div>
+
+  <div class="kpi-section" id="res-kpi-comercial" style="display:none">
+    <div class="kpi-label">Comercial &middot; este mes</div>
+    <div class="kpi-row" id="res-kpi-comercial-row"></div>
+  </div>
+
+  <div class="kpi-section">
+    <div class="kpi-label">Producci&#243;n</div>
+    <div class="kpi-row" id="res-kpi-operativo-row">
+      <div class="loading-mod">Cargando&#8230;</div>
+    </div>
+  </div>
+
   <div class="stats-row" id="res-stats">
     <div class="loading-mod">Cargando&#8230;</div>
   </div>
@@ -136,6 +189,28 @@ window.ModResumen = (function() {
     canteado:'Canteado', trazo:'Trazo', taladro:'Taladro',
     en_horno:'En Horno', terminado:'Terminado', entregado:'Entregado', reproceso:'Reproceso'
   };
+  const KPI_ICONS = {
+    ordenes:    `<?= icono('clipboard-list') ?>`,
+    piezas:     `<?= icono('layers') ?>`,
+    retraso:    `<?= icono('alert-triangle') ?>`,
+    terminadas: `<?= icono('check-square') ?>`,
+    ventas:     `<?= icono('trending-up') ?>`,
+    cobrado:    `<?= icono('credit-card') ?>`,
+    porcobrar:  `<?= icono('file-text') ?>`,
+    vobo:       `<?= icono('check-square') ?>`
+  };
+
+  function fmtM(n) { return (typeof window.fmtMXN === 'function') ? window.fmtMXN(n) : '$' + Math.round(n||0).toLocaleString('es-MX'); }
+
+  function kpiCard(icon, color, bg, valor, lbl, onclick) {
+    return `<button type="button" class="kpi-card" onclick="${onclick}">
+      <span class="kpi-icon" style="background:${bg};color:${color}">${icon}</span>
+      <span>
+        <div class="kpi-value">${valor}</div>
+        <div class="kpi-lbl">${lbl}</div>
+      </span>
+    </button>`;
+  }
 
   async function cargar() {
     try {
@@ -146,14 +221,15 @@ window.ModResumen = (function() {
         _totalPaginas = data.paginacion.paginas || 1;
       }
       renderStats(data.totales || {});
+      renderKpiOperativo(data.operativo || {});
+      renderKpiComercial(data.comercial || null);
       renderTabla(data.ordenes || []);
       renderMovs(data.movimientos || []);
-      // Actualizar badge de vencidas en el sidebar
-      const hoy  = new Date();
-      const venc = (data.ordenes || []).filter(o =>
-        o.fecha_entrega && new Date(o.fecha_entrega) < hoy && parseInt(o.avance_pct||0) < 100
-      ).length;
-      if (typeof window.actualizarBadge === 'function') window.actualizarBadge(venc);
+      // Actualizar badge de vencidas en el sidebar (conteo real de todas
+      // las órdenes activas, no solo la página cargada)
+      if (typeof window.actualizarBadge === 'function' && data.operativo) {
+        window.actualizarBadge(data.operativo.retraso || 0);
+      }
     } catch(e) {
       document.getElementById('res-tabla').innerHTML =
         '<tr><td colspan="8" class="loading-mod" style="color:#dc2626">Error al cargar</td></tr>';
@@ -176,6 +252,28 @@ window.ModResumen = (function() {
         <div class="lbl">${s.lbl}</div>
       </div>`
     ).join('');
+  }
+
+  function renderKpiOperativo(op) {
+    const retrasoHay = (op.retraso || 0) > 0;
+    const html =
+      kpiCard(KPI_ICONS.ordenes, '#2563eb', '#eff6ff', op.ordenes_activas||0, 'Órdenes activas', "irA('ordenes')") +
+      kpiCard(KPI_ICONS.piezas, '#7c3aed', '#f5f3ff', op.piezas_proceso||0, 'Piezas en proceso', "irA('estaciones')") +
+      kpiCard(KPI_ICONS.retraso, retrasoHay?'#dc2626':'#16a34a', retrasoHay?'#fee2e2':'#dcfce7', op.retraso||0, 'Órdenes con retraso', "irA('ordenes')") +
+      kpiCard(KPI_ICONS.terminadas, '#16a34a', '#dcfce7', op.terminadas_hoy||0, 'Piezas terminadas hoy', "irA('estaciones')");
+    document.getElementById('res-kpi-operativo-row').innerHTML = html;
+  }
+
+  function renderKpiComercial(com) {
+    const wrap = document.getElementById('res-kpi-comercial');
+    if (!com) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    const html =
+      kpiCard(KPI_ICONS.ventas, '#2563eb', '#eff6ff', fmtM(com.ventas_mes), 'Ventas del mes', "irA('reporte_direccion')") +
+      kpiCard(KPI_ICONS.cobrado, '#16a34a', '#dcfce7', fmtM(com.cobrado_mes), 'Cobrado del mes', "irA('finanzas_cobranza')") +
+      kpiCard(KPI_ICONS.porcobrar, '#d97706', '#fef9c3', fmtM(com.por_cobrar), 'Por cobrar', "irA('finanzas_cobranza')") +
+      kpiCard(KPI_ICONS.vobo, '#2563eb', '#eff6ff', com.pendientes_vobo||0, 'Pendientes de VoBo', "irA('finanzas_vobo')");
+    document.getElementById('res-kpi-comercial-row').innerHTML = html;
   }
 
   function renderTabla(ordenes) {

@@ -122,6 +122,76 @@ $totales = $db->query('
     WHERE o.estado = "activa"
 ')->fetch();
 
+// ── KPIs operativos — bienvenida corporativa (todos los roles) ──
+$ordenesActivas = (int)$db->query("SELECT COUNT(*) FROM ordenes WHERE estado = 'activa'")->fetchColumn();
+
+$piezasProceso = (int)$totales['pendiente'] + (int)$totales['en_corte'] + (int)$totales['canteado']
+               + (int)$totales['trazo'] + (int)$totales['en_horno'];
+
+$ordenesRetraso = (int)$db->query("
+    SELECT COUNT(*) FROM (
+        SELECT o.id
+        FROM ordenes o
+        JOIN piezas p ON p.orden_id = o.id
+        WHERE o.estado = 'activa' AND o.fecha_entrega < CURDATE()
+        GROUP BY o.id
+        HAVING SUM(p.estatus NOT IN ('terminado','entregado')) > 0
+    ) t
+")->fetchColumn();
+
+$terminadasHoy = (int)$db->query("
+    SELECT COUNT(*) FROM historial_estatus
+    WHERE estatus_nuevo = 'terminado' AND DATE(created_at) = CURDATE()
+")->fetchColumn();
+
+$operativo = [
+    'ordenes_activas' => $ordenesActivas,
+    'piezas_proceso'  => $piezasProceso,
+    'retraso'         => $ordenesRetraso,
+    'terminadas_hoy'  => $terminadasHoy,
+];
+
+// ── KPIs comerciales — solo roles con visión financiera (mismo
+//    criterio que Reporte Dirección: ventas/cobrado excluyen
+//    retrabajo, UPD-510/512/541) ──
+$esDir = in_array($rolSesion, ['dueno', 'dir_admin', 'director', 'administracion', 'desarrollo']);
+$comercial = null;
+if ($esDir) {
+    $inicioMes = date('Y-m-01');
+    $hoy       = date('Y-m-d');
+    $stmtC = $db->prepare("
+        SELECT
+            COALESCE(SUM(c.total), 0)        AS ventas,
+            COALESCE(SUM(c.saldo_pagado), 0) AS cobrado
+        FROM ordenes o
+        JOIN cotizaciones c ON c.orden_id = o.id
+        WHERE o.estado IN ('activa', 'entregada')
+          AND c.estatus NOT IN ('cancelada', 'rechazada')
+          AND c.es_retrabajo = 0
+          AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
+    ");
+    $stmtC->execute([$inicioMes, $hoy]);
+    $fin = $stmtC->fetch();
+
+    $porCobrar = $db->query("
+        SELECT COALESCE(SUM(GREATEST(COALESCE(c.total,0) - COALESCE(c.saldo_pagado,0), 0)), 0)
+        FROM ordenes o
+        JOIN cotizaciones c ON c.orden_id = o.id
+        WHERE o.estado IN ('activa', 'entregada')
+          AND c.estatus NOT IN ('cancelada', 'rechazada')
+          AND c.es_retrabajo = 0
+    ")->fetchColumn();
+
+    $voboPend = (int)$db->query("SELECT COUNT(*) FROM ordenes WHERE estado = 'pendiente_vobo'")->fetchColumn();
+
+    $comercial = [
+        'ventas_mes'      => round((float)$fin['ventas'], 2),
+        'cobrado_mes'     => round((float)$fin['cobrado'], 2),
+        'por_cobrar'      => round((float)$porCobrar, 2),
+        'pendientes_vobo' => $voboPend,
+    ];
+}
+
 // ── Últimos movimientos — hasta 100 (el frontend ofrece ver 25/50/100
 //    recortando este mismo arreglo en memoria, sin volver a pedirlo) ──
 $movimientos = $db->query('
@@ -140,6 +210,8 @@ $movimientos = $db->query('
 jsonResponse([
     'ordenes'      => $resumen,
     'totales'      => $totales,
+    'operativo'    => $operativo,
+    'comercial'    => $comercial,
     'movimientos'  => $movimientos,
     'paginacion'   => [
         'pagina'     => $pagina,
