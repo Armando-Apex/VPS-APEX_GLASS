@@ -94,6 +94,18 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
         jsonResponse(['error' => 'Cotización no corresponde a esta orden'], 400);
     }
 
+    // BLV-7: registrar_salida nunca verificaba ordenes.estado — si la orden se
+    // canceló por otra vía que no resetea bien la cotización (ej. admin_ordenes),
+    // la barrera de cobro podía seguir "pasando" y se entregaba producto de una
+    // orden cancelada. 'activa' es el único estado desde el que tiene sentido salir
+    // mercancía (entregada/cancelada ya cerraron por otra vía).
+    $stmtOe = $db->prepare('SELECT estado FROM ordenes WHERE id = ?');
+    $stmtOe->execute([$orden_id]);
+    $estadoOrden = $stmtOe->fetchColumn();
+    if ($estadoOrden !== 'activa') {
+        jsonResponse(['error' => 'La orden no está activa (estado actual: ' . $estadoOrden . ') — no se puede registrar salida'], 422);
+    }
+
     // A-8: barrera de cobro EN SERVIDOR (antes solo existía en el frontend).
     // Sale la mercancía si: pago completo (total canónico), o Finanzas autorizó
     // el estatus de pago (bitácora C-11), o dir_admin autorizó la entrega con adeudo.

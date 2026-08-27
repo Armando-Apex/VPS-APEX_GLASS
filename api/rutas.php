@@ -541,10 +541,15 @@ if ($method === 'POST') {
         $entrega_id = (int)($body['entrega_id'] ?? 0);
         $estado     = $body['estado'] ?? '';
         $notas      = trim($body['notas_entrega'] ?? '');
+        $motivo     = trim($body['motivo'] ?? '');
         if (!$entrega_id || !in_array($estado, ['entregado','no_entregado','pendiente'])) {
             jsonResponse(['error' => 'Datos inválidos']); exit;
         }
-        // Chofer solo puede marcar entregas de rutas asignadas a su nombre
+        // BLO-04: la reversa a 'pendiente' de una parada ya 'entregado' ("deshacer
+        // entrega") des-entrega mercancía potencialmente ya cobrada — antes cualquier
+        // chofer podía hacerlo vía API directa sobre su propia ruta sin motivo ni
+        // bitácora. Se restringe a roles de logística y se exige motivo (el log a
+        // correcciones_log se hace más abajo, junto al resto de la reversa).
         if ($esChofer) {
             $own = $db->prepare("SELECT r.chofer FROM ruta_entregas re JOIN rutas r ON r.id = re.ruta_id WHERE re.id = ?");
             $own->execute([$entrega_id]);
@@ -552,6 +557,12 @@ if ($method === 'POST') {
             if (!$own || $own['chofer'] !== $nombre) {
                 jsonResponse(['error' => 'Sin permiso sobre esta entrega'], 403);
             }
+            if ($estado === 'pendiente') {
+                jsonResponse(['error' => 'Solo Logística puede revertir una entrega ya confirmada. Repórtalo para que lo corrijan.'], 403); exit;
+            }
+        }
+        if ($estado === 'pendiente' && $motivo === '') {
+            jsonResponse(['error' => 'Indica el motivo de la reversa']); exit;
         }
         // 'entregado' cierra orden/piezas, avanza el mapa y avisa a la siguiente parada — misma
         // lógica que dispara el escaneo del QR de hoja de ruta (ver marcarEntregaComoEntregada
@@ -562,7 +573,7 @@ if ($method === 'POST') {
         }
 
         // C-14b: estado actual de la parada (para reversa e idempotencia)
-        $reAntes = $db->prepare("SELECT estado, orden_id, ruta_id FROM ruta_entregas WHERE id=?");
+        $reAntes = $db->prepare("SELECT re.estado, re.orden_id, re.ruta_id, o.folio AS orden_folio FROM ruta_entregas re JOIN ordenes o ON o.id = re.orden_id WHERE re.id=?");
         $reAntes->execute([$entrega_id]);
         $reAntes = $reAntes->fetch(PDO::FETCH_ASSOC);
         if (!$reAntes) { jsonResponse(['error' => 'Entrega no encontrada'], 404); exit; }
@@ -626,6 +637,13 @@ if ($method === 'POST') {
                 // Si la ruta ya había completado, reabre al deshacer una parada
                 $db->prepare("UPDATE rutas SET estado='en_ruta', updated_at=NOW() WHERE id=? AND estado='completada'")
                    ->execute([$reAntes['ruta_id']]);
+
+                // BLO-04: bitácora de la reversa — antes no quedaba ningún rastro de
+                // quién revirtió una entrega ya confirmada, ni por qué.
+                $db->prepare("INSERT INTO correcciones_log
+                    (tipo, referencia_id, folio, campo, valor_anterior, valor_nuevo, motivo, usuario, fecha)
+                    VALUES ('orden', ?, ?, 'reversa_entrega_ruta', 'entregado', 'pendiente', ?, ?, NOW())")
+                   ->execute([$reAntes['orden_id'], $reAntes['orden_folio'], $motivo, $nombre]);
             }
 
             $ruta_completada = false;
@@ -698,6 +716,15 @@ if ($method === 'POST') {
             }
         }
 
+        // BLO-05: la parada debe seguir 'pendiente' — evita escanear piezas de una
+        // parada ya cerrada (entregado/no_entregado) que quedó desincronizada.
+        $paradaChk = $db->prepare("SELECT estado FROM ruta_entregas WHERE id=?");
+        $paradaChk->execute([$entrega_id]);
+        $paradaEstado = $paradaChk->fetchColumn();
+        if ($paradaEstado !== 'pendiente') {
+            jsonResponse(['error' => 'Esta parada ya no está pendiente (estado actual: ' . $paradaEstado . ')']); exit;
+        }
+
         // Buscar la pieza por QR dentro de esta entrega
         $pieza = $db->prepare("
             SELECT rep.id, rep.pieza_id FROM ruta_entrega_piezas rep
@@ -711,72 +738,88 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'QR no corresponde a esta entrega']); exit;
         }
 
-        $rechazada_at = $estado === 'rechazada' ? date('Y-m-d H:i:s') : null;
-        $db->prepare("UPDATE ruta_entrega_piezas SET estado=?, rechazada_at=? WHERE id=?")
-           ->execute([$estado, $rechazada_at, $pieza['id']]);
+        // BLO-05: las 6+ escrituras de este flujo corrían sin transacción — un fallo
+        // de red/batería a media secuencia dejaba pieza/parada/orden desincronizados.
+        $db->beginTransaction();
+        try {
+            $rechazada_at = $estado === 'rechazada' ? date('Y-m-d H:i:s') : null;
+            $db->prepare("UPDATE ruta_entrega_piezas SET estado=?, rechazada_at=? WHERE id=?")
+               ->execute([$estado, $rechazada_at, $pieza['id']]);
 
-        // Si entregada, marcar pieza como entregado
-        if ($estado === 'entregada') {
-            $db->prepare("UPDATE piezas SET estatus='entregado', updated_at=NOW() WHERE id=?")
-               ->execute([$pieza['pieza_id']]);
-        }
-
-        // Verificar si todas las piezas de esta entrega ya fueron marcadas
-        $pendientes = $db->prepare("SELECT COUNT(*) FROM ruta_entrega_piezas WHERE ruta_entrega_id = ? AND estado = 'asignada'");
-        $pendientes->execute([$entrega_id]);
-        $pendientes = (int)$pendientes->fetchColumn();
-
-        $respuesta = ['ok' => true, 'pendientes_pieza' => $pendientes];
-
-        if ($pendientes === 0) {
-            // Todas las piezas marcadas — determinar estado de la entrega
-            $hayRechazadas = $db->prepare("SELECT COUNT(*) FROM ruta_entrega_piezas WHERE ruta_entrega_id = ? AND estado = 'rechazada'");
-            $hayRechazadas->execute([$entrega_id]);
-            $hayRechazadas = (int)$hayRechazadas->fetchColumn();
-
-            $hayEntregadas = $db->prepare("SELECT COUNT(*) FROM ruta_entrega_piezas WHERE ruta_entrega_id = ? AND estado = 'entregada'");
-            $hayEntregadas->execute([$entrega_id]);
-            $hayEntregadas = (int)$hayEntregadas->fetchColumn();
-
-            if ($hayEntregadas > 0) {
-                // Al menos algunas entregadas — marcar entrega como entregado
-                $ts = date('Y-m-d H:i:s');
-                $db->prepare("UPDATE ruta_entregas SET estado='entregado', entregado_at=? WHERE id=?")
-                   ->execute([$ts, $entrega_id]);
-                $respuesta['entrega_completada'] = true;
-            }
-
-            // Obtener orden_id para evaluar si la orden se cierra
-            $re = $db->prepare("SELECT orden_id FROM ruta_entregas WHERE id=?");
-            $re->execute([$entrega_id]);
-            $re = $re->fetch(PDO::FETCH_ASSOC);
-
-            if ($re) {
-                // Verificar si todas las piezas de la orden están entregadas
-                $totalOrden = $db->prepare("SELECT COUNT(*) FROM piezas WHERE orden_id=?");
-                $totalOrden->execute([$re['orden_id']]);
-                $totalOrden = (int)$totalOrden->fetchColumn();
-
-                $entregadasOrden = $db->prepare("SELECT COUNT(*) FROM piezas WHERE orden_id=? AND estatus='entregado'");
-                $entregadasOrden->execute([$re['orden_id']]);
-                $entregadasOrden = (int)$entregadasOrden->fetchColumn();
-
-                if ($totalOrden === $entregadasOrden) {
-                    // LN-4: homologado con rutas_lib.php:300 — sin este guard una orden
-                    // cancelada/rechazada mientras la ruta seguía viva podía "resucitar"
-                    // a entregada solo por terminar de escanear sus piezas (entrega física
-                    // + crédito ya dado al cliente al mismo tiempo).
-                    $stCierre = $db->prepare("UPDATE ordenes SET estado='entregada', updated_at=NOW() WHERE id=? AND estado NOT IN ('cancelada','rechazada')");
-                    $stCierre->execute([$re['orden_id']]);
-                    $respuesta['orden_cerrada'] = $stCierre->rowCount() === 1;
+            // Si entregada, marcar pieza como entregado — BLO-05: antes se marcaba
+            // desde CUALQUIER estatus previo (a diferencia de rutas_lib.php:286, que
+            // exige 'terminado'); un QR mal asignado a una pieza aún en producción
+            // podía "entregarse" sola por un escaneo de ruta.
+            if ($estado === 'entregada') {
+                $stPz = $db->prepare("UPDATE piezas SET estatus='entregado', updated_at=NOW() WHERE id=? AND estatus='terminado'");
+                $stPz->execute([$pieza['pieza_id']]);
+                if ($stPz->rowCount() === 0) {
+                    throw new Exception('La pieza no está en estatus "terminado" (sigue en producción) — no se puede marcar como entregada. Verifica el QR.', 422);
                 }
             }
 
-            // Ya no cierra la ruta aquí aunque no queden paradas pendientes — se queda 'en_ruta'
-            // hasta que el GPS confirme el regreso a planta (scripts/gps_tracker.php).
-        }
+            // Verificar si todas las piezas de esta entrega ya fueron marcadas
+            $pendientes = $db->prepare("SELECT COUNT(*) FROM ruta_entrega_piezas WHERE ruta_entrega_id = ? AND estado = 'asignada'");
+            $pendientes->execute([$entrega_id]);
+            $pendientes = (int)$pendientes->fetchColumn();
 
-        jsonResponse($respuesta); exit;
+            $respuesta = ['ok' => true, 'pendientes_pieza' => $pendientes];
+
+            if ($pendientes === 0) {
+                // Todas las piezas marcadas — determinar estado de la entrega
+                $hayRechazadas = $db->prepare("SELECT COUNT(*) FROM ruta_entrega_piezas WHERE ruta_entrega_id = ? AND estado = 'rechazada'");
+                $hayRechazadas->execute([$entrega_id]);
+                $hayRechazadas = (int)$hayRechazadas->fetchColumn();
+
+                $hayEntregadas = $db->prepare("SELECT COUNT(*) FROM ruta_entrega_piezas WHERE ruta_entrega_id = ? AND estado = 'entregada'");
+                $hayEntregadas->execute([$entrega_id]);
+                $hayEntregadas = (int)$hayEntregadas->fetchColumn();
+
+                if ($hayEntregadas > 0) {
+                    // Al menos algunas entregadas — marcar entrega como entregado
+                    $ts = date('Y-m-d H:i:s');
+                    $db->prepare("UPDATE ruta_entregas SET estado='entregado', entregado_at=? WHERE id=?")
+                       ->execute([$ts, $entrega_id]);
+                    $respuesta['entrega_completada'] = true;
+                }
+
+                // Obtener orden_id para evaluar si la orden se cierra
+                $re = $db->prepare("SELECT orden_id FROM ruta_entregas WHERE id=?");
+                $re->execute([$entrega_id]);
+                $re = $re->fetch(PDO::FETCH_ASSOC);
+
+                if ($re) {
+                    // Verificar si todas las piezas de la orden están entregadas
+                    $totalOrden = $db->prepare("SELECT COUNT(*) FROM piezas WHERE orden_id=?");
+                    $totalOrden->execute([$re['orden_id']]);
+                    $totalOrden = (int)$totalOrden->fetchColumn();
+
+                    $entregadasOrden = $db->prepare("SELECT COUNT(*) FROM piezas WHERE orden_id=? AND estatus='entregado'");
+                    $entregadasOrden->execute([$re['orden_id']]);
+                    $entregadasOrden = (int)$entregadasOrden->fetchColumn();
+
+                    if ($totalOrden === $entregadasOrden) {
+                        // LN-4: homologado con rutas_lib.php:300 — sin este guard una orden
+                        // cancelada/rechazada mientras la ruta seguía viva podía "resucitar"
+                        // a entregada solo por terminar de escanear sus piezas (entrega física
+                        // + crédito ya dado al cliente al mismo tiempo).
+                        $stCierre = $db->prepare("UPDATE ordenes SET estado='entregada', updated_at=NOW() WHERE id=? AND estado NOT IN ('cancelada','rechazada')");
+                        $stCierre->execute([$re['orden_id']]);
+                        $respuesta['orden_cerrada'] = $stCierre->rowCount() === 1;
+                    }
+                }
+
+                // Ya no cierra la ruta aquí aunque no queden paradas pendientes — se queda 'en_ruta'
+                // hasta que el GPS confirme el regreso a planta (scripts/gps_tracker.php).
+            }
+
+            $db->commit();
+            jsonResponse($respuesta); exit;
+        } catch (Exception $e) {
+            $db->rollBack();
+            $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
+            jsonResponse(['error' => $e->getMessage()], $code); exit;
+        }
     }
 
     if ($accion === 'quitar') {

@@ -398,7 +398,7 @@ if ($method === 'POST') {
                 WHERE op.tipo = 'flete' AND op.oc_referencia_id = ? AND oc2.estado != 'cancelada'
             ");
             $shf->execute([$oc_id]);
-            if ((int)$shf->fetchColumn() > 0) $flete_tipo_vidrio = 'oc_separada';
+            if ((int)$shf->fetchColumn() > 0) $flete_tipo_vidrio = 'cobrado';
         }
 
         $db->beginTransaction();
@@ -530,7 +530,7 @@ if ($method === 'POST') {
                             $sup = $db->prepare("
                                 UPDATE inventario_compras
                                 SET costo_flete_total = costo_flete_total + ? * cantidad_laminas,
-                                    flete_tipo        = 'oc_separada',
+                                    flete_tipo        = 'cobrado',
                                     flete_oc_id       = ?
                                 WHERE orden_compra_id = ?
                             ");
@@ -724,12 +724,21 @@ if ($method === 'POST') {
         if (!$oc) jsonResponse(['error' => 'OC no encontrada'], 404);
         if ($oc['estado'] !== 'abierta') jsonResponse(['error' => 'La OC debe estar abierta para distribuir'], 422);
 
+        // BLO-02: total con/sin IVA del flete, mismo criterio ya usado en
+        // registrar_pago (L.664) — necesario para la póliza de abajo.
         $sf = $db->prepare("
-            SELECT COALESCE(SUM(precio_unitario * cantidad), 0) AS total_flete
+            SELECT COALESCE(SUM(precio_unitario * cantidad), 0) AS total_flete,
+                   COALESCE(SUM(CASE WHEN iva_incluido = 1 THEN precio_unitario * cantidad / 1.16
+                                      ELSE precio_unitario * cantidad END), 0) AS total_flete_sin_iva,
+                   COALESCE(SUM(CASE WHEN iva_incluido = 1 THEN precio_unitario * cantidad
+                                      ELSE precio_unitario * cantidad * 1.16 END), 0) AS total_flete_con_iva
             FROM oc_partidas WHERE orden_compra_id = ? AND tipo = 'flete'
         ");
         $sf->execute([$oc_id]);
-        $total_flete = (float)$sf->fetchColumn();
+        $fleteRow          = $sf->fetch();
+        $total_flete       = (float)$fleteRow['total_flete'];
+        $total_flete_sinI  = round((float)$fleteRow['total_flete_sin_iva'], 2);
+        $total_flete_conI  = round((float)$fleteRow['total_flete_con_iva'], 2);
         if ($total_flete <= 0) jsonResponse(['error' => 'OC sin importe de flete válido'], 422);
 
         $ids_str = implode(',', $compras);
@@ -752,10 +761,15 @@ if ($method === 'POST') {
 
         $db->beginTransaction();
         try {
+            // BLO-02: acumular (+=), no sobrescribir — antes SET costo_flete_total=?
+            // destruía cualquier flete ya capturado en registrar_compra o ya
+            // distribuido por otra OC (columna GENERATED costo_real_unitario
+            // dependía de ese dato). El estado='abierta' exigido arriba ya evita
+            // que ESTA misma OC se distribuya dos veces (transiciona a 'cerrada').
             $sup = $db->prepare("
                 UPDATE inventario_compras
-                SET costo_flete_total = ?,
-                    flete_tipo        = 'oc_separada',
+                SET costo_flete_total = costo_flete_total + ?,
+                    flete_tipo        = 'cobrado',
                     flete_oc_id       = ?
                 WHERE id = ?
             ");
@@ -772,12 +786,39 @@ if ($method === 'POST') {
                 WHERE orden_compra_id = ? AND tipo = 'flete'
             ")->execute([$oc_id]);
 
+            // BLO-02: generar el registro de entrega — antes la OC de flete cerraba
+            // sin ningún oc_entregas, dejando imposible auditar cuándo se recibió.
+            $seF = $db->prepare("INSERT INTO oc_entregas
+                (orden_compra_id, fecha_entrega, notas, created_by, cierra_oc)
+                VALUES (?, CURDATE(), ?, ?, 1)");
+            $seF->execute([$oc_id, 'Distribución de flete a ' . count($compras_data) . ' compra(s)', $user['id']]);
+            $entregaFleteId = $db->lastInsertId();
+
             $db->prepare("
                 UPDATE ordenes_compra
                 SET estado = 'cerrada',
                     fecha_pago_programada = DATE_ADD(CURDATE(), INTERVAL dias_credito DAY)
                 WHERE id = ?
             ")->execute([$oc_id]);
+
+            // BLO-02: póliza (Inventario/IVA Acreditable/CxP) — antes el abono a
+            // CxP del flete nunca se registraba, pero registrar_pago sí lo carga
+            // al pagar la OC: la cuenta 2.1 quedaba descuadrada permanentemente.
+            $inventario     = pl_cuentaId($db, '1.3');
+            $cxp            = pl_cuentaId($db, '2.1');
+            $ivaAcreditable = pl_cuentaId($db, '1.4');
+            if ($inventario && $cxp && $ivaAcreditable) {
+                $rIva = round($total_flete_conI - $total_flete_sinI, 2);
+                $lineas = [
+                    [$inventario, $total_flete_sinI, 0, 'Distribución de flete OC #' . $oc_id . ' (sin IVA)'],
+                ];
+                if ($rIva > 0) {
+                    $lineas[] = [$ivaAcreditable, $rIva, 0, 'IVA acreditable flete OC #' . $oc_id];
+                }
+                $lineas[] = [$cxp, 0, $total_flete_conI, 'Distribución de flete OC #' . $oc_id . ' (con IVA)'];
+                pl_generarAutomatica($db, 'oc_entregas', (int)$entregaFleteId, 'diario', date('Y-m-d'),
+                    'Distribución de flete OC #' . $oc_id, $lineas, (int)$user['id']);
+            }
 
             $db->commit();
             jsonResponse(['ok' => true, 'total_flete' => $total_flete, 'registros' => count($compras_data)]);

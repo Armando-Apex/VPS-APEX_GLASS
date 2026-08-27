@@ -251,22 +251,39 @@ if ($method === 'POST') {
         }
     }
 
-    $stmt  = $pdo->query("SELECT MAX(CAST(SUBSTRING(codigo, 5) AS UNSIGNED)) as max_num FROM clientes WHERE codigo LIKE 'CTN-%'");
-    $row   = $stmt->fetch(PDO::FETCH_ASSOC);
-    $next  = ($row['max_num'] ?? 146) + 1;
-    $codigo = 'CTN-' . $next;
-
     $rfc            = strtoupper(trim($body['rfc']            ?? '')) ?: null;
     $cp_fiscal      = trim($body['cp_fiscal']      ?? '') ?: null;
     $regimen_fiscal = trim($body['regimen_fiscal']  ?? '') ?: null;
 
-    $pdo->beginTransaction();
-    $pdo->prepare("INSERT INTO clientes (codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email, localidad, ciudad, rfc, cp_fiscal, regimen_fiscal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
-        ->execute([$codigo, $razon_social, $razon_social, $contacto, $telefono, $telefono_alterno ?: null, $email, $localidad, $ciudad, $rfc, $cp_fiscal, $regimen_fiscal]);
-    $new_id = $pdo->lastInsertId();
-    $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'CREACION', '', ?, ?, ?)")
-        ->execute([$new_id, "Cliente creado: $razon_social", $usuario_id, $usuario_nombre]);
-    $pdo->commit();
+    // BLO-09: MAX+1 calculado fuera de transacción y sin lock — dos altas
+    // concurrentes podían calcular el mismo siguiente CTN-N. clientes.codigo SÍ
+    // tiene índice UNIQUE (verificado), así que hoy la segunda alta truena con un
+    // 500 feo en vez de crear una colisión silenciosa — este retry (mismo patrón
+    // que el folio de facturas, facturapi.php) evita ese error visible al usuario.
+    $intentos = 0;
+    while (true) {
+        $intentos++;
+        $stmt   = $pdo->query("SELECT MAX(CAST(SUBSTRING(codigo, 5) AS UNSIGNED)) as max_num FROM clientes WHERE codigo LIKE 'CTN-%'");
+        $row    = $stmt->fetch(PDO::FETCH_ASSOC);
+        $next   = ($row['max_num'] ?? 146) + 1;
+        $codigo = 'CTN-' . $next;
+
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare("INSERT INTO clientes (codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email, localidad, ciudad, rfc, cp_fiscal, regimen_fiscal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
+                ->execute([$codigo, $razon_social, $razon_social, $contacto, $telefono, $telefono_alterno ?: null, $email, $localidad, $ciudad, $rfc, $cp_fiscal, $regimen_fiscal]);
+            $new_id = $pdo->lastInsertId();
+            $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'CREACION', '', ?, ?, ?)")
+                ->execute([$new_id, "Cliente creado: $razon_social", $usuario_id, $usuario_nombre]);
+            $pdo->commit();
+            break;
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            // 23000 = violación de UNIQUE (otra alta concurrente tomó este código primero)
+            if ($e->getCode() === '23000' && $intentos < 5) continue;
+            throw $e;
+        }
+    }
 
     jsonResponse(['ok' => true, 'id' => $new_id, 'codigo' => $codigo]); exit;
 }

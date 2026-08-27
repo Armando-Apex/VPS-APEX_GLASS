@@ -23,14 +23,17 @@ function _facturapiConceptosDesdeOrden($pdo, $ordenFolio) {
     $ordenId = $stmt->fetchColumn();
     if (!$ordenId) return null;
 
-    $stmt = $pdo->prepare("SELECT id, tipo, descuento FROM cotizaciones WHERE orden_id = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, tipo, descuento, COALESCE(descuento_referido,0) AS descuento_referido FROM cotizaciones WHERE orden_id = ? LIMIT 1");
     $stmt->execute([$ordenId]);
     $cot = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$cot) return null;
 
     $cotId     = $cot['id'];
     $esMaquila = ($cot['tipo'] ?? 'suministro') === 'maquila';
-    $descuento = (float)($cot['descuento'] ?? 0);
+    // BLV-3: descuento efectivo = manual + automático de referido (mismo criterio que
+    // apexTotalesCotizacion, helpers/totales.php:51) — antes solo se usaba el manual,
+    // dejando el CFDI por un monto distinto al realmente cobrado en órdenes con referido.
+    $descuento = min(100, (float)($cot['descuento'] ?? 0) + (float)$cot['descuento_referido']);
 
     $conceptos = [];
     if ($esMaquila) {
@@ -78,6 +81,24 @@ function _facturapiConceptosDesdeOrden($pdo, $ordenFolio) {
                 'unidad' => 'MTK',
                 'cant'   => round((float)$p['m2'] * (int)$p['cantidad'], 6),
                 'precio' => $precioNeto,
+                'iva'    => true,
+            ];
+        }
+        // BLV-3: servicios adicionales (instalado, taladro, ml, etc.) también forman
+        // parte de la base gravable canónica (helpers/totales.php: base = subtotal+servicios)
+        // pero antes no se incluían aquí — el CFDI quedaba sub-facturado en cotizaciones con servicios.
+        $stmtSrv = $pdo->prepare("
+            SELECT descripcion, precio_unitario, unidades_por_pieza, cantidad_piezas, subtotal
+            FROM cotizacion_partida_servicios WHERE cotizacion_id = ?
+        ");
+        $stmtSrv->execute([$cotId]);
+        foreach ($stmtSrv->fetchAll(PDO::FETCH_ASSOC) as $s) {
+            $conceptos[] = [
+                'desc'   => $s['descripcion'] ?: 'Servicio',
+                'clave'  => '',
+                'unidad' => 'ACT',
+                'cant'   => 1,
+                'precio' => (float)$s['subtotal'],
                 'iva'    => true,
             ];
         }
@@ -259,10 +280,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
 
     $ordenFolio = trim($d['orden_folio'] ?? '') ?: null;
 
-    // LN-1: si la factura se liga a una orden real, los conceptos no pueden ser lo
-    // que el cliente decida mandar — se reconstruyen en servidor desde la cotización
-    // ligada a esa orden (misma fuente que prellenó el formulario en buscar_orden) y
-    // se compara el total contra lo que el usuario intentó guardar.
+    // BLV-2: los conceptos que se TIMBRAN nunca deben ser los que mandó el navegador
+    // cuando hay una orden real detrás — antes solo se validaba que el TOTAL cuadrara
+    // (±$0.01) pero se guardaba json_encode($d['conceptos']) tal cual, así que una
+    // descripción/cantidad/precio de línea editada a mano pasaba sin detectarse
+    // mientras el total no cambiara. Ahora, con orden_folio, los conceptos y los
+    // totales que se guardan SIEMPRE son los reconstruidos en servidor
+    // ($conceptosServidor/$totalSrv) — el total del body solo se usa para el mensaje
+    // de error si no coincide (para que el usuario sepa que su edición se descartó).
+    $conceptosParaGuardar = $d['conceptos'];
     if ($ordenFolio) {
         $conceptosServidor = _facturapiConceptosDesdeOrden($pdo, $ordenFolio);
         if ($conceptosServidor === null) {
@@ -274,12 +300,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
             $subSrv += $imp;
             if (!empty($c['iva'])) $subGravSrv += $imp;
         }
-        $totalSrv = round(round($subSrv, 2) + round($subGravSrv * 0.16, 2), 2);
+        $subSrv    = round($subSrv, 2);
+        $ivaSrv    = round($subGravSrv * 0.16, 2);
+        $totalSrv  = round($subSrv + $ivaSrv, 2);
         if (abs($totalSrv - $total) > 0.01) {
             jsonResponse(['ok'=>false,'error'=>'Los conceptos no coinciden con la cotización de la orden '.$ordenFolio
                 .' (esperado $'.number_format($totalSrv,2).', recibido $'.number_format($total,2)
                 .'). Vuelve a cargar la orden con "Buscar" antes de guardar.']); exit;
         }
+        // El total puede cuadrar (±$0.01) aunque las líneas se hayan editado — se
+        // guardan los conceptos y totales del servidor siempre, no los del body.
+        $conceptosParaGuardar = $conceptosServidor;
+        $sub   = $subSrv;
+        $iva   = $ivaSrv;
+        $total = $totalSrv;
     }
 
     $id = isset($d['id']) ? (int)$d['id'] : 0;
@@ -308,7 +342,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
             $d['receptor_nombre'], $d['receptor_rfc'], $d['receptor_cp'],
             $d['receptor_regimen'], $d['receptor_uso_cfdi'],
             $d['receptor_email'] ?? null, $clienteSolicitoId, $d['forma_pago'], $d['metodo_pago'],
-            json_encode($d['conceptos']), $sub, $iva, $total, $id, $user['nombre']
+            json_encode($conceptosParaGuardar), $sub, $iva, $total, $id, $user['nombre']
         ]);
         // rowCount()===0 aquí solo significa "guardó sin cambios" (PDO MySQL no cuenta
         // filas que quedaron idénticas) — la existencia/propiedad ya se verificó arriba.
@@ -342,7 +376,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
                     $d['receptor_nombre'], $d['receptor_rfc'], $d['receptor_cp'],
                     $d['receptor_regimen'], $d['receptor_uso_cfdi'],
                     $d['receptor_email'] ?? null, $clienteSolicitoId, $d['forma_pago'], $d['metodo_pago'],
-                    json_encode($d['conceptos']), $sub, $iva, $total,
+                    json_encode($conceptosParaGuardar), $sub, $iva, $total,
                     FACTURAPI_MODE, $user['nombre']
                 ]);
                 break;
