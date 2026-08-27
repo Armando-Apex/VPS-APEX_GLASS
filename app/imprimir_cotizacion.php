@@ -454,21 +454,59 @@ function waEnviar() {
     </thead>
     <tbody>
     <?php foreach ($partidas as $p):
-        $servicios = [];
-        if (!empty($p['corte']))    $servicios[] = 'Corte (' . number_format((float)$p['ml_corte'], 2) . 'ml)';
+        $cantidad_p = (int)$p['cantidad'];
+        $servicios_det = [];
+        if (!empty($p['corte'])) {
+            $servicios_det[] = [
+                'nombre'   => 'Corte',
+                'detalle'  => number_format((float)$p['ml_corte'], 2) . ' m.l. &times; ' . $cantidad_p . ' pzs &times; $' . number_format((float)$p['precio_corte_usado'], 2) . '/m.l.',
+                'subtotal' => (float)$p['subtotal_corte'],
+            ];
+        }
         $cpbVal = trim((string)($p['cpb'] ?? ''));
         $cpbUp  = strtoupper($cpbVal);
         $esCPB  = ($cpbVal !== '' && $cpbUp !== 'NO' && $cpbUp !== 'FM' && $cpbUp !== 'FILO MUERTO');
-        if ($esCPB) $servicios[] = 'Canteado ' . htmlspecialchars($cpbVal) . ' (' . number_format((float)$p['ml_canteado'], 2) . 'ml)';
-        elseif (!empty($p['filo_muerto'])) $servicios[] = 'Filo Muerto ' . htmlspecialchars($p['cpb_fm']) . ' (' . number_format((float)$p['ml_filo_muerto'], 2) . 'ml)';
-        else        $servicios[] = 'Filo Muerto';
-        if ((int)$p['taladros_pasados'] + (int)$p['taladros_avellanados'] > 0) $servicios[] = 'Taladro (' . (int)$p['taladros_pasados'] . 'p/' . (int)$p['taladros_avellanados'] . 'a)';
-        if (!empty($p['templado']))  $servicios[] = 'Templado';
+        if ($esCPB) {
+            $servicios_det[] = [
+                'nombre'   => 'Canteado ' . htmlspecialchars($cpbVal),
+                'detalle'  => number_format((float)$p['ml_canteado'], 2) . ' m.l. &times; ' . $cantidad_p . ' pzs &times; $' . number_format((float)$p['precio_canteado_usado'], 2) . '/m.l.',
+                'subtotal' => (float)$p['subtotal_canteado'],
+            ];
+        } elseif (!empty($p['filo_muerto'])) {
+            $servicios_det[] = [
+                'nombre'   => 'Filo Muerto ' . htmlspecialchars($p['cpb_fm']),
+                'detalle'  => number_format((float)$p['ml_filo_muerto'], 2) . ' m.l. &times; ' . $cantidad_p . ' pzs &times; $' . number_format((float)$p['precio_filo_muerto_usado'], 2) . '/m.l.',
+                'subtotal' => (float)$p['subtotal_filo_muerto'],
+            ];
+        }
+        $totalTaladros = (int)$p['taladros_pasados'] + (int)$p['taladros_avellanados'];
+        if ($totalTaladros > 0) {
+            $servicios_det[] = [
+                'nombre'   => 'Taladro (' . (int)$p['taladros_pasados'] . 'p/' . (int)$p['taladros_avellanados'] . 'a)',
+                'detalle'  => $totalTaladros . ' orificio(s) &times; ' . $cantidad_p . ' pzs &times; $' . number_format((float)$p['precio_taladro_usado'], 2),
+                'subtotal' => (float)$p['subtotal_taladro'],
+            ];
+        }
+        if ((int)$p['resaques'] > 0) {
+            $servicios_det[] = [
+                'nombre'   => 'Resaque',
+                'detalle'  => (int)$p['resaques'] . ' resaque(s) &times; ' . $cantidad_p . ' pzs &times; $' . number_format((float)$p['precio_resaque_usado'], 2),
+                'subtotal' => (float)$p['subtotal_resaque'],
+            ];
+        }
+        if (!empty($p['templado'])) {
+            $m2_total_p = round((float)$p['m2'] * $cantidad_p, 4);
+            $servicios_det[] = [
+                'nombre'   => 'Templado',
+                'detalle'  => fmtM2Exacto($m2_total_p) . ' m² &times; $' . number_format((float)$p['precio_horno_usado'], 2) . '/m²',
+                'subtotal' => (float)$p['subtotal_horno'],
+            ];
+        }
     ?>
       <tr>
         <td class="center"><?= (int)$p['num_partida'] ?></td>
         <td>
-          <?= (int)$p['ancho'] ?> × <?= (int)$p['alto'] ?>mm &times; <?= (int)$p['cantidad'] ?>
+          <?= (int)$p['ancho'] ?> × <?= (int)$p['alto'] ?>mm &times; <?= $cantidad_p ?>
           <?php if (!empty($p['tipo_vidrio_nombre'])): ?>
           <div class="cristal-det"><?= htmlspecialchars($p['tipo_vidrio_nombre']) ?></div>
           <?php endif; ?>
@@ -477,8 +515,27 @@ function waEnviar() {
           <?php endif; ?>
         </td>
         <td class="center"><?= htmlspecialchars((string)$p['espesor_mm']) ?>mm</td>
-        <td><?= htmlspecialchars(implode(', ', $servicios)) ?></td>
-        <td class="right">$<?= number_format((float)$p['subtotal'], 2) ?></td>
+        <td colspan="2"></td>
+      </tr>
+      <?php if (empty($servicios_det)): ?>
+      <tr style="background:#f0fdf4;">
+        <td></td>
+        <td colspan="3" style="color:#15803d;font-size:10px;padding-left:14px;">Filo Muerto</td>
+        <td class="right"></td>
+      </tr>
+      <?php endif; ?>
+      <?php foreach ($servicios_det as $srv): ?>
+      <tr style="background:#f0fdf4;">
+        <td></td>
+        <td colspan="3" style="color:#15803d;font-size:10px;padding-left:14px;">
+          <?= $srv['nombre'] ?> &mdash; <?= $srv['detalle'] ?>
+        </td>
+        <td class="right" style="color:#15803d;font-weight:700;">$<?= number_format($srv['subtotal'], 2) ?></td>
+      </tr>
+      <?php endforeach; ?>
+      <tr>
+        <td colspan="4" class="right" style="font-weight:700;color:#374151;border-top:1px solid #e2e8f0;">Subtotal partida <?= (int)$p['num_partida'] ?>:</td>
+        <td class="right" style="font-weight:700;border-top:1px solid #e2e8f0;">$<?= number_format((float)$p['subtotal'], 2) ?></td>
       </tr>
     <?php endforeach; ?>
     </tbody>
