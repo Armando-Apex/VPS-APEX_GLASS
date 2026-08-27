@@ -1,4 +1,7 @@
 {
+  "enabledPlugins": {
+    "ui-ux-pro-max@ui-ux-pro-max-skill": false
+  },
   "permissions": {
     "allow": [
       "mcp__mysql__mysql_query",
