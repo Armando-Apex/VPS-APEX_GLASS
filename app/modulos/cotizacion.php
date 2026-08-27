@@ -470,6 +470,8 @@ function renderFormulario(data) {
     html += '<select id="rtPartida" style="width:100%;padding:9px 12px;border:1.5px solid #fecaca;border-radius:7px;font-size:13px;" onchange="ModCotizacion._retrabajoPartidaChange()"></select></div>';
     html += '<div id="rtPiezaWrap" style="display:none;margin-bottom:10px;"><label style="font-size:10.5px;color:#b91c1c;font-weight:700;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px;">Pieza a reprocesar</label>';
     html += '<select id="rtPieza" style="width:100%;padding:9px 12px;border:1.5px solid #fecaca;border-radius:7px;font-size:13px;" onchange="ModCotizacion._retrabajoPiezaChange()"></select></div>';
+    html += '<div class="rt-field"><label>Motivo del retrabajo *</label>';
+    html += '<textarea id="rtMotivo" rows="2" placeholder="Ej: Medida mal tomada por el asesor, cliente cambió de opinión después de aprobar..." style="width:100%;padding:9px 12px;border:1.5px solid #fecaca;border-radius:7px;font-size:13px;resize:vertical;font-family:inherit;"></textarea></div>';
     html += '</div>'; // retrabajoPanel
   }
 
@@ -1170,10 +1172,18 @@ async function guardarCotizacion(btn) {
     toast('Selecciona la orden, partida y pieza original a reprocesar', 'error');
     return;
   }
+  var motivoRetrabajo = (document.getElementById('rtMotivo')?.value || '').trim();
+  if (esRetrabajo && !motivoRetrabajo) {
+    toast('Escribe el motivo del retrabajo', 'error');
+    return;
+  }
 
   var payload = armarPayload(clienteId);
   if (!payload) return;
-  if (esRetrabajo) payload.es_retrabajo = 1;
+  if (esRetrabajo) {
+    payload.es_retrabajo = 1;
+    payload.motivo_retrabajo = motivoRetrabajo;
+  }
 
   if (payload.descuento > 10 && !ES_DIR_ADMIN) {
     var motivo = await pedirMotivoDescuento(payload.descuento);

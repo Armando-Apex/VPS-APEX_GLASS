@@ -508,6 +508,7 @@ if ($method === 'POST') {
     $referido_ctn = trim($body['referido_ctn']     ?? '');
     $promo_wa_codigo = trim($body['promo_wa_codigo'] ?? '');
     $es_retrabajo = !empty($body['es_retrabajo']) ? 1 : 0;
+    $motivo_retrabajo = $es_retrabajo ? trim($body['motivo_retrabajo'] ?? '') : null;
 
     if (!$cliente_id) { jsonResponse(['error' => 'Cliente requerido']); exit; }
     if (empty($partidas)) { jsonResponse(['error' => 'Se requiere al menos una partida']); exit; }
@@ -538,6 +539,7 @@ if ($method === 'POST') {
         if ($pzOrig['estado'] === 'cancelada') { jsonResponse(['error' => 'La orden original está cancelada']); exit; }
         if ($pzOrig['tipo'] === 'maquila') { jsonResponse(['error' => 'La orden original es de Maquila — por ahora el retrabajo desde Cotización solo aplica a órdenes de Suministro']); exit; }
         if ((int)$pzOrig['cliente_id'] !== $cliente_id) { jsonResponse(['error' => 'El cliente debe ser el mismo de la orden original']); exit; }
+        if ($motivo_retrabajo === '') { jsonResponse(['error' => 'El motivo del retrabajo es obligatorio']); exit; }
     }
 
     // Promo Estados WhatsApp por volumen (15-ago-2026, ver api/helpers/promo_wa_lib.php):
@@ -652,8 +654,8 @@ if ($method === 'POST') {
             (folio, fecha, cliente_id, cliente_nombre, asesor_id, asesor_nombre,
              proyecto, descuento, descuento_referido, promocion_id, credito, condicion_pago, tipo_entrega,
              localidad, ciudad_destino, factura_tipo, fecha_entrega, fecha_entrega_manual,
-             alerta, subtotal, iva, total, saldo_pendiente, entrega_bloqueada, estatus, es_retrabajo)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             alerta, subtotal, iva, total, saldo_pendiente, entrega_bloqueada, estatus, es_retrabajo, motivo_retrabajo)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ")->execute([
             $folio, $fecha_hoy, $cliente_id, $cliente_nombre,
             $usuario_id, $usuario_nombre,
@@ -663,7 +665,8 @@ if ($method === 'POST') {
             $saldo,
             0,
             'cotizacion',
-            $es_retrabajo
+            $es_retrabajo,
+            $motivo_retrabajo
         ]);
         $cot_id = $db->lastInsertId();
 

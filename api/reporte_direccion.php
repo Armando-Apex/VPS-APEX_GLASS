@@ -134,7 +134,7 @@ if ($accion === 'ventas_cobranza') {
     // sin que se mezcle con las ventas reales de arriba.
     $stmtR = $pdo->prepare("
         SELECT o.folio, COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) AS fecha_orden,
-               c.id AS cotizacion_id, c.asesor_nombre, c.total, cl.nombre AS cliente_nombre
+               c.id AS cotizacion_id, c.asesor_nombre, c.total, c.motivo_retrabajo, cl.nombre AS cliente_nombre
         FROM ordenes o
         JOIN cotizaciones c ON c.orden_id = o.id
         JOIN clientes cl ON cl.id = c.cliente_id
@@ -152,10 +152,11 @@ if ($accion === 'ventas_cobranza') {
         $total = round((float)$r['total'], 2);
         $acumRetrabajo = round($acumRetrabajo + $total, 2);
         $retrabajoRows[] = [
-            'folio'          => $r['folio'],
-            'fecha_orden'    => $r['fecha_orden'],
-            'asesor_nombre'  => $r['asesor_nombre'],
-            'cliente_nombre' => $r['cliente_nombre'],
+            'folio'            => $r['folio'],
+            'fecha_orden'      => $r['fecha_orden'],
+            'asesor_nombre'    => $r['asesor_nombre'],
+            'cliente_nombre'   => $r['cliente_nombre'],
+            'motivo_retrabajo' => $r['motivo_retrabajo'],
             'total'          => $total,
             'acumulado'      => $acumRetrabajo,
             'cotizacion_id'  => (int)$r['cotizacion_id'],

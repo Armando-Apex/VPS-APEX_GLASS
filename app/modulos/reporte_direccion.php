@@ -815,7 +815,7 @@ function rvRender(data) {
     html += '<div class="loading" style="padding:24px">Sin retrabajo en este per&#237;odo</div>';
   } else {
     html += '<div class="table-card"><table><thead><tr>' +
-      '<th>#Orden</th><th>Asesor</th><th>Cliente</th>' +
+      '<th>#Orden</th><th>Asesor</th><th>Cliente</th><th>Raz&#243;n</th>' +
       '<th style="text-align:right">Valor de la Pieza</th>' +
       '<th style="text-align:right">Acumulado en Retrabajo del ' + granLbl2 + '</th>' +
     '</tr></thead><tbody>';
@@ -824,10 +824,11 @@ function rvRender(data) {
         '<td><strong class="rv-folio-link" style="color:var(--blue)" onclick="rvTogglePagos(' + o.cotizacion_id + ')">' + esc(o.folio) + '</strong></td>' +
         '<td>' + esc(o.asesor_nombre || '—') + '</td>' +
         '<td>' + esc(o.cliente_nombre) + '</td>' +
+        '<td style="color:var(--muted);max-width:260px">' + esc(o.motivo_retrabajo || '—') + '</td>' +
         '<td style="text-align:right;color:var(--red)">' + fmtPeso(o.total) + '</td>' +
         '<td style="text-align:right;color:var(--muted)">' + fmtPeso(o.acumulado) + '</td>' +
       '</tr>' +
-      '<tr class="rv-pagos-panel" id="rv-pagos-' + o.cotizacion_id + '"><td colspan="5">' + rvPagosHTML(o.pagos) + '</td></tr>';
+      '<tr class="rv-pagos-panel" id="rv-pagos-' + o.cotizacion_id + '"><td colspan="6">' + rvPagosHTML(o.pagos) + '</td></tr>';
     });
     html += '</tbody></table></div>';
   }
