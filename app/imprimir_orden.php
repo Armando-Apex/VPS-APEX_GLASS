@@ -294,6 +294,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
       elseif (!empty($p['filo_muerto'])) $servicios[] = 'Filo Muerto ' . $p['cpb_fm'] . ' (' . number_format($p['ml_filo_muerto'], 2) . 'ml)';
       else        $servicios[] = 'Filo Muerto';
       if ((int)$p['taladros_pasados'] + (int)$p['taladros_avellanados'] > 0) $servicios[] = 'Taladro (' . $p['taladros_pasados'] . 'p/' . $p['taladros_avellanados'] . 'a)';
+      if ((int)($p['resaques'] ?? 0) > 0) $servicios[] = 'Resaque (' . $p['resaques'] . ')';
       if ($p['templado'])  $servicios[] = 'Templado';
     ?>
       <tr>

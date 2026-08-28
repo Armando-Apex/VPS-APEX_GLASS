@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 27 agosto 2026 | Próximo UPD disponible: UPD-552
+# Última actualización: 28 agosto 2026 | Próximo UPD disponible: UPD-553
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -452,7 +452,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-533**
+Próximo UPD disponible: **UPD-553**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -657,4 +657,6 @@ Al terminar cualquier sesión con cambios:
 | UPD-550 | 27-ago-2026 | Mando | Auditoría 25-ago Sprint P0 (dinero/fiscal): CFDI ya timbra conceptos reconstruidos en servidor con descuento de referido y servicios (`facturapi.php`); `distribuir_flete` ya acumula costo y genera póliza (`ordenes_compra.php`); de paso, fix de `flete_tipo` con valor de ENUM inválido que truena en producción. Probado en BD con rollback, falta prueba visual. |
 | UPD-551 | 27-ago-2026 | Mando | Auditoría 25-ago Sprint P1: reversa de entrega solo Logística+motivo+bitácora (`rutas.php` BLO-04), escaneo de piezas transaccional y exige 'terminado' (BLO-05), retry en colisión de código de cliente (`clientes.php`), salida exige orden activa (`salidas.php`). BLO-08 (portal) queda pendiente. Probado en BD con rollback. |
 
-**Próximo UPD disponible: UPD-552**
+| UPD-552 | 28-ago-2026 | Armando | Fix: los resaques de Maquila (UPD-533) no aparecían en la Orden de Producción impresa (`app/imprimir_orden.php?id=1440`, reportado por Armando). Causa: UPD-533 cableó el cobro y la captura de resaques (`api/maquila.php`, `app/modulos/maquila.php`/`maquila_precios.php`, `piezas.resaques`) pero nunca tocó este archivo de impresión — el arreglo de "Servicios" por partida (rama `$esMaquila`) solo listaba Corte/Canteado-Filo Muerto/Taladro/Templado. Verificado en BD que el dato sí estaba guardado (cotización 1440/orden MA-S-701, partidas 1/3/5 con 2 resaques c/u). Agregada la línea `if ((int)($p['resaques'] ?? 0) > 0) $servicios[] = 'Resaque (' . $p['resaques'] . ')';` en `app/imprimir_orden.php`. `php -l` OK. Sin prueba visual en navegador — pendiente que Armando confirme viendo MA-S-701 impresa. |
+
+**Próximo UPD disponible: UPD-553**
