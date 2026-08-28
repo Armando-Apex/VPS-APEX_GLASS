@@ -1188,9 +1188,21 @@ function setupButton(p) {
       btn.className   = 'btn-action done';
       btn.onclick     = null;
     } else {
-      btn.textContent = '▶ Registrar: ' + (ESTATUS[reg]?.label || reg);
-      btn.className   = 'btn-action go';
-      btn.onclick     = () => doUpdate(reg);
+      // Canteado sin nada más pendiente (sin templado, sin taladro/resaques):
+      // un solo escaneo aquí registra Canteado Y Terminado — nadie tiene que
+      // ir a la estación Terminado a escanear algo que ya quedó listo.
+      var vaDirectoATerminado = est === 'canteado' && p.tipo !== 'maquila' &&
+        !parseInt(p.requiere_templado || 0) &&
+        !(parseInt(p.tp || 0) > 0) && !(parseInt(p.ta || 0) > 0) && !(parseInt(p.resaques || 0) > 0);
+      if (vaDirectoATerminado) {
+        btn.textContent = '▶ Registrar: Canteado y Terminado';
+        btn.className   = 'btn-action go';
+        btn.onclick     = () => doUpdateCanteadoTerminado();
+      } else {
+        btn.textContent = '▶ Registrar: ' + (ESTATUS[reg]?.label || reg);
+        btn.className   = 'btn-action go';
+        btn.onclick     = () => doUpdate(reg);
+      }
       // Botón reproceso
       const btnReproc = document.createElement('button');
       btnReproc.textContent = '🔄 Reproceso → Pendiente';
@@ -1325,6 +1337,55 @@ async function doUpdate(nuevoEstatus, esOmision) {
     } else {
       toast('❌ ' + (d.error || 'Error'), 'error');
       btn.textContent = orig;
+    }
+  } catch(e) {
+    toast('❌ Error de conexión', 'error');
+    btn.textContent = orig;
+  } finally { btn.disabled = false; }
+}
+
+// Canteado sin templado/taladro/resaques: registra canteado y, si sale bien,
+// encadena terminado en la misma acción — ver setupButton() estación canteado.
+async function doUpdateCanteadoTerminado() {
+  if (!pieza) return;
+  const btn  = document.getElementById('btnAction');
+  const orig = btn.textContent;
+  btn.innerHTML = '<span class="spin"></span>'; btn.disabled = true;
+  try {
+    const r1 = await fetch(API + 'actualizar_estatus.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qr_code: pieza.qr_code, estatus: 'canteado', usuario_id: session.id })
+    });
+    const d1 = await r1.json();
+    if (!d1.ok) {
+      toast('❌ ' + (d1.error || 'Error'), 'error');
+      btn.textContent = orig; btn.disabled = false;
+      return;
+    }
+    pieza.estatus = 'canteado';
+
+    const r2 = await fetch(API + 'actualizar_estatus.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qr_code: pieza.qr_code, estatus: 'terminado', usuario_id: session.id })
+    });
+    const d2 = await r2.json();
+    if (d2.ok) {
+      pieza.estatus = 'terminado';
+      const inf = ESTATUS['terminado'];
+      const sub = d2.orden_completa
+        ? '¡Orden ' + d2.folio + ' completada!'
+        : d2.folio + ' P' + pieza.partida + ' · ' + pieza.pieza_num + '/' + pieza.pieza_total;
+      showFeedback('ok', '✅', 'Canteado y Terminado', sub);
+      const pill = document.getElementById('pcPill');
+      pill.textContent      = inf.label;
+      pill.style.background = inf.color + '22';
+      pill.style.color      = inf.color;
+      pill.style.border     = '1px solid ' + inf.color + '55';
+      setupButton(pieza);
+    } else {
+      // Canteado sí quedó registrado; avisa que Terminado falló para que se cierre manual.
+      toast('⚠️ Canteado registrado, pero Terminado falló: ' + (d2.error || 'Error') + ' — pide que la terminen manualmente', 'error');
+      setupButton(pieza);
     }
   } catch(e) {
     toast('❌ Error de conexión', 'error');
