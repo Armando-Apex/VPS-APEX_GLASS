@@ -110,6 +110,22 @@ if ($method === 'GET') {
         }
         unset($l);
 
+        // Venta anticipada de lámina completa (UPD-554): lo reservado (activo, aún
+        // sin cumplirse del todo) no está libre para nadie más, aunque ya cuente
+        // como stock físico en el cálculo de arriba.
+        $reservasPorLamina = [];
+        $sr = $db->query("
+            SELECT lamina_id, SUM(cantidad - cantidad_cumplida) AS reservado
+            FROM laminas_reservas WHERE estado = 'activa' GROUP BY lamina_id
+        ");
+        foreach ($sr->fetchAll() as $r) { $reservasPorLamina[$r['lamina_id']] = (int)$r['reservado']; }
+
+        foreach ($laminas as &$l) {
+            $l['reservado']  = $reservasPorLamina[$l['id']] ?? 0;
+            $l['disponible'] = (int)$l['stock_laminas'] - $l['reservado'];
+        }
+        unset($l);
+
         // Marcar alerta: stock_m2 <= m2_requeridos * 1.20
         foreach ($laminas as &$l) {
             $l['alerta_stock'] = (

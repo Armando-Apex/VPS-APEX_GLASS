@@ -6,6 +6,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
+require_once __DIR__ . '/helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
 $user = requirePermisoApi('ver_inventario');
 
 $db     = getDB();
@@ -335,17 +336,30 @@ if ($method === 'POST') {
         if ($costo_flete < 0)
             jsonResponse(['error' => 'El costo de flete no puede ser negativo'], 422);
 
-        $s = $db->prepare("INSERT INTO inventario_compras
-            (lamina_id, proveedor_id, fecha_compra, cantidad_laminas,
-             precio_unitario, flete_tipo, costo_flete_total,
-             referencia, notas, created_by)
-            VALUES (?,?,?,?,?,?,?,?,?,?)");
-        $s->execute([
-            $lamina_id, $proveedor_id, $fecha, $cantidad,
-            $precio, $flete_tipo, $costo_flete,
-            $referencia, $notas, $user['id']
-        ]);
-        jsonResponse(['ok' => true, 'id' => $db->lastInsertId()]);
+        $db->beginTransaction();
+        try {
+            $s = $db->prepare("INSERT INTO inventario_compras
+                (lamina_id, proveedor_id, fecha_compra, cantidad_laminas,
+                 precio_unitario, flete_tipo, costo_flete_total,
+                 referencia, notas, created_by)
+                VALUES (?,?,?,?,?,?,?,?,?,?)");
+            $s->execute([
+                $lamina_id, $proveedor_id, $fecha, $cantidad,
+                $precio, $flete_tipo, $costo_flete,
+                $referencia, $notas, $user['id']
+            ]);
+            $compra_id = $db->lastInsertId();
+
+            // Venta anticipada de lámina completa (UPD-554): esta compra puede
+            // cubrir reservas activas de esta misma lámina — liquidarlas de inmediato.
+            laminasLiquidarReservas($db, $lamina_id, (int)$user['id']);
+
+            $db->commit();
+            jsonResponse(['ok' => true, 'id' => $compra_id]);
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => $e->getMessage()], 500);
+        }
     }
 
     // ── Ajustar stock (corrección manual, solo dir_admin/administracion) ──

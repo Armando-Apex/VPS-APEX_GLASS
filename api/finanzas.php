@@ -8,6 +8,7 @@ require_once 'permisos.php';
 require_once __DIR__ . '/helpers/totales.php';    // A-2
 require_once __DIR__ . '/helpers/referidos_lib.php'; // Esquema de Referidos (promo agosto 2026)
 require_once __DIR__ . '/helpers/polizas_lib.php'; // Fase 6.2 — pólizas automáticas (VoBo + pagos)
+require_once __DIR__ . '/helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
 require_once __DIR__ . '/wa_helper.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -583,6 +584,17 @@ if ($method === 'PUT') {
                             ],
                             (int)$user['id']);
                     }
+                }
+
+                // Venta anticipada de lámina completa (UPD-554): por cada partida marcada
+                // como "vender lámina completa" (lamina_id), reservar contra stock/compra
+                // futura — se liquida sola apenas haya stock físico disponible.
+                $stLam = $db->prepare("SELECT id, lamina_id, cantidad FROM cotizaciones_partidas
+                                       WHERE cotizacion_id = ? AND lamina_id IS NOT NULL");
+                $stLam->execute([$orden['cot_id']]);
+                foreach ($stLam->fetchAll(PDO::FETCH_ASSOC) as $pLam) {
+                    laminasCrearReservaVenta($db, $pLam['lamina_id'], (int)$pLam['cantidad'],
+                        $pLam['id'], $orden['folio'], (int)$user['id']);
                 }
             }
 

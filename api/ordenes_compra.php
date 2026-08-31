@@ -10,6 +10,7 @@ require_once 'config.php';
 require_once 'permisos.php';
 require_once 'mailer.php';
 require_once 'helpers/polizas_lib.php';
+require_once 'helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
 $user = requirePermisoApi('ver_inventario');
 
 $db     = getDB();
@@ -496,6 +497,10 @@ if ($method === 'POST') {
                         $entrega_id,
                         $oc_id
                     ]);
+
+                    // Venta anticipada de lámina completa (UPD-554): esta entrega puede
+                    // cubrir reservas activas de esa misma lámina — liquidarlas de inmediato.
+                    laminasLiquidarReservas($db, $partida['lamina_id'], (int)$user['id']);
                 }
 
                 // [Alto#8 fix] Si esta línea del detalle es la partida de flete (no

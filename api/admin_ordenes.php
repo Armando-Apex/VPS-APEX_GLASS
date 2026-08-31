@@ -9,6 +9,7 @@
 require_once 'config.php';
 require_once 'permisos.php';
 require_once __DIR__ . '/helpers/totales.php'; // A-03: barrera de cobro en corregir_estatus
+require_once __DIR__ . '/helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: https://apex.glass');
@@ -111,6 +112,15 @@ if ($method === 'POST') {
             foreach ($stmtC->fetchAll(PDO::FETCH_ASSOC) as $cot) {
                 $db->prepare("UPDATE cotizaciones SET estatus='cancelada', updated_at=NOW() WHERE id=?")
                    ->execute([$cot['id']]);
+
+                // Venta anticipada de lámina completa (UPD-554): regresar a stock
+                // lo que ya se hubiera liquidado de cualquier reserva de esta cotización.
+                $stLamP = $db->prepare("SELECT id FROM cotizaciones_partidas WHERE cotizacion_id = ? AND lamina_id IS NOT NULL");
+                $stLamP->execute([$cot['id']]);
+                foreach ($stLamP->fetchAll(PDO::FETCH_COLUMN) as $partidaIdLam) {
+                    laminasRevertirReservaPorPartida($db, $partidaIdLam, $cot['folio'], (int)$user['id']);
+                }
+
                 $monto = (float)$cot['saldo_pagado'];
                 if ($monto > 0 && $cot['cliente_id']) {
                     $db->prepare("INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)

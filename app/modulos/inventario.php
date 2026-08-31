@@ -852,7 +852,7 @@ async function cargarStock() {
         '<td>'+l.espesor_mm+' mm</td>'+
         '<td style="white-space:nowrap">'+((l.ancho_mm/10).toFixed(0))+' &#215; '+((l.alto_mm/10).toFixed(0))+' cm</td>'+
         '<td>'+fmt(l.m2,2)+' m&#178;</td>'+
-        '<td><strong>'+stock+'</strong> l&#225;m.</td>'+
+        '<td><strong>'+stock+'</strong> l&#225;m.'+(l.reservado>0 ? '<div style="font-size:11px;color:var(--c-amber)">'+l.reservado+' reservada(s) &mdash; venta anticipada</div>' : '')+'</td>'+
         '<td><div class="stock-bar-wrap"><div class="stock-bar"><div class="stock-fill '+cls+'" style="width:'+barW+'%"></div></div><div class="stock-pct">'+(pct !== null ? pct+'%' : '&#8212;')+'</div></div><div style="font-size:11px;color:var(--c-muted);margin-top:2px">'+fmt(stockM2,1)+' m&#178;</div></td>'+
         '<td>'+(rM2>0 ? fmt(rM2,1)+' m&#178;' : '<span style="color:var(--c-muted)">&#8212;</span>')+'</td>'+
         '<td>'+fmtPeso(l.costo_prom_m2)+'/m&#178;</td>'+

@@ -22,6 +22,7 @@ require_once 'cotizacion_helpers.php';
 require_once __DIR__ . '/helpers/totales.php';    // A-2: fórmula canónica de totales
 require_once __DIR__ . '/helpers/referidos_lib.php'; // Esquema de Referidos (promo agosto 2026)
 require_once __DIR__ . '/helpers/promo_wa_lib.php';   // Promo Estados WhatsApp por volumen (15-ago-2026)
+require_once __DIR__ . '/helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
 
 // cotizacionesFacturaVigente() vive ahora en cotizacion_helpers.php (BLV-1, 26-ago-2026)
 // para que api/maquila.php también la use — no duplicar aquí.
@@ -601,6 +602,16 @@ if ($method === 'POST') {
         $cristal = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cristal) continue;
 
+        // Venta anticipada de lámina completa (UPD-554): marca esta partida como
+        // "vender la lámina X completa" — descuenta/reserva stock al VoBo. Lámina
+        // inválida o dada de baja se ignora en silencio, queda como venta normal.
+        $lamina_id_venta = (int)($p['lamina_id'] ?? 0) ?: null;
+        if ($lamina_id_venta) {
+            $stLamCheck = $db->prepare("SELECT id FROM laminas WHERE id = ? AND activo = 1");
+            $stLamCheck->execute([$lamina_id_venta]);
+            if (!$stLamCheck->fetch()) $lamina_id_venta = null;
+        }
+
         $m2             = round(($ancho / 1000) * ($alto / 1000), 6);
         $precio_m2      = (float)$cristal['precio_m2'];
         $precio_unit    = round($m2 * $precio_m2 * (1 - $descuento_efectivo / 100), 4);
@@ -631,6 +642,7 @@ if ($method === 'POST') {
             'comentarios_etiqueta' => trim($p['comentarios_etiqueta']  ?? ''),
             'requiere_templado'    => isset($p['requiere_templado']) ? (int)$p['requiere_templado'] : 1,
             'pieza_origen_id'      => $es_retrabajo ? $pieza_origen_id : null,
+            'lamina_id'            => $lamina_id_venta,
         ];
     }
 
@@ -674,8 +686,8 @@ if ($method === 'POST') {
             (cotizacion_id, num_partida, cristal_id, cristal_nombre, cristal_etiqueta,
              precio_m2_usado, cantidad, ancho, alto, m2, detalles, cpb,
              resaques, taladros_pasados, taladros_avellanados, requiere_templado,
-             precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id, lamina_id)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ");
         foreach ($partidas_data as $i => $p) {
             $stmtP->execute([
@@ -685,7 +697,7 @@ if ($method === 'POST') {
                 $p['detalles'], $p['cpb'], $p['resaques'],
                 $p['taladros_pasados'], $p['taladros_avellanados'], $p['requiere_templado'],
                 $p['precio_unitario'], $p['subtotal'], $p['iva'], $p['total'],
-                $p['comentarios_etiqueta'], $p['pieza_origen_id']
+                $p['comentarios_etiqueta'], $p['pieza_origen_id'], $p['lamina_id']
             ]);
         }
 
@@ -838,6 +850,14 @@ if ($method === 'PUT') {
             $cristal = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$cristal) continue;
 
+            // Venta anticipada de lámina completa (UPD-554) — ver mismo bloque en 'crear'.
+            $lamina_id_venta = (int)($p['lamina_id'] ?? 0) ?: null;
+            if ($lamina_id_venta) {
+                $stLamCheck = $db->prepare("SELECT id FROM laminas WHERE id = ? AND activo = 1");
+                $stLamCheck->execute([$lamina_id_venta]);
+                if (!$stLamCheck->fetch()) $lamina_id_venta = null;
+            }
+
             $m2 = round(($ancho / 1000) * ($alto / 1000), 6);
 
             // C-3: el precio lo decide el servidor. Se conserva el precio vigente en BD
@@ -875,6 +895,7 @@ if ($method === 'PUT') {
                 'comentarios_etiqueta' => trim($p['comentarios_etiqueta']  ?? ''),
             'requiere_templado'    => isset($p['requiere_templado']) ? (int)$p['requiere_templado'] : 1,
             'pieza_origen_id'      => $piezaOrigenVigente[count($partidas_data) + 1] ?? null,
+            'lamina_id'            => $lamina_id_venta,
             ];
         }
 
@@ -942,8 +963,8 @@ if ($method === 'PUT') {
                 (cotizacion_id, num_partida, cristal_id, cristal_nombre, cristal_etiqueta,
                  precio_m2_usado, cantidad, ancho, alto, m2, detalles, cpb,
                  resaques, taladros_pasados, taladros_avellanados, requiere_templado,
-                 precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                 precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id, lamina_id)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ");
             $nuevosIdsPorNumPartida = [];
             foreach ($partidas_data as $i => $p) {
@@ -955,7 +976,7 @@ if ($method === 'PUT') {
                     $p['detalles'], $p['cpb'], $p['resaques'],
                     $p['taladros_pasados'], $p['taladros_avellanados'], $p['requiere_templado'],
                     $p['precio_unitario'], $p['subtotal'], $p['iva'], $p['total'],
-                    $p['comentarios_etiqueta'], $p['pieza_origen_id']
+                    $p['comentarios_etiqueta'], $p['pieza_origen_id'], $p['lamina_id']
                 ]);
                 $nuevosIdsPorNumPartida[$numPart] = (int)$db->lastInsertId();
             }
@@ -1184,6 +1205,14 @@ if ($method === 'PUT') {
             if ($cot['orden_id']) {
                 $db->prepare("UPDATE ordenes SET estado='cancelada', updated_at=NOW() WHERE id=? AND estado != 'entregada'")
                    ->execute([$cot['orden_id']]);
+            }
+
+            // Venta anticipada de lámina completa (UPD-554): regresar a stock lo que
+            // ya se hubiera liquidado de cualquier reserva de esta cotización.
+            $stLamP = $db->prepare("SELECT id FROM cotizaciones_partidas WHERE cotizacion_id = ? AND lamina_id IS NOT NULL");
+            $stLamP->execute([$id]);
+            foreach ($stLamP->fetchAll(PDO::FETCH_COLUMN) as $partidaIdLam) {
+                laminasRevertirReservaPorPartida($db, $partidaIdLam, $cot['folio'], (int)$user['id']);
             }
 
             // Dinero cobrado → saldo a favor del cliente (mismo flujo que 'rechazar')

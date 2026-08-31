@@ -275,7 +275,16 @@ var ES_DIR_ADMIN = <?= $es_dir_admin ? 'true' : 'false' ?>;
 var MODO         = '<?= $modo ?>';
 var ID_COT       = <?= $id_cot ?>;
 
+var API_LAM      = '../api/laminas.php';
+var tipoLaminaLabel = {
+  claro:'Claro', claro_zafiro:'Claro Zafiro', filtrasol:'Filtrasol',
+  espejo:'Espejo', espejo_aluminio:'Espejo Aluminio', laminado_claro:'Laminado Claro',
+  reflecta:'Reflecta', satinado:'Satinado', tintex:'Tintex', evo_50:'EVO 50',
+  bronce:'Bronce', timeless:'Timeless', bioclean:'BioClean', espejo_filtra:'Espejo Filtra'
+};
+
 var cristales           = [];
+var laminasCatalogo     = [];
 var clienteSeleccionado = null;
 var partidas            = [];
 var _buscarTimer        = null;
@@ -303,6 +312,11 @@ async function init() {
     var resSrv = await fetch('../api/servicios_catalogo.php');
     _srvCatalogo = await resSrv.json();
   } catch(e) { _srvCatalogo = []; }
+  try {
+    var resLam = await fetch(API_LAM + '?accion=lista');
+    var dLam = await resLam.json();
+    laminasCatalogo = dLam.laminas || [];
+  } catch(e) { laminasCatalogo = []; }
 
   if (MODO === 'nuevo') {
     renderFormulario(null);
@@ -788,6 +802,23 @@ function renderPartidas(editable) {
     }
     html += '</div>';
 
+    // Venta anticipada de lámina completa (UPD-554): marca esta partida como
+    // "vender la lámina X completa (sin cortar)" — descuenta/reserva stock al VoBo.
+    var lamMarcada = !!p.lamina_id;
+    html += '<div class="lam-venta-row" id="lam-venta-row-' + i + '" style="padding:2px 10px 8px 42px;font-size:12px">';
+    html += '<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--c-muted)">';
+    html += '<input type="checkbox" id="p_venlam_chk_' + i + '"' + (lamMarcada?' checked':'') + (!editable?' disabled':'') + ' onchange="window.cotToggleVentaLamina(' + i + ')">';
+    html += 'Vender l&aacute;mina completa (descuenta stock)</label>';
+    html += '<select id="p_lamina_' + i + '" style="margin-left:8px;display:' + (lamMarcada?'inline-block':'none') + '" onchange="window.cotLaminaChange(' + i + ')"' + (!editable?' disabled':'') + '>';
+    html += '<option value="">-- Selecciona l&aacute;mina de stock --</option>';
+    for (var lz = 0; lz < laminasCatalogo.length; lz++) {
+      var lm = laminasCatalogo[lz];
+      var lmLbl = (tipoLaminaLabel[lm.tipo] || lm.tipo) + ' ' + lm.espesor_mm + 'mm &mdash; ' + lm.ancho_mm + '&times;' + lm.alto_mm + 'mm';
+      html += '<option value="' + lm.id + '" data-ancho="' + lm.ancho_mm + '" data-alto="' + lm.alto_mm + '"' + (p.lamina_id == lm.id ? ' selected' : '') + '>' + lmLbl + '</option>';
+    }
+    html += '</select>';
+    html += '</div>';
+
     // Sección de servicios (solo cotizaciones existentes)
     if (_dataCot && _dataCot.id) {
       var srvs = p.servicios || [];
@@ -850,6 +881,7 @@ function leerPartidasDelDOM() {
     var taEl      = document.getElementById('p_ta_'      + i);
     var templEl   = document.getElementById('p_templ_'   + i);
     var comEl     = document.getElementById('p_com_'     + i);
+    var lamEl     = document.getElementById('p_lamina_'  + i);
     if (cristalEl) partidas[i].cristal_id            = parseInt(cristalEl.value) || 0;
     if (cantEl)    partidas[i].cantidad               = parseInt(cantEl.value)    || 1;
     if (anchoEl)   partidas[i].ancho                  = parseInt(anchoEl.value)   || 0;
@@ -861,6 +893,7 @@ function leerPartidasDelDOM() {
     if (taEl)      partidas[i].taladros_avellanados    = parseInt(taEl.value)      || 0;
     if (templEl)   partidas[i].requiere_templado       = parseInt(templEl.value);
     if (comEl)     partidas[i].comentarios_etiqueta    = comEl.value;
+    if (lamEl)     partidas[i].lamina_id               = parseInt(lamEl.value) || null;
   }
 }
 
@@ -905,6 +938,26 @@ window.cotAutoTemplado = function(idx) {
   } else if (nombre && nombre !== '-- cristal --') {
     templ.value = '1';
   }
+};
+
+// ── Venta anticipada de lámina completa (UPD-554) ─────────────────────────────
+window.cotToggleVentaLamina = function(idx) {
+  var chk = document.getElementById('p_venlam_chk_' + idx);
+  var sel = document.getElementById('p_lamina_' + idx);
+  if (!chk || !sel) return;
+  sel.style.display = chk.checked ? 'inline-block' : 'none';
+  if (!chk.checked) sel.value = '';
+};
+
+window.cotLaminaChange = function(idx) {
+  var sel = document.getElementById('p_lamina_' + idx);
+  if (!sel || !sel.value) return;
+  var opt   = sel.options[sel.selectedIndex];
+  var ancho = document.getElementById('p_ancho_' + idx);
+  var alto  = document.getElementById('p_alto_' + idx);
+  if (ancho) ancho.value = opt.getAttribute('data-ancho') || '';
+  if (alto)  alto.value  = opt.getAttribute('data-alto')  || '';
+  ModCotizacion._recalcular();
 };
 
 // ── Recalcular totales ────────────────────────────────────────────────────────
@@ -1265,6 +1318,7 @@ function armarPayload(clienteId) {
       comentarios_etiqueta: document.getElementById('p_com_' + i)?.value || '',
       requiere_templado:    parseInt(document.getElementById('p_templ_' + i)?.value ?? 1),
       pieza_origen_id:      partidas[i] ? (partidas[i].pieza_origen_id || null) : null,
+      lamina_id:            parseInt(document.getElementById('p_lamina_' + i)?.value || 0) || null,
     });
   }
   if (!partidasPayload.length) { toast('Agrega al menos una partida válida (cristal + medidas)', 'error'); return null; }
