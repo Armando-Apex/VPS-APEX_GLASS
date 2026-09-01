@@ -398,6 +398,12 @@ function waEnviar() {
     <tbody>
     <?php foreach ($partidas as $p):
         $m2_total = (float)$p['m2'] * (int)$p['cantidad'];
+        $esLaminaCompleta = !empty($p['lamina_id']);
+        if ($esLaminaCompleta) {
+            // Venta de lámina completa (UPD-554/555): se vende tal cual, sin
+            // ningún trabajo — no aplica Filo Muerto/CPB/Templado en la cotización.
+            $detalles_extra = ['Lámina completa (sin cortar)'];
+        } else {
         $cpbValNorm = trim((string)($p['cpb'] ?? ''));
         $cpbUpNorm  = strtoupper($cpbValNorm);
         $esCPBNorm  = ($cpbValNorm !== '' && $cpbUpNorm !== 'NO' && $cpbUpNorm !== 'FM' && $cpbUpNorm !== 'FILO MUERTO');
@@ -410,6 +416,7 @@ function waEnviar() {
             $p['comentarios_etiqueta'] ?? '',
             $p['requiere_templado'] ? 'Templado' : 'No Templado',
         ]);
+        }
     ?>
       <tr>
         <td class="center"><?= $p['num_partida'] ?></td>

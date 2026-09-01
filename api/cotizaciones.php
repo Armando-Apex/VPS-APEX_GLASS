@@ -653,10 +653,19 @@ if ($method === 'POST') {
             'iva'                  => $iva,
             'total'                => $total_p,
             'comentarios_etiqueta' => trim($p['comentarios_etiqueta']  ?? ''),
-            'requiere_templado'    => isset($p['requiere_templado']) ? (int)$p['requiere_templado'] : 1,
+            // Venta de lámina completa (UPD-554/555): se vende tal cual, sin ningún
+            // trabajo — el servidor fuerza estos campos sin importar lo capturado.
+            'requiere_templado'    => $lamina_id_venta ? 0 : (isset($p['requiere_templado']) ? (int)$p['requiere_templado'] : 1),
             'pieza_origen_id'      => $es_retrabajo ? $pieza_origen_id : null,
             'lamina_id'            => $lamina_id_venta,
         ];
+        if ($lamina_id_venta) {
+            $idx = count($partidas_data) - 1;
+            $partidas_data[$idx]['cpb']                  = '';
+            $partidas_data[$idx]['resaques']              = 0;
+            $partidas_data[$idx]['taladros_pasados']      = 0;
+            $partidas_data[$idx]['taladros_avellanados']  = 0;
+        }
     }
 
     if (empty($partidas_data)) { jsonResponse(['error' => 'Ninguna partida válida']); exit; }
@@ -906,10 +915,19 @@ if ($method === 'PUT') {
                 'iva'                  => $iva,
                 'total'                => $total_p,
                 'comentarios_etiqueta' => trim($p['comentarios_etiqueta']  ?? ''),
-            'requiere_templado'    => isset($p['requiere_templado']) ? (int)$p['requiere_templado'] : 1,
+            // Venta de lámina completa (UPD-554/555): se vende tal cual, sin ningún
+            // trabajo — el servidor fuerza estos campos sin importar lo capturado.
+            'requiere_templado'    => $lamina_id_venta ? 0 : (isset($p['requiere_templado']) ? (int)$p['requiere_templado'] : 1),
             'pieza_origen_id'      => $piezaOrigenVigente[count($partidas_data) + 1] ?? null,
             'lamina_id'            => $lamina_id_venta,
             ];
+            if ($lamina_id_venta) {
+                $idx = count($partidas_data) - 1;
+                $partidas_data[$idx]['cpb']                 = '';
+                $partidas_data[$idx]['resaques']             = 0;
+                $partidas_data[$idx]['taladros_pasados']     = 0;
+                $partidas_data[$idx]['taladros_avellanados'] = 0;
+            }
         }
 
         if (empty($partidas_data)) { jsonResponse(['error' => 'Ninguna partida válida']); exit; }

@@ -266,6 +266,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
       $m2 = round(($p['ancho'] / 1000) * ($p['alto'] / 1000), 4);
       $m2t = round($m2 * $p['cantidad'], 4);
       $templado = $p['requiere_templado'] ?? 1;
+      $esLaminaCompleta = !empty($p['lamina_id']);
     ?>
     <?php if (!$esMaquila): ?>
       <tr>
@@ -275,12 +276,16 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
         <td><?= number_format($p['alto']) ?></td>
         <td><?= $p['cantidad'] ?></td>
         <td><?= number_format($m2t, 4) ?></td>
+        <?php if ($esLaminaCompleta): ?>
+        <td class="left" colspan="6" style="font-weight:700;color:#15803d;background:#f0fdf4">LÁMINA COMPLETA — SIN CORTAR NI TRABAJAR</td>
+        <?php else: ?>
         <td class="left"><?= htmlspecialchars($p['detalles'] ?: '—') ?></td>
         <td class="<?= $templado ? 'si' : 'no' ?>"><?= $templado ? 'Sí' : 'No' ?></td>
         <td><?= htmlspecialchars($p['cpb'] && strtoupper(trim($p['cpb'])) !== 'NO' ? $p['cpb'] : 'FM') ?></td>
         <td><?= $p['resaques'] ?: '—' ?></td>
         <td><?= $p['taladros_pasados'] ?: '—' ?></td>
         <td><?= $p['taladros_avellanados'] ?: '—' ?></td>
+        <?php endif; ?>
         <td><?= htmlspecialchars($p['pintura'] ?? '—') ?></td>
         <td class="left"><?= htmlspecialchars($p['comentarios_etiqueta'] ?: '') ?></td>
       </tr>

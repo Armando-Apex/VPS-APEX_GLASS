@@ -721,6 +721,10 @@ function renderPartidas(editable) {
   var html = '';
   for (var i = 0; i < partidas.length; i++) {
     var p = partidas[i];
+    // Venta de lámina completa (UPD-554/555): sin ningún trabajo — deshabilita
+    // CPB/resaques/taladros/templado al renderizar (el servidor los fuerza a 0
+    // de todas formas, esto solo evita que el asesor capture algo engañoso).
+    var lamMarcada = !!p.lamina_id;
     html += '<div class="partida-row' + (i % 2 === 1 ? ' zebra' : '') + '" id="prow-' + i + '">';
     html += '<span class="num-partida">' + (i+1) + '</span>';
 
@@ -765,25 +769,25 @@ function renderPartidas(editable) {
     // CPB
     var cpbOpts = ['No','Perimetral','Larguero','Largueros','Cabezal','Cabezales','1 Larguero - 1 cabezal','2 Largueros - 1 cabezal','1 Larguero - 2 cabezales'];
     if (editable) {
-      html += '<select id="p_cpb_' + i + '">';
+      html += '<select id="p_cpb_' + i + '"' + (lamMarcada?' disabled':'') + '>';
       html += '<option value="">--</option>';
       for (var c = 0; c < cpbOpts.length; c++) {
-        html += '<option value="' + cpbOpts[c] + '"' + (p.cpb===cpbOpts[c]?' selected':'') + '>' + cpbOpts[c] + '</option>';
+        html += '<option value="' + cpbOpts[c] + '"' + ((!lamMarcada && p.cpb===cpbOpts[c])?' selected':'') + '>' + cpbOpts[c] + '</option>';
       }
       html += '</select>';
     } else {
-      html += '<input type="text" readonly value="' + escHtml(p.cpb||'') + '">';
+      html += '<input type="text" readonly value="' + escHtml(lamMarcada?'':(p.cpb||'')) + '">';
     }
     // Resaques
-    html += '<input type="number" id="p_res_' + i + '" style="text-align:center" value="' + (p.resaques||0) + '" min="0" ' + (!editable?'readonly':'') + '>';
+    html += '<input type="number" id="p_res_' + i + '" style="text-align:center" value="' + (lamMarcada?0:(p.resaques||0)) + '" min="0" ' + (!editable?'readonly':(lamMarcada?'disabled':'')) + '>';
     // Taladros pasados
-    html += '<input type="number" id="p_tp_' + i + '" style="text-align:center" value="' + (p.taladros_pasados||0) + '" min="0" ' + (!editable?'readonly':'') + '>';
+    html += '<input type="number" id="p_tp_' + i + '" style="text-align:center" value="' + (lamMarcada?0:(p.taladros_pasados||0)) + '" min="0" ' + (!editable?'readonly':(lamMarcada?'disabled':'')) + '>';
     // Taladros avellanados
-    html += '<input type="number" id="p_ta_' + i + '" style="text-align:center" value="' + (p.taladros_avellanados||0) + '" min="0" ' + (!editable?'readonly':'') + '>';
+    html += '<input type="number" id="p_ta_' + i + '" style="text-align:center" value="' + (lamMarcada?0:(p.taladros_avellanados||0)) + '" min="0" ' + (!editable?'readonly':(lamMarcada?'disabled':'')) + '>';
     // Templado
-    var templVal = (p.requiere_templado === 0 || p.requiere_templado === '0') ? 0 : 1;
+    var templVal = lamMarcada ? 0 : ((p.requiere_templado === 0 || p.requiere_templado === '0') ? 0 : 1);
     if (editable) {
-      html += '<select id="p_templ_' + i + '" style="font-size:12px;padding:6px 4px;border:1.5px solid var(--c-border);border-radius:6px;width:100%">'
+      html += '<select id="p_templ_' + i + '" style="font-size:12px;padding:6px 4px;border:1.5px solid var(--c-border);border-radius:6px;width:100%"' + (lamMarcada?' disabled':'') + '>'
         + '<option value="1"' + (templVal===1?' selected':'') + '>S&#237;</option>'
         + '<option value="0"' + (templVal===0?' selected':'') + '>No</option>'
         + '</select>';
@@ -804,7 +808,6 @@ function renderPartidas(editable) {
 
     // Venta anticipada de lámina completa (UPD-554): marca esta partida como
     // "vender la lámina X completa (sin cortar)" — descuenta/reserva stock al VoBo.
-    var lamMarcada = !!p.lamina_id;
     html += '<div class="lam-venta-row" id="lam-venta-row-' + i + '" style="padding:2px 10px 8px 42px;font-size:12px">';
     html += '<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--c-muted)">';
     html += '<input type="checkbox" id="p_venlam_chk_' + i + '"' + (lamMarcada?' checked':'') + (!editable?' disabled':'') + ' onchange="window.cotToggleVentaLamina(' + i + ')">';
@@ -932,7 +935,7 @@ window.cotAutoTemplado = function(idx) {
   if (!sel) return;
   var nombre = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text.toLowerCase().trim() : '';
   var templ = document.getElementById('p_templ_' + idx);
-  if (!templ) return;
+  if (!templ || templ.disabled) return; // venta de lámina completa: sin templado, sin importar el cristal
   if (nombre.indexOf('espejo') !== -1) {
     templ.value = '0';
   } else if (nombre && nombre !== '-- cristal --') {
@@ -947,6 +950,25 @@ window.cotToggleVentaLamina = function(idx) {
   if (!chk || !sel) return;
   sel.style.display = chk.checked ? 'inline-block' : 'none';
   if (!chk.checked) sel.value = '';
+  // Venta de lámina completa = sin ningún trabajo (sin cortar, sin cantear, sin
+  // taladrar, sin templar) — el servidor fuerza estos campos a 0/vacío igual,
+  // esto es solo para que el asesor no capture algo que no se va a cobrar/hacer.
+  var cpbEl   = document.getElementById('p_cpb_'   + idx);
+  var resEl   = document.getElementById('p_res_'   + idx);
+  var tpEl    = document.getElementById('p_tp_'    + idx);
+  var taEl    = document.getElementById('p_ta_'    + idx);
+  var templEl = document.getElementById('p_templ_' + idx);
+  [cpbEl, resEl, tpEl, taEl, templEl].forEach(function(el) {
+    if (!el) return;
+    el.disabled = chk.checked;
+    if (chk.checked) {
+      if (el === cpbEl)   el.value = '';
+      if (el === resEl)   el.value = 0;
+      if (el === tpEl)    el.value = 0;
+      if (el === taEl)    el.value = 0;
+      if (el === templEl) el.value = '0';
+    }
+  });
 };
 
 window.cotLaminaChange = function(idx) {
