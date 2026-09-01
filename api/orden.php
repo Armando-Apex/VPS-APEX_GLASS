@@ -92,6 +92,7 @@ foreach ($piezas as $p) {
             'ancho_mm'      => $p['ancho_mm'],
             'alto_mm'       => $p['alto_mm'],
             'm2_unitario'   => $p['m2'],
+            'requiere_corte' => intval($p['requiere_corte'] ?? 1),
             'cpb'           => $p['cpb'],
             'detalles'      => $p['detalles'],
             'resaques'      => $p['resaques'],

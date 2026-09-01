@@ -98,6 +98,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .tag-cpb     { background: #e0f2fe; color: #0369a1; }
 .tag-trabajo { background: #f3e8ff; color: #6d28d9; }
 .tag-nota    { background: #fef3c7; color: #92400e; }
+.tag-lamina  { background: #dcfce7; color: #15803d; }
 
 .partida-resumen {
   display: flex; gap: 6px; flex-wrap: wrap;
@@ -307,9 +308,11 @@ function render(data) {
   `;
 
   partidas.forEach(pt => {
-    const canteadoTag = pt.cpb && pt.cpb.trim()
-      ? `<span class="tag tag-cpb">CPB — ${pt.cpb}</span>`
-      : `<span class="tag tag-cpb">Canteado</span>`;
+    const canteadoTag = parseInt(pt.requiere_corte) === 0
+      ? `<span class="tag tag-lamina">Lámina completa — sin trabajo</span>`
+      : (pt.cpb && pt.cpb.trim()
+          ? `<span class="tag tag-cpb">CPB — ${pt.cpb}</span>`
+          : `<span class="tag tag-cpb">Canteado</span>`);
 
     const trabajosTags = [];
     if (parseInt(pt.resaques) > 0) trabajosTags.push(`<span class="tag tag-trabajo">✂️ ${pt.resaques} resaque(s)</span>`);

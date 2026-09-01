@@ -320,14 +320,23 @@ if ($method === 'POST') {
             // Crear piezas individuales
             $stmtPieza = $db->prepare("INSERT INTO piezas
                 (orden_id, partida, pieza_num, pieza_total,
-                 cristal, cristal_corto, requiere_templado,
+                 cristal, cristal_corto, requiere_templado, requiere_corte,
                  ancho_mm, alto_mm, m2,
                  cpb, detalles, resaques, tp, ta, comentarios, qr_code, estatus,
                  es_retrabajo, pieza_origen_id)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ");
+            $stmtHistLamina = $db->prepare("
+                INSERT INTO historial_estatus
+                    (pieza_id, estatus_anterior, estatus_nuevo, usuario_id, usuario_nombre, notas, omision)
+                VALUES (?, 'pendiente', 'terminado', ?, ?, 'Venta de lámina completa — sin ningún trabajo, terminado directo', 1)
             ");
 
             foreach ($partidas as $p) {
+                // Venta de lámina completa (UPD-554/UPD-555): la lámina se vende
+                // tal cual, sin corte/canteado/trazo/taladro/templado — nace ya
+                // 'terminado', lista para entregar, sin pasar por producción.
+                $esLaminaCompleta = !empty($p['lamina_id']);
                 for ($i = 1; $i <= $p['cantidad']; $i++) {
                     $qr = $cot['folio'] . '-' . str_pad($p['num_partida'], 2, '0', STR_PAD_LEFT) . '-' . str_pad($i, 3, '0', STR_PAD_LEFT) . '-' . str_pad($p['cantidad'], 3, '0', STR_PAD_LEFT);
                     $stmtPieza->execute([
@@ -337,21 +346,25 @@ if ($method === 'POST') {
                         $p['cantidad'],
                         $p['cristal_nombre'] ?? $p['cristal_etiqueta'],
                         $p['cristal_etiqueta'],
-                        (int)($p['requiere_templado'] ?? 1), // viene de la cotización
+                        $esLaminaCompleta ? 0 : (int)($p['requiere_templado'] ?? 1), // viene de la cotización
+                        $esLaminaCompleta ? 0 : 1,
                         $p['ancho'],
                         $p['alto'],
                         $p['m2'],
-                        $p['cpb'] ?? '',
+                        $esLaminaCompleta ? '' : ($p['cpb'] ?? ''),
                         $p['detalles'] ?? '',
-                        $p['resaques'] ?? 0,
-                        $p['taladros_pasados'] ?? 0,
-                        $p['taladros_avellanados'] ?? 0,
+                        $esLaminaCompleta ? 0 : ($p['resaques'] ?? 0),
+                        $esLaminaCompleta ? 0 : ($p['taladros_pasados'] ?? 0),
+                        $esLaminaCompleta ? 0 : ($p['taladros_avellanados'] ?? 0),
                         $p['comentarios_etiqueta'] ?? '',
                         $qr,
-                        'pendiente',
+                        $esLaminaCompleta ? 'terminado' : 'pendiente',
                         (int)($cot['es_retrabajo'] ?? 0),
                         $p['pieza_origen_id'] ?? null
                     ]);
+                    if ($esLaminaCompleta) {
+                        $stmtHistLamina->execute([$db->lastInsertId(), $usuario_id ?: null, $usuario_nombre ?? 'Sistema']);
+                    }
                 }
             }
             }
