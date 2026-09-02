@@ -550,7 +550,7 @@ async function cargarModulo(nombre, params = {}) {
   const url = archivo + (qs ? sep + qs : '');
 
   try {
-    const res = await fetch(url, { headers: { 'X-SPA-Request': '1' } });
+    const res = await fetch(url, { headers: { 'X-SPA-Request': '1' }, cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const html = new TextDecoder('utf-8').decode(await res.arrayBuffer());
 
