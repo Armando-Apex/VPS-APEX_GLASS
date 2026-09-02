@@ -72,7 +72,7 @@ header('Content-Type: text/html; charset=utf-8');
 <script>
 var ModMedia = (function () {
   var API = '../api/media_manager.php';
-  var CHUNK = 6 * 1024 * 1024; // margen bajo post_max_size (8M) por overhead de multipart/form-data
+  var CHUNK = 1.5 * 1024 * 1024; // margen bajo upload_max_filesize (2M, más estricto que post_max_size 8M) por overhead de multipart/form-data
   var path = '';
 
   function esc(s) {
