@@ -422,11 +422,20 @@ if ($method === 'POST') {
 
     // ── Registrar uso (operador corte) ────────────────────────
     if ($accion === 'registrar_uso') {
-        // operador de corte puede registrar uso
+        // BLO-15: solo el gate global de módulo (ver_inventario, línea 10) protegía
+        // esto — 'comercial' también tiene ver_inventario sin gestionar_inventario,
+        // así que cualquier rol con acceso de solo-lectura al módulo podía descontar
+        // stock real. Además la fecha venía libre del body (podía registrar una
+        // merma con fecha atrasada, escondiéndola en un período de costo ya cerrado)
+        // — se fuerza a hoy, mismo criterio que ya usan sesion_corte (CURDATE()) y
+        // ajustar_stock.
+        if (!in_array($user['rol'], ['dir_admin', 'administracion', 'dueno', 'desarrollo'])) {
+            jsonResponse(['error' => 'Sin permiso'], 403);
+        }
         $lamina_id = (int)($body['lamina_id']       ?? 0);
         $cantidad  = (int)($body['cantidad_laminas'] ?? 0);
         $ordenes   = $body['ordenes']                ?? [];  // array de folios
-        $fecha     = $body['fecha']                  ?? date('Y-m-d');
+        $fecha     = date('Y-m-d');
         $notas     = trim($body['notas']             ?? '');
 
         // [A-3] Cantidad debe ser positiva (un "uso" de -5 sumaba 5 láminas)

@@ -529,8 +529,8 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
       </div>
       <div class="hdr-field"><span>Fecha:</span> <?= $fecha_hoy ?></div>
       <div class="hdr-field"><span>Entrega:</span> <span id="doc-fecha-entrega"><?= $fecha_ent ?></span></div>
-      <?php if ($tipo_ent === 'chofer' && $orden_id_php): ?>
-      <div class="salida-qr-wrap">
+      <?php if ($orden_id_php): ?>
+      <div class="salida-qr-wrap" id="salidaQrBlock" style="<?= $tipo_ent === 'chofer' ? '' : 'display:none' ?>">
         <div id="salidaQrWrap"></div>
         <div class="qr-cap">Escanear al cargar</div>
       </div>
@@ -818,6 +818,8 @@ function setTipo(tipo) {
   if (tipo !== 'chofer') document.getElementById('fecha-chofer').value = '';
   var docTipo = document.getElementById('doc-tipo-entrega-val');
   if (docTipo) docTipo.textContent = (tipo === 'chofer') ? 'Domicilio / Ruta' : 'Recolección en planta';
+  var qrBlock = document.getElementById('salidaQrBlock');
+  if (qrBlock) qrBlock.style.display = (tipo === 'chofer') ? '' : 'none';
 }
 
 // ── Confirmar salida ──────────────────────────────────────────────────────────

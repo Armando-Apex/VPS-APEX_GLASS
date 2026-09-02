@@ -221,10 +221,19 @@ if ($method === 'POST') {
         }
 
         // Obtener la orden
-        $stmtO = $db->prepare("SELECT id FROM ordenes WHERE folio=?");
+        $stmtO = $db->prepare("SELECT id, estado FROM ordenes WHERE folio=?");
         $stmtO->execute([$folio]);
         $orden = $stmtO->fetch();
         if (!$orden) jsonResponse(['error' => 'Orden no encontrada'], 404);
+
+        // BLO-06: corregir el estatus de piezas de una orden cancelada revivía la
+        // orden a 'activa' (línea de abajo) a ciegas, sin pasar por el candado que
+        // sí tiene accion=restaurar (re-vincular la cotización, revisar si ya se
+        // movió dinero a saldo a favor) — dejaba una orden "activa" con su
+        // cotización todavía 'cancelada', incobrable (zombie). Usa Restaurar primero.
+        if ($orden['estado'] === 'cancelada') {
+            jsonResponse(['error' => 'Esta orden está cancelada. Restáurala primero (botón "Restaurar") antes de corregir el estatus de sus piezas.'], 409);
+        }
 
         $ordenId = $orden['id'];
 

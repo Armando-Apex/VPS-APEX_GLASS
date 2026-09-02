@@ -98,6 +98,12 @@ if ($method === 'POST') {
             $nuevo    = $hdr[$campo];
             $anterior = $cot[$campo] ?? '';
 
+            // BLV-6: descuento sin clamp — a diferencia de crear/editar en
+            // cotizaciones.php (S1-04), aquí se aceptaba cualquier número,
+            // incluyendo negativos o mayores a 100%.
+            if ($campo === 'descuento') {
+                $nuevo = max(0, min(100, (float)$nuevo));
+            }
             if ($campo === 'factura_tipo') {
                 $nuevo = ($nuevo === 'generica') ? 'generica' : '';
             }
@@ -192,6 +198,16 @@ if ($method === 'POST') {
                 if (!array_key_exists($campo, $pc)) continue;
 
                 $nuevo    = $pc[$campo];
+
+                // BLV-6: mismo candado S2-05 (cotizaciones.php) que faltaba aquí —
+                // sin esto se podía dejar una medida o precio en negativo, o una
+                // cantidad de piezas <1 (cuyo valor crudo se guardaba en el campo
+                // aunque el cálculo del total ya lo forzaba a mínimo 1 más abajo,
+                // dejando `cantidad` y el total cobrado desincronizados).
+                if (in_array($campo, ['ancho', 'alto'], true) && (float)$nuevo <= 0) continue;
+                if (in_array($campo, ['precio_unitario', 'precio_m2_usado'], true) && (float)$nuevo < 0) continue;
+                if ($campo === 'cantidad') $nuevo = max(1, (int)$nuevo);
+
                 $anterior = $partida[$campo] ?? '';
                 if ((string)$anterior === (string)$nuevo) continue;
 

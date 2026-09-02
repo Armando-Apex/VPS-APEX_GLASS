@@ -192,7 +192,6 @@ foreach ($elementos as $idxEl => $e) {
     // Cota horizontal: desde el borde más cercano (izq o der)
     $desdeIzq = (float)$e['x'] <= $ancho / 2;
     $dimH     = $desdeIzq ? (float)$e['x'] : ($ancho - (float)$e['x']);
-    if ($dimH == 0) { $desdeIzq = !$desdeIzq; $dimH = $desdeIzq ? (float)$e['x'] : ($ancho - (float)$e['x']); }
     // borde con pequeño margen para que el tick no quede encima del contorno
     $bordHx   = $desdeIzq ? ($ox + 4) : ($ox + $gw - 4);
     $offH     = 12 + $idxEl * 16;
@@ -208,7 +207,6 @@ foreach ($elementos as $idxEl => $e) {
     // Cota vertical: desde el borde más cercano (inf o sup)
     $desdeInf = (float)$e['y'] <= $alto / 2;
     $dimV     = $desdeInf ? (float)$e['y'] : ($alto - (float)$e['y']);
-    if ($dimV == 0) { $desdeInf = !$desdeInf; $dimV = $desdeInf ? (float)$e['y'] : ($alto - (float)$e['y']); }
     // borde con pequeño margen para que el tick no quede encima del contorno
     $bordVy   = $desdeInf ? ($oyBottom - 4) : ($oy + 4);
     $offV     = 12 + $idxEl * 16;

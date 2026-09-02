@@ -348,6 +348,12 @@ if ($metodo === 'POST' && $accion === 'crear') {
     $stmt->execute([$nombre, $template, $varsJson, $headerImageUrl ?: null, $segmentoJson, $user['nombre'], $total]);
     $campanaId = $db->lastInsertId();
 
+    // BLO-11: sin dedupe por teléfono, el mismo número (un cliente y un prospecto
+    // con el mismo celular, o un id repetido en la selección) se insertaba dos
+    // veces en campana_envios — al enviar, esa persona recibía el WhatsApp
+    // repetido con su costo correspondiente en Meta sin ninguna razón de negocio.
+    $telsVistos = [];
+
     $stmtCli = $db->prepare("SELECT id, nombre, contacto, telefono FROM clientes WHERE id = ?");
     $stmtIns = $db->prepare("INSERT INTO campana_envios (campana_id, cliente_id, telefono, nombre_override) VALUES (?, ?, ?, ?)");
     foreach ($clienteIds as $cid) {
@@ -355,6 +361,9 @@ if ($metodo === 'POST' && $accion === 'crear') {
         $cli = $stmtCli->fetch(PDO::FETCH_ASSOC);
         if ($cli && $cli['telefono']) {
             $tel = normalizarTelefono($cli['telefono']);
+            $tel10 = substr(preg_replace('/\D/', '', $tel), -10);
+            if (isset($telsVistos[$tel10])) continue;
+            $telsVistos[$tel10] = true;
             $nombreCorto = nombreCampanaCorto((int)$cli['id'], $cli['contacto'] ?: $cli['nombre']);
             $stmtIns->execute([$campanaId, $cli['id'], $tel, $nombreCorto]);
         }
@@ -367,8 +376,18 @@ if ($metodo === 'POST' && $accion === 'crear') {
         $pr = $stmtPr->fetch(PDO::FETCH_ASSOC);
         if ($pr && $pr['telefono']) {
             $tel = '52' . $pr['telefono'];
+            $tel10 = substr(preg_replace('/\D/', '', $tel), -10);
+            if (isset($telsVistos[$tel10])) continue;
+            $telsVistos[$tel10] = true;
             $stmtInsPr->execute([$campanaId, $pr['id'], $pr['nombre'] ?: 'Prospecto', $tel]);
         }
+    }
+
+    // Reflejar el conteo real después del dedupe (antes se guardaba el total
+    // crudo de ids seleccionados, que ya no coincide con las filas insertadas).
+    $totalReal = count($telsVistos);
+    if ($totalReal !== $total) {
+        $db->prepare("UPDATE campanas SET total_destinatarios = ? WHERE id = ?")->execute([$totalReal, $campanaId]);
     }
 
     $db->commit();

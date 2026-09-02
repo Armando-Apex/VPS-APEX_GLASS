@@ -175,10 +175,15 @@ function _rutaWaEnviarCliente($db, $parada, $tpl, $paramsTexto) {
 // Idempotente vía rutas.avisos_inicio_enviados — se llama tanto desde el arranque automático
 // (api/salidas.php, scan_qr) como desde el botón manual (api/rutas.php, iniciar_ruta).
 function enviarAvisosInicioRuta($db, $ruta_id) {
-    $ya = $db->prepare("SELECT avisos_inicio_enviados FROM rutas WHERE id=?");
-    $ya->execute([$ruta_id]);
-    if ((int)$ya->fetchColumn() === 1) return;
-    $db->prepare("UPDATE rutas SET avisos_inicio_enviados=1 WHERE id=?")->execute([$ruta_id]);
+    // BLO-10: el check-then-set (SELECT, luego UPDATE) no era atómico — dos
+    // escaneos de carga casi simultáneos, o un escaneo justo cuando alguien le
+    // da al botón "Iniciar Ruta", podían pasar los dos el SELECT en 0 antes de
+    // que cualquiera alcanzara a poner el 1, y reenviar los WhatsApp de inicio
+    // a toda la ruta por duplicado. Mismo patrón de claim atómico que ya se usa
+    // en VoBo/campañas/iniciar_ruta.
+    $stClaim = $db->prepare("UPDATE rutas SET avisos_inicio_enviados=1 WHERE id=? AND avisos_inicio_enviados=0");
+    $stClaim->execute([$ruta_id]);
+    if ($stClaim->rowCount() !== 1) return;
 
     if (!RUTA_WA_AVISOS_ACTIVO) return;
 

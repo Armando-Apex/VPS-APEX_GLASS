@@ -341,8 +341,25 @@ if ($ordenCompleta && $estatus === 'terminado') {
                 WHERE orden_id = ? AND estatus NOT IN ("terminado","entregado")
             ');
             $stmtPend->execute([$pieza['orden_id']]);
+            // BLO-14: claim atómico antes de mandar — dos escaneos casi simultáneos
+            // de las 2 últimas piezas de la orden podían pasar ambos el chequeo de
+            // arriba (wa_lista_enviado seguía en 0 para los dos) y mandar el WhatsApp
+            // "orden lista" duplicado. Si Meta falla, se libera el claim para que el
+            // próximo cambio de estatus lo vuelva a intentar (mismo comportamiento
+            // de reintento que ya tenía antes de este fix).
+            $claimado = false;
             if ((int)$stmtPend->fetchColumn() === 0) {
+                $stClaim = $db->prepare('UPDATE ordenes SET wa_lista_enviado = 1 WHERE id = ? AND wa_lista_enviado = 0');
+                $stClaim->execute([$pieza['orden_id']]);
+                $claimado = $stClaim->rowCount() === 1;
+            }
+            if ($claimado) {
                 $telRaw = preg_replace('/\D/', '', $ordWa['telefono_alterno'] ?: $ordWa['telefono']);
+                if (!$telRaw || strlen($telRaw) < 10) {
+                    // Sin teléfono válido — liberar el claim para reintentar si se
+                    // corrige el teléfono del cliente antes del siguiente cambio.
+                    $db->prepare('UPDATE ordenes SET wa_lista_enviado = 0 WHERE id = ?')->execute([$pieza['orden_id']]);
+                }
                 if ($telRaw && strlen($telRaw) >= 10) {
                     if (strlen($telRaw) === 10) $telRaw = '52' . $telRaw;
                     $proyectoWa = trim($ordWa['proyecto'] ?: $ordWa['cliente_nombre']);
@@ -367,10 +384,7 @@ if ($ordenCompleta && $estatus === 'terminado') {
 
                     $waId = $resWa['data']['messages'][0]['id'] ?? null;
                     if ($resWa['code'] === 200 && $waId) {
-                        // Marcar enviado solo si Meta confirmó
-                        $db->prepare('UPDATE ordenes SET wa_lista_enviado = 1 WHERE id = ?')
-                           ->execute([$pieza['orden_id']]);
-
+                        // Ya quedó marcado por el claim de arriba — solo falta el inbox.
                         // Guardar en inbox para visibilidad
                         $tel10 = substr($telRaw, -10);
                         $stmtCv = $db->prepare("SELECT id, cliente_id FROM whatsapp_conversaciones WHERE RIGHT(REGEXP_REPLACE(telefono,'[^0-9]',''),10) = ?");
@@ -389,6 +403,9 @@ if ($ordenCompleta && $estatus === 'terminado') {
                         $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
                            ->execute([$convId]);
                     } else {
+                        // Meta rechazó el envío — liberar el claim para reintentar
+                        // en el próximo cambio de estatus de esta orden.
+                        $db->prepare('UPDATE ordenes SET wa_lista_enviado = 0 WHERE id = ?')->execute([$pieza['orden_id']]);
                         error_log('APEX WA orden_lista fallo: orden=' . $ordWa['folio'] . ' tel=' . $telRaw . ' resp=' . json_encode($resWa['data']));
                     }
                 }

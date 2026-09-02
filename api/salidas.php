@@ -388,10 +388,18 @@ if ($metodo === 'POST' && $accion === 'scan_qr') {
         ");
         $chkFalta->execute([$re['ruta_id']]);
         if ((int)$chkFalta->fetchColumn() === 0) {
-            $db->prepare("UPDATE rutas SET estado='en_ruta', updated_at=NOW() WHERE id=?")->execute([$re['ruta_id']]);
-            calcularYGuardarEtas($db, $re['ruta_id']);
-            enviarAvisosInicioRuta($db, $re['ruta_id']);
-            $rutaIniciada = true;
+            // BLO-10: `$re['ruta_estado']` se leyó ANTES de este escaneo (posible dato
+            // viejo) y el UPDATE no traía condición de estado — dos escaneos casi
+            // simultáneos completando las últimas piezas podían pasar los dos el
+            // chequeo de arriba y disparar el arranque automático dos veces. Mismo
+            // claim atómico que ya usa el botón manual "Iniciar Ruta" (api/rutas.php).
+            $stClaim = $db->prepare("UPDATE rutas SET estado='en_ruta', updated_at=NOW() WHERE id=? AND estado='planificada'");
+            $stClaim->execute([$re['ruta_id']]);
+            if ($stClaim->rowCount() === 1) {
+                calcularYGuardarEtas($db, $re['ruta_id']);
+                enviarAvisosInicioRuta($db, $re['ruta_id']);
+                $rutaIniciada = true;
+            }
         }
     }
 

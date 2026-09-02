@@ -875,6 +875,36 @@ if ($method === 'POST') {
             if ($motivo === '') {
                 jsonResponse(['error' => 'Para reabrir una OC (' . $estadoActual . ' → ' . $estado . ') debes escribir el motivo.'], 422);
             }
+        } else {
+            // BLO-03: la máquina de estados (LN-6) solo validaba que el salto fuera
+            // de un paso — no que el paso tuviera respaldo real. Un forzado manual
+            // podía dejar la OC en 'cerrada' sin haber recibido nada, o en 'pagada'
+            // sin ningún pago registrado, desacoplando el estado de la realidad que
+            // ya usan recepción (oc_entregas) y pagos (oc_pagos) para llegar ahí solos.
+            if ($estado === 'cerrada') {
+                $sc = $db->prepare("
+                    SELECT COALESCE(SUM(cantidad),0) - COALESCE(SUM(cantidad_recibida),0)
+                    FROM oc_partidas WHERE orden_compra_id = ?
+                ");
+                $sc->execute([$oc_id]);
+                if ((float)$sc->fetchColumn() > 0) {
+                    jsonResponse(['error' => 'No se puede cerrar la OC: todavía tiene material sin recibir. Registra la recepción primero.'], 422);
+                }
+            }
+            if ($estado === 'pagada') {
+                $sp = $db->prepare("
+                    SELECT
+                        COALESCE(SUM(CASE WHEN op.iva_incluido = 1 THEN op.importe ELSE op.importe * 1.16 END), 0) AS total_con_iva,
+                        COALESCE((SELECT SUM(CASE WHEN pg.incluye_iva = 1 THEN pg.monto ELSE pg.monto * 1.16 END)
+                                  FROM oc_pagos pg WHERE pg.orden_compra_id = ?), 0) AS pagado_con_iva
+                    FROM oc_partidas op WHERE op.orden_compra_id = ?
+                ");
+                $sp->execute([$oc_id, $oc_id]);
+                $tot = $sp->fetch(PDO::FETCH_ASSOC);
+                if ((float)$tot['pagado_con_iva'] < (float)$tot['total_con_iva'] - 0.01) {
+                    jsonResponse(['error' => 'No se puede marcar como pagada: todavía tiene saldo pendiente ($' . number_format(max((float)$tot['total_con_iva'] - (float)$tot['pagado_con_iva'], 0), 2) . '). Registra el pago primero.'], 422);
+                }
+            }
         }
 
         $db->prepare("UPDATE ordenes_compra SET estado=? WHERE id=?")->execute([$estado, $oc_id]);
