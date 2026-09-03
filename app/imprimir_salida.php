@@ -151,6 +151,7 @@ function formatRangoPiezas(array $nums): string {
 $tbody_html  = '';
 $totales_txt = 'TOTAL PIEZAS: — &nbsp;|&nbsp; TOTAL M²: —';
 $meses_doc   = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+$piezas_map  = [];
 
 if ($orden_id_php) {
     $stmtPz = $db->prepare('
@@ -160,6 +161,13 @@ if ($orden_id_php) {
     ');
     $stmtPz->execute([$orden_id_php]);
     $piezas_doc = $stmtPz->fetchAll(PDO::FETCH_ASSOC);
+
+    // id => [partida, pieza_num] de TODAS las piezas — para poder recalcular en JS el
+    // estado de la columna Entrega "como si fuera" en el momento de una entrega pasada
+    // (reimprimir la 1a/2a/3a entrega específica, no solo el estado actual).
+    foreach ($piezas_doc as $p) {
+        $piezas_map[(int)$p['id']] = ['partida' => (int)$p['partida'], 'pieza_num' => (int)$p['pieza_num']];
+    }
 
     $grupos_php = [];
     foreach ($piezas_doc as $p) { $grupos_php[(int)$p['partida']][] = $p; }
@@ -237,6 +245,7 @@ if ($orden_id_php) {
     }
     $totales_txt = 'TOTAL PIEZAS: ' . $tot_pz . '  |  TOTAL M²: ' . number_format($tot_m2, 4);
 }
+$piezas_map_json = json_encode($piezas_map, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 
 // Fecha de entrega a mostrar en el doc (fecha_chofer_php > estimada de orden)
 if ($fecha_chofer_php) {
@@ -296,6 +305,8 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .btn-menu-texto span  { font-size: 12px; color: #64748b; }
 .menu-salidas-hist { margin-top: 28px; font-size: 11px; color:var(--c-muted); border-top: 1px solid #f1f5f9; padding-top: 14px; }
 .menu-salidas-hist ul { margin-top: 6px; padding-left: 18px; line-height: 1.9; }
+.hist-reimprimir { color: #1d4ed8; font-weight: 600; text-decoration: none; }
+.hist-reimprimir:hover { text-decoration: underline; }
 
 /* ── Selector de piezas ── */
 #selector-view { padding: 20px 28px; max-width: 780px; margin: 0 auto; }
@@ -410,6 +421,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
 .epago-pagado       { background: #dcfce7; color: #15803d; }
 
 .badge-parcial { display: inline-block; background: #fff7ed; color: #c2410c; font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 4px; border: 1px solid #fed7aa; margin-left: 8px; }
+.badge-reimpresion { display: inline-block; background: #eff6ff; color: #1d4ed8; font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 4px; border: 1px solid #bfdbfe; margin-left: 8px; }
 
 .partidas-table { width: 100%; border-collapse: collapse; margin-top: 14px; }
 .partidas-table th {
@@ -666,6 +678,8 @@ var FECHA_CHOFER    = '<?= $fecha_chofer_php ?>';
 var YA_ENTREGADA    = <?= $ya_entregada ? 'true' : 'false' ?>;
 var TIENE_SALIDAS   = <?= $tiene_salidas ? 'true' : 'false' ?>;
 var SALIDAS_PREVIAS = <?= $salidas_previas_json ?>;
+var PIEZAS_MAP       = <?= $piezas_map_json ?>;
+var FECHA_ENT_ORIGINAL = '<?= addslashes($fecha_ent ?? '—') ?>';
 
 var todasPiezas   = [];
 var seleccionadas = {};
@@ -692,6 +706,67 @@ function formatRangoPiezas(nums) {
   }
   if (inicio !== null) grupos.push(inicio === fin ? String(inicio) : (inicio + ' al ' + fin));
   return grupos.join(', ');
+}
+
+// ── Recalcula la columna Entrega de TODAS las partidas como si el "presente" fuera
+// justo después de SALIDAS_PREVIAS[cutoffIdx] (ignora entregas posteriores a esa) ───
+// Se usa tanto para el estado actual (cutoffIdx = última salida) como para reimprimir
+// una entrega específica más vieja (cutoffIdx = el índice de esa entrega).
+function estadoEntregaCeldas(cutoffIdx) {
+  var piezaSalidaIdx = {};
+  for (var i = 0; i <= cutoffIdx; i++) {
+    (SALIDAS_PREVIAS[i].pieza_ids || []).forEach(function(pid) { piezaSalidaIdx[pid] = i; });
+  }
+
+  var porPartida = {};
+  Object.keys(PIEZAS_MAP).forEach(function(pid) {
+    var info = PIEZAS_MAP[pid];
+    if (!porPartida[info.partida]) porPartida[info.partida] = [];
+    porPartida[info.partida].push({ id: Number(pid), pieza_num: info.pieza_num });
+  });
+
+  Object.keys(porPartida).forEach(function(np) {
+    var cel = document.getElementById('cel-ent-' + np);
+    if (!cel) return;
+    var piezas     = porPartida[np];
+    var total      = piezas.length;
+    var entregadas = piezas.filter(function(p) { return piezaSalidaIdx.hasOwnProperty(p.id); });
+
+    if (!entregadas.length) {
+      cel.innerHTML = '<span class="ent-pendiente">PENDIENTE</span>';
+      return;
+    }
+
+    var maxIdx = null;
+    entregadas.forEach(function(p) {
+      var idx = piezaSalidaIdx[p.id];
+      if (maxIdx === null || idx > maxIdx) maxIdx = idx;
+    });
+    var salidaRef    = SALIDAS_PREVIAS[maxIdx];
+    var fechaStr      = salidaRef.fecha_entrega_chofer || salidaRef.created_at.substring(0, 10);
+    var fechaDisplay  = formatFechaDoc(fechaStr);
+
+    if (entregadas.length >= total) {
+      cel.innerHTML = '<span class="ent-fecha">' + fechaDisplay + '</span>';
+    } else {
+      var nums = entregadas
+        .filter(function(p) { return piezaSalidaIdx[p.id] === maxIdx; })
+        .map(function(p) { return p.pieza_num; });
+      cel.innerHTML = '<span class="ent-parcial">' + formatRangoPiezas(nums) + ' de ' + total + ' al ' + fechaDisplay + '</span>';
+    }
+  });
+}
+
+// ── Reimprimir una entrega ESPECÍFICA del historial (no el estado acumulado actual) ──
+function reimprimirEntrega(idx) {
+  estadoEntregaCeldas(idx);
+  var salida    = SALIDAS_PREVIAS[idx];
+  var fechaStr  = salida.fecha_entrega_chofer || salida.created_at.substring(0, 10);
+  document.getElementById('doc-fecha-entrega').textContent = formatFechaDoc(fechaStr);
+  mostrarDoc(true);
+  var badge = document.getElementById('doc-badge-parcial');
+  badge.innerHTML += ' <span class="badge-reimpresion">REIMPRESIÓN ENTREGA ' + (idx + 1) + ' DE ' + SALIDAS_PREVIAS.length + '</span>';
+  setTimeout(function() { window.print(); }, 400);
 }
 
 // ── QR de salida (chofer) — estático, independiente del caso A/C/D/E ─────────
@@ -742,14 +817,17 @@ function renderHistorialMenu() {
     var fstr = dt.getDate() + '/' + meses[dt.getMonth()+1] + '/' + dt.getFullYear();
     var tipo = s.tipo === 'chofer' ? 'Domicilio' : 'Recolección';
     var parc = s.es_parcial == 1 ? ' · Parcial' : ' · Completa';
-    html += '<li>Entrega ' + (i+1) + ' — ' + s.piezas_count + ' pieza(s) · ' + tipo + parc + ' · ' + fstr + '</li>';
+    html += '<li>Entrega ' + (i+1) + ' — ' + s.piezas_count + ' pieza(s) · ' + tipo + parc + ' · ' + fstr
+          + ' &nbsp;<a href="#" class="hist-reimprimir" onclick="reimprimirEntrega(' + i + '); return false;">Reimprimir esta</a></li>';
   });
   html += '</ul>';
   document.getElementById('menu-hist-lista').innerHTML = html;
 }
 
-// ── Reimprimir (Caso B): mostrar documento actual sin preguntas ───────────────
+// ── Reimprimir (Caso B): estado ACTUAL acumulado, sin preguntas ───────────────
 function reimprimir() {
+  estadoEntregaCeldas(SALIDAS_PREVIAS.length - 1);
+  document.getElementById('doc-fecha-entrega').textContent = FECHA_ENT_ORIGINAL;
   mostrarDoc(true);
   setTimeout(function() { window.print(); }, 400);
 }
