@@ -119,6 +119,34 @@ if ($orden_id_php) {
 }
 $salidas_previas_json = json_encode($salidas_previas, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 
+// pieza_id => índice de la salida MÁS RECIENTE que la incluyó (salidas ordenadas ASC,
+// así que el último salida que la toca gana) — para poder mostrar, por partida, el
+// rango de piezas de SU último envío en vez de un conteo acumulado de todos los envíos.
+$pieza_salida_idx = [];
+foreach ($salidas_previas as $idx => $sp) {
+    foreach ($sp['pieza_ids'] as $pid) {
+        $pieza_salida_idx[$pid] = $idx;
+    }
+}
+
+// Agrupa números consecutivos en rangos "5 al 8" / sueltos "11" / mixto "5 al 8, 11"
+function formatRangoPiezas(array $nums): string {
+    sort($nums);
+    $nums = array_values(array_unique($nums));
+    $grupos = [];
+    $inicio = $fin = $nums[0] ?? null;
+    for ($i = 1; $i < count($nums); $i++) {
+        if ($nums[$i] === $fin + 1) {
+            $fin = $nums[$i];
+        } else {
+            $grupos[] = ($inicio === $fin) ? (string)$inicio : "$inicio al $fin";
+            $inicio = $fin = $nums[$i];
+        }
+    }
+    if ($inicio !== null) $grupos[] = ($inicio === $fin) ? (string)$inicio : "$inicio al $fin";
+    return implode(', ', $grupos);
+}
+
 // ── Generar tbody: SIEMPRE todas las piezas de la orden + columna Entrega ────
 $tbody_html  = '';
 $totales_txt = 'TOTAL PIEZAS: — &nbsp;|&nbsp; TOTAL M²: —';
@@ -173,10 +201,26 @@ if ($orden_id_php) {
             $fmtd   = date('d', $ts) . '/' . $meses_doc[(int)date('n', $ts)] . '/' . date('Y', $ts);
             $entrega_html = '<span class="ent-fecha">' . $fmtd . '</span>';
         } else {
+            // Rango de la ÚLTIMA salida que tocó esta partida (no acumulado de todos los
+            // envíos) — así una 2a/3a/4a entrega muestra "de cuál a cuál" fue ESTA entrega,
+            // no cuántas piezas van entregadas en total (que confunde al chofer/cliente).
+            $ultimo_idx = null;
+            foreach ($pids_grupo as $pid) {
+                if (isset($pieza_salida_idx[$pid])) {
+                    $ultimo_idx = $ultimo_idx === null ? $pieza_salida_idx[$pid] : max($ultimo_idx, $pieza_salida_idx[$pid]);
+                }
+            }
+            $nums_ultimo_envio = [];
+            foreach ($grp as $p) {
+                if ($ultimo_idx !== null && ($pieza_salida_idx[(int)$p['id']] ?? null) === $ultimo_idx) {
+                    $nums_ultimo_envio[] = (int)$p['pieza_num'];
+                }
+            }
             $ultimo = max($ent_dates);
             $ts     = strtotime($ultimo);
             $fmtd   = date('d', $ts) . '/' . $meses_doc[(int)date('n', $ts)] . '/' . date('Y', $ts);
-            $entrega_html = '<span class="ent-parcial">' . $cnt_ent . '/' . $cant . ' al ' . $fmtd . '</span>';
+            $rango  = $nums_ultimo_envio ? formatRangoPiezas($nums_ultimo_envio) : $cnt_ent;
+            $entrega_html = '<span class="ent-parcial">' . $rango . ' de ' . $cant . ' al ' . $fmtd . '</span>';
         }
 
         $tbody_html .= '<tr>';
@@ -632,6 +676,24 @@ function esc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// Agrupa números consecutivos en rangos "5 al 8" / sueltos "11" / mixto "5 al 8, 11"
+function formatRangoPiezas(nums) {
+  var arr = nums.slice().sort(function(a, b) { return a - b; });
+  var grupos = [];
+  var inicio = arr.length ? arr[0] : null;
+  var fin    = inicio;
+  for (var i = 1; i < arr.length; i++) {
+    if (arr[i] === fin + 1) {
+      fin = arr[i];
+    } else {
+      grupos.push(inicio === fin ? String(inicio) : (inicio + ' al ' + fin));
+      inicio = fin = arr[i];
+    }
+  }
+  if (inicio !== null) grupos.push(inicio === fin ? String(inicio) : (inicio + ' al ' + fin));
+  return grupos.join(', ');
+}
+
 // ── QR de salida (chofer) — estático, independiente del caso A/C/D/E ─────────
 (function renderQrSalida() {
   var wrap = document.getElementById('salidaQrWrap');
@@ -921,17 +983,22 @@ function actualizarCeldasEntrega(pids, fechaStr) {
 
     var totalPartida = 0;
     var entregadasTotal = 0;
+    var numsEstaEntrega = [];
     todasPiezas.forEach(function(p) {
       if (p.partida == np) {
         totalPartida++;
         if (pidsSet[p.id] || prevSet[p.id]) entregadasTotal++;
+        if (pidsSet[p.id]) numsEstaEntrega.push(p.pieza_num);
       }
     });
 
     if (entregadasTotal >= totalPartida) {
       cel.innerHTML = '<span class="ent-fecha">' + fechaDisplay + '</span>';
     } else {
-      cel.innerHTML = '<span class="ent-parcial">' + entregadasTotal + '/' + totalPartida + ' al ' + fechaDisplay + '</span>';
+      // Rango de ESTA entrega (no acumulado de todos los envíos previos) — así queda
+      // claro "de cuál a cuál" fue este envío en particular sobre el total de la partida.
+      var rango = numsEstaEntrega.length ? formatRangoPiezas(numsEstaEntrega) : entregadasTotal;
+      cel.innerHTML = '<span class="ent-parcial">' + rango + ' de ' + totalPartida + ' al ' + fechaDisplay + '</span>';
     }
   });
 }
