@@ -159,7 +159,7 @@ if ($accion === 'resumen_semana') {
         ORDER BY o.folio, p.partida, p.pieza_num
     ");
 
-    $stmtPago = $db->prepare("SELECT estado, aprobado_por, aprobado_at FROM bono_pedaceria_pagos WHERE operador_id = ? AND semana_inicio = ?");
+    $stmtPago = $db->prepare("SELECT id, estado, aprobado_por, aprobado_at FROM bono_pedaceria_pagos WHERE operador_id = ? AND semana_inicio = ?");
 
     foreach ($operadores as &$op) {
         $op['m2_elegible'] = round((float)$op['m2_elegible'], 4);
@@ -184,6 +184,7 @@ if ($accion === 'resumen_semana') {
         $op['estado']      = $pago['estado'] ?? 'calculado';
         $op['aprobado_por']= $pago['aprobado_por'] ?? null;
         $op['aprobado_at'] = $pago['aprobado_at'] ?? null;
+        $op['pago_id']     = $pago['id'] ?? null;
     }
     unset($op);
 

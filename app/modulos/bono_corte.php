@@ -36,6 +36,8 @@ $puedeAprobar = tienePermiso($user['rol'], 'gestionar_contabilidad');
 .bc-btn { font-size:12.5px; font-weight:600; border-radius:8px; padding:8px 14px; cursor:pointer; border:1px solid #2563eb; background:#2563eb; color:#fff; }
 .bc-btn:hover { filter:brightness(1.08); }
 .bc-btn:disabled { opacity:.55; cursor:default; filter:none; }
+.bc-btn-recibo { border-color:#0f766e; background:#fff; color:#0f766e; margin-left:8px; }
+.bc-btn-recibo:hover { background:#f0fdfa; }
 
 .bc-excl-toggle { width:100%; text-align:left; display:flex; align-items:center; gap:8px; padding:10px 18px; background:#f8fafc; border:none; border-top:1px solid #e2e8f0; cursor:pointer; font-size:12px; color:#64748b; font-weight:600; }
 .bc-excl-toggle .n { background:#fffbeb; color:#b45309; border:1px solid #fde68a; font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:99px; }
@@ -154,6 +156,9 @@ var BonoCorte = (function() {
         var disabled = op.estado === 'pagado' ? 'disabled' : '';
         var btnTxt = op.estado === 'pagado' ? 'Pagado ✓' : 'Marcar como pagado';
         btnHtml = '<button class="bc-btn" ' + disabled + ' onclick="BonoCorte.marcarPagado(' + op.operador_id + ',this)">' + btnTxt + '</button>';
+      }
+      if (op.estado === 'pagado' && op.pago_id) {
+        btnHtml += '<button class="bc-btn bc-btn-recibo" onclick="window.open(\'../imprimir_bono_corte.php?id=' + op.pago_id + '\', \'_blank\')">Imprimir recibo</button>';
       }
       var exclHtml = '';
       if (op.excluidas && op.excluidas.length) {
