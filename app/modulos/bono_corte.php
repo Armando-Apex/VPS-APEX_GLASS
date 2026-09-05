@@ -158,7 +158,7 @@ var BonoCorte = (function() {
         btnHtml = '<button class="bc-btn" ' + disabled + ' onclick="BonoCorte.marcarPagado(' + op.operador_id + ',this)">' + btnTxt + '</button>';
       }
       if (op.estado === 'pagado' && op.pago_id) {
-        btnHtml += '<button class="bc-btn bc-btn-recibo" onclick="window.open(\'../imprimir_bono_corte.php?id=' + op.pago_id + '\', \'_blank\')">Imprimir recibo</button>';
+        btnHtml += '<button class="bc-btn bc-btn-recibo" onclick="window.open(\'imprimir_bono_corte.php?id=' + op.pago_id + '\', \'_blank\')">Imprimir recibo</button>';
       }
       var exclHtml = '';
       if (op.excluidas && op.excluidas.length) {
