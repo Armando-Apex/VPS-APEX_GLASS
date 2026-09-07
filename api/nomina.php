@@ -62,15 +62,19 @@ if ($method === 'POST') {
         $departamento = trim($body['departamento'] ?? '');
         $sueldo_base  = (float)($body['sueldo_base'] ?? 0);
         $area         = $body['area'] ?? 'oficina';
+        $fecha_ingreso = trim((string)($body['fecha_ingreso'] ?? ''));
 
         if (!$nombre) { jsonResponse(['error' => 'El nombre es obligatorio']); exit; }
         if (!in_array($area, ['planta', 'oficina'])) { jsonResponse(['error' => 'Área inválida']); exit; }
+        if ($fecha_ingreso && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_ingreso)) {
+            jsonResponse(['error' => 'Fecha de ingreso inválida']); exit;
+        }
 
         $stmt = $pdo->prepare("
-            INSERT INTO nomina_empleados (nombre, puesto, departamento, sueldo_base, area)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO nomina_empleados (nombre, puesto, departamento, sueldo_base, area, fecha_ingreso)
+            VALUES (?, ?, ?, ?, ?, ?)
         ");
-        $stmt->execute([$nombre, $puesto ?: null, $departamento ?: null, $sueldo_base, $area]);
+        $stmt->execute([$nombre, $puesto ?: null, $departamento ?: null, $sueldo_base, $area, $fecha_ingreso ?: null]);
         jsonResponse(['ok' => true, 'id' => $pdo->lastInsertId()]);
         exit;
     }
@@ -153,8 +157,18 @@ if ($method === 'PUT' && $accion === 'editar_empleado') {
 
     $campos = [];
     $valores = [];
-    foreach (['nombre', 'puesto', 'departamento'] as $campo) {
-        if (isset($body[$campo])) { $campos[] = "$campo = ?"; $valores[] = trim($body[$campo]); }
+    foreach (['nombre', 'puesto', 'departamento', 'curp', 'rfc', 'nss', 'telefono', 'direccion',
+              'contacto_emergencia_nombre', 'contacto_emergencia_telefono'] as $campo) {
+        if (isset($body[$campo])) { $campos[] = "$campo = ?"; $valores[] = trim($body[$campo]) ?: null; }
+    }
+    foreach (['fecha_ingreso', 'fecha_nacimiento', 'fecha_baja'] as $campo) {
+        if (isset($body[$campo])) {
+            $valor = trim((string)$body[$campo]);
+            if ($valor && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $valor)) {
+                jsonResponse(['error' => "Fecha inválida en $campo"]); exit;
+            }
+            $campos[] = "$campo = ?"; $valores[] = $valor ?: null;
+        }
     }
     if (isset($body['area'])) {
         if (!in_array($body['area'], ['planta', 'oficina'])) { jsonResponse(['error' => 'Área inválida']); exit; }

@@ -439,6 +439,11 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
         <span class="sidebar-icon"><?= icono('layers') ?></span>Contabilidad<?php if ($_rol === 'desarrollo'): ?> <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px">WIP</span><?php endif; ?>
       </button>
       <?php endif; ?>
+      <?php if (tienePermiso($_rol, 'ver_rh')): ?>
+      <button class="sidebar-link" data-modulo="rh_empleados" onclick="cargarModulo('rh_empleados')">
+        <span class="sidebar-icon"><?= icono('users') ?></span>Recursos Humanos
+      </button>
+      <?php endif; ?>
     </div>
     <?php endif; ?>
     <?php if ($esLogistica): ?>
@@ -507,6 +512,7 @@ const MODULOS = {
   maquila_detalle:'modulos/maquila.php?vista=detalle',
   maquila_precios:'modulos/maquila_precios.php',
   media_manager:'modulos/media_manager.php',
+  rh_empleados:'modulos/rh_empleados.php',
 };
 
 let _moduloActivo = null;
