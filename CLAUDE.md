@@ -132,6 +132,7 @@ El SPA loader del dashboard agrega scripts al head sin limpiarlos entre navegaci
 - MCP MySQL conectado vía `@benborla29/mcp-server-mysql`
 - Proyecto: `/home/apexglass2025/apex.glass/public_html/produccion/`
 - Config MCP: `MYSQL_HOST=::1`, `MYSQL_PORT=3306`, `MYSQL_USER=apexglass2025_usr`, `MYSQL_DB=apexglass2025_prod`
+- **MCP Playwright reinstalado correctamente (07-sep-2026):** la config vieja de 16-jun-2026 vivía en `~/.claude/settings.json` bajo `mcpServers.playwright` — esta versión de Claude Code YA NO lee esa clave para nada (confirmado con `claude mcp list`, no aparecía). Registrado de nuevo con el comando correcto: `claude mcp add playwright -s user -e PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser -e DISPLAY= -- playwright-mcp --browser chromium --headless` (paquete `@playwright/mcp@0.0.76` y el binario `chromium-browser` ya estaban instalados de antes, solo faltaba el registro). Verificado con `claude mcp list` → `✔ Connected`. **Las herramientas de un MCP nuevo solo cargan al iniciar sesión** — si se acaba de registrar, hay que reiniciar la sesión de Claude Code para poder usarlas, no basta con que `claude mcp list` lo muestre conectado.
 
 ### HostGator (CANCELADO 18-jun-2026)
 - Ruta: `/home3/a3026051/apex_tnglass/apex.glass/produccion/`
