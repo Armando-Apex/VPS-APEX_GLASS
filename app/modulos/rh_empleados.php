@@ -257,7 +257,10 @@ tr.fila-empleado:hover td { background: #f8fafc; cursor: pointer; }
         <div class="field"><label>Fecha inicio</label><input type="date" id="incInicio"></div>
         <div class="field"><label>Fecha fin</label><input type="date" id="incFin"></div>
       </div>
-      <div class="field"><label>Notas</label><input type="text" id="incNotas" placeholder="Opcional"></div>
+      <div class="grid-2">
+        <div class="field"><label>Notas</label><input type="text" id="incNotas" placeholder="Opcional"></div>
+        <div class="field"><label>Documento de soporte (opcional)</label><input type="file" id="incArchivo" accept="image/jpeg,image/png,application/pdf"></div>
+      </div>
       <div class="modal-footer" style="margin-top:0;margin-bottom:16px">
         <button class="btn btn-primary btn-sm" onclick="ModRH._crearIncidencia()">Registrar incidencia</button>
       </div>
@@ -614,6 +617,9 @@ function renderIncidencias(incidencias) {
     html += '<div class="mini-item">';
     html += '<div class="flex1"><div class="tipo">' + esc(TIPO_INCIDENCIA_LABEL[inc.tipo] || inc.tipo) + '</div>';
     html += '<div class="sub">' + esc(inc.fecha_inicio) + ' a ' + esc(inc.fecha_fin) + ' · ' + inc.dias + ' día(s)' + (inc.goce_sueldo == 1 ? ' · Con goce de sueldo' : '') + '</div></div>';
+    if (inc.documento_id) {
+      html += '<a href="' + API_RH + '?accion=descargar&id=' + inc.documento_id + '" target="_blank" style="margin-right:10px">Ver documento</a>';
+    }
     <?php if ($puedeEditar): ?>
     html += '<a href="#" onclick="ModRH._borrarIncidencia(' + inc.id + ');return false" style="color:#b91c1c;text-decoration:none;font-size:12px;font-weight:700">Borrar</a>';
     <?php endif; ?>
@@ -633,6 +639,21 @@ async function crearIncidencia() {
     notas: document.getElementById('incNotas').value.trim()
   };
   if (!payload.fecha_inicio || !payload.fecha_fin) { alert('Completa fecha inicio y fin'); return; }
+
+  var archivoInput = document.getElementById('incArchivo');
+  if (archivoInput.files && archivoInput.files[0]) {
+    var fd = new FormData();
+    fd.append('empleado_id', empleadoActual.id);
+    fd.append('tipo_documento', 'Soporte de incidencia');
+    fd.append('archivo', archivoInput.files[0]);
+    try {
+      var resDoc = await fetch(API_RH + '?accion=subir_documento', { method: 'POST', body: fd });
+      var dataDoc = await resDoc.json();
+      if (!dataDoc.ok) { alert(dataDoc.error || 'Error al subir el documento de soporte'); return; }
+      payload.documento_id = dataDoc.id;
+    } catch(e) { alert('Error al subir el documento de soporte'); return; }
+  }
+
   try {
     var res = await fetch(API_RH + '?accion=incidencia_crear', {
       method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
@@ -640,6 +661,7 @@ async function crearIncidencia() {
     var data = await res.json();
     if (!data.ok) { alert(data.error || 'Error al registrar'); return; }
     document.getElementById('incNotas').value = '';
+    archivoInput.value = '';
     abrirDetalle(empleadoActual.id);
     cambiarTab('incidencias');
   } catch(e) { alert('Error de conexión'); }

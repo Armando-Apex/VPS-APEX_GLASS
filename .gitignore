@@ -19,3 +19,6 @@ scripts/gps_cache/
 # Dependencias Composer
 vendor/
 archivos_campanas/wa_media/
+
+# Scratch de pruebas visuales con Playwright MCP
+.playwright-mcp/
