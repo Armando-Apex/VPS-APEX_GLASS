@@ -14,7 +14,18 @@ $pdo    = getDB();
 $method = $_SERVER['REQUEST_METHOD'];
 $accion = $_GET['accion'] ?? '';
 
-// ─── GET — listar empleados o pagos de un periodo ──────────────────────────────
+// Lunes–Domingo de la semana que contiene $fecha (formato Y-m-d) — mismo criterio
+// que ya usa api/bono_pedaceria.php (bpSemana), para que "semana" signifique lo mismo
+// en todo el sistema.
+function nomSemana($fecha) {
+    $d = new DateTime($fecha);
+    $dow = (int)$d->format('N'); // 1=lunes .. 7=domingo
+    $inicio = (clone $d)->modify('-' . ($dow - 1) . ' days');
+    $fin    = (clone $inicio)->modify('+6 days');
+    return [$inicio->format('Y-m-d'), $fin->format('Y-m-d')];
+}
+
+// ─── GET — listar empleados o pagos de una semana ──────────────────────────────
 if ($method === 'GET') {
     if ($accion === 'empleados') {
         $solo_activos = ($_GET['activos'] ?? '1') === '1';
@@ -25,21 +36,27 @@ if ($method === 'GET') {
     }
 
     if ($accion === 'pagos') {
-        $periodo = $_GET['periodo'] ?? date('Y-m');
-        if (!preg_match('/^\d{4}-\d{2}$/', $periodo)) {
-            jsonResponse(['error' => 'Periodo inválido']); exit;
+        $ref = $_GET['semana'] ?? date('Y-m-d');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ref)) {
+            jsonResponse(['error' => 'Fecha de semana inválida']); exit;
         }
+        list($semanaInicio, $semanaFin) = nomSemana($ref);
+
         $stmt = $pdo->prepare("
             SELECT e.id AS empleado_id, e.nombre, e.puesto, e.departamento, e.area, e.sueldo_base,
-                   p.id AS pago_id, p.fecha_pago, p.sueldo_neto, p.imss_patronal,
-                   p.otras_prestaciones, p.total_pagado
+                   p.id AS pago_id, p.fecha_pago, p.sueldo_neto, p.bono_puntualidad_asistencia,
+                   p.bono_productividad, p.imss_patronal, p.otras_prestaciones, p.total_pagado
             FROM nomina_empleados e
-            LEFT JOIN nomina_pagos p ON p.empleado_id = e.id AND p.periodo = ?
+            LEFT JOIN nomina_pagos p ON p.empleado_id = e.id AND p.semana_inicio = ?
             WHERE e.activo = 1
             ORDER BY e.nombre ASC
         ");
-        $stmt->execute([$periodo]);
-        jsonResponse(['periodo' => $periodo, 'filas' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+        $stmt->execute([$semanaInicio]);
+        jsonResponse([
+            'semana_inicio' => $semanaInicio,
+            'semana_fin'    => $semanaFin,
+            'filas'         => $stmt->fetchAll(PDO::FETCH_ASSOC)
+        ]);
         exit;
     }
 
@@ -80,16 +97,19 @@ if ($method === 'POST') {
     }
 
     if ($accion === 'guardar_pago') {
-        $empleado_id        = (int)($body['empleado_id'] ?? 0);
-        $periodo            = $body['periodo'] ?? '';
-        $fecha_pago         = $body['fecha_pago'] ?? '';
-        $sueldo_neto        = (float)($body['sueldo_neto'] ?? 0);
-        $imss_patronal      = (float)($body['imss_patronal'] ?? 0);
-        $otras_prestaciones = (float)($body['otras_prestaciones'] ?? 0);
+        $empleado_id                 = (int)($body['empleado_id'] ?? 0);
+        $semana_ref                  = $body['semana_inicio'] ?? '';
+        $fecha_pago                  = $body['fecha_pago'] ?? '';
+        $sueldo_neto                 = (float)($body['sueldo_neto'] ?? 0);
+        $bono_puntualidad_asistencia = (float)($body['bono_puntualidad_asistencia'] ?? 0);
+        $bono_productividad          = (float)($body['bono_productividad'] ?? 0);
+        $imss_patronal               = (float)($body['imss_patronal'] ?? 0);
+        $otras_prestaciones          = (float)($body['otras_prestaciones'] ?? 0);
 
-        if (!$empleado_id || !preg_match('/^\d{4}-\d{2}$/', $periodo) || !$fecha_pago) {
+        if (!$empleado_id || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $semana_ref) || !$fecha_pago) {
             jsonResponse(['error' => 'Datos incompletos o inválidos']); exit;
         }
+        list($semanaInicio, $semanaFin) = nomSemana($semana_ref);
 
         $empleadoArea = $pdo->prepare("SELECT area FROM nomina_empleados WHERE id = ?");
         $empleadoArea->execute([$empleado_id]);
@@ -104,35 +124,42 @@ if ($method === 'POST') {
         if (!$cuenta) { jsonResponse(['error' => "No existe la cuenta $codigoCuenta en el catálogo"]); exit; }
         $cuentaNomina = $cuenta['id'];
 
-        $total = round($sueldo_neto + $imss_patronal + $otras_prestaciones, 2);
+        $total = round($sueldo_neto + $bono_puntualidad_asistencia + $bono_productividad + $imss_patronal + $otras_prestaciones, 2);
 
         $pdo->beginTransaction();
         try {
             $stmt = $pdo->prepare("
                 INSERT INTO nomina_pagos
-                    (empleado_id, periodo, fecha_pago, sueldo_neto, imss_patronal, otras_prestaciones, total_pagado, cuenta_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (empleado_id, semana_inicio, semana_fin, fecha_pago, sueldo_neto,
+                     bono_puntualidad_asistencia, bono_productividad, imss_patronal, otras_prestaciones,
+                     total_pagado, cuenta_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
-                    fecha_pago = VALUES(fecha_pago), sueldo_neto = VALUES(sueldo_neto),
+                    semana_fin = VALUES(semana_fin), fecha_pago = VALUES(fecha_pago), sueldo_neto = VALUES(sueldo_neto),
+                    bono_puntualidad_asistencia = VALUES(bono_puntualidad_asistencia),
+                    bono_productividad = VALUES(bono_productividad),
                     imss_patronal = VALUES(imss_patronal), otras_prestaciones = VALUES(otras_prestaciones),
                     total_pagado = VALUES(total_pagado), cuenta_id = VALUES(cuenta_id)
             ");
-            $stmt->execute([$empleado_id, $periodo, $fecha_pago, $sueldo_neto, $imss_patronal, $otras_prestaciones, $total, $cuentaNomina]);
+            $stmt->execute([$empleado_id, $semanaInicio, $semanaFin, $fecha_pago, $sueldo_neto,
+                $bono_puntualidad_asistencia, $bono_productividad, $imss_patronal, $otras_prestaciones,
+                $total, $cuentaNomina]);
 
-            $pagoId = $pdo->query("SELECT id FROM nomina_pagos WHERE empleado_id = " . (int)$empleado_id . " AND periodo = " . $pdo->quote($periodo))->fetchColumn();
+            $pagoId = $pdo->query("SELECT id FROM nomina_pagos WHERE empleado_id = " . (int)$empleado_id . " AND semana_inicio = " . $pdo->quote($semanaInicio))->fetchColumn();
 
+            $descripcion = "Nómina semana $semanaInicio a $semanaFin";
             $stmtMov = $pdo->prepare("
                 INSERT INTO movimientos_contables (cuenta_id, origen_tabla, origen_id, monto, fecha_movimiento, tipo_financiero, descripcion)
                 VALUES (?, 'nomina_pagos', ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE cuenta_id = VALUES(cuenta_id), monto = VALUES(monto), fecha_movimiento = VALUES(fecha_movimiento), tipo_financiero = VALUES(tipo_financiero), descripcion = VALUES(descripcion)
             ");
-            $stmtMov->execute([$cuentaNomina, $pagoId, $total, $fecha_pago, $cuenta['tipo_financiero'], "Nómina $periodo"]);
+            $stmtMov->execute([$cuentaNomina, $pagoId, $total, $fecha_pago, $cuenta['tipo_financiero'], $descripcion]);
 
             $bancos = pl_cuentaId($pdo, '1.1');
             if ($bancos) {
                 pl_generarAutomatica($pdo, 'nomina_pagos', (int)$pagoId, 'egresos', $fecha_pago,
-                    "Nómina $periodo — empleado #$empleado_id",
-                    [[$cuentaNomina, $total, 0, "Nómina $periodo"], [$bancos, 0, $total, "Nómina $periodo"]],
+                    "$descripcion — empleado #$empleado_id",
+                    [[$cuentaNomina, $total, 0, $descripcion], [$bancos, 0, $total, $descripcion]],
                     (int)$user['id']);
             }
 

@@ -24,8 +24,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   border-radius: 8px; margin-bottom: 20px;
 }
 
-.periodo-selector { display: flex; align-items: center; gap: 8px; }
-.periodo-selector input { padding: 8px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; }
+.semana-nav { display: flex; align-items: center; gap: 10px; }
+.semana-nav button {
+  width: 30px; height: 30px; border-radius: 8px; border: 1.5px solid #e2e8f0; background: white;
+  font-size: 15px; font-weight: 700; color: #374151; cursor: pointer;
+}
+.semana-nav button:hover { background: #f1f5f9; }
+.semana-nav .label { font-size: 13px; font-weight: 700; color: #1e293b; white-space: nowrap; }
 
 .btn {
   padding: 9px 18px; border-radius: 8px; font-size: 13px;
@@ -84,15 +89,16 @@ td input { width: 100px; padding: 6px 8px; border: 1.5px solid #e2e8f0; border-r
   <div class="top-bar">
     <div class="section-title"><?= icono('users') ?> Nómina <span class="wip-badge">WIP</span></div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <div class="periodo-selector">
-        <label style="font-size:12px;font-weight:700;color:#64748b">Periodo</label>
-        <input type="month" id="fPeriodo">
+      <div class="semana-nav">
+        <button onclick="ModNomina._prevSemana()">&lsaquo;</button>
+        <span class="label" id="lblSemana">&mdash;</span>
+        <button onclick="ModNomina._nextSemana()">&rsaquo;</button>
       </div>
       <?php if ($puedeEditar): ?><button class="btn btn-primary" onclick="ModNomina._abrirModalEmpleado()">+ Empleado</button><?php endif; ?>
     </div>
   </div>
 
-  <div class="wip-banner">Módulo en construcción — parte del proyecto de Estado de Resultados (P&amp;L). Captura mensual de sueldos; al guardar un pago se registra en la cuenta contable 6.1 Nómina. Aún no afecta ningún otro módulo del sistema.</div>
+  <div class="wip-banner">Módulo en construcción — parte del proyecto de Estado de Resultados (P&amp;L). Captura semanal de sueldos (sueldo neto + bonos de Puntualidad/Asistencia y Productividad, que varían persona por persona según su asistencia); al guardar un pago se registra en la cuenta contable 6.1 Nómina. Aún no afecta ningún otro módulo del sistema.</div>
 
   <div class="table-wrap">
     <table>
@@ -103,15 +109,17 @@ td input { width: 100px; padding: 6px 8px; border: 1.5px solid #e2e8f0; border-r
           <th>Área</th>
           <th>Sueldo base</th>
           <th>Sueldo neto</th>
+          <th>Bono Puntualidad/Asist.</th>
+          <th>Bono Productividad</th>
           <th>IMSS patronal</th>
-          <th>Bonos / H. extra / Otras prest.</th>
+          <th>Otras prest.</th>
           <th>Total</th>
           <th>Fecha pago</th>
           <?php if ($puedeEditar): ?><th>Acción</th><?php endif; ?>
         </tr>
       </thead>
       <tbody id="tablaPagos">
-        <tr><td colspan="10" class="empty">Cargando...</td></tr>
+        <tr><td colspan="12" class="empty">Cargando...</td></tr>
       </tbody>
     </table>
   </div>
@@ -153,6 +161,7 @@ window._puedeEditar = <?= $puedeEditar ? 'true' : 'false' ?>;
 var ModNomina = (function(){
 var API = '../api/nomina.php';
 var filas = [];
+var _semana = hoyStr(); // Y-m-d de cualquier día dentro de la semana a consultar
 
 function esc(s) {
   var d = document.createElement('div');
@@ -165,30 +174,60 @@ function fmt(n) {
   return '$' + n.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
-function periodoActual() {
+function hoyStr() {
   var d = new Date();
-  var mes = ('0' + (d.getMonth() + 1)).slice(-2);
-  return d.getFullYear() + '-' + mes;
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function lunesDe(fecha) {
+  var d = new Date(fecha + 'T00:00:00');
+  var dow = d.getDay() === 0 ? 7 : d.getDay();
+  d.setDate(d.getDate() - (dow - 1));
+  return d;
+}
+
+function fmtFecha(d) {
+  var meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return d.getDate() + ' ' + meses[d.getMonth()];
+}
+
+function setSemanaLabel() {
+  var lunes = lunesDe(_semana);
+  var domingo = new Date(lunes); domingo.setDate(domingo.getDate() + 6);
+  document.getElementById('lblSemana').textContent = fmtFecha(lunes) + ' – ' + fmtFecha(domingo);
+}
+
+function prevSemana() {
+  var d = lunesDe(_semana);
+  d.setDate(d.getDate() - 7);
+  _semana = d.toISOString().slice(0,10);
+  cargar();
+}
+
+function nextSemana() {
+  var d = lunesDe(_semana);
+  d.setDate(d.getDate() + 7);
+  _semana = d.toISOString().slice(0,10);
+  cargar();
 }
 
 async function cargar() {
-  var periodo = document.getElementById('fPeriodo').value || periodoActual();
-  document.getElementById('fPeriodo').value = periodo;
+  setSemanaLabel();
   try {
-    var res = await fetch(API + '?accion=pagos&periodo=' + periodo);
+    var res = await fetch(API + '?accion=pagos&semana=' + encodeURIComponent(_semana));
     var data = await res.json();
     filas = data.filas || [];
     render();
   } catch(e) {
     document.getElementById('tablaPagos').innerHTML =
-      '<tr><td colspan="10" class="empty" style="color:#dc2626">Error al cargar</td></tr>';
+      '<tr><td colspan="12" class="empty" style="color:#dc2626">Error al cargar</td></tr>';
   }
 }
 
 function render() {
   if (!filas.length) {
     document.getElementById('tablaPagos').innerHTML =
-      '<tr><td colspan="10" class="empty">No hay empleados activos registrados</td></tr>';
+      '<tr><td colspan="12" class="empty">No hay empleados activos registrados</td></tr>';
     return;
   }
   var html = '';
@@ -197,9 +236,11 @@ function render() {
     var f = filas[i];
     var idx = i;
     var neto = f.sueldo_neto !== null ? f.sueldo_neto : f.sueldo_base;
+    var bonoAsist = f.bono_puntualidad_asistencia || 0;
+    var bonoProd = f.bono_productividad || 0;
     var imss = f.imss_patronal || 0;
     var otras = f.otras_prestaciones || 0;
-    var total = f.total_pagado !== null ? parseFloat(f.total_pagado) : (parseFloat(neto || 0) + parseFloat(imss) + parseFloat(otras));
+    var total = f.total_pagado !== null ? parseFloat(f.total_pagado) : (parseFloat(neto || 0) + parseFloat(bonoAsist) + parseFloat(bonoProd) + parseFloat(imss) + parseFloat(otras));
     totalGeneral += total;
     var fechaPago = f.fecha_pago || '';
 
@@ -210,10 +251,12 @@ function render() {
     html += '<td>' + fmt(f.sueldo_base) + '</td>';
     if (window._puedeEditar) {
       html += '<td><input type="number" step="0.01" id="neto_' + idx + '" value="' + esc(neto) + '"></td>';
+      html += '<td><input type="number" step="0.01" id="bonoAsist_' + idx + '" value="' + esc(bonoAsist) + '"></td>';
+      html += '<td><input type="number" step="0.01" id="bonoProd_' + idx + '" value="' + esc(bonoProd) + '"></td>';
       html += '<td><input type="number" step="0.01" id="imss_' + idx + '" value="' + esc(imss) + '"></td>';
       html += '<td><input type="number" step="0.01" id="otras_' + idx + '" value="' + esc(otras) + '"></td>';
     } else {
-      html += '<td>' + fmt(neto) + '</td><td>' + fmt(imss) + '</td><td>' + fmt(otras) + '</td>';
+      html += '<td>' + fmt(neto) + '</td><td>' + fmt(bonoAsist) + '</td><td>' + fmt(bonoProd) + '</td><td>' + fmt(imss) + '</td><td>' + fmt(otras) + '</td>';
     }
     html += '<td class="total-cell" id="total_' + idx + '">' + fmt(total) + '</td>';
     if (window._puedeEditar) {
@@ -227,17 +270,18 @@ function render() {
     }
     html += '</tr>';
   }
-  html += '<tr class="fila-total"><td colspan="7">TOTAL DEL PERIODO</td><td>' + fmt(totalGeneral) + '</td><td colspan="' + (window._puedeEditar ? 2 : 1) + '"></td></tr>';
+  html += '<tr class="fila-total"><td colspan="9">TOTAL DE LA SEMANA</td><td>' + fmt(totalGeneral) + '</td><td colspan="' + (window._puedeEditar ? 2 : 1) + '"></td></tr>';
   document.getElementById('tablaPagos').innerHTML = html;
 }
 
 async function guardarPago(idx) {
   var f = filas[idx];
   var neto = parseFloat(document.getElementById('neto_' + idx).value || 0);
+  var bonoAsist = parseFloat(document.getElementById('bonoAsist_' + idx).value || 0);
+  var bonoProd = parseFloat(document.getElementById('bonoProd_' + idx).value || 0);
   var imss = parseFloat(document.getElementById('imss_' + idx).value || 0);
   var otras = parseFloat(document.getElementById('otras_' + idx).value || 0);
   var fecha = document.getElementById('fecha_' + idx).value;
-  var periodo = document.getElementById('fPeriodo').value;
 
   if (!fecha) { alert('Selecciona la fecha de pago'); return; }
 
@@ -245,8 +289,9 @@ async function guardarPago(idx) {
     var res = await fetch(API + '?accion=guardar_pago', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
-        empleado_id: f.empleado_id, periodo: periodo, fecha_pago: fecha,
-        sueldo_neto: neto, imss_patronal: imss, otras_prestaciones: otras
+        empleado_id: f.empleado_id, semana_inicio: _semana, fecha_pago: fecha,
+        sueldo_neto: neto, bono_puntualidad_asistencia: bonoAsist, bono_productividad: bonoProd,
+        imss_patronal: imss, otras_prestaciones: otras
       })
     });
     var data = await res.json();
@@ -302,8 +347,6 @@ async function guardarEmpleado() {
   } catch(e) { alert('Error de conexión'); }
 }
 
-document.getElementById('fPeriodo').value = periodoActual();
-document.getElementById('fPeriodo').addEventListener('change', cargar);
 document.getElementById('modalEmpleadoBg').addEventListener('click', function(e) {
   if (e.target === this) cerrarModalEmpleado();
 });
@@ -316,7 +359,9 @@ return {
   _borrarEmpleado: borrarEmpleado,
   _abrirModalEmpleado: abrirModalEmpleado,
   _cerrarModalEmpleado: cerrarModalEmpleado,
-  _guardarEmpleado: guardarEmpleado
+  _guardarEmpleado: guardarEmpleado,
+  _prevSemana: prevSemana,
+  _nextSemana: nextSemana
 };
 })();
 </script>
