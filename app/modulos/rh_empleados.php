@@ -181,6 +181,7 @@ tr.fila-empleado:hover td { background: #f8fafc; cursor: pointer; }
 
     <!-- Tab Expediente -->
     <div class="tab-content active" id="tabExpediente">
+      <div id="estadoLaboral" style="margin-bottom:16px"></div>
       <div class="field">
         <label>Foto</label>
         <input type="file" id="eFotoArchivo" accept="image/jpeg,image/png">
@@ -276,6 +277,19 @@ tr.fila-empleado:hover td { background: #f8fafc; cursor: pointer; }
         El enrolamiento de huella/rostro en el reloj siempre requiere que la persona esté físicamente frente al aparato al menos una vez — esto solo crea o borra el registro (PIN + nombre), no reemplaza esa parte.
       </div>
       <div class="mini-list" id="listaChecador"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: dar de baja al empleado (RH inactivo + baja del reloj si tiene PIN) -->
+<div class="modal-bg" id="modalBajaBg">
+  <div class="modal modal-sm">
+    <h2 style="margin-bottom:6px">Dar de baja</h2>
+    <div style="font-size:12px;color:#94a3b8;margin-bottom:16px" id="bajaResumen"></div>
+    <div class="field"><label>Fecha de baja</label><input type="date" id="bajaFecha"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="ModRH._cerrarModalBaja()">Cancelar</button>
+      <button class="btn btn-danger" onclick="ModRH._confirmarBaja()">Confirmar baja</button>
     </div>
   </div>
 </div>
@@ -457,6 +471,7 @@ async function abrirDetalle(id) {
     document.getElementById('eContactoTelefono').value = empleadoActual.contacto_emergencia_telefono || '';
     document.getElementById('eFotoArchivo').value = '';
 
+    renderEstadoLaboral(empleadoActual);
     renderDocumentos(data.documentos || []);
     renderVacaciones(data.vacaciones || []);
     renderIncidencias(data.incidencias || []);
@@ -712,6 +727,78 @@ async function borrarIncidencia(id) {
   } catch(e) { alert('Error de conexión'); }
 }
 
+// ── Estado laboral (activo / baja) ─────────────────────────────────────────────
+function renderEstadoLaboral(emp) {
+  var html = '';
+  if (emp.activo == 0) {
+    html = '<div class="mini-item"><div class="flex1"><div class="tipo">Baja' + (emp.fecha_baja ? ' — ' + esc(emp.fecha_baja) : '') + '</div><div class="sub">Expediente, documentos e historial se conservan</div></div>';
+    if (<?= $puedeEditar ? 'true' : 'false' ?>) html += '<button class="btn btn-ghost btn-sm" onclick="ModRH._reactivarEmpleado()">Reactivar</button>';
+    html += '</div>';
+  } else {
+    html = '<div class="mini-item"><div class="flex1"><div class="tipo">Activo</div></div>';
+    if (<?= $puedeEditar ? 'true' : 'false' ?>) html += '<button class="btn btn-danger btn-sm" onclick="ModRH._abrirModalBaja()">Dar de baja</button>';
+    html += '</div>';
+  }
+  document.getElementById('estadoLaboral').innerHTML = html;
+}
+
+function abrirModalBaja() {
+  if (!empleadoActual) return;
+  var resumen = 'Se marcará a ' + empleadoActual.nombre + ' como inactivo en RH (su expediente se conserva completo).';
+  if (empleadoActual.checador_pin) {
+    resumen += ' También se encolará su baja del reloj checador (PIN ' + empleadoActual.checador_pin + ').';
+  }
+  document.getElementById('bajaResumen').textContent = resumen;
+  document.getElementById('bajaFecha').value = new Date().toISOString().slice(0,10);
+  document.getElementById('modalBajaBg').classList.add('open');
+}
+function cerrarModalBaja() { document.getElementById('modalBajaBg').classList.remove('open'); }
+
+async function confirmarBaja() {
+  if (!empleadoActual) return;
+  var fecha = document.getElementById('bajaFecha').value;
+  if (!fecha) { alert('Selecciona la fecha de baja'); return; }
+
+  try {
+    var res = await fetch(API_NOMINA + '?accion=editar_empleado', {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ id: empleadoActual.id, activo: 0, fecha_baja: fecha })
+    });
+    var data = await res.json();
+    if (!data.ok) { alert(data.error || 'Error al dar de baja'); return; }
+  } catch(e) { alert('Error de conexión'); return; }
+
+  if (empleadoActual.checador_pin) {
+    try {
+      var resChk = await fetch(API_CHECADOR + '?accion=encolar_baja', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ empleado_id: empleadoActual.id })
+      });
+      var dataChk = await resChk.json();
+      if (!dataChk.ok) { alert('Se dio de baja en RH, pero no se pudo encolar la baja del reloj: ' + (dataChk.error || 'error desconocido')); }
+    } catch(e) { alert('Se dio de baja en RH, pero hubo un error de conexión al encolar la baja del reloj'); }
+  }
+
+  cerrarModalBaja();
+  cargar();
+  abrirDetalle(empleadoActual.id);
+}
+
+async function reactivarEmpleado() {
+  if (!empleadoActual) return;
+  if (!confirm('¿Reactivar a ' + empleadoActual.nombre + '? Esto no lo vuelve a dar de alta en el reloj — eso se hace aparte si aplica.')) return;
+  try {
+    var res = await fetch(API_NOMINA + '?accion=editar_empleado', {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ id: empleadoActual.id, activo: 1, fecha_baja: '' })
+    });
+    var data = await res.json();
+    if (!data.ok) { alert(data.error || 'Error al reactivar'); return; }
+    cargar();
+    abrirDetalle(empleadoActual.id);
+  } catch(e) { alert('Error de conexión'); }
+}
+
 // ── Checador ────────────────────────────────────────────────────────────────
 var TIPO_COMANDO_LABEL = { alta: 'Alta', baja: 'Baja' };
 var ESTADO_COMANDO_LABEL = {
@@ -832,6 +919,7 @@ document.getElementById('modalNuevoBg').addEventListener('click', function(e){ i
 document.getElementById('modalDetalleBg').addEventListener('click', function(e){ if (e.target === this) cerrarDetalle(); });
 document.getElementById('modalVacBg').addEventListener('click', function(e){ if (e.target === this) cerrarModalVac(); });
 document.getElementById('modalChecadorAltaBg').addEventListener('click', function(e){ if (e.target === this) cerrarModalChecadorAlta(); });
+document.getElementById('modalBajaBg').addEventListener('click', function(e){ if (e.target === this) cerrarModalBaja(); });
 
 cargar();
 
@@ -855,7 +943,11 @@ return {
   _cerrarModalChecadorAlta: cerrarModalChecadorAlta,
   _encolarAlta: encolarAlta,
   _encolarBaja: encolarBaja,
-  _reintentarComando: reintentarComando
+  _reintentarComando: reintentarComando,
+  _abrirModalBaja: abrirModalBaja,
+  _cerrarModalBaja: cerrarModalBaja,
+  _confirmarBaja: confirmarBaja,
+  _reactivarEmpleado: reactivarEmpleado
 };
 })();
 </script>
