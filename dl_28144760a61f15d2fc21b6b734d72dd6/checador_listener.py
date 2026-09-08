@@ -302,6 +302,9 @@ def main():
     hilo = threading.Thread(target=hilo_polling_apex, daemon=True)
     hilo.start()
 
+    # allow_reuse_address evita "Address already in use" al reiniciar rápido
+    # (el sistema operativo tarda un rato en soltar el puerto del proceso anterior).
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
     servidor = socketserver.ThreadingTCPServer((ADMS_HOST, ADMS_PORT), ADMSHandler)
     servidor.daemon_threads = True
     try:
