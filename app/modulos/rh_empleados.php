@@ -287,6 +287,10 @@ tr.fila-empleado:hover td { background: #f8fafc; cursor: pointer; }
     <h2 style="margin-bottom:6px">Dar de baja</h2>
     <div style="font-size:12px;color:#94a3b8;margin-bottom:16px" id="bajaResumen"></div>
     <div class="field"><label>Fecha de baja</label><input type="date" id="bajaFecha"></div>
+    <div class="field" id="bajaPinWrap">
+      <label>Confirma el PIN del reloj checador de este empleado</label>
+      <input type="text" id="bajaPinConfirm" inputmode="numeric" autocomplete="off" placeholder="Escribe el PIN para confirmar">
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="ModRH._cerrarModalBaja()">Cancelar</button>
       <button class="btn btn-danger" onclick="ModRH._confirmarBaja()">Confirmar baja</button>
@@ -745,11 +749,16 @@ function renderEstadoLaboral(emp) {
 function abrirModalBaja() {
   if (!empleadoActual) return;
   var resumen = 'Se marcará a ' + empleadoActual.nombre + ' como inactivo en RH (su expediente se conserva completo).';
+  var pinWrap = document.getElementById('bajaPinWrap');
   if (empleadoActual.checador_pin) {
     resumen += ' También se encolará su baja del reloj checador (PIN ' + empleadoActual.checador_pin + ').';
+    pinWrap.style.display = '';
+  } else {
+    pinWrap.style.display = 'none';
   }
   document.getElementById('bajaResumen').textContent = resumen;
   document.getElementById('bajaFecha').value = new Date().toISOString().slice(0,10);
+  document.getElementById('bajaPinConfirm').value = '';
   document.getElementById('modalBajaBg').classList.add('open');
 }
 function cerrarModalBaja() { document.getElementById('modalBajaBg').classList.remove('open'); }
@@ -758,6 +767,15 @@ async function confirmarBaja() {
   if (!empleadoActual) return;
   var fecha = document.getElementById('bajaFecha').value;
   if (!fecha) { alert('Selecciona la fecha de baja'); return; }
+
+  if (empleadoActual.checador_pin) {
+    var pinEscrito = document.getElementById('bajaPinConfirm').value.trim();
+    if (!pinEscrito) { alert('Escribe el PIN del reloj para confirmar que es el empleado correcto'); return; }
+    if (parseInt(pinEscrito, 10) !== parseInt(empleadoActual.checador_pin, 10)) {
+      alert('El PIN no coincide con el de ' + empleadoActual.nombre + ' — verifica que sea el empleado correcto antes de continuar');
+      return;
+    }
+  }
 
   try {
     var res = await fetch(API_NOMINA + '?accion=editar_empleado', {
