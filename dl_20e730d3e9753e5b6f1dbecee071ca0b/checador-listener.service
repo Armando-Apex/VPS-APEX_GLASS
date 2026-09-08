@@ -1,0 +1,16 @@
+[Unit]
+Description=Checador ZKTeco - listener de produccion (Apex/UPD-570/574)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/usr/bin/python3 /home/pi/checador_listener.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/pi/checador_listener_systemd.log
+StandardError=append:/home/pi/checador_listener_systemd.log
+
+[Install]
+WantedBy=multi-user.target
