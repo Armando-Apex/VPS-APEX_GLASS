@@ -127,9 +127,11 @@ if ($method === 'GET' && $accion === 'historial') {
     jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
 }
 
-// Reporte semanal de asistencia — semana real Jueves-Miércoles (7 días), pero el
-// encabezado muestra el miércoles anterior como referencia visual (a petición de
-// Armando, 08-sep-2026) sin que cuente como día de esa semana.
+// Reporte semanal de asistencia — la semana real de nómina es Jueves-Miércoles
+// (7 días), pero a petición de Armando (08-sep-2026) la TABLA se presenta de
+// Miércoles a Miércoles (8 columnas): se antepone el miércoles anterior como
+// columna real con sus checadas, de referencia visual para ver el corte —
+// no cuenta como día de la semana de nómina real (sigue siendo jueves-miércoles).
 if ($method === 'GET' && $accion === 'asistencia_semana') {
     $ref = $_GET['semana'] ?? date('Y-m-d');
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ref)) { jsonResponse(['error' => 'Fecha inválida']); exit; }
@@ -152,7 +154,7 @@ if ($method === 'GET' && $accion === 'asistencia_semana') {
             WHERE pin IN ($in) AND fecha_hora >= ? AND fecha_hora < ?
             ORDER BY fecha_hora ASC
         ");
-        $stmt->execute([$inicio . ' 00:00:00', (new DateTime($fin))->modify('+1 day')->format('Y-m-d')]);
+        $stmt->execute([$miercolesAnterior . ' 00:00:00', (new DateTime($fin))->modify('+1 day')->format('Y-m-d')]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $fecha = substr($row['fecha_hora'], 0, 10);
             $hora  = substr($row['fecha_hora'], 11, 5);
@@ -160,7 +162,7 @@ if ($method === 'GET' && $accion === 'asistencia_semana') {
         }
     }
 
-    $dias = [];
+    $dias = [$miercolesAnterior];
     $cursor = new DateTime($inicio);
     for ($i = 0; $i < 7; $i++) { $dias[] = $cursor->format('Y-m-d'); $cursor->modify('+1 day'); }
 

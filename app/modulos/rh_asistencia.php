@@ -49,6 +49,9 @@ td.col-dia { text-align: center; white-space: nowrap; font-variant-numeric: tabu
 td.col-dispersion { font-weight: 700; color: #64748b; white-space: nowrap; }
 td.col-nombre { white-space: nowrap; }
 tr.dom td.col-dia { color: #cbd5e1; }
+th.col-ref, td.col-ref { background: #f8fafc; }
+th.col-ref { color: #94a3b8; }
+td.col-ref.vacio, td.col-ref .vacio { color: #cbd5e1; }
 .vacio { color: #cbd5e1; }
 .empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 15px; }
 </style>
@@ -68,7 +71,7 @@ tr.dom td.col-dia { color: #cbd5e1; }
 
   <div class="wip-banner">
     Checadas reales capturadas por el reloj físico de planta desde el 08-sep-2026 hacia adelante — no hay historial anterior a esa fecha.
-    Semana de nómina real: jueves a miércoles (domingo es descanso); el encabezado muestra el miércoles anterior solo como referencia visual.
+    Semana de nómina real: jueves a miércoles (domingo es descanso); la tabla se muestra de miércoles a miércoles — la primera columna (miércoles anterior, en gris) es de referencia y no cuenta como día de la semana de nómina.
   </div>
 
   <div class="table-wrap">
@@ -136,11 +139,12 @@ async function cargar() {
 
 function render(data) {
   document.getElementById('lblSemana').textContent = fmtFecha(data.miercoles_anterior) + ' – ' + fmtFecha(data.fin);
-  document.getElementById('lblSemanaSub').textContent = 'Semana real: ' + fmtFecha(data.inicio) + ' a ' + fmtFecha(data.fin);
+  document.getElementById('lblSemanaSub').textContent = 'Semana real de nómina: ' + fmtFecha(data.inicio) + ' a ' + fmtFecha(data.fin);
 
   var headHtml = '<th>Disp.</th><th>Nombre</th>';
   for (var i = 0; i < data.dias.length; i++) {
-    headHtml += '<th class="col-dia">' + diaSemanaLabel(data.dias[i]) + '<br>' + fmtFecha(data.dias[i]) + '</th>';
+    var esRef = data.dias[i] === data.miercoles_anterior;
+    headHtml += '<th class="col-dia' + (esRef ? ' col-ref' : '') + '">' + diaSemanaLabel(data.dias[i]) + (esRef ? ' (ref.)' : '') + '<br>' + fmtFecha(data.dias[i]) + '</th>';
   }
   document.getElementById('filaEncabezado').innerHTML = headHtml;
 
@@ -159,7 +163,8 @@ function render(data) {
       var dFecha = data.dias[j];
       var horas = f.dias[dFecha] || [];
       var esDom = new Date(dFecha + 'T00:00:00').getDay() === 0;
-      html += '<td class="col-dia' + (esDom ? ' dom' : '') + '">' + (horas.length ? esc(horas.join(' ')) : '<span class="vacio">&mdash;</span>') + '</td>';
+      var esRef = dFecha === data.miercoles_anterior;
+      html += '<td class="col-dia' + (esDom ? ' dom' : '') + (esRef ? ' col-ref' : '') + '">' + (horas.length ? esc(horas.join(' ')) : '<span class="vacio">&mdash;</span>') + '</td>';
     }
     html += '</tr>';
   }
