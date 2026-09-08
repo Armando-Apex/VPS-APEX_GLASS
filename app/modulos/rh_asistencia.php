@@ -164,7 +164,8 @@ function render(data) {
       var horas = f.dias[dFecha] || [];
       var esDom = new Date(dFecha + 'T00:00:00').getDay() === 0;
       var esRef = dFecha === data.miercoles_anterior;
-      html += '<td class="col-dia' + (esDom ? ' dom' : '') + (esRef ? ' col-ref' : '') + '">' + (horas.length ? esc(horas.join(' ')) : '<span class="vacio">&mdash;</span>') + '</td>';
+      var horasHtml = horas.length ? horas.map(esc).join('<br>') : '<span class="vacio">&mdash;</span>';
+      html += '<td class="col-dia' + (esDom ? ' dom' : '') + (esRef ? ' col-ref' : '') + '">' + horasHtml + '</td>';
     }
     html += '</tr>';
   }
