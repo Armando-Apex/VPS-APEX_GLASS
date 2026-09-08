@@ -125,6 +125,11 @@ tr.fila-empleado:hover td { background: #f8fafc; cursor: pointer; }
     <div class="section-title"><?= icono('users') ?> Recursos Humanos</div>
     <div style="display:flex;gap:10px;align-items:center">
       <div class="search-box"><input type="text" id="fBuscar" placeholder="Buscar empleado..."></div>
+      <select id="fEstado" style="padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px">
+        <option value="1">Activos</option>
+        <option value="0">Bajas</option>
+        <option value="todos">Todos</option>
+      </select>
       <?php if ($puedeEditar): ?><button class="btn btn-primary" onclick="ModRH._abrirNuevoEmpleado()">+ Empleado</button><?php endif; ?>
     </div>
   </div>
@@ -367,7 +372,7 @@ function iniciales(nombre) {
 
 async function cargar() {
   try {
-    var res = await fetch(API_RH + '?accion=listar');
+    var res = await fetch(API_RH + '?accion=listar&activos=0'); // trae activos + bajas, se filtra en pantalla
     var data = await res.json();
     empleados = data.error ? [] : data;
     render();
@@ -378,9 +383,13 @@ async function cargar() {
 
 function render() {
   var q = (document.getElementById('fBuscar').value || '').toLowerCase();
+  var estado = document.getElementById('fEstado').value;
   var filtrados = [];
   for (var i = 0; i < empleados.length; i++) {
-    if (!q || empleados[i].nombre.toLowerCase().indexOf(q) !== -1) filtrados.push(empleados[i]);
+    var e = empleados[i];
+    if (estado === '1' && e.activo != 1) continue;
+    if (estado === '0' && e.activo != 0) continue;
+    if (!q || e.nombre.toLowerCase().indexOf(q) !== -1) filtrados.push(e);
   }
   if (!filtrados.length) {
     document.getElementById('tablaEmpleados').innerHTML = '<tr><td colspan="6" class="empty">Sin empleados</td></tr>';
@@ -933,6 +942,7 @@ async function reintentarComando(id) {
 }
 
 document.getElementById('fBuscar').addEventListener('input', render);
+document.getElementById('fEstado').addEventListener('change', render);
 document.getElementById('modalNuevoBg').addEventListener('click', function(e){ if (e.target === this) cerrarNuevoEmpleado(); });
 document.getElementById('modalDetalleBg').addEventListener('click', function(e){ if (e.target === this) cerrarDetalle(); });
 document.getElementById('modalVacBg').addEventListener('click', function(e){ if (e.target === this) cerrarModalVac(); });
