@@ -14,7 +14,19 @@ header('Content-Type: application/json');
 $method = $_SERVER['REQUEST_METHOD'];
 $accion = $_GET['accion'] ?? '';
 
-$ACCIONES_DISPOSITIVO = ['pendientes', 'confirmar'];
+// Lunes–Domingo no aplica aquí — la semana de asistencia real de Armando es
+// Jueves-Miércoles (con domingo de descanso dentro de ella), distinta de la
+// semana Lunes-Domingo que usa Bono de Corte. Ver CLAUDE.md sección 1.
+function checadorSemanaJueMier($fecha) {
+    $d = new DateTime($fecha);
+    $dow = (int)$d->format('N'); // 1=lunes .. 7=domingo
+    $offset = ($dow - 4 + 7) % 7; // días desde el jueves más reciente (4=jueves)
+    $inicio = (clone $d)->modify('-' . $offset . ' days');
+    $fin = (clone $inicio)->modify('+6 days');
+    return [$inicio->format('Y-m-d'), $fin->format('Y-m-d')];
+}
+
+$ACCIONES_DISPOSITIVO = ['pendientes', 'confirmar', 'registrar_checadas'];
 
 if (in_array($accion, $ACCIONES_DISPOSITIVO, true)) {
     $llave = $_SERVER['HTTP_X_CHECADOR_KEY'] ?? '';
@@ -67,6 +79,33 @@ if (in_array($accion, $ACCIONES_DISPOSITIVO, true)) {
         jsonResponse(['ok' => true]); exit;
     }
 
+    // El listener manda las líneas crudas de ATTLOG (PIN\tFechaHora\tEstatus\tVerifyMode\t...)
+    // tal cual las empuja el reloj — se parsean e insertan aquí, deduplicado por (pin, fecha_hora).
+    if ($method === 'POST' && $accion === 'registrar_checadas') {
+        $body    = json_decode(file_get_contents('php://input'), true) ?? [];
+        $lineas  = $body['lineas'] ?? [];
+        if (!is_array($lineas)) { jsonResponse(['error' => 'lineas debe ser un arreglo']); exit; }
+
+        $insertadas = 0;
+        $stmt = $pdo->prepare("
+            INSERT IGNORE INTO checador_checadas (pin, fecha_hora, estatus, verify_mode)
+            VALUES (?, ?, ?, ?)
+        ");
+        foreach ($lineas as $linea) {
+            $campos = explode("\t", trim((string)$linea));
+            if (count($campos) < 2) continue;
+            $pin = (int)$campos[0];
+            $fechaHora = trim($campos[1]);
+            if (!$pin || !preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $fechaHora)) continue;
+            $estatus = isset($campos[2]) && $campos[2] !== '' ? (int)$campos[2] : null;
+            $verifyMode = isset($campos[3]) && $campos[3] !== '' ? (int)$campos[3] : null;
+            $stmt->execute([$pin, $fechaHora, $estatus, $verifyMode]);
+            if ($stmt->rowCount() > 0) $insertadas++;
+        }
+
+        jsonResponse(['ok' => true, 'insertadas' => $insertadas, 'recibidas' => count($lineas)]); exit;
+    }
+
     jsonResponse(['error' => 'Acción no soportada'], 400);
     exit;
 }
@@ -86,6 +125,62 @@ if ($method === 'GET' && $accion === 'historial') {
     $stmt = $pdo->prepare("SELECT * FROM checador_comandos WHERE empleado_id = ? ORDER BY id DESC");
     $stmt->execute([$empleado_id]);
     jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
+}
+
+// Reporte semanal de asistencia — semana real Jueves-Miércoles (7 días), pero el
+// encabezado muestra el miércoles anterior como referencia visual (a petición de
+// Armando, 08-sep-2026) sin que cuente como día de esa semana.
+if ($method === 'GET' && $accion === 'asistencia_semana') {
+    $ref = $_GET['semana'] ?? date('Y-m-d');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ref)) { jsonResponse(['error' => 'Fecha inválida']); exit; }
+    list($inicio, $fin) = checadorSemanaJueMier($ref);
+    $miercolesAnterior = (new DateTime($inicio))->modify('-1 day')->format('Y-m-d');
+
+    $empleados = $pdo->query("
+        SELECT id, nombre, checador_pin, numero_dispersion
+        FROM nomina_empleados
+        WHERE activo = 1
+        ORDER BY (numero_dispersion IS NULL), numero_dispersion ASC, nombre ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $pins = array_values(array_filter(array_column($empleados, 'checador_pin')));
+    $checadasPorPinDia = [];
+    if ($pins) {
+        $in = implode(',', array_map('intval', $pins));
+        $stmt = $pdo->prepare("
+            SELECT pin, fecha_hora FROM checador_checadas
+            WHERE pin IN ($in) AND fecha_hora >= ? AND fecha_hora < ?
+            ORDER BY fecha_hora ASC
+        ");
+        $stmt->execute([$inicio . ' 00:00:00', (new DateTime($fin))->modify('+1 day')->format('Y-m-d')]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $fecha = substr($row['fecha_hora'], 0, 10);
+            $hora  = substr($row['fecha_hora'], 11, 5);
+            $checadasPorPinDia[$row['pin']][$fecha][] = $hora;
+        }
+    }
+
+    $dias = [];
+    $cursor = new DateTime($inicio);
+    for ($i = 0; $i < 7; $i++) { $dias[] = $cursor->format('Y-m-d'); $cursor->modify('+1 day'); }
+
+    $filas = [];
+    foreach ($empleados as $e) {
+        $porDia = [];
+        foreach ($dias as $d) {
+            $porDia[$d] = $e['checador_pin'] ? ($checadasPorPinDia[$e['checador_pin']][$d] ?? []) : [];
+        }
+        $filas[] = [
+            'id' => $e['id'], 'nombre' => $e['nombre'],
+            'numero_dispersion' => $e['numero_dispersion'], 'checador_pin' => $e['checador_pin'],
+            'dias' => $porDia
+        ];
+    }
+
+    jsonResponse([
+        'inicio' => $inicio, 'fin' => $fin, 'miercoles_anterior' => $miercolesAnterior,
+        'dias' => $dias, 'filas' => $filas
+    ]); exit;
 }
 
 if (!tienePermiso($rol, 'gestionar_rh')) {

@@ -443,6 +443,9 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       <button class="sidebar-link" data-modulo="rh_empleados" onclick="cargarModulo('rh_empleados')">
         <span class="sidebar-icon"><?= icono('users') ?></span>Recursos Humanos
       </button>
+      <button class="sidebar-link" data-modulo="rh_asistencia" onclick="cargarModulo('rh_asistencia')">
+        <span class="sidebar-icon"><?= icono('activity') ?></span>Asistencia (Checador)
+      </button>
       <?php endif; ?>
     </div>
     <?php endif; ?>
@@ -513,6 +516,7 @@ const MODULOS = {
   maquila_precios:'modulos/maquila_precios.php',
   media_manager:'modulos/media_manager.php',
   rh_empleados:'modulos/rh_empleados.php',
+  rh_asistencia:'modulos/rh_asistencia.php',
 };
 
 let _moduloActivo = null;
