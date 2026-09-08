@@ -176,6 +176,7 @@ tr.fila-empleado:hover td { background: #f8fafc; cursor: pointer; }
       <button class="tab-btn" data-tab="documentos" onclick="ModRH._cambiarTab('documentos')">Documentos</button>
       <button class="tab-btn" data-tab="vacaciones" onclick="ModRH._cambiarTab('vacaciones')">Vacaciones</button>
       <button class="tab-btn" data-tab="incidencias" onclick="ModRH._cambiarTab('incidencias')">Incidencias</button>
+      <button class="tab-btn" data-tab="checador" onclick="ModRH._cambiarTab('checador')">Checador</button>
     </div>
 
     <!-- Tab Expediente -->
@@ -267,6 +268,35 @@ tr.fila-empleado:hover td { background: #f8fafc; cursor: pointer; }
       <?php endif; ?>
       <div class="mini-list" id="listaIncidencias"></div>
     </div>
+
+    <!-- Tab Checador -->
+    <div class="tab-content" id="tabChecador">
+      <div id="checadorEstado" style="margin-bottom:16px"></div>
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:16px">
+        El enrolamiento de huella/rostro en el reloj siempre requiere que la persona esté físicamente frente al aparato al menos una vez — esto solo crea o borra el registro (PIN + nombre), no reemplaza esa parte.
+      </div>
+      <div class="mini-list" id="listaChecador"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: dar de alta en el reloj -->
+<div class="modal-bg" id="modalChecadorAltaBg">
+  <div class="modal modal-sm">
+    <h2 style="margin-bottom:18px">Dar de alta en el reloj checador</h2>
+    <div class="field">
+      <label>PIN en el reloj</label>
+      <input type="number" id="chkPin" min="1" max="99999999">
+    </div>
+    <div style="font-size:11px;color:#b45309;margin:-8px 0 14px">Verifica que este PIN no esté ya usado por otro empleado directamente en el reloj físico — Apex no conoce los PINs asignados fuera de este sistema.</div>
+    <div class="field">
+      <label>Nombre para el reloj (máx. 24 caracteres)</label>
+      <input type="text" id="chkNombre" maxlength="24">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="ModRH._cerrarModalChecadorAlta()">Cancelar</button>
+      <button class="btn btn-success" onclick="ModRH._encolarAlta()">Encolar alta</button>
+    </div>
   </div>
 </div>
 
@@ -299,6 +329,7 @@ tr.fila-empleado:hover td { background: #f8fafc; cursor: pointer; }
 var ModRH = (function(){
 var API_RH = '../api/rh.php';
 var API_NOMINA = '../api/nomina.php';
+var API_CHECADOR = '../api/checador.php';
 var empleados = [];
 var empleadoActual = null;
 var periodoActualId = null;
@@ -429,6 +460,7 @@ async function abrirDetalle(id) {
     renderDocumentos(data.documentos || []);
     renderVacaciones(data.vacaciones || []);
     renderIncidencias(data.incidencias || []);
+    cargarChecador(empleadoActual.id);
 
     cambiarTab('expediente');
     document.getElementById('modalDetalleBg').classList.add('open');
@@ -680,10 +712,126 @@ async function borrarIncidencia(id) {
   } catch(e) { alert('Error de conexión'); }
 }
 
+// ── Checador ────────────────────────────────────────────────────────────────
+var TIPO_COMANDO_LABEL = { alta: 'Alta', baja: 'Baja' };
+var ESTADO_COMANDO_LABEL = {
+  pendiente: 'Pendiente de entregar a la Pi',
+  entregado: 'Entregado al reloj, sin confirmar',
+  confirmado: 'Confirmado',
+  error: 'Rechazado por el reloj'
+};
+
+async function cargarChecador(id) {
+  try {
+    var res = await fetch(API_CHECADOR + '?accion=historial&empleado_id=' + id);
+    var data = await res.json();
+    renderChecador(empleadoActual.checador_pin, Array.isArray(data) ? data : []);
+  } catch(e) {
+    document.getElementById('checadorEstado').innerHTML = '<div class="empty" style="padding:20px;color:#dc2626">Error al cargar</div>';
+  }
+}
+
+function renderChecador(pin, comandos) {
+  var altaEnProceso = null, bajaEnProceso = null;
+  for (var i = 0; i < comandos.length; i++) {
+    var c = comandos[i];
+    if (c.tipo === 'alta' && (c.estado === 'pendiente' || c.estado === 'entregado') && !altaEnProceso) altaEnProceso = c;
+    if (c.tipo === 'baja' && (c.estado === 'pendiente' || c.estado === 'entregado') && !bajaEnProceso) bajaEnProceso = c;
+  }
+
+  var html = '';
+  if (pin && bajaEnProceso) {
+    html = '<div class="mini-item"><div class="flex1"><div class="tipo">Baja en proceso — PIN ' + pin + '</div><div class="sub">Esperando confirmación del reloj</div></div></div>';
+  } else if (pin) {
+    html = '<div class="mini-item"><div class="flex1"><div class="tipo">Activo en el reloj — PIN ' + pin + '</div></div>';
+    if (puedeEditarChecador()) html += '<button class="btn btn-danger btn-sm" onclick="ModRH._encolarBaja()">Dar de baja</button>';
+    html += '</div>';
+  } else if (altaEnProceso) {
+    html = '<div class="mini-item"><div class="flex1"><div class="tipo">Alta en proceso — PIN ' + altaEnProceso.pin + ' reservado</div><div class="sub">Esperando confirmación del reloj</div></div></div>';
+  } else {
+    html = '<div class="mini-item"><div class="flex1"><div class="tipo">Sin registrar en el reloj</div></div>';
+    if (puedeEditarChecador()) html += '<button class="btn btn-primary btn-sm" onclick="ModRH._abrirModalChecadorAlta()">Dar de alta</button>';
+    html += '</div>';
+  }
+  document.getElementById('checadorEstado').innerHTML = html;
+
+  if (!comandos.length) {
+    document.getElementById('listaChecador').innerHTML = '<div class="empty" style="padding:20px">Sin comandos registrados todavía</div>';
+    return;
+  }
+  var histHtml = '';
+  for (var j = 0; j < comandos.length; j++) {
+    var cmd = comandos[j];
+    histHtml += '<div class="mini-item">';
+    histHtml += '<div class="flex1"><div class="tipo">' + (TIPO_COMANDO_LABEL[cmd.tipo] || cmd.tipo) + ' — PIN ' + cmd.pin + '</div>';
+    histHtml += '<div class="sub">' + (ESTADO_COMANDO_LABEL[cmd.estado] || cmd.estado) + (cmd.error_mensaje ? ': ' + esc(cmd.error_mensaje) : '') + ' · ' + esc((cmd.created_at || '').substring(0,16)) + ' · ' + esc(cmd.creado_por) + '</div></div>';
+    if ((cmd.estado === 'entregado' || cmd.estado === 'error') && puedeEditarChecador()) {
+      histHtml += '<a href="#" onclick="ModRH._reintentarComando(' + cmd.id + ');return false">Reintentar</a>';
+    }
+    histHtml += '</div>';
+  }
+  document.getElementById('listaChecador').innerHTML = histHtml;
+}
+
+function puedeEditarChecador() {
+  return <?= $puedeEditar ? 'true' : 'false' ?>;
+}
+
+function abrirModalChecadorAlta() {
+  document.getElementById('chkPin').value = '';
+  document.getElementById('chkNombre').value = empleadoActual ? empleadoActual.nombre.substring(0, 24) : '';
+  document.getElementById('modalChecadorAltaBg').classList.add('open');
+}
+function cerrarModalChecadorAlta() { document.getElementById('modalChecadorAltaBg').classList.remove('open'); }
+
+async function encolarAlta() {
+  if (!empleadoActual) return;
+  var pin = parseInt(document.getElementById('chkPin').value || 0, 10);
+  var nombreReloj = document.getElementById('chkNombre').value.trim();
+  if (!pin) { alert('Captura el PIN'); return; }
+  if (!nombreReloj) { alert('Captura el nombre para el reloj'); return; }
+  try {
+    var res = await fetch(API_CHECADOR + '?accion=encolar_alta', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ empleado_id: empleadoActual.id, pin: pin, nombre_reloj: nombreReloj })
+    });
+    var data = await res.json();
+    if (!data.ok) { alert(data.error || 'Error al encolar'); return; }
+    cerrarModalChecadorAlta();
+    abrirDetalle(empleadoActual.id).then(function(){ cambiarTab('checador'); });
+  } catch(e) { alert('Error de conexión'); }
+}
+
+async function encolarBaja() {
+  if (!empleadoActual) return;
+  if (!confirm('¿Dar de baja a ' + empleadoActual.nombre + ' del reloj checador? Esto no borra su expediente en Apex.')) return;
+  try {
+    var res = await fetch(API_CHECADOR + '?accion=encolar_baja', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ empleado_id: empleadoActual.id })
+    });
+    var data = await res.json();
+    if (!data.ok) { alert(data.error || 'Error al encolar'); return; }
+    cargarChecador(empleadoActual.id);
+  } catch(e) { alert('Error de conexión'); }
+}
+
+async function reintentarComando(id) {
+  try {
+    var res = await fetch(API_CHECADOR + '?accion=reintentar', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: id})
+    });
+    var data = await res.json();
+    if (!data.ok) { alert(data.error || 'Error al reintentar'); return; }
+    cargarChecador(empleadoActual.id);
+  } catch(e) { alert('Error de conexión'); }
+}
+
 document.getElementById('fBuscar').addEventListener('input', render);
 document.getElementById('modalNuevoBg').addEventListener('click', function(e){ if (e.target === this) cerrarNuevoEmpleado(); });
 document.getElementById('modalDetalleBg').addEventListener('click', function(e){ if (e.target === this) cerrarDetalle(); });
 document.getElementById('modalVacBg').addEventListener('click', function(e){ if (e.target === this) cerrarModalVac(); });
+document.getElementById('modalChecadorAltaBg').addEventListener('click', function(e){ if (e.target === this) cerrarModalChecadorAlta(); });
 
 cargar();
 
@@ -702,7 +850,12 @@ return {
   _cerrarModalVac: cerrarModalVac,
   _guardarVacacion: guardarVacacion,
   _crearIncidencia: crearIncidencia,
-  _borrarIncidencia: borrarIncidencia
+  _borrarIncidencia: borrarIncidencia,
+  _abrirModalChecadorAlta: abrirModalChecadorAlta,
+  _cerrarModalChecadorAlta: cerrarModalChecadorAlta,
+  _encolarAlta: encolarAlta,
+  _encolarBaja: encolarBaja,
+  _reintentarComando: reintentarComando
 };
 })();
 </script>

@@ -1,0 +1,167 @@
+<?php
+// Checador ZKTeco — cola de comandos alta/baja (UPD-570).
+// Dos mundos en un archivo:
+//   - Lado UI (sesión, ver_rh/gestionar_rh): encolar_alta, encolar_baja, historial, reintentar
+//   - Lado dispositivo (llave compartida X-Checador-Key, sin sesión): pendientes, confirmar
+//     Contrato para el listener de la Raspberry Pi (Fase 2, no implementado aún):
+//       GET  ?accion=pendientes  → devuelve comandos pendientes y los marca "entregado"
+//       POST ?accion=confirmar   → {id, ok, mensaje} avisa si el reloj aceptó/rechazó el comando
+require_once 'config.php';
+require_once 'permisos.php';
+
+header('Content-Type: application/json');
+
+$method = $_SERVER['REQUEST_METHOD'];
+$accion = $_GET['accion'] ?? '';
+
+$ACCIONES_DISPOSITIVO = ['pendientes', 'confirmar'];
+
+if (in_array($accion, $ACCIONES_DISPOSITIVO, true)) {
+    $llave = $_SERVER['HTTP_X_CHECADOR_KEY'] ?? '';
+    if (!CHECADOR_LISTENER_KEY || !hash_equals(CHECADOR_LISTENER_KEY, $llave)) {
+        jsonResponse(['error' => 'No autorizado'], 401);
+    }
+    $pdo = getDB();
+
+    if ($method === 'GET' && $accion === 'pendientes') {
+        $pdo->beginTransaction();
+        $comandos = $pdo->query("
+            SELECT id, empleado_id, tipo, pin, nombre_reloj
+            FROM checador_comandos
+            WHERE estado = 'pendiente'
+            ORDER BY id ASC
+            LIMIT 50
+            FOR UPDATE
+        ")->fetchAll(PDO::FETCH_ASSOC);
+
+        if ($comandos) {
+            $ids = implode(',', array_map('intval', array_column($comandos, 'id')));
+            $pdo->exec("UPDATE checador_comandos SET estado = 'entregado', entregado_at = NOW() WHERE id IN ($ids)");
+        }
+        $pdo->commit();
+        jsonResponse(['comandos' => $comandos]); exit;
+    }
+
+    if ($method === 'POST' && $accion === 'confirmar') {
+        $body    = json_decode(file_get_contents('php://input'), true) ?? [];
+        $id      = (int)($body['id'] ?? 0);
+        $ok      = !empty($body['ok']);
+        $mensaje = trim($body['mensaje'] ?? '');
+        if (!$id) { jsonResponse(['error' => 'id requerido']); exit; }
+
+        $stmt = $pdo->prepare("SELECT * FROM checador_comandos WHERE id = ?");
+        $stmt->execute([$id]);
+        $cmd = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$cmd) { jsonResponse(['error' => 'Comando no encontrado'], 404); exit; }
+
+        $nuevoEstado = $ok ? 'confirmado' : 'error';
+        $pdo->prepare("UPDATE checador_comandos SET estado = ?, error_mensaje = ?, confirmado_at = NOW() WHERE id = ?")
+            ->execute([$nuevoEstado, $ok ? null : ($mensaje ?: 'Error no especificado'), $id]);
+
+        // Baja confirmada → libera el PIN. Alta rechazada por el reloj (ej. PIN ya ocupado ahí) → libera el PIN reservado.
+        if (($ok && $cmd['tipo'] === 'baja') || (!$ok && $cmd['tipo'] === 'alta')) {
+            $pdo->prepare("UPDATE nomina_empleados SET checador_pin = NULL WHERE id = ? AND checador_pin = ?")
+                ->execute([$cmd['empleado_id'], $cmd['pin']]);
+        }
+
+        jsonResponse(['ok' => true]); exit;
+    }
+
+    jsonResponse(['error' => 'Acción no soportada'], 400);
+    exit;
+}
+
+// ── A partir de aquí, endpoints de UI — requieren sesión ───────────────────────
+$user   = requireSessionApi();
+$rol    = $user['rol'];
+$nombre = $user['nombre'];
+if (!tienePermiso($rol, 'ver_rh')) {
+    jsonResponse(['error' => 'Sin permiso'], 403);
+}
+$pdo = getDB();
+
+if ($method === 'GET' && $accion === 'historial') {
+    $empleado_id = (int)($_GET['empleado_id'] ?? 0);
+    if (!$empleado_id) { jsonResponse(['error' => 'empleado_id requerido']); exit; }
+    $stmt = $pdo->prepare("SELECT * FROM checador_comandos WHERE empleado_id = ? ORDER BY id DESC");
+    $stmt->execute([$empleado_id]);
+    jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
+}
+
+if (!tienePermiso($rol, 'gestionar_rh')) {
+    jsonResponse(['error' => 'Sin permiso'], 403);
+}
+
+$body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+if ($method === 'POST' && $accion === 'encolar_alta') {
+    $empleado_id  = (int)($body['empleado_id'] ?? 0);
+    $pin          = (int)($body['pin'] ?? 0);
+    $nombre_reloj = trim($body['nombre_reloj'] ?? '');
+
+    if (!$empleado_id || !$pin) { jsonResponse(['error' => 'Datos incompletos']); exit; }
+    if ($pin < 1 || $pin > 99999999) { jsonResponse(['error' => 'PIN inválido (1 a 99999999)']); exit; }
+    if (!$nombre_reloj) { jsonResponse(['error' => 'El nombre para el reloj es obligatorio']); exit; }
+    if (mb_strlen($nombre_reloj) > 24) { jsonResponse(['error' => 'El nombre no puede superar 24 caracteres (límite del reloj)']); exit; }
+
+    $emp = $pdo->prepare("SELECT id, checador_pin FROM nomina_empleados WHERE id = ?");
+    $emp->execute([$empleado_id]);
+    $emp = $emp->fetch(PDO::FETCH_ASSOC);
+    if (!$emp) { jsonResponse(['error' => 'Empleado no encontrado']); exit; }
+    if ($emp['checador_pin']) { jsonResponse(['error' => 'Este empleado ya tiene un PIN asignado (' . $emp['checador_pin'] . ')']); exit; }
+
+    $dup = $pdo->prepare("SELECT COUNT(*) FROM nomina_empleados WHERE checador_pin = ?");
+    $dup->execute([$pin]);
+    if ($dup->fetchColumn() > 0) { jsonResponse(['error' => 'Ese PIN ya está asignado a otro empleado en Apex']); exit; }
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("UPDATE nomina_empleados SET checador_pin = ? WHERE id = ?")->execute([$pin, $empleado_id]);
+        $pdo->prepare("
+            INSERT INTO checador_comandos (empleado_id, tipo, pin, nombre_reloj, creado_por)
+            VALUES (?, 'alta', ?, ?, ?)
+        ")->execute([$empleado_id, $pin, $nombre_reloj, $nombre]);
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        jsonResponse(['error' => 'Error al encolar']); exit;
+    }
+
+    jsonResponse(['ok' => true, 'id' => $pdo->lastInsertId()]); exit;
+}
+
+if ($method === 'POST' && $accion === 'encolar_baja') {
+    $empleado_id = (int)($body['empleado_id'] ?? 0);
+    if (!$empleado_id) { jsonResponse(['error' => 'empleado_id requerido']); exit; }
+
+    $emp = $pdo->prepare("SELECT id, checador_pin FROM nomina_empleados WHERE id = ?");
+    $emp->execute([$empleado_id]);
+    $emp = $emp->fetch(PDO::FETCH_ASSOC);
+    if (!$emp || !$emp['checador_pin']) { jsonResponse(['error' => 'Este empleado no tiene PIN activo en el reloj']); exit; }
+
+    $pend = $pdo->prepare("
+        SELECT COUNT(*) FROM checador_comandos
+        WHERE empleado_id = ? AND tipo = 'baja' AND estado IN ('pendiente', 'entregado')
+    ");
+    $pend->execute([$empleado_id]);
+    if ($pend->fetchColumn() > 0) { jsonResponse(['error' => 'Ya hay una baja en proceso para este empleado']); exit; }
+
+    $pdo->prepare("
+        INSERT INTO checador_comandos (empleado_id, tipo, pin, creado_por)
+        VALUES (?, 'baja', ?, ?)
+    ")->execute([$empleado_id, $emp['checador_pin'], $nombre]);
+
+    jsonResponse(['ok' => true]); exit;
+}
+
+if ($method === 'POST' && $accion === 'reintentar') {
+    $id = (int)($body['id'] ?? 0);
+    if (!$id) { jsonResponse(['error' => 'id requerido']); exit; }
+    $pdo->prepare("
+        UPDATE checador_comandos SET estado = 'pendiente', entregado_at = NULL, error_mensaje = NULL
+        WHERE id = ? AND estado IN ('entregado', 'error')
+    ")->execute([$id]);
+    jsonResponse(['ok' => true]); exit;
+}
+
+jsonResponse(['error' => 'Acción no soportada'], 400);
