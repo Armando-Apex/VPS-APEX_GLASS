@@ -221,9 +221,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "D=/home/apexglass2025/apex.glass/public_html/produccion; git -C \"$D\" add -A && git -C \"$D\" diff --cached --quiet || git -C \"$D\" commit -m \"Auto-sync $(date '+%Y-%m-%d %H:%M')\"; git -C \"$D\" pull --rebase origin main 2>&1 && git -C \"$D\" push origin main 2>&1",
+            "command": "D=/home/apexglass2025/apex.glass/public_html/produccion; git -C \"$D\" add -A; if bash \"$D/scripts/git_guard.sh\"; then git -C \"$D\" diff --cached --quiet || git -C \"$D\" commit -m \"Auto-sync $(date '+%Y-%m-%d %H:%M')\"; git -C \"$D\" pull --rebase origin main 2>&1 && git -C \"$D\" push origin main 2>&1; else git -C \"$D\" reset -q; echo \"=== AUTO-SYNC BLOQUEADO: posible secreto en los cambios. NADA se subio a GitHub. Los archivos siguen intactos en el disco. Revisa lo senalado arriba. ===\"; fi",
             "timeout": 60,
-            "statusMessage": "Guardando cambios en GitHub..."
+            "statusMessage": "Revisando secretos y guardando en GitHub..."
           }
         ]
       }

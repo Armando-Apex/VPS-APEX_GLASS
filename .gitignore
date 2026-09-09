@@ -22,3 +22,21 @@ archivos_campanas/wa_media/
 
 # Scratch de pruebas visuales con Playwright MCP
 .playwright-mcp/
+
+# --- Guardian de secretos (09-sep-2026, hallazgo F5-03) ---
+# Se bloquea por FORMA del archivo, no por el incidente de ayer.
+dl_*/
+*_cache/
+*token*.json
+*secret*
+*credential*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+.ssh/
+*.sql
+*.sql.gz
+.playwright-mcp/
