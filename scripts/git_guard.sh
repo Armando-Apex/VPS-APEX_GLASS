@@ -38,7 +38,10 @@ if [ "$MODO" = "test" ]; then
 else
     command -v git >/dev/null || { echo "[BLOQUEO] git no disponible"; exit 1; }
     git -C "$REPO" diff --cached --name-only > "$NOMBRES" 2>/dev/null || exit 1
-    git -C "$REPO" diff --cached -U0                > "$TMP"     2>/dev/null || exit 1
+    # Solo lo que se AGREGA. Las lineas eliminadas (-) no se revisan a proposito:
+    # quitar un secreto de un archivo es justo lo que queremos permitir, no bloquear.
+    git -C "$REPO" diff --cached -U0 2>/dev/null \
+        | grep -E '^\+' | grep -vE '^\+\+\+' > "$TMP" || true
     if [ ! -s "$NOMBRES" ]; then exit 0; fi   # nada preparado, nada que revisar
 fi
 

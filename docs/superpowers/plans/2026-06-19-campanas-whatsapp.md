@@ -59,7 +59,7 @@
 
 - [ ] **Paso 4: Definir WA_VERIFY_TOKEN**
 
-  Es un string secreto que tú inventas ahora mismo para validar el webhook. Usar exactamente: `apex_wh_2026`
+  Es un string secreto que tú inventas ahora mismo para validar el webhook. Usar exactamente: `***TOKEN-VERIFICACION-WA-REDACTADO***`
 
 - [ ] **Paso 5: Agregar las 4 constantes a api/config.php**
 
@@ -70,7 +70,7 @@
   define('WA_TOKEN',        'PEGAR_TOKEN_AQUI');
   define('WA_PHONE_ID',     'PEGAR_PHONE_ID_AQUI');
   define('WA_APP_SECRET',   'PEGAR_APP_SECRET_AQUI');
-  define('WA_VERIFY_TOKEN', 'apex_wh_2026');
+  define('WA_VERIFY_TOKEN', '***TOKEN-VERIFICACION-WA-REDACTADO***');
   ```
 
 - [ ] **Paso 6: Verificar que config.php carga sin errores**
@@ -237,7 +237,7 @@
 - [ ] **Paso 3: Probar verificación GET manualmente**
 
   ```bash
-  curl -s "https://apex.glass/produccion/api/whatsapp_webhook.php?hub.mode=subscribe&hub.verify_token=apex_wh_2026&hub.challenge=TESTCHALLENGE123"
+  curl -s "https://apex.glass/produccion/api/whatsapp_webhook.php?hub.mode=subscribe&hub.verify_token=***TOKEN-VERIFICACION-WA-REDACTADO***&hub.challenge=TESTCHALLENGE123"
   ```
   Resultado esperado: `TESTCHALLENGE123`
 
@@ -245,7 +245,7 @@
 
   Ir a developers.facebook.com → tu App → WhatsApp → Configuración → sección "Webhook":
   - URL de devolución de llamada: `https://apex.glass/produccion/api/whatsapp_webhook.php`
-  - Token de verificación: `apex_wh_2026`
+  - Token de verificación: `***TOKEN-VERIFICACION-WA-REDACTADO***`
   - Clic en "Verificar y guardar" — si el paso anterior funcionó, esto pasa en verde
   - En "Campos de webhook", suscribirse a: `messages`, `message_deliveries`, `message_reads`
 

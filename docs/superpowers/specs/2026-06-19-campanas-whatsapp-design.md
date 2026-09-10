@@ -225,8 +225,8 @@ Antes de implementar, Armando localiza en Meta Business Manager:
    - Ruta: Business Manager → Cuentas de WhatsApp → tu número → ver ID
 3. **WA_APP_SECRET** — App Secret de la Meta App
    - Ruta: Meta for Developers → tu App → Configuración → Básica → App Secret
-4. **WA_VERIFY_TOKEN** — string secreto que tú defines (ej. `apex_wh_2026`)
-5. Configurar webhook en Meta: URL `https://apex.glass/produccion/api/whatsapp_webhook.php`, campo verificación = `apex_wh_2026`, suscribir a: `messages`, `message_deliveries`, `message_reads`
+4. **WA_VERIFY_TOKEN** — string secreto que tú defines (ej. `***TOKEN-VERIFICACION-WA-REDACTADO***`)
+5. Configurar webhook en Meta: URL `https://apex.glass/produccion/api/whatsapp_webhook.php`, campo verificación = `***TOKEN-VERIFICACION-WA-REDACTADO***`, suscribir a: `messages`, `message_deliveries`, `message_reads`
 
 ---
 
