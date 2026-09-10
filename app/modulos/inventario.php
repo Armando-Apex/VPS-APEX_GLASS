@@ -391,6 +391,7 @@ tr:hover td { background: #f8fafc; }
             <option value="timeless">Timeless</option>
             <option value="bioclean">BioClean</option>
             <option value="espejo_filtra">Espejo Filtra</option>
+            <option value="espejo_bronce">Espejo Bronce</option>
           </select>
         </div>
         <div class="form-group">
@@ -792,7 +793,8 @@ var tipoLabel = {
   claro:'Claro', claro_zafiro:'Claro Zafiro', filtrasol:'Filtrasol',
   espejo:'Espejo', espejo_aluminio:'Espejo Aluminio', laminado_claro:'Laminado Claro',
   reflecta:'Reflecta', satinado:'Satinado', tintex:'Tintex', evo_50:'EVO 50',
-  bronce:'Bronce', timeless:'Timeless', bioclean:'BioClean', espejo_filtra:'Espejo Filtra'
+  bronce:'Bronce', timeless:'Timeless', bioclean:'BioClean', espejo_filtra:'Espejo Filtra',
+  espejo_bronce:'Espejo Bronce'
 };
 var fleteLabel = {
   incluido:'<span class="flete-incluido">&#10003; Incluido</span>',

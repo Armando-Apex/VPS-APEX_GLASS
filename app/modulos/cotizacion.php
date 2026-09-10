@@ -280,7 +280,8 @@ var tipoLaminaLabel = {
   claro:'Claro', claro_zafiro:'Claro Zafiro', filtrasol:'Filtrasol',
   espejo:'Espejo', espejo_aluminio:'Espejo Aluminio', laminado_claro:'Laminado Claro',
   reflecta:'Reflecta', satinado:'Satinado', tintex:'Tintex', evo_50:'EVO 50',
-  bronce:'Bronce', timeless:'Timeless', bioclean:'BioClean', espejo_filtra:'Espejo Filtra'
+  bronce:'Bronce', timeless:'Timeless', bioclean:'BioClean', espejo_filtra:'Espejo Filtra',
+  espejo_bronce:'Espejo Bronce'
 };
 
 var cristales           = [];
