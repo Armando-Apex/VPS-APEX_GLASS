@@ -300,6 +300,7 @@ function rdRender(rep, dash, inv, ef) {
   var topM2       = rep.top_clientes_m2       || [];
   var porAsesor   = rep.por_asesor            || [];
   var pipeAsesor  = rep.pipeline_por_asesor   || {};
+  var convAsesor  = rep.conversion_por_asesor || {};
   var repro       = rep.reproceso    || {};
   var hornoSems   = rep.horno_semanas|| [];
   var _resueltas = parseInt(r.a_tiempo||0) + parseInt(r.con_retraso||0);
@@ -351,14 +352,23 @@ function rdRender(rep, dash, inv, ef) {
         '<th style="text-align:right">&#211;rdenes</th>' +
         '<th style="text-align:right">Ventas</th>' +
         '<th style="text-align:right">Cotizado (pipeline)</th>' +
+        '<th style="text-align:right">% Conversi&#243;n</th>' +
       '</tr></thead><tbody>';
     porAsesor.forEach(function(a) {
-      var pipeVal = pipeAsesor.hasOwnProperty(a.asesor_nombre) ? fmtMXN(pipeAsesor[a.asesor_nombre]) : '&#8212;';
+      var pipe = pipeAsesor[a.asesor_nombre];
+      var pipeVal = pipe ? (fmtMXN(pipe.total) + ' <span style="color:var(--muted-lt);font-weight:400">(' + pipe.count + ' cot.)</span>') : '&#8212;';
+      var conv = convAsesor[a.asesor_nombre];
+      var convCell = '&#8212;';
+      if (conv && conv.total_cots > 0) {
+        var cColor = conv.pct >= 60 ? 'var(--green)' : conv.pct >= 40 ? 'var(--amber)' : 'var(--red)';
+        convCell = '<span style="color:' + cColor + ';font-weight:700">' + conv.pct + '%</span> <span style="color:var(--muted-lt)">(' + conv.convertidas + '/' + conv.total_cots + ')</span>';
+      }
       html += '<tr>' +
         '<td><strong>' + esc(a.asesor_nombre||'Sin asignar') + '</strong></td>' +
         '<td style="text-align:right">' + a.ordenes + '</td>' +
         '<td style="text-align:right;font-weight:700;color:var(--blue)">' + fmtMXN(a.total_ventas) + '</td>' +
         '<td style="text-align:right;color:var(--muted)">' + pipeVal + '</td>' +
+        '<td style="text-align:right">' + convCell + '</td>' +
       '</tr>';
     });
     html += '</tbody></table></div>';

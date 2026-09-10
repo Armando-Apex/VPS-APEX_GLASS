@@ -693,7 +693,7 @@ $por_asesor = $stmtAsesor->fetchAll(PDO::FETCH_ASSOC);
 // arriba, que se dejan sin tocar por compatibilidad pero ya no se usan
 // en el frontend desde este cambio, 10-sep-2026).
 $stmtPipeAsesor = $pdo->prepare("
-    SELECT c.asesor_nombre, COALESCE(SUM(c.total), 0) AS pipeline_total
+    SELECT c.asesor_nombre, COUNT(*) AS pipeline_count, COALESCE(SUM(c.total), 0) AS pipeline_total
     FROM cotizaciones c
     WHERE c.folio >= 'COT-0100'
       AND c.estatus = 'cotizacion'
@@ -703,7 +703,34 @@ $stmtPipeAsesor = $pdo->prepare("
 $stmtPipeAsesor->execute([$desdeTS, $hastaTS]);
 $pipeline_por_asesor = [];
 foreach ($stmtPipeAsesor->fetchAll(PDO::FETCH_ASSOC) as $rowPipe) {
-    $pipeline_por_asesor[$rowPipe['asesor_nombre']] = (float)$rowPipe['pipeline_total'];
+    $pipeline_por_asesor[$rowPipe['asesor_nombre']] = [
+        'count' => (int)$rowPipe['pipeline_count'],
+        'total' => (float)$rowPipe['pipeline_total'],
+    ];
+}
+
+// ── Tasa de conversión por asesor (período) — mismo criterio que la
+// tarjeta global "Tasa conversión" (conversion, arriba) pero agrupado
+// por asesor: de TODAS sus cotizaciones no canceladas del período,
+// cuántas terminaron con orden_id asignado.
+$stmtConvAsesor = $pdo->prepare("
+    SELECT asesor_nombre, COUNT(*) AS total_cots, SUM(orden_id IS NOT NULL) AS convertidas
+    FROM cotizaciones
+    WHERE folio >= 'COT-0100'
+      AND estatus != 'cancelada'
+      AND created_at BETWEEN ? AND ?
+    GROUP BY asesor_nombre
+");
+$stmtConvAsesor->execute([$desdeTS, $hastaTS]);
+$conversion_por_asesor = [];
+foreach ($stmtConvAsesor->fetchAll(PDO::FETCH_ASSOC) as $rowConv) {
+    $totalC = (int)$rowConv['total_cots'];
+    $convC  = (int)$rowConv['convertidas'];
+    $conversion_por_asesor[$rowConv['asesor_nombre']] = [
+        'total_cots' => $totalC,
+        'convertidas' => $convC,
+        'pct' => $totalC > 0 ? round(($convC / $totalC) * 100) : 0,
+    ];
 }
 
 // ── Tasa de reproceso (período) ──
@@ -758,6 +785,7 @@ jsonResponse([
     'top_clientes_m2'       => $top_clientes_m2,
     'por_asesor'            => $por_asesor,
     'pipeline_por_asesor'   => $pipeline_por_asesor,
+    'conversion_por_asesor' => $conversion_por_asesor,
     'reproceso'             => $reproceso,
     'horno_semanas'         => $horno_semanas,
 ]);
