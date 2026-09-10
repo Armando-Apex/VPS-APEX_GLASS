@@ -346,6 +346,7 @@ function rdRender(rep, dash, inv, ef) {
   /* ─── Rendimiento por asesor ─── */
   if (porAsesor.length > 0) {
     html += '<div class="section-title">Rendimiento por asesor</div>';
+    html += '<div style="font-size:11px;color:var(--muted-lt);margin:-6px 0 10px">Cotizado y % Conversi&#243;n se miden por fecha en que se creó la cotizaci&#243;n; &#211;rdenes/Ventas por fecha de VoBo &mdash; no tienen por qu&#233; coincidir</div>';
     html += '<div class="table-card"><table>' +
       '<thead><tr>' +
         '<th>Asesor</th>' +

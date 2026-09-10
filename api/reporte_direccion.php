@@ -709,17 +709,29 @@ foreach ($stmtPipeAsesor->fetchAll(PDO::FETCH_ASSOC) as $rowPipe) {
     ];
 }
 
-// ── Tasa de conversión por asesor (período) — mismo criterio que la
-// tarjeta global "Tasa conversión" (conversion, arriba) pero agrupado
-// por asesor: de TODAS sus cotizaciones no canceladas del período,
-// cuántas terminaron con orden_id asignado.
+// ── Tasa de conversión por asesor (período) — cohorte por fecha de
+// CREACIÓN de la cotización (no por fecha de VoBo, como Órdenes/Ventas
+// arriba — por eso este número casi nunca va a igualar a "Órdenes": son
+// dos ejes de tiempo distintos, mismo patrón ya documentado entre
+// "Pipeline" y "Ventas" en este mismo reporte). "Convertida" solo cuenta
+// si ya es venta real por el mismo criterio que el resto del reporte:
+// orden con estado activa/entregada — excluye retrabajo (es_retrabajo=0,
+// tanto del numerador como del denominador, igual que Ventas/Cobranza,
+// UPD-510/512/541) y excluye órdenes que ya existen pero siguen
+// pendiente_vobo (10-sep-2026, a petición de Armando: antes contaba
+// cualquier orden_id sin importar su estado, inflando el número con
+// ventas todavía no confirmadas).
 $stmtConvAsesor = $pdo->prepare("
-    SELECT asesor_nombre, COUNT(*) AS total_cots, SUM(orden_id IS NOT NULL) AS convertidas
-    FROM cotizaciones
-    WHERE folio >= 'COT-0100'
-      AND estatus != 'cancelada'
-      AND created_at BETWEEN ? AND ?
-    GROUP BY asesor_nombre
+    SELECT c.asesor_nombre,
+        COUNT(*) AS total_cots,
+        SUM(c.orden_id IS NOT NULL AND o.estado IN ('activa','entregada')) AS convertidas
+    FROM cotizaciones c
+    LEFT JOIN ordenes o ON o.id = c.orden_id
+    WHERE c.folio >= 'COT-0100'
+      AND c.estatus != 'cancelada'
+      AND c.es_retrabajo = 0
+      AND c.created_at BETWEEN ? AND ?
+    GROUP BY c.asesor_nombre
 ");
 $stmtConvAsesor->execute([$desdeTS, $hastaTS]);
 $conversion_por_asesor = [];
