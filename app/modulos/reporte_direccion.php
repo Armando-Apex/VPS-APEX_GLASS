@@ -299,6 +299,7 @@ function rdRender(rep, dash, inv, ef) {
   var topPedidos  = rep.top_clientes_pedidos  || [];
   var topM2       = rep.top_clientes_m2       || [];
   var porAsesor   = rep.por_asesor            || [];
+  var pipeAsesor  = rep.pipeline_por_asesor   || {};
   var repro       = rep.reproceso    || {};
   var hornoSems   = rep.horno_semanas|| [];
   var _resueltas = parseInt(r.a_tiempo||0) + parseInt(r.con_retraso||0);
@@ -352,12 +353,12 @@ function rdRender(rep, dash, inv, ef) {
         '<th style="text-align:right">Cotizado (pipeline)</th>' +
       '</tr></thead><tbody>';
     porAsesor.forEach(function(a) {
-      var bethyCot = a.asesor_nombre && a.asesor_nombre.indexOf('Bethy') >= 0 ? fmtMXN(cot.bethy_total) : (a.asesor_nombre && a.asesor_nombre.indexOf('Berenice') >= 0 ? fmtMXN(cot.berenice_total) : '&#8212;');
+      var pipeVal = pipeAsesor.hasOwnProperty(a.asesor_nombre) ? fmtMXN(pipeAsesor[a.asesor_nombre]) : '&#8212;';
       html += '<tr>' +
         '<td><strong>' + esc(a.asesor_nombre||'Sin asignar') + '</strong></td>' +
         '<td style="text-align:right">' + a.ordenes + '</td>' +
         '<td style="text-align:right;font-weight:700;color:var(--blue)">' + fmtMXN(a.total_ventas) + '</td>' +
-        '<td style="text-align:right;color:var(--muted)">' + bethyCot + '</td>' +
+        '<td style="text-align:right;color:var(--muted)">' + pipeVal + '</td>' +
       '</tr>';
     });
     html += '</tbody></table></div>';

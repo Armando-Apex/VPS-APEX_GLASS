@@ -686,6 +686,26 @@ $stmtAsesor = $pdo->prepare("
 $stmtAsesor->execute($params2);
 $por_asesor = $stmtAsesor->fetchAll(PDO::FETCH_ASSOC);
 
+// ── Pipeline (cotizado abierto) por asesor (período) — genérico para
+// cualquier asesor, mismo criterio que pipeline_total_periodo arriba
+// (incluye vencidas del período). Reemplaza el cálculo histórico que
+// solo sabía calcular Bethy/Berenice por nombre (bethy_total/berenice_total
+// arriba, que se dejan sin tocar por compatibilidad pero ya no se usan
+// en el frontend desde este cambio, 10-sep-2026).
+$stmtPipeAsesor = $pdo->prepare("
+    SELECT c.asesor_nombre, COALESCE(SUM(c.total), 0) AS pipeline_total
+    FROM cotizaciones c
+    WHERE c.folio >= 'COT-0100'
+      AND c.estatus = 'cotizacion'
+      AND c.created_at BETWEEN ? AND ?
+    GROUP BY c.asesor_nombre
+");
+$stmtPipeAsesor->execute([$desdeTS, $hastaTS]);
+$pipeline_por_asesor = [];
+foreach ($stmtPipeAsesor->fetchAll(PDO::FETCH_ASSOC) as $rowPipe) {
+    $pipeline_por_asesor[$rowPipe['asesor_nombre']] = (float)$rowPipe['pipeline_total'];
+}
+
 // ── Tasa de reproceso (período) ──
 // La tabla `reprocesos` está vacía (0 filas siempre) — el flujo real de retrabajo
 // (api/reproceso.php) nunca escribe ahí, marca la pieza con es_retrabajo=1 y deja
@@ -737,6 +757,7 @@ jsonResponse([
     'top_clientes_pedidos'  => $top_clientes_pedidos,
     'top_clientes_m2'       => $top_clientes_m2,
     'por_asesor'            => $por_asesor,
+    'pipeline_por_asesor'   => $pipeline_por_asesor,
     'reproceso'             => $reproceso,
     'horno_semanas'         => $horno_semanas,
 ]);
