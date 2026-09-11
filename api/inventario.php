@@ -238,7 +238,7 @@ if ($method === 'GET') {
         $FECHA_FIN_PRECIO_REAL    = $hasta_rd;
         $tipoLbl = [
             'claro' => 'Claro', 'claro_zafiro' => 'Claro Zafiro', 'filtrasol' => 'Filtrasol',
-            'espejo' => 'Espejo', 'espejo_aluminio' => 'Espejo Aluminio', 'laminado_claro' => 'Laminado Claro',
+            'espejo' => 'Espejo', 'espejo_aluminio' => 'Espejo Aluminio', 'espejo_plata' => 'Espejo Plata', 'laminado_claro' => 'Laminado Claro',
             'reflecta' => 'Reflecta', 'satinado' => 'Satinado', 'tintex' => 'Tintex', 'evo_50' => 'EVO 50',
         ];
         $normalizar = function($s) { return preg_replace('/\s+/', '', mb_strtolower($s)); };

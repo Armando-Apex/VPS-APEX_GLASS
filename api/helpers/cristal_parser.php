@@ -19,6 +19,7 @@ const CRISTAL_TIPO_LABEL = [
     'filtrasol'       => 'Filtrasol',
     'espejo'          => 'Espejo',
     'espejo_aluminio' => 'Espejo Aluminio',
+    'espejo_plata'    => 'Espejo Plata',
     'laminado_claro'  => 'Laminado Claro',
     'reflecta'        => 'Reflecta',
     'satinado'        => 'Satinado',

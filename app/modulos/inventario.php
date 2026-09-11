@@ -382,6 +382,7 @@ tr:hover td { background: #f8fafc; }
             <option value="filtrasol">Filtrasol</option>
             <option value="espejo">Espejo</option>
             <option value="espejo_aluminio">Espejo Aluminio</option>
+            <option value="espejo_plata">Espejo Plata</option>
             <option value="laminado_claro">Laminado Claro</option>
             <option value="reflecta">Reflecta</option>
             <option value="satinado">Satinado</option>
@@ -791,7 +792,7 @@ var $ = function(id){ return document.getElementById(id); };
 // fmt, fmtPeso, escAttr — definidos en utils.js
 var tipoLabel = {
   claro:'Claro', claro_zafiro:'Claro Zafiro', filtrasol:'Filtrasol',
-  espejo:'Espejo', espejo_aluminio:'Espejo Aluminio', laminado_claro:'Laminado Claro',
+  espejo:'Espejo', espejo_aluminio:'Espejo Aluminio', espejo_plata:'Espejo Plata', laminado_claro:'Laminado Claro',
   reflecta:'Reflecta', satinado:'Satinado', tintex:'Tintex', evo_50:'EVO 50',
   bronce:'Bronce', timeless:'Timeless', bioclean:'BioClean', espejo_filtra:'Espejo Filtra',
   espejo_bronce:'Espejo Bronce'
