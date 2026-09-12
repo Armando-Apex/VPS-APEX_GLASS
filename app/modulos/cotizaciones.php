@@ -278,10 +278,10 @@ function cotFiltrar() {
 
   if (!_cotAsoSort && _cotTab === 'orden') {
     lista = lista.slice().sort(function(a, b) {
-      var fa = a.fecha_entrega || '9999-99-99';
-      var fb = b.fecha_entrega || '9999-99-99';
-      if (fa < fb) return -1;
-      if (fa > fb) return 1;
+      var fa = a.orden_created_at || '';
+      var fb = b.orden_created_at || '';
+      if (fa < fb) return 1;
+      if (fa > fb) return -1;
       return 0;
     });
   }

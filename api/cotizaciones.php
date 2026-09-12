@@ -163,7 +163,7 @@ if ($method === 'GET') {
                c.fecha_entrega, c.localidad, c.ciudad_destino, c.condicion_pago,
                GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE(cp_sums.bruto, 0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                c.entrega_bloqueada,
-               o.folio AS orden_folio,
+               o.folio AS orden_folio, o.created_at AS orden_created_at,
                IF(c.estatus = 'cotizacion' AND c.created_at < DATE_SUB(NOW(), INTERVAL 15 DAY), 1, 0) AS es_inactiva
         FROM cotizaciones c
         LEFT JOIN ordenes o ON o.id = c.orden_id
