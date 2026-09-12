@@ -330,6 +330,94 @@ if ($accion === 'efectividad_corte') {
     ]);
 }
 
+// ============================================================
+//  KPIs comerciales de clientes: nuevos / reactivados / recurrentes,
+//  para Cotizaciones y para Ventas por separado (pestaña "Comercial").
+//  Clasificación por cliente contra SU PROPIO histórico completo (no solo
+//  lo que cae dentro de $desde/$hasta): se busca, para el primer evento de
+//  ese cliente dentro del período, cuál fue su evento anterior en TODA la
+//  vida del sistema (aunque sea de antes del período) y se mide el hueco:
+//    - sin evento anterior            → nuevo
+//    - hueco >= 60 días naturales     → reactivado_60
+//    - hueco >= 30 días               → reactivado_30
+//    - hueco < 30 días                → recurrente
+//  Los 4 grupos suman "total" (clientes distintos con al menos 1 evento
+//  en el período). Requiere MariaDB 10.2+ (LAG/window functions, ya
+//  disponible: este servidor corre 10.11).
+// ============================================================
+if ($accion === 'comercial_clientes') {
+    function rdCohortesClientes(PDO $pdo, string $sqlBase, string $desde, string $hasta): array {
+        $sql = "
+            SELECT x.cliente_id, x.fecha_periodo, r.prev_fecha
+            FROM (
+                SELECT cliente_id, MIN(fecha) AS fecha_periodo
+                FROM ($sqlBase) d
+                WHERE fecha BETWEEN ? AND ?
+                GROUP BY cliente_id
+            ) x
+            JOIN (
+                SELECT cliente_id, fecha,
+                    LAG(fecha) OVER (PARTITION BY cliente_id ORDER BY fecha) AS prev_fecha
+                FROM ($sqlBase) d2
+            ) r ON r.cliente_id = x.cliente_id AND r.fecha = x.fecha_periodo
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$desde, $hasta]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $out = ['nuevos' => 0, 'reactivado_60' => 0, 'reactivado_30' => 0, 'recurrentes' => 0, 'total' => count($rows)];
+        foreach ($rows as $r) {
+            if ($r['prev_fecha'] === null) { $out['nuevos']++; continue; }
+            $gap = (new DateTime($r['prev_fecha']))->diff(new DateTime($r['fecha_periodo']))->days;
+            if ($gap >= 60)      $out['reactivado_60']++;
+            elseif ($gap >= 30)  $out['reactivado_30']++;
+            else                 $out['recurrentes']++;
+        }
+        return $out;
+    }
+
+    // Cotizaciones reales (excluye retrabajo, mismo corte de folio que el resto
+    // del reporte). Dedupe por (cliente_id, fecha) para que 2 cotizaciones el
+    // mismo día no cuenten doble ni rompan el LAG. OJO: el GROUP BY tiene que ir
+    // sobre una subconsulta ya materializada — agrupar directo por el alias
+    // "fecha" calculado con DATE(...) en el mismo SELECT NO dedupea de verdad en
+    // este MariaDB (10.11.18, confirmado con datos reales: cliente 47 quedaba
+    // duplicado el mismo día), aunque no da ningún error.
+    $sqlCotBase = "
+        SELECT cliente_id, fecha FROM (
+            SELECT cliente_id, DATE(created_at) AS fecha
+            FROM cotizaciones
+            WHERE folio >= 'COT-0100' AND es_retrabajo = 0
+        ) t
+        GROUP BY cliente_id, fecha
+    ";
+    $comercial_cotizaciones = rdCohortesClientes($pdo, $sqlCotBase, $desde, $hasta);
+
+    // Ventas confirmadas: mismo criterio que el resto del reporte (Ventas,
+    // Top Clientes, Finanzas) — orden activa/entregada, no cancelada/rechazada,
+    // sin retrabajo, fecha = VoBo con fallback a fecha_pedido/created_at.
+    // Mismo cuidado de materializar antes de agrupar (ver nota arriba).
+    $sqlVentaBase = "
+        SELECT cliente_id, fecha FROM (
+            SELECT c.cliente_id AS cliente_id,
+                   COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) AS fecha
+            FROM ordenes o
+            JOIN cotizaciones c ON c.orden_id = o.id
+            WHERE o.estado IN ('activa','entregada')
+              AND c.estatus NOT IN ('cancelada','rechazada')
+              AND c.es_retrabajo = 0
+        ) t
+        GROUP BY cliente_id, fecha
+    ";
+    $comercial_ventas = rdCohortesClientes($pdo, $sqlVentaBase, $desde, $hasta);
+
+    jsonResponse([
+        'periodo'       => ['desde' => $desde, 'hasta' => $hasta],
+        'cotizaciones'  => $comercial_cotizaciones,
+        'ventas'        => $comercial_ventas,
+    ]);
+}
+
 $params4 = [$desde, $hasta, $desde.' 00:00:00', $hasta.' 23:59:59'];
 // Ventas confirmadas (Ventas, Top Clientes, Ventas por Asesor): filtran por fecha de
 // VoBo (venta real confirmada), no por fecha_pedido/created_at — mismo criterio que

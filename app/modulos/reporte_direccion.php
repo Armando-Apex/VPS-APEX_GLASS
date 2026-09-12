@@ -57,6 +57,9 @@ header('Content-Type: text/html; charset=utf-8');
   border-bottom:1px solid var(--border);
 }
 .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
+.rc-grid  { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:14px; }
+@media(max-width:1200px){ .rc-grid{grid-template-columns:repeat(3,1fr) !important;} }
+@media(max-width:700px) { .rc-grid{grid-template-columns:repeat(2,1fr) !important;} }
 .kpi-card {
   background:var(--surface); border-radius:10px; padding:16px 18px;
   box-shadow:0 1px 3px rgba(0,0,0,.05), 0 0 0 1px rgba(0,0,0,.04);
@@ -189,12 +192,13 @@ tfoot td { padding:9px 14px; font-size:13px; }
   <div class="rd-tabs">
     <button type="button" class="rd-tab active" data-tab="resumen" onclick="rdTabSwitch('resumen')">Resumen</button>
     <button type="button" class="rd-tab" data-tab="ventas" onclick="rdTabSwitch('ventas')">Ventas y Cobranza</button>
+    <button type="button" class="rd-tab" data-tab="comercial" onclick="rdTabSwitch('comercial')">Comercial</button>
   </div>
 
   <div id="rdPanelResumen">
     <div class="rd-toolbar">
       <label>Per&#237;odo</label>
-      <select id="rdFiltro" onchange="rdCargar()">
+      <select id="rdFiltro" onchange="rdOnPeriodoChange()">
         <option value="mes_actual">Este mes</option>
         <option value="mes_anterior">Mes anterior</option>
         <option value="3meses">&#218;ltimos 3 meses</option>
@@ -205,6 +209,14 @@ tfoot td { padding:9px 14px; font-size:13px; }
       <div class="ts-label"><span class="live-dot"></span><span id="rdTs">Cargando&#8230;</span></div>
     </div>
     <div id="rdMain"><div class="loading"><div class="spin"></div>Cargando reporte&#8230;</div></div>
+  </div>
+
+  <div id="rdPanelComercial" style="display:none">
+    <div class="rd-toolbar">
+      <label>Per&#237;odo</label>
+      <div class="ts-label" style="font-size:12px;color:var(--muted)">Usa el mismo per&#237;odo seleccionado en Resumen</div>
+    </div>
+    <div id="rcMain"><div class="loading"><div class="spin"></div>Cargando&#8230;</div></div>
   </div>
 
   <div id="rdPanelVentas" style="display:none">
@@ -734,8 +746,9 @@ function rvParseDate(s) {
 }
 
 function rdTabSwitch(tab) {
-  document.getElementById('rdPanelResumen').style.display = (tab === 'resumen') ? '' : 'none';
-  document.getElementById('rdPanelVentas').style.display  = (tab === 'ventas')  ? '' : 'none';
+  document.getElementById('rdPanelResumen').style.display   = (tab === 'resumen')   ? '' : 'none';
+  document.getElementById('rdPanelVentas').style.display    = (tab === 'ventas')    ? '' : 'none';
+  document.getElementById('rdPanelComercial').style.display = (tab === 'comercial') ? '' : 'none';
   document.querySelectorAll('.rd-tab').forEach(function(b) {
     if (b.getAttribute('data-tab') === tab) b.classList.add('active');
     else b.classList.remove('active');
@@ -743,6 +756,17 @@ function rdTabSwitch(tab) {
   if (tab === 'ventas' && !rvLoaded) {
     rvLoaded = true;
     rvCargar();
+  }
+  if (tab === 'comercial') {
+    rcCargar();
+  }
+}
+
+function rdOnPeriodoChange() {
+  rdCargar();
+  var panelComercial = document.getElementById('rdPanelComercial');
+  if (panelComercial && panelComercial.style.display !== 'none') {
+    rcCargar();
   }
 }
 
@@ -906,17 +930,79 @@ function rvTogglePagos(cotizacionId) {
   if (panel) panel.classList.toggle('open');
 }
 
+/* ─── Pestaña Comercial (KPIs de clientes) ─── */
+function rcTarjeta(num, label, sub) {
+  var n = (num === null || num === undefined) ? '&#8212;' : num;
+  return '<div class="kpi-card">' +
+    '<div class="kpi-num">' + n + '</div>' +
+    '<div class="kpi-label">' + label + '</div>' +
+    (sub ? '<div class="kpi-sub">' + sub + '</div>' : '') +
+  '</div>';
+}
+
+function rcCargar() {
+  var periodo = document.getElementById('rdFiltro') ? document.getElementById('rdFiltro').value : 'mes_actual';
+  document.getElementById('rcMain').innerHTML = '<div class="loading"><div class="spin"></div>Cargando&#8230;</div>';
+  fetch('../api/reporte_direccion.php?accion=comercial_clientes&periodo=' + periodo)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) {
+        document.getElementById('rcMain').innerHTML = stateErrorHTML(data.error, 'rcCargar');
+        return;
+      }
+      rcRender(data);
+    })
+    .catch(function() {
+      document.getElementById('rcMain').innerHTML = stateErrorHTML('Error de conexi&#243;n', 'rcCargar');
+    });
+}
+
+function rcRender(data) {
+  var cot = data.cotizaciones || {};
+  var ven = data.ventas || {};
+
+  var html = '';
+  html += '<div class="section-title">Cotizaciones &#8212; clientes</div>';
+  html += '<div class="rc-grid">' +
+    rcTarjeta(cot.total, 'Total que cotizaron', 'en el per&#237;odo seleccionado') +
+    rcTarjeta(cot.nuevos, 'Clientes nuevos', 'primera cotizaci&#243;n de su vida') +
+    rcTarjeta(cot.reactivado_30, 'Reactivados 30&#8211;59 d&#237;as', 'no cotizaban en ese rango') +
+    rcTarjeta(cot.reactivado_60, 'Reactivados 60+ d&#237;as', 'no cotizaban desde hace 60 d&#237;as o m&#225;s') +
+    rcTarjeta(cot.recurrentes, 'Recurrentes', 'cotizaron hace menos de 30 d&#237;as') +
+  '</div>';
+
+  html += '<div class="section-title" style="margin-top:24px">Ventas &#8212; clientes</div>';
+  html += '<div class="rc-grid">' +
+    rcTarjeta(ven.total, 'Total que compraron', 'en el per&#237;odo (VoBo)') +
+    rcTarjeta(ven.nuevos, 'Clientes nuevos', 'primera compra de su vida') +
+    rcTarjeta(ven.reactivado_30, 'Reactivados 30&#8211;59 d&#237;as', 'no compraban en ese rango') +
+    rcTarjeta(ven.reactivado_60, 'Reactivados 60+ d&#237;as', 'no compraban desde hace 60 d&#237;as o m&#225;s') +
+    rcTarjeta(ven.recurrentes, 'Recurrentes', 'compraron hace menos de 30 d&#237;as') +
+  '</div>';
+
+  html += '<div style="font-size:11px;color:var(--muted-lt);margin-top:6px;line-height:1.5;max-width:900px">' +
+    '"Nuevos" = su primera cotizaci&#243;n o compra registrada en el sistema. "Reactivados"/"Recurrentes" se miden contra ' +
+    'la &#250;ltima vez que ese mismo cliente cotiz&#243;/compr&#243; antes &#8212; sin importar si esa fecha anterior cae ' +
+    'fuera del per&#237;odo seleccionado. Los 4 grupos de cada fila suman el "Total". Cotizaciones excluye retrabajo; ' +
+    'Ventas usa el mismo criterio de venta confirmada (VoBo) que el resto de este reporte.' +
+  '</div>';
+
+  document.getElementById('rcMain').innerHTML = html;
+}
+
 rdCargar();
 setInterval(rdCargar, 300000);
 
-window.rdCargar        = rdCargar;
-window.rvCargar        = rvCargar;
-window.rdToggleAlmacen = rdToggleAlmacen;
-window.rdTabSwitch     = rdTabSwitch;
-window.rvSetGran       = rvSetGran;
-window.rvNav           = rvNav;
-window.rvHoy           = rvHoy;
-window.rvTogglePagos   = rvTogglePagos;
+window.rdCargar          = rdCargar;
+window.rvCargar          = rvCargar;
+window.rdToggleAlmacen   = rdToggleAlmacen;
+window.rdTabSwitch       = rdTabSwitch;
+window.rdOnPeriodoChange = rdOnPeriodoChange;
+window.rvSetGran         = rvSetGran;
+window.rvNav             = rvNav;
+window.rvHoy             = rvHoy;
+window.rvTogglePagos     = rvTogglePagos;
+window.rcCargar          = rcCargar;
 return { init: rdCargar };
 })();
 ModReporte.init();
