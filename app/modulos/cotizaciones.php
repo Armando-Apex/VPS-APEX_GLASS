@@ -276,6 +276,16 @@ function cotFiltrar() {
 
   var lista = baseData.filter(function(c) { return esTabMatch(c, _cotTab) && cotMatchSearch(c, q); });
 
+  if (!_cotAsoSort && _cotTab === 'orden') {
+    lista = lista.slice().sort(function(a, b) {
+      var fa = a.fecha_entrega || '9999-99-99';
+      var fb = b.fecha_entrega || '9999-99-99';
+      if (fa < fb) return -1;
+      if (fa > fb) return 1;
+      return 0;
+    });
+  }
+
   if (_cotAsoSort) {
     lista = lista.slice().sort(function(a, b) {
       var va = (a.asesor_nombre || '').toLowerCase();
