@@ -518,7 +518,7 @@ function renderFormulario(data) {
   if (esNuevo) {
     html += '<div class="field"><label>C&oacute;digo de Referido (CTN)</label>';
     html += '<input type="text" id="fReferidoCtn" placeholder="Ej: CTN-259" maxlength="20" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
-    html += '<small style="color:var(--c-muted);">Opcional, 5% de descuento autom&aacute;tico (agosto 2026).</small></div>';
+    html += '<small style="color:var(--c-muted);">Opcional, 5% de descuento autom&aacute;tico (vigente hasta el 31-oct-2026).</small></div>';
   } else if (data && parseFloat(data.descuento_referido || 0) > 0) {
     html += '<div class="field"><label>Descuento por Referido</label>';
     html += '<input type="text" readonly value="' + parseFloat(data.descuento_referido) + '% (ya aplicado)"></div>';

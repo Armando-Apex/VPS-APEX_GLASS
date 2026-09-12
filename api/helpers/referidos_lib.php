@@ -2,15 +2,19 @@
 // ============================================================
 //  APEX GLASS - Helper: Esquema de Referidos
 //  Archivo: api/helpers/referidos_lib.php
-//  Promoción Agosto 2026: cliente nuevo captura el CTN de quien
-//  lo refirió (solo en su primera cotización) → 5% de descuento
-//  automático para el referido + 5% de saldo a favor para el
-//  referente al VoBo de cada cotización del referido en el mes.
+//  Promoción (vigente REFERIDOS_PROMO_INICIO a REFERIDOS_PROMO_FIN,
+//  extendida a oct-2026 el 12-sep-2026): cliente nuevo captura el CTN
+//  de quien lo refirió (solo en su primera cotización) → 5% de
+//  descuento automático para el referido + 5% de saldo a favor para
+//  el referente al VoBo de cada cotización del referido, mientras esa
+//  fecha de VoBo caiga dentro de la ventana de la promo (no solo en
+//  el mes calendario en que se registró el referido — fix 12-sep-2026,
+//  ver referidosAcreditarVoBo).
 // ============================================================
 require_once __DIR__ . '/totales.php';
 
 const REFERIDOS_PROMO_INICIO = '2026-08-01';
-const REFERIDOS_PROMO_FIN    = '2026-08-31';
+const REFERIDOS_PROMO_FIN    = '2026-10-31';
 const REFERIDOS_PCT          = 5.00;
 
 function referidosPromoActiva($fecha = null) {
@@ -99,8 +103,13 @@ function referidosAcreditarVoBo(PDO $db, $cotizacion_id) {
     $row = $st->fetch(PDO::FETCH_ASSOC);
     if (!$row || !$row['vobo_at']) return null;
 
-    // Solo cuenta si el VoBo cae dentro del mes de la promoción vigente cuando se registró el referido.
-    if (substr($row['vobo_at'], 0, 7) !== $row['mes_promo']) return null;
+    // Solo cuenta si el VoBo cae dentro de la ventana vigente de la promo (no solo
+    // en el mes calendario exacto en que se registró el referido — fix 12-sep-2026:
+    // antes comparaba substr(vobo_at,0,7) contra mes_promo, fijo al mes de INICIO;
+    // con eso, un referido registrado en agosto que comprara de nuevo en septiembre
+    // ya no generaba bono al referente aunque la promo siguiera activa).
+    if ($row['vobo_at'] < REFERIDOS_PROMO_INICIO . ' 00:00:00'
+        || $row['vobo_at'] > REFERIDOS_PROMO_FIN . ' 23:59:59') return null;
 
     // Idempotencia: nunca abonar dos veces por la misma cotización.
     $stChk = $db->prepare("SELECT id FROM clientes_saldo_favor WHERE tipo = 'referido' AND cotizacion_id = ?");
