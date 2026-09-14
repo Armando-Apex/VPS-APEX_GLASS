@@ -418,6 +418,95 @@ if ($accion === 'comercial_clientes') {
     ]);
 }
 
+// ============================================================
+//  Pestaña "Comercial" — gráfica de ventas diarias acumuladas
+//  (mes actual vs mes anterior vs dos meses atrás). Mismo criterio
+//  de "venta confirmada" que el resto del reporte: orden activa/
+//  entregada, sin retrabajo, fecha = VoBo con fallback a
+//  fecha_pedido/created_at, monto = cotizaciones.total (con IVA).
+//  Sábados SÍ cuentan como día de venta (confirmado con Armando,
+//  14-sep-2026) — solo domingos y festivos quedan planos porque no
+//  hay ventas reales ese día, no por una exclusión forzada aquí.
+// ============================================================
+if ($accion === 'ventas_diarias_comercial') {
+    $hoyD = new DateTime();
+
+    function rdMesInfo(DateTime $ref, int $mesesAtras): array {
+        $base = (clone $ref)->modify('-' . $mesesAtras . ' months');
+        return [
+            'anio'     => (int)$base->format('Y'),
+            'mes'      => (int)$base->format('n'),
+            'dias_mes' => (int)$base->format('t'),
+        ];
+    }
+
+    $mActual   = rdMesInfo($hoyD, 0);
+    $mAnt      = rdMesInfo($hoyD, 1);
+    $mDosAtras = rdMesInfo($hoyD, 2);
+
+    $desdeRango = sprintf('%04d-%02d-01', $mDosAtras['anio'], $mDosAtras['mes']);
+    $hastaRango = $hoyD->format('Y-m-d');
+
+    $stmtVD = $pdo->prepare("
+        SELECT COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) AS fecha_venta,
+               SUM(c.total) AS venta
+        FROM ordenes o
+        JOIN cotizaciones c ON c.orden_id = o.id
+        WHERE o.estado IN ('activa','entregada')
+          AND c.es_retrabajo = 0
+          AND COALESCE(DATE(c.vobo_at), o.fecha_pedido, DATE(o.created_at)) BETWEEN ? AND ?
+        GROUP BY fecha_venta
+    ");
+    $stmtVD->execute([$desdeRango, $hastaRango]);
+    $ventasPorDia = [];
+    foreach ($stmtVD->fetchAll(PDO::FETCH_ASSOC) as $v) {
+        $ventasPorDia[$v['fecha_venta']] = round((float)$v['venta'], 2);
+    }
+    $hoyStr = $hoyD->format('Y-m-d');
+
+    function rdSerieMesVentas(array $info, array $ventasPorDia, string $hoyStr, bool $esActual): array {
+        $serie = [];
+        $acumulado = 0.0;
+        for ($dia = 1; $dia <= $info['dias_mes']; $dia++) {
+            $fecha = sprintf('%04d-%02d-%02d', $info['anio'], $info['mes'], $dia);
+            if ($esActual && $fecha > $hoyStr) break; // no proyectar días que aún no llegan
+            $ventaDia  = $ventasPorDia[$fecha] ?? 0.0;
+            $acumulado = round($acumulado + $ventaDia, 2);
+            $serie[] = ['dia' => $dia, 'fecha' => $fecha, 'venta_dia' => $ventaDia, 'acumulado' => $acumulado];
+        }
+        return $serie;
+    }
+
+    $mesesEsVD = [1=>'Enero',2=>'Febrero',3=>'Marzo',4=>'Abril',5=>'Mayo',6=>'Junio',
+                  7=>'Julio',8=>'Agosto',9=>'Septiembre',10=>'Octubre',11=>'Noviembre',12=>'Diciembre'];
+
+    jsonResponse([
+        'meses' => [
+            [
+                'key'       => 'actual',
+                'label'     => $mesesEsVD[$mActual['mes']] . ' ' . $mActual['anio'],
+                'dias_mes'  => $mActual['dias_mes'],
+                'es_actual' => true,
+                'serie'     => rdSerieMesVentas($mActual, $ventasPorDia, $hoyStr, true),
+            ],
+            [
+                'key'       => 'anterior',
+                'label'     => $mesesEsVD[$mAnt['mes']] . ' ' . $mAnt['anio'],
+                'dias_mes'  => $mAnt['dias_mes'],
+                'es_actual' => false,
+                'serie'     => rdSerieMesVentas($mAnt, $ventasPorDia, $hoyStr, false),
+            ],
+            [
+                'key'       => 'dos_atras',
+                'label'     => $mesesEsVD[$mDosAtras['mes']] . ' ' . $mDosAtras['anio'],
+                'dias_mes'  => $mDosAtras['dias_mes'],
+                'es_actual' => false,
+                'serie'     => rdSerieMesVentas($mDosAtras, $ventasPorDia, $hoyStr, false),
+            ],
+        ],
+    ]);
+}
+
 $params4 = [$desde, $hasta, $desde.' 00:00:00', $hasta.' 23:59:59'];
 // Ventas confirmadas (Ventas, Top Clientes, Ventas por Asesor): filtran por fecha de
 // VoBo (venta real confirmada), no por fecha_pedido/created_at — mismo criterio que

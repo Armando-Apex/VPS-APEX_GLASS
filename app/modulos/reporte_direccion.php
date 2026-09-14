@@ -60,6 +60,21 @@ header('Content-Type: text/html; charset=utf-8');
 .rc-grid  { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:14px; }
 @media(max-width:1200px){ .rc-grid{grid-template-columns:repeat(3,1fr) !important;} }
 @media(max-width:700px) { .rc-grid{grid-template-columns:repeat(2,1fr) !important;} }
+.rc-chart-card { background:var(--surface); border-radius:10px; padding:16px 18px 12px; box-shadow:0 1px 3px rgba(0,0,0,.05), 0 0 0 1px rgba(0,0,0,.04); }
+.rc-chart-legend { display:flex; gap:18px; flex-wrap:wrap; margin-bottom:6px; }
+.rc-chart-legend-item { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text); font-weight:600; }
+.rc-chart-legend-swatch { width:16px; height:2px; border-radius:1px; display:inline-block; }
+.rc-chart-wrap { position:relative; }
+.rc-chart-tooltip {
+  position:absolute; top:6px; right:6px; background:var(--text); color:#fff;
+  border-radius:8px; padding:10px 12px; font-size:12px; line-height:1.7; pointer-events:none;
+  opacity:0; transition:opacity .1s; min-width:190px; box-shadow:0 4px 12px rgba(0,0,0,.18); z-index:5;
+}
+.rc-chart-tooltip.show { opacity:1; }
+.rc-chart-tooltip-row { display:flex; align-items:center; gap:14px; justify-content:space-between; white-space:nowrap; }
+.rc-chart-tooltip-key { width:10px; height:2px; display:inline-block; border-radius:1px; flex-shrink:0; }
+.rc-chart-tooltip-day { font-weight:700; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,.2); padding-bottom:4px; }
+@media(max-width:700px) { .rc-chart-legend{gap:10px} }
 .kpi-card {
   background:var(--surface); border-radius:10px; padding:16px 18px;
   box-shadow:0 1px 3px rgba(0,0,0,.05), 0 0 0 1px rgba(0,0,0,.04);
@@ -987,7 +1002,164 @@ function rcRender(data) {
     'Ventas usa el mismo criterio de venta confirmada (VoBo) que el resto de este reporte.' +
   '</div>';
 
+  html += '<div class="section-title" style="margin-top:24px">Ventas diarias acumuladas &#8212; comparativo 3 meses</div>';
+  html += '<div class="rc-chart-card">' +
+    '<div class="rc-chart-legend" id="rcChartLegend"></div>' +
+    '<div class="rc-chart-wrap">' +
+      '<div class="rc-chart-tooltip" id="rcChartTooltip"></div>' +
+      '<svg id="rcChartSvg" viewBox="0 0 900 340" style="width:100%;height:auto;display:block" preserveAspectRatio="xMidYMid meet"></svg>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--muted-lt);margin-top:8px">' +
+      'Suma acumulada del mes, d&#237;a por d&#237;a. Mismo criterio de venta que el resto del reporte (fecha de VoBo, sin retrabajo). ' +
+      'Domingos y d&#237;as festivos no agregan nada nuevo &#8212; el acumulado se mantiene igual al d&#237;a anterior.' +
+    '</div>' +
+  '</div>';
+
   document.getElementById('rcMain').innerHTML = html;
+  rcVentasChartCargar();
+}
+
+/* ─── Gr&aacute;fica de ventas diarias acumuladas (3 meses) ─── */
+var RC_CHART_COLORS = { actual: '#2563eb', anterior: '#d97706', dos_atras: '#7c3aed' };
+
+function rcVentasChartCargar() {
+  fetch('../api/reporte_direccion.php?accion=ventas_diarias_comercial')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) return;
+      rcVentasChartRender(data);
+    })
+    .catch(function() {});
+}
+
+function rcVentasChartRender(data) {
+  var meses = data.meses || [];
+  if (meses.length === 0) return;
+
+  var svg      = document.getElementById('rcChartSvg');
+  var legendEl = document.getElementById('rcChartLegend');
+  var tooltipEl= document.getElementById('rcChartTooltip');
+  if (!svg) return;
+
+  var W = 900, H = 340;
+  var padL = 74, padR = 24, padT = 20, padB = 36;
+  var plotW = W - padL - padR;
+  var plotH = H - padT - padB;
+
+  var maxVal = 0;
+  meses.forEach(function(m) {
+    (m.serie || []).forEach(function(p) {
+      if (p.acumulado > maxVal) maxVal = p.acumulado;
+    });
+  });
+  var STEP = 250000;
+  var topY = Math.ceil((maxVal || STEP) / STEP) * STEP;
+  if (topY <= 0) topY = STEP;
+
+  function xForDay(dia) { return padL + ((dia - 1) / 30) * plotW; }
+  function yForVal(v)   { return padT + plotH - (v / topY) * plotH; }
+
+  var svgEl = '';
+
+  var nLevels = topY / STEP;
+  for (var i = 0; i <= nLevels; i++) {
+    var val = i * STEP;
+    var y = yForVal(val);
+    svgEl += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" stroke="var(--border)" stroke-width="1"/>';
+    svgEl += '<text x="' + (padL - 10) + '" y="' + (y + 4) + '" text-anchor="end" font-size="10.5" fill="var(--muted-lt)" font-family="-apple-system,Segoe UI,sans-serif">' + fmtMXN(val) + '</text>';
+  }
+
+  var xTicks = [1,5,10,15,20,25,30];
+  xTicks.forEach(function(d) {
+    var x = xForDay(d);
+    svgEl += '<text x="' + x + '" y="' + (H - padB + 18) + '" text-anchor="middle" font-size="10.5" fill="var(--muted-lt)" font-family="-apple-system,Segoe UI,sans-serif">' + d + '</text>';
+  });
+
+  var orden = ['dos_atras','anterior','actual'];
+  var porKey = {};
+  meses.forEach(function(m) { porKey[m.key] = m; });
+
+  var legendHtml = '';
+  orden.forEach(function(key) {
+    var m = porKey[key];
+    if (!m || !m.serie || m.serie.length === 0) return;
+    var color = RC_CHART_COLORS[key];
+    var d = '';
+    m.serie.forEach(function(p, idx) {
+      var x = xForDay(p.dia);
+      var y = yForVal(p.acumulado);
+      d += (idx === 0 ? 'M' : 'L') + x + ',' + y + ' ';
+    });
+    var widthLine = (key === 'actual') ? 2.5 : 2;
+    svgEl += '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + widthLine + '" stroke-linejoin="round" stroke-linecap="round"/>';
+
+    var last = m.serie[m.serie.length - 1];
+    var lx = xForDay(last.dia), ly = yForVal(last.acumulado);
+    svgEl += '<circle cx="' + lx + '" cy="' + ly + '" r="4.5" fill="' + color + '" stroke="var(--surface)" stroke-width="2"/>';
+
+    legendHtml += '<span class="rc-chart-legend-item"><span class="rc-chart-legend-swatch" style="background:' + color + '"></span>' +
+      esc(m.label) + (key === 'actual' ? ' (actual)' : '') + '</span>';
+  });
+
+  svgEl += '<line id="rcChartCrosshair" x1="0" y1="' + padT + '" x2="0" y2="' + (H - padB) + '" stroke="var(--muted-lt)" stroke-width="1" stroke-dasharray="3,3" style="display:none"/>';
+  svgEl += '<rect x="' + padL + '" y="' + padT + '" width="' + plotW + '" height="' + plotH + '" fill="transparent" id="rcChartHitArea" style="cursor:crosshair"/>';
+
+  svg.innerHTML = svgEl;
+  if (legendEl) legendEl.innerHTML = legendHtml;
+
+  svg.rcData = { meses: meses, padL: padL, plotW: plotW, W: W };
+
+  var hitArea = document.getElementById('rcChartHitArea');
+  if (hitArea) {
+    hitArea.addEventListener('mousemove', function(ev) { rcVentasChartHover(ev, svg, tooltipEl); });
+    hitArea.addEventListener('mouseleave', function() { rcVentasChartHoverOut(); });
+  }
+}
+
+function rcVentasChartHover(ev, svg, tooltipEl) {
+  var info = svg.rcData;
+  if (!info) return;
+  var rect = svg.getBoundingClientRect();
+  var scaleX = info.W / rect.width;
+  var xSvg = (ev.clientX - rect.left) * scaleX;
+  var dia = Math.round(((xSvg - info.padL) / info.plotW) * 30) + 1;
+  if (dia < 1) dia = 1;
+  if (dia > 31) dia = 31;
+
+  var cross = document.getElementById('rcChartCrosshair');
+  var xPos = info.padL + ((dia - 1) / 30) * info.plotW;
+  if (cross) {
+    cross.setAttribute('x1', xPos);
+    cross.setAttribute('x2', xPos);
+    cross.style.display = '';
+  }
+
+  var orden = ['actual','anterior','dos_atras'];
+  var porKey = {};
+  info.meses.forEach(function(m) { porKey[m.key] = m; });
+
+  var rows = '';
+  orden.forEach(function(key) {
+    var m = porKey[key];
+    if (!m) return;
+    var punto = null;
+    (m.serie || []).forEach(function(p) { if (p.dia === dia) punto = p; });
+    var color = RC_CHART_COLORS[key];
+    var valorTxt = punto ? fmtMXN(punto.acumulado) : '&#8212;';
+    rows += '<div class="rc-chart-tooltip-row"><span style="display:flex;align-items:center;gap:6px"><span class="rc-chart-tooltip-key" style="background:' + color + '"></span>' + esc(m.label) + '</span><strong>' + valorTxt + '</strong></div>';
+  });
+
+  if (tooltipEl) {
+    tooltipEl.innerHTML = '<div class="rc-chart-tooltip-day">D&#237;a ' + dia + '</div>' + rows;
+    tooltipEl.classList.add('show');
+  }
+}
+
+function rcVentasChartHoverOut() {
+  var cross = document.getElementById('rcChartCrosshair');
+  if (cross) cross.style.display = 'none';
+  var tooltipEl = document.getElementById('rcChartTooltip');
+  if (tooltipEl) tooltipEl.classList.remove('show');
 }
 
 rdCargar();
