@@ -1053,8 +1053,8 @@ function rcVentasChartRender(data) {
     });
   });
   var STEP = 250000;
-  var topY = Math.ceil((maxVal || STEP) / STEP) * STEP;
-  if (topY <= 0) topY = STEP;
+  var TOPY_MIN = 2500000;
+  var topY = Math.max(TOPY_MIN, Math.ceil((maxVal || STEP) / STEP) * STEP);
 
   function xForDay(dia) { return padL + ((dia - 1) / 30) * plotW; }
   function yForVal(v)   { return padT + plotH - (v / topY) * plotH; }
