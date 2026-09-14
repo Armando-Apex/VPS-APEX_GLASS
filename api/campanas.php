@@ -189,6 +189,70 @@ if ($metodo === 'GET' && $accion === 'prospectos_segmento') {
     exit;
 }
 
+// ── POST alta manual de un prospecto (14-sep-2026) ─────────────
+// Nombre autogenerado en secuencia "prospecto-NNN" (Armando: no hay
+// nombre real para estos números, solo el estado los diferencia).
+// Teléfono se guarda a 10 dígitos sin lada de país, mismo formato que
+// ya usan los 2,365 prospectos importados en jun-2026.
+if ($metodo === 'POST' && $accion === 'crear_prospecto') {
+    if (!$puedeEnviar) {
+        jsonResponse(['error' => 'Sin permiso'], 403);
+    }
+    $body        = json_decode(file_get_contents('php://input'), true) ?: [];
+    $telefonoRaw = preg_replace('/\D/', '', (string)($body['telefono'] ?? ''));
+    $estado      = trim((string)($body['estado'] ?? ''));
+
+    if (strlen($telefonoRaw) !== 10) {
+        jsonResponse(['error' => 'El teléfono debe tener exactamente 10 dígitos'], 400);
+    }
+
+    $estadosValidos = [
+        'Aguascalientes','Baja California','Baja California Sur','Campeche','Chiapas','Chihuahua',
+        'Ciudad de México','Coahuila','Colima','Durango','Estado de México','Guanajuato','Guerrero',
+        'Hidalgo','Jalisco','Michoacán','Morelos','Nayarit','Nuevo León','Oaxaca','Puebla','Querétaro',
+        'Quintana Roo','San Luis Potosí','Sinaloa','Sonora','Tabasco','Tamaulipas','Tlaxcala',
+        'Veracruz','Yucatán','Zacatecas',
+    ];
+    if (!in_array($estado, $estadosValidos, true)) {
+        jsonResponse(['error' => 'Estado inválido'], 400);
+    }
+
+    // No duplicar: si el teléfono ya es cliente real, no debe vivir en prospectos.
+    $stmtCl = $db->prepare("SELECT nombre, codigo FROM clientes WHERE telefono = ? OR telefono_alterno = ? LIMIT 1");
+    $stmtCl->execute([$telefonoRaw, $telefonoRaw]);
+    $clienteExistente = $stmtCl->fetch(PDO::FETCH_ASSOC);
+    if ($clienteExistente) {
+        jsonResponse(['error' => 'Ese teléfono ya es cliente: ' . $clienteExistente['nombre'] . ' (' . $clienteExistente['codigo'] . ')'], 409);
+    }
+
+    $stmtEx = $db->prepare("SELECT nombre FROM prospectos WHERE telefono = ? LIMIT 1");
+    $stmtEx->execute([$telefonoRaw]);
+    $prospectoExistente = $stmtEx->fetch(PDO::FETCH_ASSOC);
+    if ($prospectoExistente) {
+        jsonResponse(['error' => 'Ese teléfono ya existe como prospecto: ' . $prospectoExistente['nombre']], 409);
+    }
+
+    // Siguiente número de secuencia global "prospecto-NNN" (no por estado).
+    $maxN = 0;
+    foreach ($db->query("SELECT nombre FROM prospectos WHERE nombre REGEXP '^[Pp]rospecto-[0-9]+$'")->fetchAll(PDO::FETCH_COLUMN) as $n) {
+        $num = (int)substr($n, strrpos($n, '-') + 1);
+        if ($num > $maxN) $maxN = $num;
+    }
+    $nombreNuevo = 'prospecto-' . str_pad((string)($maxN + 1), 3, '0', STR_PAD_LEFT);
+
+    $stmtIns = $db->prepare("INSERT INTO prospectos (nombre, telefono, estado, es_cliente, activo) VALUES (?, ?, ?, 0, 1)");
+    $stmtIns->execute([$nombreNuevo, $telefonoRaw, $estado]);
+
+    jsonResponse([
+        'ok'       => true,
+        'id'       => (int)$db->lastInsertId(),
+        'nombre'   => $nombreNuevo,
+        'telefono' => $telefonoRaw,
+        'estado'   => $estado,
+    ]);
+    exit;
+}
+
 // ── GET clientes por segmento ────────────────────────────────
 if ($metodo === 'GET' && $accion === 'clientes_segmento') {
     $localidad   = $_GET['localidad'] ?? '';

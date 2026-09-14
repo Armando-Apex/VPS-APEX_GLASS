@@ -117,7 +117,10 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','adm
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
     <h2 style="margin:0;font-size:18px;color:#1e293b;">&#128241; Campa&ntilde;as WhatsApp</h2>
     <?php if ($puedeEnviar): ?>
-    <button onclick="window.cmpNuevaCampana()" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;">+ Nueva Campa&ntilde;a</button>
+    <div style="display:flex;gap:8px;">
+      <button onclick="window.cmpAbrirProspecto()" style="background:#fff;color:#2563eb;border:1px solid #2563eb;border-radius:6px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;">+ Agregar Prospecto</button>
+      <button onclick="window.cmpNuevaCampana()" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;">+ Nueva Campa&ntilde;a</button>
+    </div>
     <?php endif; ?>
   </div>
 
@@ -207,10 +210,43 @@ $puedeEnviar = in_array($rol, ['dir_admin','dueno','desarrollo','comercial','adm
   </div>
 </div>
 
+<!-- Modal Agregar Prospecto (alta manual, 14-sep-2026) -->
+<div id="cmpModalProspecto" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1100;align-items:flex-start;justify-content:center;padding-top:60px;overflow-y:auto;">
+  <div style="background:#fff;border-radius:10px;width:420px;max-width:92vw;padding:22px;margin-bottom:40px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <h3 style="margin:0;font-size:15px;color:#1e293b;">Agregar prospecto</h3>
+      <button onclick="window.cmpCerrarProspecto()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;">&#10005;</button>
+    </div>
+    <div id="cmpProspectoError" style="display:none;background:#fee2e2;color:#b91c1c;font-size:12px;padding:8px 10px;border-radius:6px;margin-bottom:12px;"></div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:5px;">Tel&eacute;fono (WhatsApp) <span style="color:#ef4444">*</span></label>
+      <input id="cmpProspectoTel" type="tel" maxlength="10" inputmode="numeric" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;" placeholder="10 d&iacute;gitos, sin lada de pa&iacute;s">
+    </div>
+    <div style="margin-bottom:6px;">
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:5px;">Estado <span style="color:#ef4444">*</span></label>
+      <select id="cmpProspectoEstado" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;background:#fff;"></select>
+    </div>
+    <div style="font-size:11px;color:#94a3b8;margin-bottom:14px;">El nombre se asigna solo en secuencia (prospecto-001, prospecto-002&hellip;).</div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:14px;">
+      <button onclick="window.cmpCerrarProspecto()" style="background:none;border:1px solid #e2e8f0;padding:9px 16px;border-radius:8px;font-size:13px;cursor:pointer;color:#64748b;">Cerrar</button>
+      <button id="cmpProspectoBtnGuardar" onclick="window.cmpGuardarProspecto()" style="background:#2563eb;color:#fff;border:none;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Guardar y agregar otro</button>
+    </div>
+    <div id="cmpProspectoLista" style="border-top:1px solid #f1f5f9;padding-top:10px;"></div>
+  </div>
+</div>
+
 <script>
 var ModCampanas = (function() {
     var _step = 1;
     var _fuente = 'clientes';
+    var _prospectoEstados = [
+        'Aguascalientes','Baja California','Baja California Sur','Campeche','Chiapas','Chihuahua',
+        'Ciudad de México','Coahuila','Colima','Durango','Estado de México','Guanajuato','Guerrero',
+        'Hidalgo','Jalisco','Michoacán','Morelos','Nayarit','Nuevo León','Oaxaca','Puebla','Querétaro',
+        'Quintana Roo','San Luis Potosí','Sinaloa','Sonora','Tabasco','Tamaulipas','Tlaxcala',
+        'Veracruz','Yucatán','Zacatecas'
+    ];
+    var _prospectosAgregadosSesion = [];
     var _clientesSeleccionados = [];
     var _templateNombre = '';
     var _templateBody = '';
@@ -456,7 +492,7 @@ var ModCampanas = (function() {
                 '<button id="cmpBtnFuenteClientes" onclick="window.cmpCambiarFuente(\'clientes\')" ' +
                 'style="padding:7px 16px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:' + (_fuente==='clientes'?'#2563eb':'#fff') + ';color:' + (_fuente==='clientes'?'#fff':'#64748b') + ';">Clientes CRM</button>' +
                 '<button id="cmpBtnFuenteProspectos" onclick="window.cmpCambiarFuente(\'prospectos\')" ' +
-                'style="padding:7px 16px;font-size:12px;font-weight:600;border:none;cursor:pointer;border-left:1px solid #e2e8f0;background:' + (_fuente==='prospectos'?'#2563eb':'#fff') + ';color:' + (_fuente==='prospectos'?'#fff':'#64748b') + ';">Prospectos (2,365)</button>' +
+                'style="padding:7px 16px;font-size:12px;font-weight:600;border:none;cursor:pointer;border-left:1px solid #e2e8f0;background:' + (_fuente==='prospectos'?'#2563eb':'#fff') + ';color:' + (_fuente==='prospectos'?'#fff':'#64748b') + ';">Prospectos</button>' +
                 '</div></div>' +
                 '<div id="cmpFiltrosArea"></div>' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
@@ -1858,6 +1894,87 @@ var ModCampanas = (function() {
         });
     }
 
+    // ── Alta manual de prospectos (14-sep-2026) ────────────────
+    function abrirProspecto() {
+        var sel = document.getElementById('cmpProspectoEstado');
+        if (sel.options.length === 0) {
+            _prospectoEstados.forEach(function(e) {
+                var opt = document.createElement('option');
+                opt.value = e;
+                opt.textContent = e;
+                sel.appendChild(opt);
+            });
+        }
+        document.getElementById('cmpProspectoTel').value = '';
+        var errBox = document.getElementById('cmpProspectoError');
+        errBox.style.display = 'none';
+        errBox.textContent = '';
+        var btn = document.getElementById('cmpProspectoBtnGuardar');
+        btn.disabled = false;
+        btn.textContent = 'Guardar y agregar otro';
+        renderProspectosSesion();
+        document.getElementById('cmpModalProspecto').style.display = 'flex';
+        document.getElementById('cmpProspectoTel').focus();
+    }
+
+    function cerrarProspecto() {
+        document.getElementById('cmpModalProspecto').style.display = 'none';
+        _prospectosAgregadosSesion = [];
+    }
+
+    function mostrarErrorProspecto(msg) {
+        var errBox = document.getElementById('cmpProspectoError');
+        errBox.textContent = msg;
+        errBox.style.display = 'block';
+    }
+
+    function renderProspectosSesion() {
+        var cont = document.getElementById('cmpProspectoLista');
+        if (_prospectosAgregadosSesion.length === 0) { cont.innerHTML = ''; return; }
+        var html = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;margin-bottom:6px;">Agregados en esta sesi&oacute;n</div>';
+        _prospectosAgregadosSesion.forEach(function(p) {
+            html += '<div style="display:flex;justify-content:space-between;font-size:12px;color:#1e293b;padding:4px 0;">' +
+                '<span>' + esc(p.nombre) + ' &mdash; ' + esc(p.estado) + '</span>' +
+                '<span style="color:#64748b;">' + esc(fmtTel10(p.telefono)) + '</span></div>';
+        });
+        cont.innerHTML = html;
+    }
+
+    function guardarProspecto() {
+        var telInput = document.getElementById('cmpProspectoTel');
+        var telefono = telInput.value.replace(/\D/g, '');
+        var estado   = document.getElementById('cmpProspectoEstado').value;
+
+        if (telefono.length !== 10) { mostrarErrorProspecto('El teléfono debe tener 10 dígitos'); return; }
+        if (!estado) { mostrarErrorProspecto('Selecciona un estado'); return; }
+
+        var btn = document.getElementById('cmpProspectoBtnGuardar');
+        btn.disabled = true;
+        btn.textContent = 'Guardando...';
+
+        fetch('/produccion/api/campanas.php?accion=crear_prospecto', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': (window._csrfToken || '')},
+            body: JSON.stringify({telefono: telefono, estado: estado})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            btn.textContent = 'Guardar y agregar otro';
+            if (data.error) { mostrarErrorProspecto(data.error); return; }
+            _prospectosAgregadosSesion.unshift({nombre: data.nombre, telefono: data.telefono, estado: data.estado});
+            renderProspectosSesion();
+            document.getElementById('cmpProspectoError').style.display = 'none';
+            telInput.value = '';
+            telInput.focus();
+        })
+        .catch(function() {
+            mostrarErrorProspecto('Error de conexión');
+            btn.disabled = false;
+            btn.textContent = 'Guardar y agregar otro';
+        });
+    }
+
     // ── Init ──────────────────────────────────────────────────
     function init() {
         tab('conversaciones', document.getElementById('cmpTabBtnConv'));
@@ -1901,6 +2018,9 @@ var ModCampanas = (function() {
     window.cmpAbrirContacto       = abrirContacto;
     window.cmpCerrarContacto      = cerrarContacto;
     window.cmpGuardarContacto     = guardarContacto;
+    window.cmpAbrirProspecto      = abrirProspecto;
+    window.cmpCerrarProspecto     = cerrarProspecto;
+    window.cmpGuardarProspecto    = guardarProspecto;
 
     return { init: init };
 })();
