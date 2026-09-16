@@ -1143,9 +1143,22 @@ function rcEncuestaHoverHandler(ev) {
     rows += '<div>' + esc(nombres[j]) + '</div>';
   }
   tooltipEl.innerHTML = rows;
-  tooltipEl.style.left = (ev.clientX + 16) + 'px';
-  tooltipEl.style.top  = (ev.clientY + 12) + 'px';
   tooltipEl.classList.add('show');
+
+  // Voltear el recuadro hacia arriba/izquierda cuando no cabe hacia abajo/derecha
+  // (ej. filas cerca del borde inferior de la pantalla) — antes siempre se
+  // posicionaba abajo-derecha del cursor y se cortaba fuera de la vista.
+  var margen = 12;
+  var rect   = tooltipEl.getBoundingClientRect();
+  var left   = ev.clientX + 16;
+  var top    = ev.clientY + margen;
+  if (left + rect.width > window.innerWidth - margen)  left = ev.clientX - rect.width - 16;
+  if (top + rect.height > window.innerHeight - margen) top  = ev.clientY - rect.height - margen;
+  if (left < margen) left = margen;
+  if (top < margen)  top  = margen;
+
+  tooltipEl.style.left = left + 'px';
+  tooltipEl.style.top  = top + 'px';
 }
 
 function rcEncuestaHoverOut() {

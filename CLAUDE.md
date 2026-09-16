@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 16 septiembre 2026 | Próximo UPD disponible: UPD-592
+# Última actualización: 16 septiembre 2026 | Próximo UPD disponible: UPD-593
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -472,7 +472,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-592**
+Próximo UPD disponible: **UPD-593**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -633,4 +633,6 @@ Archivo completo: `docs/HISTORIAL_UPD_546_580.md` (26-ago-2026 → 10-sep-2026)
 
 | UPD-591 | 16-sep-2026 | Armando | **Tooltip con nombres al pasar el cursor sobre los conteos de la Encuesta de Satisfacción (Reporte Dirección → Comercial).** Armando pidió que al pasar el cursor sobre un conteo (ej. "2" en Insatisfecho de Tiempos de entrega) aparezca un pequeño recuadro con los nombres de quién contestó eso. `api/reporte_direccion.php` (`accion=encuesta_satisfaccion`) ahora regresa también `respuestas`: un arreglo con el nombre de cada cliente (`clientes.contacto` o `nombre`, `LEFT JOIN` — reporte interno, no visible a clientes) + sus 5 respuestas, para que el frontend arme la lista sin volver a pedir nada al servidor por cada hover. `app/modulos/reporte_direccion.php` — cada conteo mayor a 0 (en la tabla de las 4 preguntas y en los 2 conteos de "Preferencia") ahora es un `<span class="rc-enc-count" data-preg="..." data-nivel="...">`; tras renderizar la tabla se conectan listeners `mousemove`/`mouseleave` (mismo patrón ya usado por el tooltip de la gráfica de Ventas diarias, UPD-584 — `addEventListener`, no `onclick` inline) que filtran `RC_ENC_RESPUESTAS` por pregunta+nivel y arman el recuadro (`rc-enc-tooltip`, mismo estilo visual oscuro que el tooltip de la gráfica pero `position:fixed` siguiendo al cursor, ya que aquí hay muchas celdas distintas en vez de un solo eje X). Probado con datos 100% reales — para el 16-sep-2026 ya habían llegado 12 respuestas reales de la campaña de UPD-590 (más la de prueba): se confirmó en BD que "Insatisfecho" en Tiempos de entrega tiene exactamente 2 (CESAR MALDONADO, LIZ COLUNGA), coincide con el ejemplo que dio Armando al pedir la feature. `php -l` en ambos archivos + `node --check` del `<script>` embebido, OK. Sin prueba visual en navegador (no hay Chrome DevTools/Playwright activo en esta sesión) — pendiente que Armando pase el cursor en vivo y confirme que el recuadro aparece bien posicionado y con los nombres correctos. |
 
-**Próximo UPD disponible: UPD-592**
+| UPD-592 | 16-sep-2026 | Armando | Fix de UPD-591 (mismo día): el tooltip de nombres de la Encuesta de Satisfacción siempre se posicionaba abajo-derecha del cursor — en las filas cerca del borde inferior de la pantalla el recuadro se cortaba fuera de la vista, ilegible. `rcEncuestaHoverHandler()` ahora mide el tooltip ya renderizado (`getBoundingClientRect()`) y lo voltea hacia arriba y/o hacia la izquierda cuando no cabe hacia abajo/derecha respecto al tamaño de la ventana, con un margen de 12px. `php -l` + `node --check` OK. Sin prueba visual en navegador — pendiente que Armando confirme que ya se lee completo en las filas de abajo. |
+
+**Próximo UPD disponible: UPD-593**
