@@ -74,7 +74,8 @@ $tel_fijo    = '81 1180 5078';
 
 $descuento          = (float)($c['descuento'] ?? 0);
 $descuento_referido = (float)($c['descuento_referido'] ?? 0); // Esquema de Referidos (promo agosto 2026)
-$descuento_efectivo = $descuento + $descuento_referido;
+$descuento_encuesta = (float)($c['descuento_encuesta'] ?? 0); // Encuesta de satisfacción (16-sep-2026)
+$descuento_efectivo = $descuento + $descuento_referido + $descuento_encuesta;
 
 // Calcular bruto desde precio_m2_usado × m2 × cantidad — misma fórmula que la pantalla.
 // precio_unitario en registros viejos almacenaba precio bruto (sin descuento aplicado),
@@ -609,6 +610,12 @@ function waEnviar() {
       <div class="totales-row descuento">
         <span class="label">Descuento cliente referido (<?= number_format($descuento_referido, 0) ?>%)</span>
         <span class="val">-$<?= number_format($subtotal * $descuento_referido / 100, 2) ?></span>
+      </div>
+      <?php endif; ?>
+      <?php if ($descuento_encuesta > 0): ?>
+      <div class="totales-row descuento">
+        <span class="label">Descuento por encuesta (<?= number_format($descuento_encuesta, 0) ?>%)</span>
+        <span class="val">-$<?= number_format($subtotal * $descuento_encuesta / 100, 2) ?></span>
       </div>
       <?php endif; ?>
       <?php if ($servicios_subtotal > 0): ?>

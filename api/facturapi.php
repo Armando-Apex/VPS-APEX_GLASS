@@ -23,17 +23,17 @@ function _facturapiConceptosDesdeOrden($pdo, $ordenFolio) {
     $ordenId = $stmt->fetchColumn();
     if (!$ordenId) return null;
 
-    $stmt = $pdo->prepare("SELECT id, tipo, descuento, COALESCE(descuento_referido,0) AS descuento_referido FROM cotizaciones WHERE orden_id = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id, tipo, descuento, COALESCE(descuento_referido,0) AS descuento_referido, COALESCE(descuento_encuesta,0) AS descuento_encuesta FROM cotizaciones WHERE orden_id = ? LIMIT 1");
     $stmt->execute([$ordenId]);
     $cot = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$cot) return null;
 
     $cotId     = $cot['id'];
     $esMaquila = ($cot['tipo'] ?? 'suministro') === 'maquila';
-    // BLV-3: descuento efectivo = manual + automático de referido (mismo criterio que
-    // apexTotalesCotizacion, helpers/totales.php:51) — antes solo se usaba el manual,
-    // dejando el CFDI por un monto distinto al realmente cobrado en órdenes con referido.
-    $descuento = min(100, (float)($cot['descuento'] ?? 0) + (float)$cot['descuento_referido']);
+    // BLV-3: descuento efectivo = manual + automáticos de referido/encuesta (mismo
+    // criterio que apexTotalesCotizacion, helpers/totales.php:51) — antes solo se
+    // usaba el manual, dejando el CFDI por un monto distinto al realmente cobrado.
+    $descuento = min(100, (float)($cot['descuento'] ?? 0) + (float)$cot['descuento_referido'] + (float)$cot['descuento_encuesta']);
 
     $conceptos = [];
     if ($esMaquila) {

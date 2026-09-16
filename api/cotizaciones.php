@@ -23,6 +23,7 @@ require_once __DIR__ . '/helpers/totales.php';    // A-2: fórmula canónica de 
 require_once __DIR__ . '/helpers/referidos_lib.php'; // Esquema de Referidos (promo agosto 2026)
 require_once __DIR__ . '/helpers/promo_wa_lib.php';   // Promo Estados WhatsApp por volumen (15-ago-2026)
 require_once __DIR__ . '/helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
+require_once __DIR__ . '/helpers/encuesta_descuento_lib.php'; // Descuento por Encuesta de Satisfacción (16-sep-2026)
 
 // cotizacionesFacturaVigente() vive ahora en cotizacion_helpers.php (BLV-1, 26-ago-2026)
 // para que api/maquila.php también la use — no duplicar aquí.
@@ -159,9 +160,9 @@ if ($method === 'GET') {
     $stmt = $db->prepare("
         SELECT c.id, c.folio, c.fecha, c.cliente_nombre, c.asesor_nombre,
                c.proyecto, c.estatus,
-               ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE(cp_sums.bruto, 0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
+               ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE(cp_sums.bruto, 0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
                c.fecha_entrega, c.localidad, c.ciudad_destino, c.condicion_pago,
-               GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE(cp_sums.bruto, 0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+               GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE(cp_sums.bruto, 0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                c.entrega_bloqueada,
                o.folio AS orden_folio, o.created_at AS orden_created_at,
                IF(c.estatus = 'cotizacion' AND c.created_at < DATE_SUB(NOW(), INTERVAL 15 DAY), 1, 0) AS es_inactiva
@@ -521,6 +522,7 @@ if ($method === 'POST') {
     $fecha_entrega_manual = trim($body['fecha_entrega'] ?? '');
     $referido_ctn = trim($body['referido_ctn']     ?? '');
     $promo_wa_codigo = trim($body['promo_wa_codigo'] ?? '');
+    $encuesta_codigo = trim($body['encuesta_codigo'] ?? '');
     $es_retrabajo = !empty($body['es_retrabajo']) ? 1 : 0;
     $motivo_retrabajo = $es_retrabajo ? trim($body['motivo_retrabajo'] ?? '') : null;
 
@@ -588,9 +590,23 @@ if ($method === 'POST') {
         $descuento_referido     = REFERIDOS_PCT;
         $referido_referente_id  = $valRef['referente_id'];
     }
+
+    // Descuento por Encuesta de Satisfacción (16-sep-2026, ver
+    // api/helpers/encuesta_descuento_lib.php): código único de un solo uso,
+    // generado por el webhook al completar el Flow. 5% adicional, mismo
+    // patrón de columna aditiva que Referidos (no reemplaza $descuento).
+    $descuento_encuesta = 0.0;
+    $encuesta_codigo_id = null;
+    if (!$es_retrabajo && $encuesta_codigo !== '') {
+        $valEnc = encuestaValidarCodigo($db, $encuesta_codigo, $cliente_id);
+        if ($valEnc['error']) { jsonResponse(['error' => $valEnc['error']]); exit; }
+        $descuento_encuesta = $valEnc['porcentaje'];
+        $encuesta_codigo_id = $valEnc['codigo_id'];
+    }
+
     // Suma con el descuento manual (no cascada); el candado de autorización >10%
     // sigue evaluando solo $descuento (manual), no $descuento_efectivo.
-    $descuento_efectivo = min(100, $descuento + $descuento_referido); // S1-04: tope 100%
+    $descuento_efectivo = min(100, $descuento + $descuento_referido + $descuento_encuesta); // S1-04: tope 100%
 
     // Calcular fecha entrega
     $fecha_hoy    = date('Y-m-d');
@@ -686,14 +702,14 @@ if ($method === 'POST') {
 
         $db->prepare("INSERT INTO cotizaciones
             (folio, fecha, cliente_id, cliente_nombre, asesor_id, asesor_nombre,
-             proyecto, descuento, descuento_referido, promocion_id, credito, condicion_pago, tipo_entrega,
+             proyecto, descuento, descuento_referido, descuento_encuesta, promocion_id, credito, condicion_pago, tipo_entrega,
              localidad, ciudad_destino, factura_tipo, fecha_entrega, fecha_entrega_manual,
              alerta, subtotal, iva, total, saldo_pendiente, entrega_bloqueada, estatus, es_retrabajo, motivo_retrabajo)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ")->execute([
             $folio, $fecha_hoy, $cliente_id, $cliente_nombre,
             $usuario_id, $usuario_nombre,
-            $proyecto, $descuento, $descuento_referido, $promocion_id, $credito, $condicion, $tipo_entrega,
+            $proyecto, $descuento, $descuento_referido, $descuento_encuesta, $promocion_id, $credito, $condicion, $tipo_entrega,
             $localidad, $ciudad, $factura_tipo, $fecha_entrega, $es_manual,
             $alerta, $subtotal_neto, $iva_total, $total_final,
             $saldo,
@@ -729,6 +745,8 @@ if ($method === 'POST') {
         if ($referido_referente_id) {
             referidosRegistrar($db, $cliente_id, $referido_referente_id, $referido_ctn, $usuario_nombre, $cot_id);
         }
+        // Encuesta de satisfacción: marcar el código como usado, ligado a esta cotización.
+        encuestaMarcarUsado($db, $encuesta_codigo_id, $cot_id);
 
         $db->commit();
 
@@ -762,7 +780,7 @@ if ($method === 'PUT') {
         if (!$puede_editar) { jsonResponse(['error' => 'Sin permiso']); exit; }
 
         // Verificar que existe y está en estatus cotizacion
-        $stmt = $db->prepare("SELECT estatus, asesor_id, cliente_id, COALESCE(saldo_pagado,0) AS saldo_pagado, COALESCE(descuento_referido,0) AS descuento_referido, promocion_id, es_retrabajo FROM cotizaciones WHERE id = ?");
+        $stmt = $db->prepare("SELECT estatus, asesor_id, cliente_id, COALESCE(saldo_pagado,0) AS saldo_pagado, COALESCE(descuento_referido,0) AS descuento_referido, COALESCE(descuento_encuesta,0) AS descuento_encuesta, promocion_id, es_retrabajo FROM cotizaciones WHERE id = ?");
         $stmt->execute([$id]);
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
@@ -795,6 +813,12 @@ if ($method === 'PUT') {
         // cliente no debe seguir aplicando a otro; hay que volver a capturarlo si aplica.
         $promocion_id    = ($clienteCambio || !$cot['promocion_id']) ? null : (int)$cot['promocion_id'];
         $promo_wa_codigo = trim($body['promo_wa_codigo'] ?? '');
+        // Encuesta de satisfacción: descuento_encuesta queda fijo desde que se redimió
+        // el código — no es editable aquí, solo se preserva (salvo B-02, cliente cambió:
+        // el código pertenecía al cliente original, no debe seguir aplicando a otro).
+        $descuento_encuesta = $clienteCambio ? 0.0 : (float)$cot['descuento_encuesta'];
+        $encuesta_codigo    = trim($body['encuesta_codigo'] ?? '');
+        $encuesta_codigo_id = null;
         $credito      = ($body['credito'] ?? 'no') === 'si' ? 'si' : 'no';
         $condicion    = in_array($body['condicion_pago'] ?? '', ['anticipo','pago_total']) ? $body['condicion_pago'] : 'anticipo';
         $tipo_entrega = in_array($body['tipo_entrega'] ?? '', ['domicilio','planta']) ? $body['tipo_entrega'] : 'domicilio';
@@ -821,8 +845,14 @@ if ($method === 'PUT') {
                 if ($descPromo === null) { jsonResponse(['error' => 'No hay un tramo de descuento definido para ' . $totalPiezasPromo . ' piezas.']); exit; }
                 $descuento = $descPromo; // reemplaza el % manual — lo define el tramo de piezas
             }
+            if ($descuento_encuesta <= 0 && $encuesta_codigo !== '') {
+                $valEnc = encuestaValidarCodigo($db, $encuesta_codigo, $cliente_id);
+                if ($valEnc['error']) { jsonResponse(['error' => $valEnc['error']]); exit; }
+                $descuento_encuesta = $valEnc['porcentaje'];
+                $encuesta_codigo_id = $valEnc['codigo_id'];
+            }
         }
-        $descuento_efectivo = min(100, $descuento + $descuento_referido); // S1-04: tope 100%
+        $descuento_efectivo = min(100, $descuento + $descuento_referido + $descuento_encuesta); // S1-04: tope 100%
 
         // Datos del cliente
         $stmt = $db->prepare("SELECT razon_social, nombre FROM clientes WHERE id = ?");
@@ -957,15 +987,21 @@ if ($method === 'PUT') {
         $db->beginTransaction();
         try {
             // Actualizar cabecera
+            // Nota: descuento_referido/descuento_encuesta se incluyen aquí también —
+            // antes de este cambio (16-sep-2026) descuento_referido se recalculaba
+            // en PHP (línea ~806, caso B-02 cliente cambiado) y SÍ se reflejaba en
+            // subtotal/iva/total, pero nunca se volvía a persistir en su propia
+            // columna, dejándola desfasada del total real guardado tras un cambio
+            // de cliente — se corrige de paso al agregar la columna nueva.
             $db->prepare("UPDATE cotizaciones SET
-                cliente_id=?, cliente_nombre=?, proyecto=?, descuento=?, promocion_id=?,
+                cliente_id=?, cliente_nombre=?, proyecto=?, descuento=?, descuento_referido=?, descuento_encuesta=?, promocion_id=?,
                 credito=?, condicion_pago=?, tipo_entrega=?, localidad=?,
                 ciudad_destino=?, factura_tipo=?, fecha_entrega=?, fecha_entrega_manual=?,
                 alerta=?, subtotal=?, iva=?, total=?, saldo_pendiente=?,
                 updated_at=NOW()
                 WHERE id=?
             ")->execute([
-                $cliente_id, $cliente_nombre, $proyecto, $descuento, $promocion_id,
+                $cliente_id, $cliente_nombre, $proyecto, $descuento, $descuento_referido, $descuento_encuesta, $promocion_id,
                 $credito, $condicion, $tipo_entrega, $localidad,
                 $ciudad, $factura_tipo, $fecha_entrega, $es_manual,
                 $alerta, $subtotal_neto, $iva_total, $total_final, $saldo,
@@ -1051,6 +1087,10 @@ if ($method === 'PUT') {
                 $db->prepare("UPDATE cotizaciones SET servicios_subtotal = ? WHERE id = ?")
                    ->execute([$srv_total_real, $id]);
             }
+
+            // Encuesta de satisfacción: marcar el código como usado, solo si se
+            // validó uno NUEVO en este request (si ya venía aplicado, no hay nada que marcar).
+            encuestaMarcarUsado($db, $encuesta_codigo_id, $id);
 
             $db->commit();
 

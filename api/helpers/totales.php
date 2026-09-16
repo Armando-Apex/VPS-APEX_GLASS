@@ -27,7 +27,7 @@ function apexTotales($bruto_partidas, $descuento_pct, $servicios_subtotal) {
 // ─── Totales de una cotización ya guardada (lee BD, ramifica por tipo) ───────
 // Devuelve null si la cotización no existe.
 function apexTotalesCotizacion(PDO $db, $cotizacion_id) {
-    $stmt = $db->prepare("SELECT tipo, descuento, COALESCE(descuento_referido,0) AS descuento_referido, COALESCE(servicios_subtotal,0) AS servicios_subtotal
+    $stmt = $db->prepare("SELECT tipo, descuento, COALESCE(descuento_referido,0) AS descuento_referido, COALESCE(descuento_encuesta,0) AS descuento_encuesta, COALESCE(servicios_subtotal,0) AS servicios_subtotal
                           FROM cotizaciones WHERE id = ?");
     $stmt->execute([(int)$cotizacion_id]);
     $cot = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -44,11 +44,12 @@ function apexTotalesCotizacion(PDO $db, $cotizacion_id) {
         return apexTotales((float)$st->fetchColumn(), (float)$cot['descuento'], (float)$cot['servicios_subtotal']);
     }
 
-    // Descuento efectivo = manual (asesor) + automático de cliente referido (suma, no cascada).
-    // El candado de autorización dir_admin >10% (autorizaciones_descuento) evalúa
-    // solo `cotizaciones.descuento` — descuento_referido queda fuera de ese cálculo
-    // a propósito, es automático y no requiere aprobación.
-    $descuento_efectivo = min(100, (float)$cot['descuento'] + (float)$cot['descuento_referido']); // S1-01/S1-04: tope 100%
+    // Descuento efectivo = manual (asesor) + automáticos (referido + encuesta de
+    // satisfacción, suma, no cascada). El candado de autorización dir_admin >10%
+    // (autorizaciones_descuento) evalúa solo `cotizaciones.descuento` —
+    // descuento_referido/descuento_encuesta quedan fuera de ese cálculo a
+    // propósito, son automáticos y no requieren aprobación.
+    $descuento_efectivo = min(100, (float)$cot['descuento'] + (float)$cot['descuento_referido'] + (float)$cot['descuento_encuesta']); // S1-01/S1-04: tope 100%
 
     $st = $db->prepare("SELECT COALESCE(SUM(precio_m2_usado*m2*cantidad),0) FROM cotizaciones_partidas WHERE cotizacion_id = ?");
     $st->execute([(int)$cotizacion_id]);

@@ -4,6 +4,8 @@
 //  Archivo: api/whatsapp_webhook.php
 // ============================================================
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/wa_helper.php';
+require_once __DIR__ . '/helpers/encuesta_descuento_lib.php'; // Descuento por Encuesta de Satisfacción (16-sep-2026)
 
 // ── GET: verificación inicial de Meta ────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -45,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tipo      = $msg['type'] ?? 'texto';
                 $contenido = '';
                 $flowTokenEnvioId = null;
+                $esEncuestaSatisfaccion = false;
 
                 // Validar teléfono y wa_message_id
                 if (!$telefono || strlen($telefono) < 10 || strlen($telefono) > 15) {
@@ -292,6 +295,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $respJson = json_decode($msg['interactive']['nfm_reply']['response_json'] ?? '{}', true) ?: [];
                         $tokenCrudo = $respJson['flow_token'] ?? null;
                         unset($respJson['flow_token']);
+                        // Encuesta de satisfacción nueva de 5 preguntas (16-sep-2026, ver
+                        // memoria project_encuesta_satisfaccion_flow_v2 / futuro UPD) — se
+                        // detecta por la forma del payload, no por flow_token/plantilla, así
+                        // que funciona sin importar qué campaña/plantilla la haya disparado.
+                        $esEncuestaSatisfaccion = isset(
+                            $respJson['tiempos_entrega'], $respJson['calidad_producto'],
+                            $respJson['tiempo_respuesta'], $respJson['tiempo_dudas'], $respJson['preferencia']
+                        );
                         if ($tokenCrudo !== null && ctype_digit((string)$tokenCrudo)) {
                             $flowTokenEnvioId = (int)$tokenCrudo;
                         }
@@ -336,6 +347,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $db->prepare("UPDATE whatsapp_conversaciones SET cliente_id=? WHERE id=?")
                                ->execute([$cli2['id'], $convId]);
                         }
+                    }
+                }
+
+                // Encuesta de satisfacción (16-sep-2026): al recibir la respuesta,
+                // generar un código de 5% de descuento ADICIONAL (24h de vigencia,
+                // un solo uso) y mandarlo como mensaje de seguimiento normal — no
+                // dentro del Flow mismo (ver diseño en la memoria del proyecto /
+                // futuro UPD). Solo se genera si el teléfono ya está ligado a un
+                // cliente real (el código se valida por CTN al usarse en Cotización).
+                if ($esEncuestaSatisfaccion) {
+                    $stmtCliEnc = $db->prepare("SELECT id FROM clientes WHERE REGEXP_REPLACE(telefono,'[^0-9]','') LIKE ? OR REGEXP_REPLACE(telefono_alterno,'[^0-9]','') LIKE ?");
+                    $stmtCliEnc->execute(['%' . substr($telefono, -10), '%' . substr($telefono, -10)]);
+                    $cliEnc = $stmtCliEnc->fetch(PDO::FETCH_ASSOC);
+                    if ($cliEnc) {
+                        $gen = encuestaGenerarCodigo($db, $cliEnc['id'], $convId);
+                        if ($gen) {
+                            $mesesEs   = ['', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+                            $tsVence   = strtotime($gen['vence_at']);
+                            $venceFmt  = date('d', $tsVence) . '-' . $mesesEs[(int)date('n', $tsVence)] . ' ' . date('H:i', $tsVence);
+                            $msgEncuesta = "¡Gracias por contestar la encuesta! Aquí tienes tu código de 5% de descuento ADICIONAL a cualquier otra promoción vigente:\n\n*" . $gen['codigo'] . "*\n\nVálido hasta el " . $venceFmt . " (24 horas). Menciónalo con tu asesor al cotizar.";
+                            enviarMensajeWA([
+                                'messaging_product' => 'whatsapp',
+                                'to'                => $telefono,
+                                'type'              => 'text',
+                                'text'              => ['body' => $msgEncuesta],
+                            ]);
+                            // Se registra como mensaje saliente normal — igual que cualquier
+                            // respuesta enviada desde el inbox, para que quede en el historial.
+                            $db->prepare("INSERT INTO whatsapp_mensajes (conversacion_id, direccion, contenido, tipo, enviado_por) VALUES (?, 'outbound', ?, 'texto', ?)")
+                               ->execute([$convId, $msgEncuesta, 'Sistema (Encuesta)']);
+                        }
+                    } else {
+                        error_log('[ENCUESTA] Respuesta de encuesta sin cliente vinculado, no se genera código. Tel: ' . $telefono);
                     }
                 }
 

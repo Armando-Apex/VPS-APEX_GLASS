@@ -538,6 +538,20 @@ function renderFormulario(data) {
     html += '<input type="text" readonly value="' + parseFloat(data.descuento || 0) + '% por volumen (ya aplicado)"></div>';
   }
 
+  // Código de descuento por Encuesta de Satisfacción (16-sep-2026) — código único
+  // de un solo uso que el cliente recibe por WhatsApp al terminar la encuesta.
+  // A diferencia de Referido/Promoción, aplica igual al crear que al editar
+  // (el código puede llegarle al cliente en cualquier momento, no solo en su
+  // primera cotización) — se muestra el campo mientras no se haya aplicado ya.
+  if (data && parseFloat(data.descuento_encuesta || 0) > 0) {
+    html += '<div class="field"><label>Descuento por Encuesta</label>';
+    html += '<input type="text" readonly value="' + parseFloat(data.descuento_encuesta) + '% (ya aplicado)"></div>';
+  } else {
+    html += '<div class="field"><label>C&oacute;digo de Encuesta</label>';
+    html += '<input type="text" id="fEncuestaCodigo" placeholder="Ej: ENC-A1B2C3" maxlength="20" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
+    html += '<small style="color:var(--c-muted);">Opcional, 5% adicional — c&oacute;digo de un solo uso, v&aacute;lido 24h.</small></div>';
+  }
+
   // Alerta
   html += '<div class="field"><label>Alerta / Nota especial</label>';
   html += '<input type="text" id="fAlerta" ' + (!editable?'readonly':'') + ' value="' + escHtml(data ? (data.alerta||'') : '') + '" placeholder="Ej: Urgente, cliente espera..."></div>';
@@ -1005,7 +1019,10 @@ function recalcular() {
   // Preview del 5% de referido (solo visual — el servidor valida y calcula el real al guardar)
   var refCtnEl  = document.getElementById('fReferidoCtn');
   var pctRef    = (refCtnEl && refCtnEl.value.trim()) ? 5 : (_dataCot ? parseFloat(_dataCot.descuento_referido || 0) : 0);
-  var descuento = subtotal * (pctDesc + pctRef) / 100;
+  // Preview del 5% de encuesta (solo visual — el servidor valida el código real al guardar)
+  var encCodEl  = document.getElementById('fEncuestaCodigo');
+  var pctEnc    = (encCodEl && encCodEl.value.trim()) ? 5 : (_dataCot ? parseFloat(_dataCot.descuento_encuesta || 0) : 0);
+  var descuento = subtotal * (pctDesc + pctRef + pctEnc) / 100;
   var baseNeta  = subtotal - descuento;
   var srvTotal  = _dataCot ? parseFloat(_dataCot.servicios_subtotal || 0) : 0;
   var base      = baseNeta + srvTotal;
@@ -1360,6 +1377,7 @@ function armarPayload(clienteId) {
     alerta:         document.getElementById('fAlerta')?.value       || '',
     referido_ctn:   (document.getElementById('fReferidoCtn')?.value || '').trim(),
     promo_wa_codigo: (document.getElementById('fPromoWaCodigo')?.value || '').trim(),
+    encuesta_codigo: (document.getElementById('fEncuestaCodigo')?.value || '').trim(),
     partidas:       partidasPayload,
   };
 }

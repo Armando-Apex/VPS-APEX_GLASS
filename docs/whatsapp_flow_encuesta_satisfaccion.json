@@ -1,0 +1,100 @@
+{
+  "version": "6.0",
+  "screens": [
+    {
+      "id": "ENCUESTA",
+      "title": "Encuesta de servicio",
+      "terminal": true,
+      "success": true,
+      "data": {},
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "form_encuesta",
+            "children": [
+              { "type": "TextBody", "text": "Nos encantaría conocer tu opinión. Tus respuestas nos ayudan a mejorar. Al terminar, te mandamos por este mismo chat un código de descuento como agradecimiento." },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "tiempos_entrega",
+                "label": "¿Qué tan satisfecho estás con los tiempos de entrega?",
+                "required": true,
+                "data-source": [
+                  { "id": "muy_satisfecho", "title": "Muy satisfecho" },
+                  { "id": "satisfecho", "title": "Satisfecho" },
+                  { "id": "neutral", "title": "Neutral" },
+                  { "id": "insatisfecho", "title": "Insatisfecho" },
+                  { "id": "muy_insatisfecho", "title": "Muy insatisfecho" }
+                ]
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "calidad_producto",
+                "label": "¿Qué tan satisfecho estás con la calidad del producto?",
+                "required": true,
+                "data-source": [
+                  { "id": "muy_satisfecho", "title": "Muy satisfecho" },
+                  { "id": "satisfecho", "title": "Satisfecho" },
+                  { "id": "neutral", "title": "Neutral" },
+                  { "id": "insatisfecho", "title": "Insatisfecho" },
+                  { "id": "muy_insatisfecho", "title": "Muy insatisfecho" }
+                ]
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "tiempo_respuesta",
+                "label": "¿Qué tan satisfecho estás con el tiempo de respuesta de tu asesor?",
+                "required": true,
+                "data-source": [
+                  { "id": "muy_satisfecho", "title": "Muy satisfecho" },
+                  { "id": "satisfecho", "title": "Satisfecho" },
+                  { "id": "neutral", "title": "Neutral" },
+                  { "id": "insatisfecho", "title": "Insatisfecho" },
+                  { "id": "muy_insatisfecho", "title": "Muy insatisfecho" }
+                ]
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "tiempo_dudas",
+                "label": "¿Qué tan satisfecho estás con el tiempo para resolver tus dudas?",
+                "required": true,
+                "data-source": [
+                  { "id": "muy_satisfecho", "title": "Muy satisfecho" },
+                  { "id": "satisfecho", "title": "Satisfecho" },
+                  { "id": "neutral", "title": "Neutral" },
+                  { "id": "insatisfecho", "title": "Insatisfecho" },
+                  { "id": "muy_insatisfecho", "title": "Muy insatisfecho" }
+                ]
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "preferencia",
+                "label": "Si tuvieras que elegir, ¿qué prefieres?",
+                "required": true,
+                "data-source": [
+                  { "id": "mejor_precio", "title": "Mejor precio" },
+                  { "id": "tiempos_rapidos", "title": "Tiempos de entrega más rápidos" }
+                ]
+              },
+              {
+                "type": "Footer",
+                "label": "Enviar respuestas",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "tiempos_entrega": "${form.tiempos_entrega}",
+                    "calidad_producto": "${form.calidad_producto}",
+                    "tiempo_respuesta": "${form.tiempo_respuesta}",
+                    "tiempo_dudas": "${form.tiempo_dudas}",
+                    "preferencia": "${form.preferencia}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
