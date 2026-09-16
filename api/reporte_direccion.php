@@ -535,7 +535,18 @@ if ($accion === 'encuesta_satisfaccion') {
         if (isset($pref[$row['nivel']])) $pref[$row['nivel']] = (int)$row['cnt'];
     }
 
-    jsonResponse(['total' => $total, 'preguntas' => $resultado, 'preferencia' => $pref]);
+    // Detalle por respuesta (16-sep-2026, petición de Armando) — para que el reporte
+    // pueda mostrar, al pasar el cursor sobre un conteo, los nombres exactos de quién
+    // contestó eso. Reporte interno (ver_reportes), no expuesto a clientes.
+    $stDet = $pdo->query("
+        SELECT er.tiempos_entrega, er.calidad_producto, er.tiempo_respuesta, er.tiempo_dudas, er.preferencia,
+               COALESCE(c.contacto, c.nombre, 'Cliente sin nombre') AS nombre
+        FROM encuesta_respuestas er
+        LEFT JOIN clientes c ON c.id = er.cliente_id
+    ");
+    $respuestas = $stDet->fetchAll(PDO::FETCH_ASSOC);
+
+    jsonResponse(['total' => $total, 'preguntas' => $resultado, 'preferencia' => $pref, 'respuestas' => $respuestas]);
 }
 
 $params4 = [$desde, $hasta, $desde.' 00:00:00', $hasta.' 23:59:59'];

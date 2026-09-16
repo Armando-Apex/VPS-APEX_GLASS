@@ -74,6 +74,12 @@ header('Content-Type: text/html; charset=utf-8');
 .rc-chart-tooltip-row { display:flex; align-items:center; gap:14px; justify-content:space-between; white-space:nowrap; }
 .rc-chart-tooltip-key { width:10px; height:2px; display:inline-block; border-radius:1px; flex-shrink:0; }
 .rc-chart-tooltip-day { font-weight:700; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,.2); padding-bottom:4px; }
+.rc-enc-tooltip {
+  position:fixed; background:var(--text); color:#fff;
+  border-radius:8px; padding:8px 12px; font-size:12px; line-height:1.6; pointer-events:none;
+  opacity:0; transition:opacity .1s; max-width:260px; box-shadow:0 4px 12px rgba(0,0,0,.18); z-index:50;
+}
+.rc-enc-tooltip.show { opacity:1; }
 @media(max-width:700px) { .rc-chart-legend{gap:10px} }
 .kpi-card {
   background:var(--surface); border-radius:10px; padding:16px 18px;
@@ -1058,6 +1064,10 @@ function rcEncuestaPct(n, total) {
   return Math.round((n / total) * 100) + '%';
 }
 
+// Respuestas detalladas (nombre + las 5 respuestas) — guardadas aquí para que el
+// hover pueda armar la lista de nombres sin volver a pedirlas al servidor.
+var RC_ENC_RESPUESTAS = [];
+
 function rcEncuestaRender(data) {
   var total = data.total || 0;
   var html = '';
@@ -1067,7 +1077,9 @@ function rcEncuestaRender(data) {
     return;
   }
 
-  html += '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">' + total + ' respuesta' + (total === 1 ? '' : 's') + ' recibida' + (total === 1 ? '' : 's') + '</div>';
+  RC_ENC_RESPUESTAS = data.respuestas || [];
+
+  html += '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">' + total + ' respuesta' + (total === 1 ? '' : 's') + ' recibida' + (total === 1 ? '' : 's') + ' &#8212; pasa el cursor sobre un n&#250;mero para ver qui&#233;n contest&#243; eso</div>';
 
   html += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
   html += '<thead><tr>';
@@ -1088,7 +1100,7 @@ function rcEncuestaRender(data) {
       var n = counts[nivelKey] || 0;
       html += '<td style="text-align:center;padding:8px;border-bottom:1px solid var(--border-lt)">';
       if (n > 0) {
-        html += '<span style="font-weight:700;color:' + RC_ENC_NIVELES[j].color + '">' + n + '</span> <span style="color:var(--muted-lt)">(' + rcEncuestaPct(n, total) + ')</span>';
+        html += '<span class="rc-enc-count" data-preg="' + preg.key + '" data-nivel="' + nivelKey + '" style="font-weight:700;color:' + RC_ENC_NIVELES[j].color + ';cursor:default;border-bottom:1px dotted currentColor">' + n + '</span> <span style="color:var(--muted-lt)">(' + rcEncuestaPct(n, total) + ')</span>';
       } else {
         html += '<span style="color:var(--muted-lt)">&#8212;</span>';
       }
@@ -1102,11 +1114,43 @@ function rcEncuestaRender(data) {
   html += '<div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border)">';
   html += '<div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:8px">Si tuviera que elegir, prefiere&#8230;</div>';
   html += '<div style="display:flex;gap:24px;font-size:13px">';
-  html += '<div><span style="font-weight:700;color:var(--blue)">' + pref.mejor_precio + '</span> Mejor precio <span style="color:var(--muted-lt)">(' + rcEncuestaPct(pref.mejor_precio, total) + ')</span></div>';
-  html += '<div><span style="font-weight:700;color:var(--amber)">' + pref.tiempos_rapidos + '</span> Tiempos de entrega m&#225;s r&#225;pidos <span style="color:var(--muted-lt)">(' + rcEncuestaPct(pref.tiempos_rapidos, total) + ')</span></div>';
+  html += '<div><span class="rc-enc-count" data-preg="preferencia" data-nivel="mejor_precio" style="font-weight:700;color:var(--blue);cursor:default;border-bottom:1px dotted currentColor">' + pref.mejor_precio + '</span> Mejor precio <span style="color:var(--muted-lt)">(' + rcEncuestaPct(pref.mejor_precio, total) + ')</span></div>';
+  html += '<div><span class="rc-enc-count" data-preg="preferencia" data-nivel="tiempos_rapidos" style="font-weight:700;color:var(--amber);cursor:default;border-bottom:1px dotted currentColor">' + pref.tiempos_rapidos + '</span> Tiempos de entrega m&#225;s r&#225;pidos <span style="color:var(--muted-lt)">(' + rcEncuestaPct(pref.tiempos_rapidos, total) + ')</span></div>';
   html += '</div></div>';
 
+  html += '<div class="rc-enc-tooltip" id="rcEncTooltip"></div>';
+
   document.getElementById('rcEncuestaWrap').innerHTML = html;
+
+  var celdas = document.querySelectorAll('#rcEncuestaWrap .rc-enc-count');
+  for (var k = 0; k < celdas.length; k++) {
+    celdas[k].addEventListener('mousemove', rcEncuestaHoverHandler);
+    celdas[k].addEventListener('mouseleave', rcEncuestaHoverOut);
+  }
+}
+
+function rcEncuestaHoverHandler(ev) {
+  var preg  = this.getAttribute('data-preg');
+  var nivel = this.getAttribute('data-nivel');
+  var nombres = [];
+  for (var i = 0; i < RC_ENC_RESPUESTAS.length; i++) {
+    if (RC_ENC_RESPUESTAS[i][preg] === nivel) nombres.push(RC_ENC_RESPUESTAS[i].nombre);
+  }
+  var tooltipEl = document.getElementById('rcEncTooltip');
+  if (!tooltipEl || !nombres.length) return;
+  var rows = '';
+  for (var j = 0; j < nombres.length; j++) {
+    rows += '<div>' + esc(nombres[j]) + '</div>';
+  }
+  tooltipEl.innerHTML = rows;
+  tooltipEl.style.left = (ev.clientX + 16) + 'px';
+  tooltipEl.style.top  = (ev.clientY + 12) + 'px';
+  tooltipEl.classList.add('show');
+}
+
+function rcEncuestaHoverOut() {
+  var tooltipEl = document.getElementById('rcEncTooltip');
+  if (tooltipEl) tooltipEl.classList.remove('show');
 }
 
 /* ─── Gr&aacute;fica de ventas diarias acumuladas (3 meses) ─── */
