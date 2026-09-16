@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 16 septiembre 2026 | Próximo UPD disponible: UPD-593
+# Última actualización: 16 septiembre 2026 | Próximo UPD disponible: UPD-594
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -472,7 +472,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-593**
+Próximo UPD disponible: **UPD-594**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -635,4 +635,6 @@ Archivo completo: `docs/HISTORIAL_UPD_546_580.md` (26-ago-2026 → 10-sep-2026)
 
 | UPD-592 | 16-sep-2026 | Armando | Fix de UPD-591 (mismo día): el tooltip de nombres de la Encuesta de Satisfacción siempre se posicionaba abajo-derecha del cursor — en las filas cerca del borde inferior de la pantalla el recuadro se cortaba fuera de la vista, ilegible. `rcEncuestaHoverHandler()` ahora mide el tooltip ya renderizado (`getBoundingClientRect()`) y lo voltea hacia arriba y/o hacia la izquierda cuando no cabe hacia abajo/derecha respecto al tamaño de la ventana, con un margen de 12px. `php -l` + `node --check` OK. Sin prueba visual en navegador — pendiente que Armando confirme que ya se lee completo en las filas de abajo. |
 
-**Próximo UPD disponible: UPD-593**
+| UPD-593 | 16-sep-2026 | Armando | **Corrección de datos (no código): S-554, S-598 y S-685 atoradas en Logística Rutas → Pendientes de asignar pese a que los clientes ya habían pasado a recoger sus piezas a planta.** Armando reportó las 3 órdenes; investigado el criterio real de "pendientes" en `api/rutas.php` (UPD-395/342): una orden aparece ahí si tiene piezas con salida tipo `chofer` (domicilio) registrada en Cobranza que todavía no se asignaron a ninguna ruta física — las 3 órdenes ya estaban `entregada` con sus piezas en `entregado`, pero la salida que las cerró se había capturado por error como **Chofer** en vez de **Recolección**, así que el sistema seguía esperando un viaje a domicilio que nunca iba a pasar (0 registros en `ruta_entrega_piezas` para las 3 — nunca llegaron a asignarse a ninguna ruta). Corregido: `orden_salidas.tipo` `chofer`→`recoleccion` en las 3 salidas que cerraron cada orden (id 578 de S-554 — la salida parcial anterior de esa orden, id 477, ya estaba correcta como `recoleccion` y no se tocó; 649 de S-598; 653 de S-685) + `ordenes.requiere_ruta` 1→0 en las 3 (mismo criterio que ya usa `api/salidas.php` al registrar una salida tipo recolección — `$reqRuta = ($tipo==='chofer') ? 1 : 0`). Verificado antes/después dentro de una transacción, y replicando exacto el WHERE de `accion=pendientes` para confirmar que las 3 ya no aparecen. Registrado en `correcciones_log` (tipo=orden, las 3 folios). **Nota:** al momento de cada salida ya se había mandado la plantilla de WhatsApp `salida_domicilio`/`salida_parcial_domicilio` ("va en camino a tu domicilio") a estos 3 clientes — no se puede deshacer ese envío; mismo criterio ya usado en UPD-565/587 de no mandar un mensaje de corrección salvo que Armando lo pida. Sin cambios de código — el comportamiento de `api/rutas.php`/`api/salidas.php` ya era el correcto, el error fue de captura al momento de registrar la salida. |
+
+**Próximo UPD disponible: UPD-594**
