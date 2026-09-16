@@ -1015,8 +1015,98 @@ function rcRender(data) {
     '</div>' +
   '</div>';
 
+  html += '<div class="section-title" style="margin-top:24px">Encuesta de Satisfacci&#243;n</div>';
+  html += '<div id="rcEncuestaWrap" class="rc-chart-card"><div class="loading"><div class="spin"></div>Cargando&#8230;</div></div>';
+
   document.getElementById('rcMain').innerHTML = html;
   rcVentasChartCargar();
+  rcEncuestaCargar();
+}
+
+/* ─── Encuesta de Satisfacci&oacute;n (16-sep-2026) ─── */
+var RC_ENC_NIVELES = [
+  { key: 'muy_satisfecho',   label: 'Muy satisfecho',   color: 'var(--green)' },
+  { key: 'satisfecho',       label: 'Satisfecho',       color: 'var(--green)' },
+  { key: 'neutral',          label: 'Neutral',          color: 'var(--muted)' },
+  { key: 'insatisfecho',     label: 'Insatisfecho',     color: 'var(--red)' },
+  { key: 'muy_insatisfecho', label: 'Muy insatisfecho', color: 'var(--red)' }
+];
+var RC_ENC_PREGUNTAS = [
+  { key: 'tiempos_entrega',  label: 'Tiempos de entrega' },
+  { key: 'calidad_producto', label: 'Calidad del producto' },
+  { key: 'tiempo_respuesta', label: 'Tiempo de respuesta del asesor' },
+  { key: 'tiempo_dudas',     label: 'Tiempo para resolver dudas' }
+];
+
+function rcEncuestaCargar() {
+  fetch('../api/reporte_direccion.php?accion=encuesta_satisfaccion')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) {
+        document.getElementById('rcEncuestaWrap').innerHTML = stateErrorHTML(data.error, 'rcEncuestaCargar');
+        return;
+      }
+      rcEncuestaRender(data);
+    })
+    .catch(function() {
+      document.getElementById('rcEncuestaWrap').innerHTML = stateErrorHTML('Error de conexi&#243;n', 'rcEncuestaCargar');
+    });
+}
+
+function rcEncuestaPct(n, total) {
+  if (!total) return '0%';
+  return Math.round((n / total) * 100) + '%';
+}
+
+function rcEncuestaRender(data) {
+  var total = data.total || 0;
+  var html = '';
+
+  if (total === 0) {
+    document.getElementById('rcEncuestaWrap').innerHTML = stateEmptyHTML('A&#250;n no hay respuestas de la encuesta. En cuanto lleguen, aparecen aqu&#237; solas.', 'message-square');
+    return;
+  }
+
+  html += '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">' + total + ' respuesta' + (total === 1 ? '' : 's') + ' recibida' + (total === 1 ? '' : 's') + '</div>';
+
+  html += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+  html += '<thead><tr>';
+  html += '<th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border)">Pregunta</th>';
+  for (var i = 0; i < RC_ENC_NIVELES.length; i++) {
+    var niv = RC_ENC_NIVELES[i];
+    html += '<th style="text-align:center;padding:6px 8px;color:' + niv.color + ';font-weight:600;border-bottom:1px solid var(--border)">' + esc(niv.label) + '</th>';
+  }
+  html += '</tr></thead><tbody>';
+
+  for (var p = 0; p < RC_ENC_PREGUNTAS.length; p++) {
+    var preg = RC_ENC_PREGUNTAS[p];
+    var counts = data.preguntas[preg.key] || {};
+    html += '<tr>';
+    html += '<td style="padding:8px;border-bottom:1px solid var(--border-lt)">' + esc(preg.label) + '</td>';
+    for (var j = 0; j < RC_ENC_NIVELES.length; j++) {
+      var nivelKey = RC_ENC_NIVELES[j].key;
+      var n = counts[nivelKey] || 0;
+      html += '<td style="text-align:center;padding:8px;border-bottom:1px solid var(--border-lt)">';
+      if (n > 0) {
+        html += '<span style="font-weight:700;color:' + RC_ENC_NIVELES[j].color + '">' + n + '</span> <span style="color:var(--muted-lt)">(' + rcEncuestaPct(n, total) + ')</span>';
+      } else {
+        html += '<span style="color:var(--muted-lt)">&#8212;</span>';
+      }
+      html += '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+
+  var pref = data.preferencia || { mejor_precio: 0, tiempos_rapidos: 0 };
+  html += '<div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border)">';
+  html += '<div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:8px">Si tuviera que elegir, prefiere&#8230;</div>';
+  html += '<div style="display:flex;gap:24px;font-size:13px">';
+  html += '<div><span style="font-weight:700;color:var(--blue)">' + pref.mejor_precio + '</span> Mejor precio <span style="color:var(--muted-lt)">(' + rcEncuestaPct(pref.mejor_precio, total) + ')</span></div>';
+  html += '<div><span style="font-weight:700;color:var(--amber)">' + pref.tiempos_rapidos + '</span> Tiempos de entrega m&#225;s r&#225;pidos <span style="color:var(--muted-lt)">(' + rcEncuestaPct(pref.tiempos_rapidos, total) + ')</span></div>';
+  html += '</div></div>';
+
+  document.getElementById('rcEncuestaWrap').innerHTML = html;
 }
 
 /* ─── Gr&aacute;fica de ventas diarias acumuladas (3 meses) ─── */

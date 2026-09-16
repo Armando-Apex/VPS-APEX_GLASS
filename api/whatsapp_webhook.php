@@ -360,6 +360,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmtCliEnc = $db->prepare("SELECT id FROM clientes WHERE REGEXP_REPLACE(telefono,'[^0-9]','') LIKE ? OR REGEXP_REPLACE(telefono_alterno,'[^0-9]','') LIKE ?");
                     $stmtCliEnc->execute(['%' . substr($telefono, -10), '%' . substr($telefono, -10)]);
                     $cliEnc = $stmtCliEnc->fetch(PDO::FETCH_ASSOC);
+
+                    // Guardar la respuesta estructurada para el reporte (Reporte Dirección →
+                    // Comercial, ver UPD futuro) — se guarda sin importar si el teléfono está
+                    // ligado a un cliente o no, para no perder respuestas reales por no tener
+                    // match en el CRM. try/catch por si algún día el Flow cambia sus opciones
+                    // y un valor ya no cabe en el ENUM — no debe tumbar el resto del webhook.
+                    try {
+                        $db->prepare("INSERT INTO encuesta_respuestas
+                            (cliente_id, telefono, conversacion_id, campana_envio_id, tiempos_entrega, calidad_producto, tiempo_respuesta, tiempo_dudas, preferencia, respondido_at)
+                            VALUES (?,?,?,?,?,?,?,?,?,NOW())")
+                           ->execute([
+                               $cliEnc['id'] ?? null, $telefono, $convId, $flowTokenEnvioId,
+                               $respJson['tiempos_entrega'] ?? null, $respJson['calidad_producto'] ?? null,
+                               $respJson['tiempo_respuesta'] ?? null, $respJson['tiempo_dudas'] ?? null,
+                               $respJson['preferencia'] ?? null,
+                           ]);
+                    } catch (PDOException $e) {
+                        error_log('[ENCUESTA] No se pudo guardar respuesta estructurada: ' . $e->getMessage());
+                    }
+
                     if ($cliEnc) {
                         $gen = encuestaGenerarCodigo($db, $cliEnc['id'], $convId);
                         if ($gen) {

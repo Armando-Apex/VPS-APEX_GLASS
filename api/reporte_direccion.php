@@ -507,6 +507,37 @@ if ($accion === 'ventas_diarias_comercial') {
     ]);
 }
 
+// ============================================================
+//  Encuesta de Satisfacción (16-sep-2026) — concentrado de las 5 preguntas
+//  del Flow de WhatsApp, guardadas por api/whatsapp_webhook.php en
+//  encuesta_respuestas. Sin filtro de período a propósito: el volumen es
+//  bajo todavía (feature nueva) — se muestra el acumulado histórico completo.
+// ============================================================
+if ($accion === 'encuesta_satisfaccion') {
+    $preguntas = ['tiempos_entrega', 'calidad_producto', 'tiempo_respuesta', 'tiempo_dudas'];
+    $niveles   = ['muy_satisfecho', 'satisfecho', 'neutral', 'insatisfecho', 'muy_insatisfecho'];
+
+    $total = (int)$pdo->query("SELECT COUNT(*) FROM encuesta_respuestas")->fetchColumn();
+
+    $resultado = [];
+    foreach ($preguntas as $p) {
+        $counts = array_fill_keys($niveles, 0);
+        $st = $pdo->query("SELECT $p AS nivel, COUNT(*) AS cnt FROM encuesta_respuestas GROUP BY $p");
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            if (isset($counts[$row['nivel']])) $counts[$row['nivel']] = (int)$row['cnt'];
+        }
+        $resultado[$p] = $counts;
+    }
+
+    $pref = array_fill_keys(['mejor_precio', 'tiempos_rapidos'], 0);
+    $stPref = $pdo->query("SELECT preferencia AS nivel, COUNT(*) AS cnt FROM encuesta_respuestas GROUP BY preferencia");
+    foreach ($stPref->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        if (isset($pref[$row['nivel']])) $pref[$row['nivel']] = (int)$row['cnt'];
+    }
+
+    jsonResponse(['total' => $total, 'preguntas' => $resultado, 'preferencia' => $pref]);
+}
+
 $params4 = [$desde, $hasta, $desde.' 00:00:00', $hasta.' 23:59:59'];
 // Ventas confirmadas (Ventas, Top Clientes, Ventas por Asesor): filtran por fecha de
 // VoBo (venta real confirmada), no por fecha_pedido/created_at — mismo criterio que
