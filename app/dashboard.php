@@ -242,6 +242,22 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
 .msg-item-bubble.otro{background:#f1f5f9;color:var(--c-text);}
 .msg-item-tiempo{font-size:10px;color:var(--c-muted);margin-bottom:8px;}
 .msg-item-tiempo.mio{text-align:right;}
+/* Adjuntos de imagen en el chat interno */
+#msgFile{display:none;}
+.msg-panel-footer button.msg-btn-adj{background:transparent;color:var(--c-muted);border:1px solid var(--c-border);padding:8px 9px;display:flex;align-items:center;}
+.msg-panel-footer button.msg-btn-adj:hover{color:var(--c-blue);border-color:var(--c-blue);}
+.msg-panel-footer button:disabled{opacity:.55;cursor:default;}
+.msg-adj[hidden],.msg-adj img[hidden]{display:none;}
+.msg-adj{display:flex;align-items:center;gap:9px;padding:8px 12px;border-top:1px solid #f1f5f9;background:#f8fafc;}
+.msg-adj img{width:42px;height:42px;object-fit:cover;border-radius:6px;border:1px solid var(--c-border);}
+.msg-adj-info{flex:1;min-width:0;font-size:11.5px;line-height:1.35;}
+.msg-adj-nombre{display:block;color:var(--c-text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.msg-adj-peso{color:var(--c-muted);}
+.msg-adj-quitar{background:transparent;border:none;color:var(--c-muted);font-size:20px;line-height:1;cursor:pointer;padding:0 4px;}
+.msg-adj-quitar:hover{color:#dc2626;}
+.msg-item-bubble.con-img{padding:4px;max-width:78%;}
+.msg-img{display:block;max-width:100%;border-radius:7px;cursor:zoom-in;}
+.msg-img-cap{padding:5px 6px 3px;font-size:12.5px;line-height:1.4;}
 .notif-lista{max-height:380px;overflow-y:auto;}
 .notif-item{padding:12px 16px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s;display:flex;gap:10px;align-items:flex-start;}
 .notif-item:hover{background:#f8fafc;}
@@ -292,9 +308,19 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
           <button class="notif-btn-leer-todas" id="msgBtnVolver" onclick="msgVolverLista()" style="display:none;">&larr; Conversaciones</button>
         </div>
         <div class="notif-lista" id="msgLista"><div class="notif-empty">Cargando&#8230;</div></div>
+        <div class="msg-adj" id="msgAdjWrap" hidden>
+          <img id="msgAdjThumb" alt="Imagen por enviar" hidden>
+          <div class="msg-adj-info">
+            <span class="msg-adj-nombre" id="msgAdjNombre"></span>
+            <span class="msg-adj-peso" id="msgAdjPeso"></span>
+          </div>
+          <button type="button" class="msg-adj-quitar" onclick="msgQuitarImagen()" title="Quitar imagen" aria-label="Quitar imagen">&times;</button>
+        </div>
         <div class="msg-panel-footer" id="msgFooter" style="display:none;">
+          <input type="file" id="msgFile" accept="image/jpeg,image/png,image/webp" onchange="msgArchivoElegido(this)">
+          <button type="button" class="msg-btn-adj" onclick="document.getElementById('msgFile').click()" title="Adjuntar imagen" aria-label="Adjuntar imagen"><?= icono('image', 17) ?></button>
           <input type="text" id="msgInput" placeholder="Escribe un mensaje..." maxlength="2000" autocomplete="off" name="msg-nuevo-<?= bin2hex(random_bytes(4)) ?>" onkeydown="if(event.key==='Enter')msgEnviar()">
-          <button onclick="msgEnviar()">Enviar</button>
+          <button id="msgBtnEnviar" onclick="msgEnviar()">Enviar</button>
         </div>
       </div>
     </div>
@@ -721,6 +747,7 @@ var _msgConversaciones = [];
 var _msgHiloActivo = [];
 var _msgOtroIdActivo = null;
 var _msgOtroNombreActivo = null;
+var _msgArchivo = null;   // {blob, nombre, url, bytes} de la imagen por enviar
 
 function msgFechaHora(fechaStr) {
   var d = new Date(fechaStr.replace(' ', 'T'));
@@ -732,6 +759,12 @@ function msgEscHtml(s) {
   var d = document.createElement('div');
   d.textContent = s == null ? '' : String(s);
   return d.innerHTML;
+}
+
+// msgEscHtml no escapa comillas: para un valor que va DENTRO de un atributo
+// (el nombre del archivo, que lo pone quien sube la imagen) se usa esta.
+function msgEscAttr(s) {
+  return msgEscHtml(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 async function cargarMsgBadge() {
@@ -763,6 +796,7 @@ async function toggleMsgPanel() {
 async function msgVolverLista() {
   document.getElementById('msgBtnVolver').style.display = 'none';
   document.getElementById('msgFooter').style.display = 'none';
+  msgQuitarImagen();
   document.getElementById('msgPanelTitulo').textContent = 'Mensajes';
   _msgOtroIdActivo = null;
   var lista = document.getElementById('msgLista');
@@ -823,31 +857,149 @@ function msgRenderHilo() {
   }
   lista.innerHTML = '<div class="msg-item">' + _msgHiloActivo.map(function(m) {
     var mio = _esDevMsg ? (m.de_otro == 0) : (m.de_otro == 1);
-    return '<div class="msg-item-bubble ' + (mio ? 'mio' : 'otro') + '">' + msgEscHtml(m.mensaje) + '</div>' +
+    var cuerpo = '', conImg = '';
+    if (m.tiene_imagen == 1) {
+      // La imagen no es accesible por URL directa: se sirve por el endpoint con permiso
+      var src = '../api/mensajes.php?accion=imagen&id=' + m.id;
+      conImg = ' con-img';
+      cuerpo += '<a href="' + src + '" target="_blank" rel="noopener">' +
+                '<img class="msg-img" src="' + src + '" alt="' + msgEscAttr(m.adjunto_nombre || 'Imagen') + '" loading="lazy"></a>';
+      if (m.mensaje) cuerpo += '<div class="msg-img-cap">' + msgEscHtml(m.mensaje) + '</div>';
+    } else {
+      cuerpo = msgEscHtml(m.mensaje);
+    }
+    return '<div class="msg-item-bubble ' + (mio ? 'mio' : 'otro') + conImg + '">' + cuerpo + '</div>' +
       '<div class="msg-item-tiempo ' + (mio ? 'mio' : '') + '">' + msgEscHtml(m.autor_nombre) + ' &middot; ' + msgFechaHora(m.created_at) + '</div>';
   }).join('') + '</div>';
   lista.scrollTop = lista.scrollHeight;
 }
 
+// ── Adjuntar imagen ──────────────────────────────────────────────────────────
+// El servidor acepta hasta 2 MB (upload_max_filesize del pool), así que la foto
+// se reescala aquí antes de subirla: una foto de celular no pasa tal cual.
+var MSG_IMG_LADO_MAX = 1600;
+var MSG_IMG_TOPE     = 1.8 * 1024 * 1024;
+
+function msgPesoLegible(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function msgPrepararImagen(file, cb) {
+  // Un PNG chico (captura de pantalla) se sube tal cual: recomprimir a JPG
+  // ensucia el texto. Lo demás se reescala y se convierte a JPG.
+  if (file.type === 'image/png' && file.size <= 900 * 1024) {
+    var fr = new FileReader();
+    fr.onload = function(ev) {
+      cb({ blob: file, nombre: file.name || 'captura.png', url: ev.target.result, bytes: file.size });
+    };
+    fr.onerror = function() { cb(null); };
+    fr.readAsDataURL(file);
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var img = new Image();
+    img.onload = function() {
+      var esc = Math.min(1, MSG_IMG_LADO_MAX / Math.max(img.width, img.height));
+      var cw = Math.max(1, Math.round(img.width * esc));
+      var ch = Math.max(1, Math.round(img.height * esc));
+      var cv = document.createElement('canvas');
+      cv.width = cw; cv.height = ch;
+      cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
+      cv.toBlob(function(blob) {
+        if (!blob) { cb(null); return; }
+        var terminar = function(b) {
+          var base = (file.name || 'imagen').replace(/\.[^.]+$/, '');
+          cb({ blob: b, nombre: base + '.jpg', url: cv.toDataURL('image/jpeg', 0.5), bytes: b.size });
+        };
+        // Segunda pasada más comprimida solo si quedó arriba del tope del servidor
+        if (blob.size > MSG_IMG_TOPE) {
+          cv.toBlob(function(b2) { terminar(b2 || blob); }, 'image/jpeg', 0.6);
+        } else {
+          terminar(blob);
+        }
+      }, 'image/jpeg', 0.82);
+    };
+    img.onerror = function() { cb(null); };
+    img.src = ev.target.result;
+  };
+  reader.onerror = function() { cb(null); };
+  reader.readAsDataURL(file);
+}
+
+function msgTomarImagen(file) {
+  if (!file) return;
+  if (['image/jpeg', 'image/png', 'image/webp'].indexOf(file.type) === -1) {
+    toast('Solo se pueden enviar imágenes JPG, PNG o WEBP', 'error');
+    return;
+  }
+  if (file.size > 25 * 1024 * 1024) {
+    toast('Esa imagen es demasiado grande', 'error');
+    return;
+  }
+  msgPrepararImagen(file, function(res) {
+    if (!res) { toast('No se pudo leer la imagen', 'error'); return; }
+    _msgArchivo = res;
+    var thumb = document.getElementById('msgAdjThumb');
+    thumb.src = res.url;
+    thumb.hidden = false;
+    document.getElementById('msgAdjNombre').textContent = res.nombre;
+    document.getElementById('msgAdjPeso').textContent = msgPesoLegible(res.bytes);
+    document.getElementById('msgAdjWrap').hidden = false;
+    document.getElementById('msgInput').focus();
+  });
+}
+
+function msgArchivoElegido(input) {
+  if (input.files && input.files[0]) msgTomarImagen(input.files[0]);
+  input.value = '';
+}
+
+function msgQuitarImagen() {
+  _msgArchivo = null;
+  var wrap = document.getElementById('msgAdjWrap');
+  if (wrap) wrap.hidden = true;
+  var thumb = document.getElementById('msgAdjThumb');
+  if (thumb) { thumb.removeAttribute('src'); thumb.hidden = true; }
+}
+
 async function msgEnviar() {
   var input = document.getElementById('msgInput');
+  var btn   = document.getElementById('msgBtnEnviar');
   var texto = input.value.trim();
-  if (!texto) return;
-  var body = { mensaje: texto };
-  if (_esDevMsg) {
-    if (!_msgOtroIdActivo) return;
-    body.para = _msgOtroIdActivo;
-  }
-  input.value = '';
+  if (!texto && !_msgArchivo) return;
+  if (_esDevMsg && !_msgOtroIdActivo) return;
+
+  btn.disabled = true;
   try {
-    var r = await fetch('../api/mensajes.php?accion=enviar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
+    var r;
+    if (_msgArchivo) {
+      var fd = new FormData();
+      fd.append('mensaje', texto);
+      if (_esDevMsg) fd.append('para', _msgOtroIdActivo);
+      fd.append('imagen', _msgArchivo.blob, _msgArchivo.nombre);
+      r = await fetch('../api/mensajes.php?accion=enviar', { method: 'POST', body: fd });
+    } else {
+      var body = { mensaje: texto };
+      if (_esDevMsg) body.para = _msgOtroIdActivo;
+      r = await fetch('../api/mensajes.php?accion=enviar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    }
     var d = await r.json();
-    if (!d.ok) { alert(d.error || 'No se pudo enviar'); return; }
+    if (!d.ok) { toast(d.error || 'No se pudo enviar', 'error'); return; }
+    // Se limpia solo cuando el envío salió bien: así no se pierde lo escrito
+    input.value = '';
+    msgQuitarImagen();
     msgAbrirHilo(_msgOtroIdActivo, _msgOtroNombreActivo);
-  } catch(e) { alert('No se pudo enviar'); }
+  } catch(e) {
+    toast('No se pudo enviar', 'error');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function cerrarMsgPanel() {
@@ -864,6 +1016,20 @@ document.addEventListener('click', function(e) {
   // cerrando el panel de golpe. composedPath() congela la ruta al momento del click.
   var ruta = typeof e.composedPath === 'function' ? e.composedPath() : [e.target];
   if (ruta.indexOf(wrap) === -1) cerrarMsgPanel();
+});
+
+// Ctrl+V pega directo una captura de pantalla en el chat
+document.addEventListener('paste', function(e) {
+  var panel = document.getElementById('msgPanel');
+  if (!panel || !panel.classList.contains('open')) return;
+  var items = (e.clipboardData && e.clipboardData.items) || [];
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].type && items[i].type.indexOf('image/') === 0) {
+      var f = items[i].getAsFile();
+      if (f) { e.preventDefault(); msgTomarImagen(f); }
+      return;
+    }
+  }
 });
 
 cargarMsgBadge();

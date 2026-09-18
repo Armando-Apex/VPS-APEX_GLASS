@@ -1133,7 +1133,8 @@ function _getOrigin() {
   var MB = EL_BASE;
   if (_forma === 'esq' && _esqTipo === 'curvo') MB += 70; // espacio para el arco convexo
   var svgH = Math.max(SVG_H, 220 + MB);
-  var ML=86, MR=hasEl?210:80, MT=20;
+  // Forma L acota el tramo superior arriba del vidrio: se reserva margen para que no se corte
+  var ML=86, MR=hasEl?210:80, MT=(_forma==='L'?44:20);
   var sc = Math.min((canvW-ML-MR)/ancho, (svgH-MT-MB)/alto);
   var gw = ancho*sc; var gh = alto*sc;
   var ox = ML + (canvW-ML-MR-gw)/2;
@@ -1228,8 +1229,8 @@ function _buildPath(ox, oy, gw, gh) {
     return d + 'Z';
   }
   if (_forma === 'L') {
-    var lwF = Math.min(+document.getElementById('cq-l-cw').value||200, ancho*.7) / ancho;
-    var lhF = Math.min(+document.getElementById('cq-l-ch').value||200, alto*.7)  / alto;
+    var lwF = Math.min(+document.getElementById('cq-l-cw').value||200, ancho-10) / ancho;
+    var lhF = Math.min(+document.getElementById('cq-l-ch').value||200, alto-10)  / alto;
     return 'M'+P(0,1)+' L'+P(lwF,1)+' L'+P(lwF,1-lhF)+' L'+P(1,1-lhF)+' L'+P(1,0)+' L'+P(0,0)+' Z';
   }
   if (_forma === 'trap') {
@@ -1373,6 +1374,53 @@ function _redraw() {
   out += '<line x1="'+(ox-cxOff-tk)+'" y1="'+oyBottom+'" x2="'+(ox-cxOff+tk)+'" y2="'+oyBottom+'" stroke="#475569" stroke-width="'+sw+'"/>';
   out += '<rect x="'+(ox-cxOff-rotW/2)+'" y="'+(oy+gh/2-rotH/2)+'" width="'+rotW+'" height="'+rotH+'" fill="white"/>';
   out += '<text x="'+(ox-cxOff)+'" y="'+(oy+gh/2)+'" text-anchor="middle" font-size="'+fz+'" font-weight="700" fill="#1e293b" font-family="monospace" transform="rotate(-90,'+(ox-cxOff)+','+(oy+gh/2)+')">'+alto+' mm</text>';
+
+  // ── Cotas del escalón (Forma L) — estilo croquis de papel ─────
+  // Los 4 lados extra salen de los mismos datos capturados: el tramo de arriba es
+  // Corte W, el ancho del escalón es (ancho - Corte W) y el lado derecho es
+  // (alto - Corte H). Números sueltos junto a la esquina, como los dibuja el taller.
+  if (_forma === 'L') {
+    var lCw  = Math.min(+document.getElementById('cq-l-cw').value||200, ancho-10);
+    var lCh  = Math.min(+document.getElementById('cq-l-ch').value||200, alto-10);
+    var lSw  = Math.round(ancho - lCw);          // tramo horizontal del escalón
+    var lSh  = Math.round(alto  - lCh);          // lado derecho
+    var lXcw = ox + lCw*sc;                      // x del corte vertical
+    var lYch = oy + lCh*sc;                      // y del corte horizontal
+    var lOff = 18;                               // cota del tramo superior, arriba del vidrio
+
+    // etiqueta con fondo blanco para que no la tape el grid
+    var lAncho = function(txt) { return String(txt).length*(fzSm*0.62) + 6; };
+    var lTxt = function(cx, cy, txt, rot) {
+      var w = lAncho(txt), h = fzSm + 3, s = '';
+      if (rot) s += '<g transform="rotate(-90,'+cx+','+cy+')">';
+      s += '<rect x="'+(cx-w/2)+'" y="'+(cy-h/2)+'" width="'+w+'" height="'+h+'" fill="white"/>';
+      s += '<text x="'+cx+'" y="'+(cy+fzSm/2-1)+'" text-anchor="middle" font-size="'+fzSm+'" font-weight="700" fill="#1e293b" font-family="monospace">'+txt+'</text>';
+      if (rot) s += '</g>';
+      return s;
+    };
+
+    // cota real del tramo superior (0 → Corte W), arriba del vidrio
+    out += '<line x1="'+ox+'" y1="'+oy+'" x2="'+ox+'" y2="'+(oy-lOff-2)+'" stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="2,2"/>';
+    out += '<line x1="'+lXcw+'" y1="'+oy+'" x2="'+lXcw+'" y2="'+(oy-lOff-2)+'" stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="2,2"/>';
+    out += '<line x1="'+ox+'" y1="'+(oy-lOff)+'" x2="'+lXcw+'" y2="'+(oy-lOff)+'" stroke="#475569" stroke-width="'+sw+'"/>';
+    out += '<line x1="'+ox+'" y1="'+(oy-lOff-tk)+'" x2="'+ox+'" y2="'+(oy-lOff+tk)+'" stroke="#475569" stroke-width="'+sw+'"/>';
+    out += '<line x1="'+lXcw+'" y1="'+(oy-lOff-tk)+'" x2="'+lXcw+'" y2="'+(oy-lOff+tk)+'" stroke="#475569" stroke-width="'+sw+'"/>';
+    out += lTxt((ox+lXcw)/2, oy-lOff, Math.round(lCw)+' mm', false);
+
+    // Corte H — a la izquierda del corte vertical
+    out += lTxt(lXcw - 6 - lAncho(Math.round(lCh)+' mm')/2, (oy+lYch)/2, Math.round(lCh)+' mm', false);
+
+    // ancho del escalón — debajo del borde horizontal del corte
+    if (lSw > 0) {
+      // se recorta contra el borde derecho usando el ancho real de la etiqueta
+      var lTxtSw = lSw + ' mm';
+      var lXsw = Math.min((lXcw + ox + gw)/2, ox + gw - lAncho(lTxtSw)/2 - 2);
+      out += lTxt(lXsw, lYch+11, lTxtSw, false);
+    }
+
+    // lado derecho — rotado, por dentro del borde derecho
+    if (lSh > 0) out += lTxt(ox + gw - (fzSm + 3)/2 - 3, (lYch+oyBottom)/2, lSh+' mm', true);
+  }
 
   // ── Flechas de ejes en esquina inferior izquierda (referencia compacta) ──
   var ejLen = 18;

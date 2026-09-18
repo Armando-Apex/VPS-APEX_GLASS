@@ -41,7 +41,9 @@ if (!is_array($canteo))    $canteo    = [];
 $SVG_W = 760; $SVG_H = 960;
 $hasEl      = count($elementos) > 0;
 $canvW = $hasEl ? $SVG_W + round(120 * $SVG_W / 450) : $SVG_W;
-$ML = 110; $MR = $hasEl ? round(220 * $SVG_W / 450) : 80; $MT = 20;
+$ML = 110; $MR = $hasEl ? round(220 * $SVG_W / 450) : 80;
+// Forma L acota el tramo superior arriba del vidrio: se reserva margen para que no se corte
+$MT = ($forma === 'L') ? 56 : 20;
 $MB = 140 + ($forma==='esq' && ($params['esq-tipo']??'recto')==='curvo' ? 90 : 0);
 $sc = min(($canvW - $ML - $MR) / max($ancho, 1), ($SVG_H - $MT - $MB) / max($alto, 1));
 $gw = $ancho * $sc;
@@ -94,8 +96,8 @@ function buildPath($forma, $params, $ox, $oy, $gw, $gh, $ancho, $alto, $sc) {
         return $d . 'Z';
     }
     if ($forma === 'L') {
-        $lwF = min((float)($params['l-cw'] ?? 200), $ancho*0.7) / $ancho;
-        $lhF = min((float)($params['l-ch'] ?? 200), $alto*0.7)  / $alto;
+        $lwF = min((float)($params['l-cw'] ?? 200), $ancho-10) / $ancho;
+        $lhF = min((float)($params['l-ch'] ?? 200), $alto-10)  / $alto;
         return "M".$P(0,1)." L".$P($lwF,1)." L".$P($lwF,1-$lhF)." L".$P(1,1-$lhF)." L".$P(1,0)." L".$P(0,0)." Z";
     }
     if ($forma === 'trap') {
@@ -174,6 +176,50 @@ $svg .= '<line x1="'.($ox-$cxOff-$tk).'" y1="'.$oy.'" x2="'.($ox-$cxOff+$tk).'" 
 $svg .= '<line x1="'.($ox-$cxOff-$tk).'" y1="'.$oyBottom.'" x2="'.($ox-$cxOff+$tk).'" y2="'.$oyBottom.'" stroke="#222222" stroke-width="'.$sw.'"/>';
 $svg .= '<rect x="'.($ox-$cxOff-$rotW/2).'" y="'.($oy+$gh/2-$rotH/2).'" width="'.$rotW.'" height="'.$rotH.'" fill="white"/>';
 $svg .= '<text x="'.($ox-$cxOff).'" y="'.($oy+$gh/2).'" text-anchor="middle" font-size="'.$fz.'" font-weight="700" fill="#111111" font-family="monospace" transform="rotate(-90,'.($ox-$cxOff).','.($oy+$gh/2).')">'.$alto.' mm</text>';
+
+// Cotas del escalón (Forma L) — mismo criterio que el editor: tramo superior con cota
+// real arriba del vidrio y los 3 lados restantes como números sueltos junto a la esquina.
+if ($forma === 'L') {
+    $lCw  = min((float)($params['l-cw'] ?? 200), $ancho-10);
+    $lCh  = min((float)($params['l-ch'] ?? 200), $alto-10);
+    $lSw  = (int)round($ancho - $lCw);          // tramo horizontal del escalón
+    $lSh  = (int)round($alto  - $lCh);          // lado derecho
+    $lXcw = $ox + $lCw*$sc;                     // x del corte vertical
+    $lYch = $oy + $lCh*$sc;                     // y del corte horizontal
+    $lOff = 26;
+
+    $lAncho = function($txt) use ($fzSm) { return strlen((string)$txt)*($fzSm*0.62) + 8; };
+    $lTxt = function($cx, $cy, $txt, $rot) use ($fzSm, $lAncho) {
+        $w = $lAncho($txt); $h = $fzSm + 4; $s = '';
+        if ($rot) $s .= '<g transform="rotate(-90,'.$cx.','.$cy.')">';
+        $s .= '<rect x="'.($cx-$w/2).'" y="'.($cy-$h/2).'" width="'.$w.'" height="'.$h.'" fill="white"/>';
+        $s .= '<text x="'.$cx.'" y="'.($cy+$fzSm/2-1).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#111111" font-family="monospace">'.$txt.'</text>';
+        if ($rot) $s .= '</g>';
+        return $s;
+    };
+
+    // cota real del tramo superior (0 → Corte W)
+    $svg .= '<line x1="'.$ox.'" y1="'.$oy.'" x2="'.$ox.'" y2="'.($oy-$lOff-2).'" stroke="#bbbbbb" stroke-width="0.5" stroke-dasharray="2,2"/>';
+    $svg .= '<line x1="'.$lXcw.'" y1="'.$oy.'" x2="'.$lXcw.'" y2="'.($oy-$lOff-2).'" stroke="#bbbbbb" stroke-width="0.5" stroke-dasharray="2,2"/>';
+    $svg .= '<line x1="'.$ox.'" y1="'.($oy-$lOff).'" x2="'.$lXcw.'" y2="'.($oy-$lOff).'" stroke="#222222" stroke-width="'.$sw.'"/>';
+    $svg .= '<line x1="'.$ox.'" y1="'.($oy-$lOff-$tk).'" x2="'.$ox.'" y2="'.($oy-$lOff+$tk).'" stroke="#222222" stroke-width="'.$sw.'"/>';
+    $svg .= '<line x1="'.$lXcw.'" y1="'.($oy-$lOff-$tk).'" x2="'.$lXcw.'" y2="'.($oy-$lOff+$tk).'" stroke="#222222" stroke-width="'.$sw.'"/>';
+    $svg .= $lTxt(($ox+$lXcw)/2, $oy-$lOff, round($lCw).' mm', false);
+
+    // Corte H — a la izquierda del corte vertical
+    $svg .= $lTxt($lXcw - 8 - $lAncho(round($lCh).' mm')/2, ($oy+$lYch)/2, round($lCh).' mm', false);
+
+    // ancho del escalón — debajo del borde horizontal del corte
+    if ($lSw > 0) {
+        // se recorta contra el borde derecho usando el ancho real de la etiqueta
+        $lTxtSw = $lSw . ' mm';
+        $lXsw = min(($lXcw + $ox + $gw)/2, $ox + $gw - $lAncho($lTxtSw)/2 - 3);
+        $svg .= $lTxt($lXsw, $lYch+15, $lTxtSw, false);
+    }
+
+    // lado derecho — rotado, por dentro del borde derecho
+    if ($lSh > 0) $svg .= $lTxt($ox + $gw - ($fzSm + 4)/2 - 4, ($lYch+$oyBottom)/2, $lSh.' mm', true);
+}
 
 // Flechas de ejes en esquina inferior izquierda (referencia compacta)
 $ejLen = 28;
