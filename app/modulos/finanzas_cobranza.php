@@ -437,7 +437,7 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
         <th>Folio</th>
         <th>Cliente</th>
         <th>Asesor</th>
-        <th>Fecha</th>
+        <th>Fecha VoBo</th>
         <th>Estado</th>
         <th>Total</th>
         <th>Cobrado</th>
@@ -494,6 +494,16 @@ function poblarAsesores() {
   });
 }
 
+// La venta se efectúa al VoBo (Armando, 18-sep-2026) — no en la fecha en que
+// se cotizó/pidió. Mismo criterio de fecha que ya usa Reporte Dirección
+// (COALESCE vobo_at → fecha_pedido → created_at) para que ambas pantallas
+// coincidan en qué mes cae cada orden.
+function fechaVenta(o) {
+  if (o.vobo_at) return o.vobo_at.substring(0, 10);
+  if (o.fecha_pedido) return o.fecha_pedido;
+  return o.created_at ? o.created_at.substring(0, 10) : '';
+}
+
 function filtrar() {
   var q      = (document.getElementById('f-q')?.value || '').toLowerCase();
   var estado = document.getElementById('f-estado')?.value || '';
@@ -512,8 +522,9 @@ function filtrar() {
     // Una búsqueda por folio/cliente ignora el rango de fechas — si Lina busca S-097
     // debe aparecer aunque sea de un mes anterior al periodo mostrado por default.
     if (!q) {
-      if (desde && o.fecha_pedido < desde) return false;
-      if (hasta && o.fecha_pedido > hasta) return false;
+      var fv = fechaVenta(o);
+      if (desde && fv < desde) return false;
+      if (hasta && fv > hasta) return false;
     }
     if (pago) {
       var total  = parseFloat(o.total||0);
@@ -603,7 +614,7 @@ function renderTabla() {
       + '<td style="font-weight:700;color:#2563eb">' + escHtml(o.folio) + tagRetrabajo + '</td>'
       + '<td>' + escHtml(o.cliente_nombre) + '</td>'
       + '<td style="font-size:12px;color:#64748b">' + escHtml(o.asesor||'—') + '</td>'
-      + '<td style="font-size:12px;color:#64748b">' + fmtF(o.fecha_pedido) + '</td>'
+      + '<td style="font-size:12px;color:#64748b">' + fmtF(fechaVenta(o)) + '</td>'
       + '<td><span class="ord-badge ' + ordClass + '">' + ordLabel + '</span></td>'
       + '<td style="font-weight:600">' + fmt(total) + '</td>'
       + '<td style="color:#16a34a;font-weight:600">' + fmt(pagado) + '</td>'

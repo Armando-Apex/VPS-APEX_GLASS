@@ -136,7 +136,7 @@ if ($method === 'GET') {
     // ── Cobranza general — todas las órdenes con cotización ──
     if ($accion === 'cobranza') {
         $stmt = $db->query("
-            SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_pedido,
+            SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_pedido, o.created_at,
                    o.estado, c.localidad, c.ciudad_destino, c.tipo_entrega,
                    c.id as cot_id, c.cliente_id,
                    ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
