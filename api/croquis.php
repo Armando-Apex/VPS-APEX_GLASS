@@ -123,6 +123,8 @@ if ($metodo === 'PUT') {
     $actual = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$actual) { jsonResponse(['error' => 'No encontrado'], 404); }
 
+    $num_partida = (int)($body['num_partida'] ?? $actual['num_partida']);
+    if ($num_partida < 1) { $num_partida = (int)$actual['num_partida']; }
     $forma    = $body['forma']    ?? $actual['forma'];
     $ancho_mm = (float)($body['ancho_mm'] ?? $actual['ancho_mm']);
     $alto_mm  = (float)($body['alto_mm']  ?? $actual['alto_mm']);
@@ -138,10 +140,10 @@ if ($metodo === 'PUT') {
 
     $pdo->prepare("
         UPDATE croquis_partidas
-        SET forma = ?, ancho_mm = ?, alto_mm = ?,
+        SET num_partida = ?, forma = ?, ancho_mm = ?, alto_mm = ?,
             params_forma = ?, elementos = ?, canteo = ?, notas = ?
         WHERE id = ?
-    ")->execute([$forma, $ancho_mm, $alto_mm, $params_forma, $elementos, $canteo, $notas ?: null, $id]);
+    ")->execute([$num_partida, $forma, $ancho_mm, $alto_mm, $params_forma, $elementos, $canteo, $notas ?: null, $id]);
 
     jsonResponse(['ok' => true]);
     exit;

@@ -38,10 +38,15 @@ if (!is_array($elementos)) $elementos = [];
 if (!is_array($canteo))    $canteo    = [];
 
 // ── Geometría (mismo cálculo que croquis.php _getOrigin) ──────────────────
-$SVG_W = 760; $SVG_H = 960;
+// Orientación de la hoja: ?o=h|v; sin parámetro se elige según la forma de la pieza (más ancha que alta => horizontal)
+$oParam = $_GET['o'] ?? 'auto';
+if (!in_array($oParam, ['auto','v','h'], true)) $oParam = 'auto';
+$horiz = ($oParam === 'h') || ($oParam === 'auto' && $ancho > $alto);
+$KW = 760; // base de proporciones (tabla lateral, márgenes); no cambia con la orientación
+$SVG_W = $horiz ? 1000 : 760; $SVG_H = $horiz ? 700 : 960;
 $hasEl      = count($elementos) > 0;
-$canvW = $hasEl ? $SVG_W + round(120 * $SVG_W / 450) : $SVG_W;
-$ML = 110; $MR = $hasEl ? round(220 * $SVG_W / 450) : 80;
+$canvW = $hasEl ? $SVG_W + round(120 * $KW / 450) : $SVG_W;
+$ML = 110; $MR = $hasEl ? round(220 * $KW / 450) : 80;
 // Forma L acota el tramo superior arriba del vidrio: se reserva margen para que no se corte
 $MT = ($forma === 'L') ? 56 : 20;
 $MB = 140 + ($forma==='esq' && ($params['esq-tipo']??'recto')==='curvo' ? 90 : 0);
@@ -363,9 +368,9 @@ foreach ($elementos as $idxEl => $e) {
 if ($hasEl) {
     $tExtraFilas = max(0, count($elementos) - 1);
     $tblX = $ox + $gw + 28;
-    $tblW = min($canvW - $tblX - 4, round(140 * $SVG_W / 450));
+    $tblW = min($canvW - $tblX - 4, round(140 * $KW / 450));
     $tblY = $oy + 2;
-    $cardH = round(28 * $SVG_W / 450);
+    $cardH = round(28 * $KW / 450);
     $eCol = ['tp'=>'#111111','ta'=>'#333333','rs'=>'#333333','bi'=>'#333333'];
     $eBg  = ['tp'=>'#eeeeee','ta'=>'#eeeeee','rs'=>'#eeeeee','bi'=>'#eeeeee'];
     $svg .= '<text x="'.$tblX.'" y="'.$tblY.'" font-size="13" font-weight="700" fill="#555555" font-family="sans-serif">ELEMENTOS</text>';
@@ -412,7 +417,7 @@ $folioMostrar = $cot['orden_folio'] ?: ($cot['folio'] ?? '');
 <title>Croquis P<?= (int)$cq['num_partida'] ?> — <?= htmlspecialchars($folioMostrar) ?> — APEX GLASS</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-@page { size: A4 portrait; margin: 10mm; }
+@page { size: A4 <?= $horiz ? 'landscape' : 'portrait' ?>; margin: 10mm; }
 body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1e293b; background: #fff; }
 .page { width: 210mm; min-height: 277mm; margin: 0 auto; padding: 10mm; }
 .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a2e; padding-bottom: 8px; margin-bottom: 12px; }
@@ -428,20 +433,30 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1e293
 .ctrl-bar select { font-size: 12px; border: 1px solid #d1d5db; border-radius: 5px; padding: 3px 6px; background: white; cursor: pointer; }
 .btn-print { background: #1a1a2e; color: #fff; border: none; border-radius: 6px; padding: 7px 14px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .btn-print:hover { background: #2d2d4e; }
-@media print { .ctrl-bar { display: none; } body { background: #fff; } }
+body.horiz .page { width: 297mm; min-height: 210mm; }
+@media screen {
+  body { background: #d8dbe2; padding: 16px 0 40px; }
+  .page { background: #fff; box-shadow: 0 2px 14px rgba(0,0,0,.25); margin-bottom: 16px; }
+}
+@media print {
+  .ctrl-bar { display: none; }
+  body { background: #fff; padding: 0; }
+  .page { width: auto !important; min-height: 0 !important; padding: 0; margin: 0; box-shadow: none; }
+}
 </style>
 </head>
-<body>
+<body class="<?= $horiz ? 'horiz' : '' ?>">
 <div class="ctrl-bar">
   <label>Escala:</label>
   <select id="cq-escala" onchange="escalarDiagrama(this.value)">
+    <option value="fit" selected>Ajustar a la hoja</option>
     <option value="40">40%</option>
     <option value="50">50%</option>
     <option value="60">60%</option>
     <option value="70">70%</option>
     <option value="80">80%</option>
     <option value="90">90%</option>
-    <option value="100" selected>100%</option>
+    <option value="100">100%</option>
     <option value="110">110%</option>
     <option value="120">120%</option>
     <option value="130">130%</option>
@@ -449,18 +464,42 @@ body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1e293
     <option value="175">175%</option>
     <option value="200">200%</option>
   </select>
+  <label>Orientaci&#243;n:</label>
+  <select id="cq-orient" onchange="cambiarOrientacion(this.value)">
+    <option value="auto"<?= $oParam==='auto' ? ' selected' : '' ?>>Autom&#225;tica (<?= $horiz ? 'horizontal' : 'vertical' ?>)</option>
+    <option value="v"<?= $oParam==='v' ? ' selected' : '' ?>>Vertical</option>
+    <option value="h"<?= $oParam==='h' ? ' selected' : '' ?>>Horizontal</option>
+  </select>
   <button class="btn-print" onclick="window.print()">&#128424; Imprimir</button>
 </div>
 <script>
 var CQ_BASE_W = <?= $canvW ?>;
 var CQ_BASE_H = <?= $SVG_H ?>;
+var MM = 96 / 25.4;
 function escalarDiagrama(pct) {
   var svg = document.querySelector('.svg-wrap svg');
   if (!svg) return;
-  var scale = pct / 100;
+  var scale;
+  if (pct === 'fit') {
+    var horiz = document.body.classList.contains('horiz');
+    var innerW = (horiz ? 277 : 190) * MM;
+    var innerH = (horiz ? 190 : 277) * MM;
+    var hdr = document.querySelector('.header');
+    var ftr = document.querySelector('.footer-note');
+    var usedH = hdr.offsetHeight + 12 + ftr.offsetHeight + 8 + 14;
+    scale = Math.min((innerW - 12) / CQ_BASE_W, (innerH - usedH) / CQ_BASE_H);
+  } else {
+    scale = pct / 100;
+  }
   svg.setAttribute('width',  Math.round(CQ_BASE_W * scale));
   svg.setAttribute('height', Math.round(CQ_BASE_H * scale));
 }
+function cambiarOrientacion(o) {
+  var u = new URL(window.location.href);
+  if (o === 'auto') u.searchParams.delete('o'); else u.searchParams.set('o', o);
+  window.location.href = u.toString();
+}
+window.addEventListener('load', function() { escalarDiagrama(document.getElementById('cq-escala').value); });
 </script>
 <div class="page">
   <div class="header">
