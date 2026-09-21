@@ -386,7 +386,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $mesesEs   = ['', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
                             $tsVence   = strtotime($gen['vence_at']);
                             $venceFmt  = date('d', $tsVence) . '-' . $mesesEs[(int)date('n', $tsVence)] . ' ' . date('H:i', $tsVence);
-                            $msgEncuesta = "¡Gracias por contestar la encuesta! Aquí tienes tu código de 5% de descuento ADICIONAL a cualquier otra promoción vigente:\n\n*" . $gen['codigo'] . "*\n\nVálido hasta el " . $venceFmt . " (24 horas). Menciónalo con tu asesor al cotizar.";
+                            $pctFmt    = rtrim(rtrim(number_format((float)$gen['porcentaje'], 2, '.', ''), '0'), '.');
+                            $msgEncuesta = "¡Gracias por contestar la encuesta! Aquí tienes tu código de " . $pctFmt . "% de descuento ADICIONAL a cualquier otra promoción vigente:\n\n*" . $gen['codigo'] . "*\n\nVálido hasta el " . $venceFmt . ". Menciónalo con tu asesor al cotizar.";
                             enviarMensajeWA([
                                 'messaging_product' => 'whatsapp',
                                 'to'                => $telefono,
