@@ -11,8 +11,11 @@
 // ============================================================
 
 // ─── Fórmula pura: bruto + descuento + servicios → totales ───────────────────
-function apexTotales($bruto_partidas, $descuento_pct, $servicios_subtotal) {
-    $subtotal = round((float)$bruto_partidas * (1 - (float)$descuento_pct / 100), 2);
+// $bruto_promo (promo de precio fijo, ver helpers/promo_precio_lib.php): bruto de
+// las partidas con promo_precio=1 — NO recibe el % de descuento; $bruto_partidas
+// debe traer solo el bruto de las partidas SIN promo.
+function apexTotales($bruto_partidas, $descuento_pct, $servicios_subtotal, $bruto_promo = 0) {
+    $subtotal = round((float)$bruto_partidas * (1 - (float)$descuento_pct / 100) + (float)$bruto_promo, 2);
     $base     = round($subtotal + (float)$servicios_subtotal, 2);
     $iva      = round($base * 0.16, 2);
     return [
@@ -51,7 +54,10 @@ function apexTotalesCotizacion(PDO $db, $cotizacion_id) {
     // propósito, son automáticos y no requieren aprobación.
     $descuento_efectivo = min(100, (float)$cot['descuento'] + (float)$cot['descuento_referido'] + (float)$cot['descuento_encuesta']); // S1-01/S1-04: tope 100%
 
-    $st = $db->prepare("SELECT COALESCE(SUM(precio_m2_usado*m2*cantidad),0) FROM cotizaciones_partidas WHERE cotizacion_id = ?");
+    $st = $db->prepare("SELECT COALESCE(SUM(IF(promo_precio=1,0,precio_m2_usado*m2*cantidad)),0) AS bruto,
+                               COALESCE(SUM(IF(promo_precio=1,precio_m2_usado*m2*cantidad,0)),0) AS bruto_promo
+                        FROM cotizaciones_partidas WHERE cotizacion_id = ?");
     $st->execute([(int)$cotizacion_id]);
-    return apexTotales((float)$st->fetchColumn(), $descuento_efectivo, (float)$cot['servicios_subtotal']);
+    $b = $st->fetch(PDO::FETCH_ASSOC);
+    return apexTotales((float)$b['bruto'], $descuento_efectivo, (float)$cot['servicios_subtotal'], (float)$b['bruto_promo']);
 }

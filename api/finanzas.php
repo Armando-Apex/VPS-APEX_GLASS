@@ -87,8 +87,8 @@ if ($method === 'GET') {
             SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_pedido,
                    c.localidad, c.ciudad_destino, c.tipo_entrega,
                    c.id as cot_id,
-                   ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
-                   GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+                   ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad*IF(cp.promo_precio=1, 1, (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100))) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
+                   GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad*IF(cp.promo_precio=1, 1, (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100))) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                    c.saldo_pagado,
                    c.condicion_pago, c.folio as cot_folio, COALESCE(c.es_retrabajo, 0) as es_retrabajo
             FROM ordenes o
@@ -105,8 +105,8 @@ if ($method === 'GET') {
 
         $stmt = $db->prepare("
             SELECT o.*, c.localidad, c.id as cot_id,
-                   ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
-                   GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+                   ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad*IF(cp.promo_precio=1, 1, (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100))) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
+                   GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad*IF(cp.promo_precio=1, 1, (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100))) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                    c.saldo_pagado,
                    c.condicion_pago, c.folio as cot_folio, c.vobo_por, c.vobo_at, c.cliente_id,
                    COALESCE(c.es_retrabajo, 0) as es_retrabajo
@@ -139,8 +139,8 @@ if ($method === 'GET') {
             SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_pedido, o.created_at,
                    o.estado, c.localidad, c.ciudad_destino, c.tipo_entrega,
                    c.id as cot_id, c.cliente_id,
-                   ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
-                   GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+                   ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad*IF(cp.promo_precio=1, 1, (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100))) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
+                   GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad*IF(cp.promo_precio=1, 1, (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100))) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                    c.saldo_pagado,
                    c.condicion_pago, c.folio as cot_folio, c.vobo_por, c.vobo_at,
                    COALESCE(c.estatus_pago, 'pendiente') as estatus_pago,

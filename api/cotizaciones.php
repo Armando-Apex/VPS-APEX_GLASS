@@ -24,6 +24,7 @@ require_once __DIR__ . '/helpers/referidos_lib.php'; // Esquema de Referidos (pr
 require_once __DIR__ . '/helpers/promo_wa_lib.php';   // Promo Estados WhatsApp por volumen (15-ago-2026)
 require_once __DIR__ . '/helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
 require_once __DIR__ . '/helpers/encuesta_descuento_lib.php'; // Descuento por Encuesta de Satisfacción (16-sep-2026)
+require_once __DIR__ . '/helpers/promo_precio_lib.php'; // Promo precio fijo por código — SALT_SEP2026 (23-sep-2026)
 
 // cotizacionesFacturaVigente() vive ahora en cotizacion_helpers.php (BLV-1, 26-ago-2026)
 // para que api/maquila.php también la use — no duplicar aquí.
@@ -160,16 +161,17 @@ if ($method === 'GET') {
     $stmt = $db->prepare("
         SELECT c.id, c.folio, c.fecha, c.cliente_nombre, c.asesor_nombre,
                c.proyecto, c.estatus,
-               ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE(cp_sums.bruto, 0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
+               ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE(cp_sums.bruto, 0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100) + COALESCE(cp_sums.bruto_promo, 0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
                c.fecha_entrega, c.localidad, c.ciudad_destino, c.condicion_pago,
-               GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE(cp_sums.bruto, 0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+               GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE(cp_sums.bruto, 0) * (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100) + COALESCE(cp_sums.bruto_promo, 0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
                c.entrega_bloqueada,
                o.folio AS orden_folio, o.created_at AS orden_created_at,
                IF(c.estatus = 'cotizacion' AND c.created_at < DATE_SUB(NOW(), INTERVAL 15 DAY), 1, 0) AS es_inactiva
         FROM cotizaciones c
         LEFT JOIN ordenes o ON o.id = c.orden_id
         LEFT JOIN (
-            SELECT cotizacion_id, SUM(precio_m2_usado * m2 * cantidad) AS bruto
+            SELECT cotizacion_id, SUM(IF(promo_precio=1, 0, precio_m2_usado * m2 * cantidad)) AS bruto,
+                   SUM(IF(promo_precio=1, precio_m2_usado * m2 * cantidad, 0)) AS bruto_promo
             FROM cotizaciones_partidas
             GROUP BY cotizacion_id
         ) cp_sums ON cp_sums.cotizacion_id = c.id
@@ -209,6 +211,10 @@ if ($method === 'POST') {
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { jsonResponse(['error' => 'No encontrada']); exit; }
         if ($cot['estatus'] !== 'cotizacion') { jsonResponse(['error' => 'Solo se pueden convertir cotizaciones']); exit; }
+        // Promo de precio fijo (SALT_SEP2026): solo se puede convertir dentro de la vigencia.
+        if (!empty($cot['promo_precio_codigo']) && !promoPrecioVigente($cot['promo_precio_codigo'])) {
+            jsonResponse(['error' => promoPrecioMsgVencida($cot['promo_precio_codigo'])]); exit;
+        }
         // A-7: un asesor comercial solo convierte SUS cotizaciones
         if ($rol === 'comercial' && (int)$cot['asesor_id'] !== (int)$usuario_id) {
             jsonResponse(['error' => 'Solo el asesor dueño puede convertir esta cotización'], 403); exit;
@@ -523,6 +529,7 @@ if ($method === 'POST') {
     $referido_ctn = trim($body['referido_ctn']     ?? '');
     $promo_wa_codigo = trim($body['promo_wa_codigo'] ?? '');
     $encuesta_codigo = trim($body['encuesta_codigo'] ?? '');
+    $promo_precio_in = trim($body['promo_precio_codigo'] ?? '');
     $es_retrabajo = !empty($body['es_retrabajo']) ? 1 : 0;
     $motivo_retrabajo = $es_retrabajo ? trim($body['motivo_retrabajo'] ?? '') : null;
 
@@ -604,6 +611,15 @@ if ($method === 'POST') {
         $encuesta_codigo_id = $valEnc['codigo_id'];
     }
 
+    // Promo de precio fijo por código (SALT_SEP2026, ver helpers/promo_precio_lib.php):
+    // fija el precio/m² de Claro 6mm/9mm; esas partidas no reciben ningún % de descuento.
+    $promo_precio_codigo = null;
+    if (!$es_retrabajo && $promo_precio_in !== '') {
+        $valPP = promoPrecioValidar($promo_precio_in);
+        if ($valPP['error']) { jsonResponse(['error' => $valPP['error']]); exit; }
+        $promo_precio_codigo = $valPP['codigo'];
+    }
+
     // Suma con el descuento manual (no cascada); el candado de autorización >10%
     // sigue evaluando solo $descuento (manual), no $descuento_efectivo.
     $descuento_efectivo = min(100, $descuento + $descuento_referido + $descuento_encuesta); // S1-04: tope 100%
@@ -616,6 +632,7 @@ if ($method === 'POST') {
     // Calcular totales
     $subtotal_total = 0;
     $bruto_total    = 0; // A-2: bruto SIN descuento para la fórmula canónica
+    $bruto_promo    = 0; // partidas con precio fijo de promo (no reciben descuento)
     $partidas_data  = [];
 
     foreach ($partidas as $p) {
@@ -642,13 +659,16 @@ if ($method === 'POST') {
         }
 
         $m2             = round(($ancho / 1000) * ($alto / 1000), 6);
-        $precio_m2      = (float)$cristal['precio_m2'];
-        $precio_unit    = round($m2 * $precio_m2 * (1 - $descuento_efectivo / 100), 4);
+        $precio_promo   = $lamina_id_venta ? null : promoPrecioDe($promo_precio_codigo, $cristal_id);
+        $precio_m2      = $precio_promo ?? (float)$cristal['precio_m2'];
+        $desc_partida   = $precio_promo !== null ? 0 : $descuento_efectivo;
+        $precio_unit    = round($m2 * $precio_m2 * (1 - $desc_partida / 100), 4);
         $subtotal       = round($precio_unit * $cantidad, 2);
         $iva            = round($subtotal * 0.16, 2);
         $total_p        = round($subtotal + $iva, 2);
         $subtotal_total += $subtotal;
-        $bruto_total    += $m2 * $precio_m2 * $cantidad; // A-2: mismo bruto que recalcula la BD
+        if ($precio_promo !== null) $bruto_promo += $m2 * $precio_m2 * $cantidad;
+        else                        $bruto_total += $m2 * $precio_m2 * $cantidad; // A-2: mismo bruto que recalcula la BD
 
         $partidas_data[] = [
             'cristal_id'           => $cristal_id,
@@ -674,6 +694,7 @@ if ($method === 'POST') {
             'requiere_templado'    => $lamina_id_venta ? 0 : (isset($p['requiere_templado']) ? (int)$p['requiere_templado'] : 1),
             'pieza_origen_id'      => $es_retrabajo ? $pieza_origen_id : null,
             'lamina_id'            => $lamina_id_venta,
+            'promo_precio'         => $precio_promo !== null ? 1 : 0,
         ];
         if ($lamina_id_venta) {
             $idx = count($partidas_data) - 1;
@@ -688,7 +709,7 @@ if ($method === 'POST') {
 
     // A-2: totales de encabezado con la fórmula canónica
     // (los subtotales por renglón se conservan solo para despliegue)
-    $tots          = apexTotales($bruto_total, $descuento_efectivo, 0); // al crear aún no hay servicios
+    $tots          = apexTotales($bruto_total, $descuento_efectivo, 0, $bruto_promo); // al crear aún no hay servicios
     $subtotal_neto = $tots['subtotal'];
     $iva_total     = $tots['iva'];
     $total_final   = $tots['total'];
@@ -702,14 +723,14 @@ if ($method === 'POST') {
 
         $db->prepare("INSERT INTO cotizaciones
             (folio, fecha, cliente_id, cliente_nombre, asesor_id, asesor_nombre,
-             proyecto, descuento, descuento_referido, descuento_encuesta, promocion_id, credito, condicion_pago, tipo_entrega,
+             proyecto, descuento, descuento_referido, descuento_encuesta, promocion_id, promo_precio_codigo, credito, condicion_pago, tipo_entrega,
              localidad, ciudad_destino, factura_tipo, fecha_entrega, fecha_entrega_manual,
              alerta, subtotal, iva, total, saldo_pendiente, entrega_bloqueada, estatus, es_retrabajo, motivo_retrabajo)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ")->execute([
             $folio, $fecha_hoy, $cliente_id, $cliente_nombre,
             $usuario_id, $usuario_nombre,
-            $proyecto, $descuento, $descuento_referido, $descuento_encuesta, $promocion_id, $credito, $condicion, $tipo_entrega,
+            $proyecto, $descuento, $descuento_referido, $descuento_encuesta, $promocion_id, $promo_precio_codigo, $credito, $condicion, $tipo_entrega,
             $localidad, $ciudad, $factura_tipo, $fecha_entrega, $es_manual,
             $alerta, $subtotal_neto, $iva_total, $total_final,
             $saldo,
@@ -724,8 +745,8 @@ if ($method === 'POST') {
             (cotizacion_id, num_partida, cristal_id, cristal_nombre, cristal_etiqueta,
              precio_m2_usado, cantidad, ancho, alto, m2, detalles, cpb,
              resaques, taladros_pasados, taladros_avellanados, requiere_templado,
-             precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id, lamina_id)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id, lamina_id, promo_precio)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ");
         foreach ($partidas_data as $i => $p) {
             $stmtP->execute([
@@ -735,7 +756,7 @@ if ($method === 'POST') {
                 $p['detalles'], $p['cpb'], $p['resaques'],
                 $p['taladros_pasados'], $p['taladros_avellanados'], $p['requiere_templado'],
                 $p['precio_unitario'], $p['subtotal'], $p['iva'], $p['total'],
-                $p['comentarios_etiqueta'], $p['pieza_origen_id'], $p['lamina_id']
+                $p['comentarios_etiqueta'], $p['pieza_origen_id'], $p['lamina_id'], $p['promo_precio']
             ]);
         }
 
@@ -780,7 +801,7 @@ if ($method === 'PUT') {
         if (!$puede_editar) { jsonResponse(['error' => 'Sin permiso']); exit; }
 
         // Verificar que existe y está en estatus cotizacion
-        $stmt = $db->prepare("SELECT estatus, asesor_id, cliente_id, COALESCE(saldo_pagado,0) AS saldo_pagado, COALESCE(descuento_referido,0) AS descuento_referido, COALESCE(descuento_encuesta,0) AS descuento_encuesta, promocion_id, es_retrabajo FROM cotizaciones WHERE id = ?");
+        $stmt = $db->prepare("SELECT estatus, asesor_id, cliente_id, COALESCE(saldo_pagado,0) AS saldo_pagado, COALESCE(descuento_referido,0) AS descuento_referido, COALESCE(descuento_encuesta,0) AS descuento_encuesta, promocion_id, promo_precio_codigo, es_retrabajo FROM cotizaciones WHERE id = ?");
         $stmt->execute([$id]);
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
@@ -852,6 +873,16 @@ if ($method === 'PUT') {
                 $encuesta_codigo_id = $valEnc['codigo_id'];
             }
         }
+        // Promo de precio fijo (SALT_SEP2026): el frontend reenvía el código vigente de la
+        // cotización en cada guardado; campo vacío = el asesor lo quitó (precio vuelve a
+        // catálogo). Si ya venció, no se deja guardar con el código puesto.
+        $promo_precio_codigo = null;
+        $promo_precio_in = trim($body['promo_precio_codigo'] ?? '');
+        if (!$cot['es_retrabajo'] && $promo_precio_in !== '') {
+            $valPP = promoPrecioValidar($promo_precio_in);
+            if ($valPP['error']) { jsonResponse(['error' => $valPP['error']]); exit; }
+            $promo_precio_codigo = $valPP['codigo'];
+        }
         $descuento_efectivo = min(100, $descuento + $descuento_referido + $descuento_encuesta); // S1-04: tope 100%
 
         // Datos del cliente
@@ -867,11 +898,14 @@ if ($method === 'PUT') {
 
         // C-3: precios vigentes leídos de BD — NUNCA del body.
         // Mapa "num_partida|cristal_id" → precio_m2_usado actual de la cotización.
-        $stmtPrev = $db->prepare("SELECT num_partida, cristal_id, precio_m2_usado
+        $stmtPrev = $db->prepare("SELECT num_partida, cristal_id, precio_m2_usado, promo_precio
                                   FROM cotizaciones_partidas WHERE cotizacion_id = ?");
         $stmtPrev->execute([$id]);
         $preciosVigentes = [];
         foreach ($stmtPrev->fetchAll(PDO::FETCH_ASSOC) as $pv) {
+            // Precio de promo NO se conserva como "vigente": si la promo sigue, se vuelve a
+            // aplicar abajo; si se quitó el código, la partida regresa a catálogo.
+            if ((int)$pv['promo_precio'] === 1) continue;
             $preciosVigentes[$pv['num_partida'] . '|' . $pv['cristal_id']] = (float)$pv['precio_m2_usado'];
         }
 
@@ -888,6 +922,7 @@ if ($method === 'PUT') {
         // Calcular totales y validar partidas
         $subtotal_total = 0;
         $bruto_total    = 0; // A-2
+        $bruto_promo    = 0; // partidas con precio fijo de promo (no reciben descuento)
         $partidas_data  = [];
 
         foreach ($partidas as $p) {
@@ -916,15 +951,18 @@ if ($method === 'PUT') {
             // si el renglón ya existía (misma posición y mismo cristal — protege precios
             // históricos cuando el catálogo sube); partida nueva o cristal distinto → catálogo.
             // Los cambios de precio solo se hacen vía api/correcciones.php (auditado, dir_admin).
-            $precio_m2 = $preciosVigentes[(count($partidas_data) + 1) . '|' . $cristal_id]
-                         ?? (float)$cristal['precio_m2'];
+            $precio_promo = $lamina_id_venta ? null : promoPrecioDe($promo_precio_codigo, $cristal_id);
+            $precio_m2 = $precio_promo ?? ($preciosVigentes[(count($partidas_data) + 1) . '|' . $cristal_id]
+                         ?? (float)$cristal['precio_m2']);
+            $desc_partida = $precio_promo !== null ? 0 : $descuento_efectivo;
 
-            $precio_unit  = round($m2 * $precio_m2 * (1 - $descuento_efectivo / 100), 4);
+            $precio_unit  = round($m2 * $precio_m2 * (1 - $desc_partida / 100), 4);
             $subtotal     = round($precio_unit * $cantidad, 2);
             $iva          = round($subtotal * 0.16, 2);
             $total_p      = round($subtotal + $iva, 2);
             $subtotal_total += $subtotal;
-            $bruto_total    += $m2 * $precio_m2 * $cantidad; // A-2
+            if ($precio_promo !== null) $bruto_promo += $m2 * $precio_m2 * $cantidad;
+            else                        $bruto_total += $m2 * $precio_m2 * $cantidad; // A-2
 
             $partidas_data[] = [
                 'cristal_id'           => $cristal_id,
@@ -950,6 +988,7 @@ if ($method === 'PUT') {
             'requiere_templado'    => $lamina_id_venta ? 0 : (isset($p['requiere_templado']) ? (int)$p['requiere_templado'] : 1),
             'pieza_origen_id'      => $piezaOrigenVigente[count($partidas_data) + 1] ?? null,
             'lamina_id'            => $lamina_id_venta,
+            'promo_precio'         => $precio_promo !== null ? 1 : 0,
             ];
             if ($lamina_id_venta) {
                 $idx = count($partidas_data) - 1;
@@ -974,7 +1013,7 @@ if ($method === 'PUT') {
         $servicios_estimados = (float)$stSrvEst->fetchColumn();
 
         // A-2: fórmula canónica — c.total incluye servicios
-        $tots          = apexTotales($bruto_total, $descuento_efectivo, $servicios_estimados);
+        $tots          = apexTotales($bruto_total, $descuento_efectivo, $servicios_estimados, $bruto_promo);
         $subtotal_neto = $tots['subtotal'];
         $iva_total     = $tots['iva'];
         $total_final   = $tots['total'];
@@ -994,14 +1033,14 @@ if ($method === 'PUT') {
             // columna, dejándola desfasada del total real guardado tras un cambio
             // de cliente — se corrige de paso al agregar la columna nueva.
             $db->prepare("UPDATE cotizaciones SET
-                cliente_id=?, cliente_nombre=?, proyecto=?, descuento=?, descuento_referido=?, descuento_encuesta=?, promocion_id=?,
+                cliente_id=?, cliente_nombre=?, proyecto=?, descuento=?, descuento_referido=?, descuento_encuesta=?, promocion_id=?, promo_precio_codigo=?,
                 credito=?, condicion_pago=?, tipo_entrega=?, localidad=?,
                 ciudad_destino=?, factura_tipo=?, fecha_entrega=?, fecha_entrega_manual=?,
                 alerta=?, subtotal=?, iva=?, total=?, saldo_pendiente=?,
                 updated_at=NOW()
                 WHERE id=?
             ")->execute([
-                $cliente_id, $cliente_nombre, $proyecto, $descuento, $descuento_referido, $descuento_encuesta, $promocion_id,
+                $cliente_id, $cliente_nombre, $proyecto, $descuento, $descuento_referido, $descuento_encuesta, $promocion_id, $promo_precio_codigo,
                 $credito, $condicion, $tipo_entrega, $localidad,
                 $ciudad, $factura_tipo, $fecha_entrega, $es_manual,
                 $alerta, $subtotal_neto, $iva_total, $total_final, $saldo,
@@ -1030,8 +1069,8 @@ if ($method === 'PUT') {
                 (cotizacion_id, num_partida, cristal_id, cristal_nombre, cristal_etiqueta,
                  precio_m2_usado, cantidad, ancho, alto, m2, detalles, cpb,
                  resaques, taladros_pasados, taladros_avellanados, requiere_templado,
-                 precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id, lamina_id)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                 precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id, lamina_id, promo_precio)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ");
             $nuevosIdsPorNumPartida = [];
             foreach ($partidas_data as $i => $p) {
@@ -1043,7 +1082,7 @@ if ($method === 'PUT') {
                     $p['detalles'], $p['cpb'], $p['resaques'],
                     $p['taladros_pasados'], $p['taladros_avellanados'], $p['requiere_templado'],
                     $p['precio_unitario'], $p['subtotal'], $p['iva'], $p['total'],
-                    $p['comentarios_etiqueta'], $p['pieza_origen_id'], $p['lamina_id']
+                    $p['comentarios_etiqueta'], $p['pieza_origen_id'], $p['lamina_id'], $p['promo_precio']
                 ]);
                 $nuevosIdsPorNumPartida[$numPart] = (int)$db->lastInsertId();
             }
