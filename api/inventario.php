@@ -245,7 +245,7 @@ if ($method === 'GET') {
 
         $sv = $db->prepare("
             SELECT cp.cristal_id,
-                   SUM(cp.precio_m2_usado * cp.m2 * cp.cantidad * (1 - COALESCE(c.descuento,0)/100)) AS ingreso_neto,
+                   SUM(cp.precio_m2_usado * cp.m2 * cp.cantidad * IF(cp.promo_precio=1, 1, (1 - COALESCE(c.descuento,0)/100))) AS ingreso_neto,
                    SUM(cp.m2 * cp.cantidad) AS m2_total
             FROM cotizaciones_partidas cp
             JOIN cotizaciones c ON c.id = cp.cotizacion_id

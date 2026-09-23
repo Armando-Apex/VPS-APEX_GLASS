@@ -145,7 +145,9 @@ if ($method === 'POST') {
                 $m2         = (float)$p['m2'];
                 $precio_m2  = (float)$p['precio_m2_usado'];
                 $cantidad   = (int)$p['cantidad'];
-                $nuevo_unit = round($m2 * $precio_m2 * (1 - $cambio_descuento / 100), 4);
+                // Partidas con precio fijo de promo (SALT_SEP2026) no reciben descuento.
+                $desc_p     = !empty($p['promo_precio']) ? 0 : $cambio_descuento;
+                $nuevo_unit = round($m2 * $precio_m2 * (1 - $desc_p / 100), 4);
                 $subtotal_p = round($nuevo_unit * $cantidad, 2);
                 $iva_p      = round($subtotal_p * 0.16, 2);
                 $total_p    = round($subtotal_p + $iva_p, 2);
@@ -227,7 +229,7 @@ if ($method === 'POST') {
             }
 
             if ($updates_p) {
-                $descuento_cot = (float)($cot['descuento'] ?? 0);
+                $descuento_cot = !empty($partida['promo_precio']) ? 0 : (float)($cot['descuento'] ?? 0); // promo precio fijo: sin descuento
                 $m2_partida    = (float)$partida['m2'];
                 $cambio_dim    = array_key_exists('ancho', $pc) || array_key_exists('alto', $pc);
 

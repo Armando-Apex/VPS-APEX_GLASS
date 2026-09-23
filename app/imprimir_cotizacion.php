@@ -81,6 +81,7 @@ $descuento_efectivo = $descuento + $descuento_referido + $descuento_encuesta;
 // precio_unitario en registros viejos almacenaba precio bruto (sin descuento aplicado),
 // por lo que SUM(precio_unitario×cantidad) no es confiable como neto.
 $subtotal = 0;
+$subtotal_promo = 0; // partidas con precio fijo de promo (SALT_SEP2026) — no reciben descuento
 if ($esMaquila) {
     // Partidas de maquila ya traen su subtotal calculado y guardado por api/maquila.php
     foreach ($partidas as $p) {
@@ -93,10 +94,13 @@ if ($esMaquila) {
     foreach ($partidas as &$p) {
         $p['bruto_fila'] = round((float)$p['precio_m2_usado'] * (float)$p['m2'] * (int)$p['cantidad'], 2);
         $subtotal += $p['bruto_fila'];
+        if (!empty($p['promo_precio'])) $subtotal_promo += $p['bruto_fila'];
     }
     unset($p);
 }
 $subtotal = round($subtotal, 2);
+$subtotal_promo = round($subtotal_promo, 2);
+$subtotal_desc_base = round($subtotal - $subtotal_promo, 2); // base sobre la que aplican los % de descuento
 
 // m2 es DECIMAL(10,6) exacto (viene de ancho/alto en mm ÷ 1000) — mostrar recortando
 // ceros sobrantes pero SIN redondear a menos de 6 decimales, para que precio × m² mostrados
@@ -110,7 +114,7 @@ function fmtM2Exacto($v) {
 }
 
 $subtotal_neto = ($descuento_efectivo > 0 && $descuento_efectivo < 100)
-    ? round($subtotal * (1 - $descuento_efectivo / 100), 2)
+    ? round($subtotal_desc_base * (1 - $descuento_efectivo / 100) + $subtotal_promo, 2)
     : $subtotal;
 $base_gravable = round($subtotal_neto + $servicios_subtotal, 2);
 $iva   = round($base_gravable * 0.16, 2);
@@ -422,7 +426,7 @@ function waEnviar() {
       <tr>
         <td class="center"><?= $p['num_partida'] ?></td>
         <td>
-          <div class="cristal-nombre"><?= htmlspecialchars($p['cristal_nombre']) ?></div>
+          <div class="cristal-nombre"><?= htmlspecialchars($p['cristal_nombre']) ?><?php if (!empty($p['promo_precio']) && !empty($c['promo_precio_codigo'])): ?> <span style="font-size:9px;font-weight:700;color:#b45309;">· PRECIO PROMOCIÓN <?= htmlspecialchars($c['promo_precio_codigo']) ?></span><?php endif; ?></div>
           <?php if (!empty($detalles_extra)): ?>
           <div class="cristal-det"><?= htmlspecialchars(implode(' · ', $detalles_extra)) ?></div>
           <?php endif; ?>
@@ -603,19 +607,19 @@ function waEnviar() {
       <?php if ($descuento > 0): ?>
       <div class="totales-row descuento">
         <span class="label">Descuento</span>
-        <span class="val">-$<?= number_format($subtotal * $descuento / 100, 2) ?></span>
+        <span class="val">-$<?= number_format($subtotal_desc_base * $descuento / 100, 2) ?></span>
       </div>
       <?php endif; ?>
       <?php if ($descuento_referido > 0): ?>
       <div class="totales-row descuento">
         <span class="label">Descuento cliente referido (<?= number_format($descuento_referido, 0) ?>%)</span>
-        <span class="val">-$<?= number_format($subtotal * $descuento_referido / 100, 2) ?></span>
+        <span class="val">-$<?= number_format($subtotal_desc_base * $descuento_referido / 100, 2) ?></span>
       </div>
       <?php endif; ?>
       <?php if ($descuento_encuesta > 0): ?>
       <div class="totales-row descuento">
         <span class="label">Descuento por encuesta (<?= number_format($descuento_encuesta, 0) ?>%)</span>
-        <span class="val">-$<?= number_format($subtotal * $descuento_encuesta / 100, 2) ?></span>
+        <span class="val">-$<?= number_format($subtotal_desc_base * $descuento_encuesta / 100, 2) ?></span>
       </div>
       <?php endif; ?>
       <?php if ($servicios_subtotal > 0): ?>

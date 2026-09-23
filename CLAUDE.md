@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 22 septiembre 2026 | Próximo UPD disponible: UPD-600
+# Última actualización: 23 septiembre 2026 | Próximo UPD disponible: UPD-601
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -474,7 +474,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-594**
+Próximo UPD disponible: **UPD-601**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -651,4 +651,6 @@ Archivo completo: `docs/HISTORIAL_UPD_546_580.md` (26-ago-2026 → 10-sep-2026)
 
 | UPD-599 | 22-sep-2026 | Armando | **Corrección de datos (no código): S-882 (COT-1872, cliente IVAN DEL ANGEL GARCIA) — pago mal capturado ($209,011.00 en vez de $2,090.11) mandó $206,920.89 inexistentes a Saldo a Favor.** Armando reportó el patrón: al registrar el pago se equivocaron y "la diferencia (inexistente) se fue a saldo a favor". Diagnóstico confirmado leyendo `api/finanzas.php` (`accion=registrar_pago`): el excedente se calcula como `monto_capturado - saldo_pendiente_antes` y, si es ≥$10 (umbral A-10, UPD-546), el sobrante se deposita en `clientes_saldo_favor` como si fuera real — el sistema hizo exactamente lo que está diseñado a hacer; el error fue de captura (típico punto decimal corrido: $2,090.11 escrito como $209,011.00). Revert completo a petición de Armando, dentro de una transacción con SELECT antes/después: **borrado** `cotizacion_pagos` id=1358 ($2,090.11, transferencia) y `clientes_saldo_favor` id=211 (depósito $206,920.89, "Excedente de pago en S-882") — mismo criterio ya usado en pagos OC duplicados (31-jul) de borrar directo en vez de compensar, por tratarse de un monto que nunca existió; **anulada** (no borrada) la póliza automática I-001279 vía el mismo patrón de `pl_anularPorOrigen()`; `cotizaciones` id=1803 revertida `saldo_pagado` 2090.11→0 y `estatus_pago` pagado→pendiente. Saldo a favor del cliente 21 confirmado en $0.00 tras el revert (antes $206,920.89). Backup previo de las 5 filas afectadas en `_backups/pre_revert_s882_pago1358_20260922.sql.gz`. Registrado en `correcciones_log` (tipo=cotizacion, folio=S-882). No se tocó la orden 1145 (ya estaba `entregada` desde antes del pago, es 100% financiero) ni ninguna pieza. Sin cambios de código — el comportamiento de `api/finanzas.php` ya era el correcto (el umbral de excedente A-10 funcionó como está diseñado); el error fue de captura al momento de registrar el monto. |
 
-**Próximo UPD disponible: UPD-600**
+| UPD-600 | 23-sep-2026 | Armando | **Corrección de datos (no código): código de encuesta ENC-936373 (10%, cliente CTN-475 Francisco Rios) movido de COT-1883 a COT-1925 a petición del cliente.** Verificado antes: el cliente solo tiene ese código, aplicado únicamente en COT-1883; ninguna de las dos cotizaciones tenía pagos ni estaba convertida a orden. COT-1883: `descuento_encuesta` 10→0 (queda solo el 14% manual autorizado "PROMO MES PATRIO"), total $726.26→**$821.83**. COT-1925: `descuento_encuesta` 0→10 (5% manual + 10% = 15%), total $4,262.71→**$3,814.01**. Partidas (`precio_unitario`/`subtotal`/`iva`/`total`) y encabezado (`subtotal`/`iva`/`total`/`saldo_pendiente` 50% anticipo) recalculados con `apexTotales()` (dry-run previo); `encuesta_codigos_descuento` id=55 `cotizacion_id_usado` 1814→1856 (sigue `usado=1`). Una sola transacción con guards en el WHERE; backup en `_backups/pre_mover_encuesta_cot1883_cot1925_20260923.sql.gz`; registrado en `correcciones_log` (2 filas). Sin cambios de código — no existe función en la UI para mover un código de encuesta entre cotizaciones. |
+
+**Próximo UPD disponible: UPD-601**

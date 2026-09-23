@@ -66,13 +66,17 @@ if ($es_maquila) {
     $descuento         = 0.0;
 } else {
     $subtotal_partidas = 0;
+    $subtotal_promo    = 0; // partidas con precio fijo de promo (SALT_SEP2026) — sin descuento
     foreach ($partidas as $p) {
-        $subtotal_partidas += (float)$p['precio_m2_usado'] * (float)$p['m2'] * (int)$p['cantidad'];
+        $bruto_p = (float)$p['precio_m2_usado'] * (float)$p['m2'] * (int)$p['cantidad'];
+        $subtotal_partidas += $bruto_p;
+        if (!empty($p['promo_precio'])) $subtotal_promo += $bruto_p;
     }
     $servicios      = (float)($cot['servicios_subtotal'] ?? 0);
-    $descuento      = (float)$cot['descuento'];
-    $totales        = apexTotales($subtotal_partidas, $descuento, $servicios);
-    $monto_desc     = round($subtotal_partidas * $descuento / 100, 2); // descuento solo de partidas
+    // Mismo descuento efectivo que la fórmula canónica (manual + referido + encuesta).
+    $descuento      = min(100, (float)$cot['descuento'] + (float)($cot['descuento_referido'] ?? 0) + (float)($cot['descuento_encuesta'] ?? 0));
+    $totales        = apexTotales($subtotal_partidas - $subtotal_promo, $descuento, $servicios, $subtotal_promo);
+    $monto_desc     = round(($subtotal_partidas - $subtotal_promo) * $descuento / 100, 2); // descuento solo de partidas sin promo
     $subtotal_neto  = $totales['base'];                                 // neto + servicios (base gravable)
     $iva            = $totales['iva'];
     $total          = $totales['total'];

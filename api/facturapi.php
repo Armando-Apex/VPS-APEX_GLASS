@@ -64,7 +64,7 @@ function _facturapiConceptosDesdeOrden($pdo, $ordenFolio) {
         }
     } else {
         $stmt = $pdo->prepare("
-            SELECT cristal_nombre, m2, cantidad, precio_m2_usado
+            SELECT cristal_nombre, m2, cantidad, precio_m2_usado, promo_precio
             FROM cotizaciones_partidas
             WHERE cotizacion_id = ?
             ORDER BY num_partida ASC
@@ -72,7 +72,8 @@ function _facturapiConceptosDesdeOrden($pdo, $ordenFolio) {
         $stmt->execute([$cotId]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
             // precio_m2_usado es bruto (sin descuento) — aplicar el % de la cotización, igual que el resto del sistema.
-            $precioNeto = $descuento > 0
+            // Partidas con precio fijo de promo (SALT_SEP2026) no reciben el % de descuento.
+            $precioNeto = ($descuento > 0 && empty($p['promo_precio']))
                 ? round((float)$p['precio_m2_usado'] * (1 - $descuento / 100), 6)
                 : (float)$p['precio_m2_usado'];
             $conceptos[] = [
