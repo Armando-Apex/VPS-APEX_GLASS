@@ -393,6 +393,22 @@ async function darVobo(orden_id, notaVobo) {
     toast('VoBo registrado por ' + data.vobo_por + ' — Fecha de entrega: ' + data.fecha_entrega);
     cerrarDetalle();
     cargarLista();
+  } else if (data.promo_vencida) {
+    // Promo de precio fijo vencida (SALT_SEP2026): ofrecer regresar a precio de catálogo.
+    if (!confirm(data.error + '\n\n¿Quitar la promoción y recalcular la orden a precio de catálogo?')) return;
+    var resQ  = await fetch(API, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ accion:'quitar_promo_precio', orden_id: orden_id })
+    });
+    var dataQ = await resQ.json();
+    if (dataQ.ok) {
+      toast('Promoción quitada — revisa el nuevo total y el anticipo antes de dar VoBo');
+      cerrarDetalle();
+      cargarLista();
+    } else {
+      toast(dataQ.error || 'Error al quitar la promoción', 'error');
+    }
   } else if (data.error && data.error.indexOf('escribir el motivo') !== -1) {
     // administracion (Lina) puede forzar el VoBo sin el anticipo completo,
     // pero el motivo es obligatorio — se pide aquí y se reintenta con él.

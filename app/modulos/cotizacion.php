@@ -552,6 +552,20 @@ function renderFormulario(data) {
     html += '<small style="color:var(--c-muted);">Opcional, 5% adicional — c&oacute;digo de un solo uso, v&aacute;lido 24h.</small></div>';
   }
 
+  // Promo de precio fijo por código (SALT_SEP2026, 23-sep-2026 — ver
+  // api/helpers/promo_precio_lib.php): fija el precio/m² de Claro 6mm/9mm;
+  // esas partidas no reciben ningún % de descuento. Se reenvía en cada
+  // guardado; dejarlo vacío = quitar la promo (precio regresa a catálogo).
+  var ppCod = data ? (data.promo_precio_codigo || '') : '';
+  if (editable) {
+    html += '<div class="field"><label>C&oacute;digo Precio Especial</label>';
+    html += '<input type="text" id="fPromoPrecioCodigo" value="' + escHtml(ppCod) + '" placeholder="Ej: SALT_SEP2026" maxlength="30" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
+    html += '<small style="color:var(--c-muted);">Opcional. SALT_SEP2026: Claro 6mm $585/m&sup2; y Claro 9mm $835/m&sup2; con IVA (hasta 30-sep).</small></div>';
+  } else if (ppCod) {
+    html += '<div class="field"><label>Precio Especial</label>';
+    html += '<input type="text" readonly value="' + escHtml(ppCod) + ' (ya aplicado)"></div>';
+  }
+
   // Alerta
   html += '<div class="field"><label>Alerta / Nota especial</label>';
   html += '<input type="text" id="fAlerta" ' + (!editable?'readonly':'') + ' value="' + escHtml(data ? (data.alerta||'') : '') + '" placeholder="Ej: Urgente, cliente espera..."></div>';
@@ -997,9 +1011,17 @@ window.cotLaminaChange = function(idx) {
   ModCotizacion._recalcular();
 };
 
+// Precios de promo por código — SOLO para la vista previa; el servidor es la fuente
+// de verdad (api/helpers/promo_precio_lib.php, mantener ambos en sync).
+var PROMO_PRECIO_PREVIEW = { 'SALT_SEP2026': { 1: 504.3103, 2: 719.8275 } };
+
 // ── Recalcular totales ────────────────────────────────────────────────────────
 function recalcular() {
   var subtotal = 0;
+  var subtotalPromo = 0; // partidas con precio fijo de promo — no reciben descuento
+  var ppEl   = document.getElementById('fPromoPrecioCodigo');
+  var ppCod  = ppEl ? ppEl.value.trim() : (_dataCot ? (_dataCot.promo_precio_codigo || '') : '');
+  var ppMap  = PROMO_PRECIO_PREVIEW[ppCod] || null;
   for (var i = 0; i < partidas.length; i++) {
     var cristalId = parseInt(document.getElementById('p_cristal_' + i)?.value || 0);
     var cantidad  = parseInt(document.getElementById('p_cant_'   + i)?.value || 0);
@@ -1008,12 +1030,18 @@ function recalcular() {
     if (!cristalId || !cantidad || !ancho || !alto) continue;
     var m2     = (ancho / 1000) * (alto / 1000);
     var precio = parseFloat(document.getElementById('p_pm2_' + i)?.value || 0);
-    if (!precio) {
+    var esLamina = !!parseInt(document.getElementById('p_lamina_' + i)?.value || 0);
+    var enPromo  = !!(ppMap && ppMap[cristalId] && !esLamina);
+    if (enPromo) {
+      precio = ppMap[cristalId];
+    } else if (!precio || (partidas[i] && parseInt(partidas[i].promo_precio || 0) === 1)) {
+      // sin precio, o la partida traía precio de promo y ya no aplica → catálogo
       for (var k = 0; k < cristales.length; k++) {
         if (cristales[k].id == cristalId) { precio = parseFloat(cristales[k].precio_m2 || 0); break; }
       }
     }
     subtotal  += cantidad * m2 * precio;
+    if (enPromo) subtotalPromo += cantidad * m2 * precio;
   }
   var pctDesc   = parseFloat(document.getElementById('fDescuento')?.value || 0);
   // Preview del 5% de referido (solo visual — el servidor valida y calcula el real al guardar)
@@ -1022,7 +1050,7 @@ function recalcular() {
   // Preview del 5% de encuesta (solo visual — el servidor valida el código real al guardar)
   var encCodEl  = document.getElementById('fEncuestaCodigo');
   var pctEnc    = (encCodEl && encCodEl.value.trim()) ? 5 : (_dataCot ? parseFloat(_dataCot.descuento_encuesta || 0) : 0);
-  var descuento = subtotal * (pctDesc + pctRef + pctEnc) / 100;
+  var descuento = (subtotal - subtotalPromo) * (pctDesc + pctRef + pctEnc) / 100;
   var baseNeta  = subtotal - descuento;
   var srvTotal  = _dataCot ? parseFloat(_dataCot.servicios_subtotal || 0) : 0;
   var base      = baseNeta + srvTotal;
@@ -1378,6 +1406,7 @@ function armarPayload(clienteId) {
     referido_ctn:   (document.getElementById('fReferidoCtn')?.value || '').trim(),
     promo_wa_codigo: (document.getElementById('fPromoWaCodigo')?.value || '').trim(),
     encuesta_codigo: (document.getElementById('fEncuestaCodigo')?.value || '').trim(),
+    promo_precio_codigo: (document.getElementById('fPromoPrecioCodigo')?.value || '').trim(),
     partidas:       partidasPayload,
   };
 }

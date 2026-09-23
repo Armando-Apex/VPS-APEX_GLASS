@@ -9,6 +9,7 @@ require_once __DIR__ . '/helpers/totales.php';    // A-2
 require_once __DIR__ . '/helpers/referidos_lib.php'; // Esquema de Referidos (promo agosto 2026)
 require_once __DIR__ . '/helpers/polizas_lib.php'; // Fase 6.2 — pólizas automáticas (VoBo + pagos)
 require_once __DIR__ . '/helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
+require_once __DIR__ . '/helpers/promo_precio_lib.php'; // Promo precio fijo por código — SALT_SEP2026 (23-sep-2026)
 require_once __DIR__ . '/wa_helper.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -441,6 +442,28 @@ if ($method === 'PUT') {
     $accion   = $body['accion'] ?? '';
     $orden_id = (int)($body['orden_id'] ?? 0);
 
+    // Promo de precio fijo vencida para VoBo (SALT_SEP2026): regresa las partidas en
+    // promo a precio de catálogo y recalcula totales — solo cuando ya pasó el límite
+    // de VoBo de la promo (antes de eso la promo se respeta tal cual).
+    if ($accion === 'quitar_promo_precio' && $orden_id) {
+        $st = $db->prepare("SELECT c.id, c.promo_precio_codigo FROM cotizaciones c JOIN ordenes o ON o.id = c.orden_id
+                            WHERE o.id = ? AND o.estado = 'pendiente_vobo'");
+        $st->execute([$orden_id]);
+        $cp = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$cp || !$cp['promo_precio_codigo']) { jsonResponse(['error' => 'La orden no tiene promoción de precio o ya no está pendiente de VoBo']); exit; }
+        if (promoPrecioVoboVigente($cp['promo_precio_codigo'])) { jsonResponse(['error' => 'La promoción sigue vigente para VoBo — no se puede quitar desde aquí']); exit; }
+        $db->beginTransaction();
+        try {
+            promoPrecioQuitar($db, (int)$cp['id'], $usuario_nombre);
+            $db->commit();
+        } catch (Exception $e) {
+            $db->rollBack();
+            error_log('[promo_precio] quitar: ' . $e->getMessage());
+            jsonResponse(['error' => 'No se pudo quitar la promoción']); exit;
+        }
+        jsonResponse(['ok' => true]); exit;
+    }
+
     if ($accion === 'vobo' && $orden_id) {
         // Fecha entrega: usa la que manda Lina (puede haberla ajustado)
         $fecha_entrega = trim($body['fecha_entrega'] ?? '');
@@ -451,6 +474,16 @@ if ($method === 'PUT') {
         $orden = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$orden) {
             jsonResponse(['error' => 'Orden no encontrada o no está pendiente de VoBo']); exit;
+        }
+
+        // Promo de precio fijo (SALT_SEP2026): el VoBo debe darse dentro del límite de la promo.
+        if ($orden['cot_id']) {
+            $stPP = $db->prepare("SELECT promo_precio_codigo FROM cotizaciones WHERE id = ?");
+            $stPP->execute([(int)$orden['cot_id']]);
+            $ppCod = $stPP->fetchColumn();
+            if ($ppCod && !promoPrecioVoboVigente($ppCod)) {
+                jsonResponse(['error' => promoPrecioMsgVoboVencida($ppCod), 'promo_vencida' => true]); exit;
+            }
         }
 
         // Si no viene fecha, calcular ahora
