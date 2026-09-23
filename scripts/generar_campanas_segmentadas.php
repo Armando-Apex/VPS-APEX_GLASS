@@ -110,7 +110,7 @@ $segmentos = [
     ['nombre' => "Sin cotizar en $etiquetaMes",                 'template' => $tplSinCotizarMes,    'ids' => $seg4, 'vars' => ['{{nombre_cliente}}']],
 ];
 
-$stmtCli = $db->prepare("SELECT id, nombre, contacto, telefono FROM clientes WHERE id = ?");
+$stmtCli = $db->prepare("SELECT id, nombre, contacto, telefono FROM clientes WHERE id = ? AND sin_whatsapp = 0");
 
 foreach ($segmentos as $seg) {
     $ids = $seg['ids'];

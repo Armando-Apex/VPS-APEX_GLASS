@@ -173,7 +173,8 @@ if ($metodo === 'GET' && $accion === 'prospectos_segmento') {
     $estado          = trim($_GET['estado'] ?? '');
     $excluirClientes = (int)($_GET['excluir_clientes'] ?? 1);
 
-    $where  = ['activo = 1', "telefono != ''"];
+    // sin_whatsapp: Meta regresó 131026 (número sin WhatsApp/fijo) y nunca se le ha entregado nada.
+    $where  = ['activo = 1', "telefono != ''", 'sin_whatsapp = 0'];
     $params = [];
     if ($estado !== '') {
         $where[] = 'estado = ?';
@@ -259,7 +260,7 @@ if ($metodo === 'GET' && $accion === 'clientes_segmento') {
     $ciudad      = trim($_GET['ciudad'] ?? '');
     $soloActivos = (int)($_GET['activos'] ?? 1);
 
-    $where  = ["telefono IS NOT NULL", "telefono != ''"];
+    $where  = ["telefono IS NOT NULL", "telefono != ''", "sin_whatsapp = 0"];
     $params = [];
 
     if ($soloActivos) {
@@ -418,7 +419,7 @@ if ($metodo === 'POST' && $accion === 'crear') {
     // repetido con su costo correspondiente en Meta sin ninguna razón de negocio.
     $telsVistos = [];
 
-    $stmtCli = $db->prepare("SELECT id, nombre, contacto, telefono FROM clientes WHERE id = ?");
+    $stmtCli = $db->prepare("SELECT id, nombre, contacto, telefono FROM clientes WHERE id = ? AND sin_whatsapp = 0");
     $stmtIns = $db->prepare("INSERT INTO campana_envios (campana_id, cliente_id, telefono, nombre_override) VALUES (?, ?, ?, ?)");
     foreach ($clienteIds as $cid) {
         $stmtCli->execute([(int)$cid]);
@@ -433,7 +434,7 @@ if ($metodo === 'POST' && $accion === 'crear') {
         }
     }
 
-    $stmtPr  = $db->prepare("SELECT id, nombre, telefono FROM prospectos WHERE id = ?");
+    $stmtPr  = $db->prepare("SELECT id, nombre, telefono FROM prospectos WHERE id = ? AND sin_whatsapp = 0");
     $stmtInsPr = $db->prepare("INSERT INTO campana_envios (campana_id, prospecto_id, nombre_override, telefono) VALUES (?, ?, ?, ?)");
     foreach ($prospectoIds as $pid) {
         $stmtPr->execute([(int)$pid]);

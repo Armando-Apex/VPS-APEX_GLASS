@@ -7,6 +7,36 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/wa_helper.php';
 require_once __DIR__ . '/helpers/encuesta_descuento_lib.php'; // Descuento por Encuesta de Satisfacción (16-sep-2026)
 
+// ── Marca "sin WhatsApp" (error Meta 131026) — excluye de campañas (UPD-602) ──
+function waMarcarSinWhatsapp($db, $envio) {
+    try {
+        $tel10 = substr(preg_replace('/\D/', '', $envio['telefono'] ?? ''), -10);
+        if (strlen($tel10) !== 10) return;
+        $st = $db->prepare("SELECT 1 FROM campana_envios WHERE RIGHT(telefono,10) = ? AND estado IN ('entregado','leido') LIMIT 1");
+        $st->execute([$tel10]);
+        if ($st->fetch()) return;
+        if (!empty($envio['cliente_id'])) {
+            $db->prepare("UPDATE clientes SET sin_whatsapp = 1, sin_whatsapp_at = NOW() WHERE id = ? AND sin_whatsapp = 0")->execute([$envio['cliente_id']]);
+        }
+        if (!empty($envio['prospecto_id'])) {
+            $db->prepare("UPDATE prospectos SET sin_whatsapp = 1, sin_whatsapp_at = NOW() WHERE id = ? AND sin_whatsapp = 0")->execute([$envio['prospecto_id']]);
+        }
+    } catch (Exception $e) {
+        error_log('waMarcarSinWhatsapp: ' . $e->getMessage());
+    }
+}
+
+function waDesmarcarSinWhatsapp($db, $telefono) {
+    try {
+        $tel10 = substr(preg_replace('/\D/', '', (string)$telefono), -10);
+        if (strlen($tel10) !== 10) return;
+        $db->prepare("UPDATE clientes SET sin_whatsapp = 0, sin_whatsapp_at = NULL WHERE sin_whatsapp = 1 AND RIGHT(telefono,10) = ?")->execute([$tel10]);
+        $db->prepare("UPDATE prospectos SET sin_whatsapp = 0, sin_whatsapp_at = NULL WHERE sin_whatsapp = 1 AND RIGHT(telefono,10) = ?")->execute([$tel10]);
+    } catch (Exception $e) {
+        error_log('waDesmarcarSinWhatsapp: ' . $e->getMessage());
+    }
+}
+
 // ── GET: verificación inicial de Meta ────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $mode      = $_GET['hub_mode']         ?? $_GET['hub.mode']         ?? '';
@@ -58,6 +88,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     continue;
                 }
                 if (!$waId) continue;
+
+                // Si nos escribe, sí tiene WhatsApp — quitar la marca si la tenía.
+                waDesmarcarSinWhatsapp($db, $telefono);
 
                 // Protección anti-replay: ignorar wa_message_id ya procesado
                 $stmtDup = $db->prepare("SELECT id FROM whatsapp_mensajes WHERE wa_message_id = ? LIMIT 1");
@@ -442,7 +475,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $nuevoEstado = $mapa[$estado] ?? null;
                 if (!$nuevoEstado || !$waId) continue;
 
-                $stmtEnv = $db->prepare("SELECT id, campana_id, estado FROM campana_envios WHERE wa_message_id = ?");
+                $stmtEnv = $db->prepare("SELECT id, campana_id, estado, cliente_id, prospecto_id, telefono FROM campana_envios WHERE wa_message_id = ?");
                 $stmtEnv->execute([$waId]);
                 $envio = $stmtEnv->fetch(PDO::FETCH_ASSOC);
                 if (!$envio) {
@@ -463,6 +496,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($nuevoIdx <= $actualIdx && $nuevoEstado !== 'fallido') continue;
 
                 // Queries explícitas por estado — sin interpolación dinámica de columnas
+                if ($nuevoEstado === 'entregado' || $nuevoEstado === 'leido') {
+                    waDesmarcarSinWhatsapp($db, $envio['telefono']);
+                }
                 if ($nuevoEstado === 'entregado') {
                     $db->prepare("UPDATE campana_envios SET estado='entregado', entregado_at=NOW() WHERE id=?")
                        ->execute([$envio['id']]);
@@ -483,6 +519,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $errDetalle = !empty($status['errors']) ? substr(json_encode($status['errors']), 0, 255) : null;
                     $db->prepare("UPDATE campana_envios SET estado='fallido', error_msg=? WHERE id=?")
                        ->execute([$errDetalle, $envio['id']]);
+                    // 131026 = número sin WhatsApp / fijo: se marca para que ya no salga en
+                    // campañas, salvo que alguna vez se le haya entregado algo (el error a veces
+                    // es temporal: app vieja, términos sin aceptar).
+                    if ($errDetalle && strpos($errDetalle, '131026') !== false) {
+                        waMarcarSinWhatsapp($db, $envio);
+                    }
                 }
             }
         }
