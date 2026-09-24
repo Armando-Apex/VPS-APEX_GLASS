@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 24 septiembre 2026 | Próximo UPD disponible: UPD-603
+# Última actualización: 24 septiembre 2026 | Próximo UPD disponible: UPD-604
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -476,7 +476,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-603**
+Próximo UPD disponible: **UPD-604**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -659,4 +659,6 @@ Archivo completo: `docs/HISTORIAL_UPD_546_580.md` (26-ago-2026 → 10-sep-2026)
 
 | UPD-602 | 23-sep-2026 | Armando | **Marca "sin WhatsApp" (error Meta 131026) en prospectos y clientes — se excluyen de campañas en vez de borrarse.** Pendiente de la campaña 58 (Coahuila, UPD-601): el plan era borrar de `prospectos` los que fallaran con 131026, pero Armando prefirió marcarlos. Hallazgo que lo justifica: 10 teléfonos que tuvieron 131026 en alguna campaña sí recibieron mensajes en otra (el error a veces es temporal: app vieja, términos sin aceptar), así que borrarlos habría perdido contactos válidos. **BD (aditivo):** `prospectos` y `clientes` + `sin_whatsapp TINYINT(1) DEFAULT 0` + `sin_whatsapp_at DATETIME`. **Backfill:** 509 teléfonos con 131026 en cualquier campaña histórica y NUNCA entregado/leído → marcados 501 prospectos y 10 clientes (CTN-226, 307, 338, 347, 353, 361, 416, 419, 457, 501). **Código:** `api/campanas.php` — `prospectos_segmento`/`clientes_segmento` ya no los listan y `accion=crear` los ignora aunque vengan en los ids; `scripts/generar_campanas_segmentadas.php` igual para clientes; `api/whatsapp_webhook.php` — funciones nuevas `waMarcarSinWhatsapp()` (al llegar status `failed` con 131026, marca al cliente/prospecto del envío salvo que ese teléfono tenga alguna entrega previa) y `waDesmarcarSinWhatsapp()` (quita la marca si el número recibe `entregado`/`leido` o si nos escribe). Los clientes marcados siguen normales en CRM/cotizaciones — solo salen de campañas; los WA transaccionales (orden_lista, salidas) no se tocaron. Probado con dry-run (transacción + rollback): marcar, desmarcar y no-marcar-si-hubo-entrega, OK. Coahuila: 237 prospectos visibles, 78 ocultos. `php -l` OK en los 3 archivos. Checkpoint: tag git `pre-sin-whatsapp-20260923`. Rollback: `UPDATE ... SET sin_whatsapp=0` o revertir al tag. Sin UI para ver/reactivar marcados todavía (se hace por SQL si hace falta). |
 
-**Próximo UPD disponible: UPD-603**
+| UPD-603 | 24-sep-2026 | Armando | **Corrección de datos (no código): S-898 (orden id=1161, PUBLICO EN GENERAL) — salida registrada por error como entrega a domicilio (chofer) cuando el cliente pasa a recoger a planta.** Mismo patrón que UPD-593: `orden_salidas` id=793 `chofer`→`recoleccion` y `ordenes.requiere_ruta` 1→0, para que ya no aparezca en Logística Rutas → Pendientes de asignar (la pieza nunca se asignó a ruta, 0 filas en `ruta_entrega_piezas`). La orden ya estaba `entregada` con su 1 pieza en `entregado`, no se tocó. Una transacción con guards en el WHERE; registrado en `correcciones_log`. No se mandó WhatsApp de corrección (mismo criterio de UPD-565/587/593). Sin cambios de código. |
+
+**Próximo UPD disponible: UPD-604**
