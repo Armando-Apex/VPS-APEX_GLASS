@@ -10,7 +10,8 @@
 //
 //  Reglas de negocio (ver plan / mockup validado con Armando y Mando):
 //  - Elegible para el bono: sesiones_corte con es_pedaceria=1,
-//    m2_disponible <= 2.5 (tope silencioso, nunca expuesto a Angel) y
+//    m2_disponible <= 2.5 (1.5 desde el 28-sep-2026, ver BONO_TOPE_CAMBIO;
+//    tope silencioso, nunca expuesto a Angel) y
 //    created_at dentro de la semana Y >= BONO_PEDACERIA_INICIO (sin
 //    retroactividad — el programa arranca desde esa fecha, no antes).
 //  - Monto elegible por sesión = m2_aprovechado (lo que sí se convirtió
@@ -29,7 +30,17 @@ header('Access-Control-Allow-Origin: https://apex.glass');
 // Sin retroactividad: cualquier sesión de pedacería anterior a esta fecha no
 // cuenta para nada, sin importar si hubiera cumplido el tope de 2.5 m².
 const BONO_PEDACERIA_INICIO = '2026-08-03';
-const BONO_TOPE_M2          = 2.5;
+const BONO_TOPE_M2          = 2.5;   // tope vigente hasta el domingo 27-sep-2026
+// Cambio de regla pedido por Armando (26-sep-2026): desde el lunes 28-sep el tope
+// baja a 1.5 m². Se evalúa POR SESIÓN según su created_at, así las semanas ya
+// trabajadas/pagadas con 2.5 m² no cambian de monto al recalcularse.
+const BONO_TOPE_M2_NUEVO    = 1.5;
+const BONO_TOPE_CAMBIO      = '2026-09-28 00:00:00';
+
+// Expresión SQL del tope aplicable a cada sesión (solo constantes, sin input del usuario)
+function bpTopeSql($col = 'created_at') {
+    return "IF($col >= '" . BONO_TOPE_CAMBIO . "', " . BONO_TOPE_M2_NUEVO . ", " . BONO_TOPE_M2 . ")";
+}
 const BONO_TRAMO_M2         = 18.0;
 const BONO_TRAMO_MONTO      = 150.0;
 
@@ -81,11 +92,11 @@ if ($accion === 'mi_bono') {
         FROM sesiones_corte
         WHERE operador_id = ?
           AND es_pedaceria = 1
-          AND m2_disponible <= ?
+          AND m2_disponible <= " . bpTopeSql() . "
           AND created_at >= ?
           AND created_at <= ?
     ");
-    $stmt->execute([$user['id'], BONO_TOPE_M2, $desde . ' 00:00:00', $semanaFin . ' 23:59:59']);
+    $stmt->execute([$user['id'], $desde . ' 00:00:00', $semanaFin . ' 23:59:59']);
     $m2Elegible = round((float)$stmt->fetchColumn(), 4);
 
     jsonResponse([
@@ -116,13 +127,13 @@ if ($accion === 'resumen_semana') {
         FROM sesiones_corte sc
         JOIN usuarios u ON u.id = sc.operador_id
         WHERE sc.es_pedaceria = 1
-          AND sc.m2_disponible <= ?
+          AND sc.m2_disponible <= " . bpTopeSql('sc.created_at') . "
           AND sc.created_at >= ?
           AND sc.created_at <= ?
         GROUP BY sc.operador_id, u.nombre
         ORDER BY u.nombre
     ");
-    $stmt->execute([BONO_TOPE_M2, $desde . ' 00:00:00', $semanaFin . ' 23:59:59']);
+    $stmt->execute([$desde . ' 00:00:00', $semanaFin . ' 23:59:59']);
     $operadores = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $stmtExcl = $db->prepare("
@@ -130,7 +141,7 @@ if ($accion === 'resumen_semana') {
         FROM sesiones_corte
         WHERE operador_id = ?
           AND es_pedaceria = 1
-          AND m2_disponible > ?
+          AND m2_disponible > " . bpTopeSql() . "
           AND created_at >= ?
           AND created_at <= ?
         ORDER BY created_at
@@ -145,7 +156,7 @@ if ($accion === 'resumen_semana') {
         FROM sesiones_corte
         WHERE operador_id = ?
           AND es_pedaceria = 1
-          AND m2_disponible <= ?
+          AND m2_disponible <= " . bpTopeSql() . "
           AND created_at >= ?
           AND created_at <= ?
         ORDER BY created_at
@@ -165,10 +176,10 @@ if ($accion === 'resumen_semana') {
         $op['m2_elegible'] = round((float)$op['m2_elegible'], 4);
         $op['monto']       = bpCalcularMonto($op['m2_elegible']);
 
-        $stmtExcl->execute([$op['operador_id'], BONO_TOPE_M2, $desde . ' 00:00:00', $semanaFin . ' 23:59:59']);
+        $stmtExcl->execute([$op['operador_id'], $desde . ' 00:00:00', $semanaFin . ' 23:59:59']);
         $op['excluidas'] = $stmtExcl->fetchAll(PDO::FETCH_ASSOC);
 
-        $stmtSesiones->execute([$op['operador_id'], BONO_TOPE_M2, $desde . ' 00:00:00', $semanaFin . ' 23:59:59']);
+        $stmtSesiones->execute([$op['operador_id'], $desde . ' 00:00:00', $semanaFin . ' 23:59:59']);
         $sesiones = $stmtSesiones->fetchAll(PDO::FETCH_ASSOC);
         foreach ($sesiones as &$s) {
             $stmtPiezas->execute([$s['id']]);
@@ -221,11 +232,11 @@ if ($accion === 'marcar_pagado') {
         FROM sesiones_corte
         WHERE operador_id = ?
           AND es_pedaceria = 1
-          AND m2_disponible <= ?
+          AND m2_disponible <= " . bpTopeSql() . "
           AND created_at >= ?
           AND created_at <= ?
     ");
-    $stmt->execute([$operador_id, BONO_TOPE_M2, $desde . ' 00:00:00', $semanaFin . ' 23:59:59']);
+    $stmt->execute([$operador_id, $desde . ' 00:00:00', $semanaFin . ' 23:59:59']);
     $m2Elegible = round((float)$stmt->fetchColumn(), 4);
     $monto      = bpCalcularMonto($m2Elegible);
 

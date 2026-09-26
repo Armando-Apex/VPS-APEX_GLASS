@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 26 septiembre 2026 | Próximo UPD disponible: UPD-610
+# Última actualización: 26 septiembre 2026 | Próximo UPD disponible: UPD-611
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -480,7 +480,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-610**
+Próximo UPD disponible: **UPD-611**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -677,4 +677,6 @@ Archivo completo: `docs/HISTORIAL_UPD_546_580.md` (26-ago-2026 → 10-sep-2026)
 
 | UPD-609 | 26-sep-2026 | Armando | **Corrección de datos (no código): S-886 (orden id=1149, ANTONIO EFREN REYES GONZALEZ) regresada a planta por un proceso faltante posterior al templado — se volvió a poner en Logística Rutas → Pendientes de asignar.** Sus 2 piezas (7330/7331) ya se habían entregado en la ruta 173 (23-sep, parada 443, confirmada por QR), así que el sistema no las volvía a ofrecer. Se marcaron como `rechazada` en `ruta_entrega_piezas` (ids 1880/1881, `rechazada_at`=hoy) — mismo mecanismo de UPD-399 para piezas no aceptadas en puerta, que las libera para re-rutear sin borrar el historial del viaje. `requiere_ruta` ya estaba en 1. Verificado replicando el WHERE de `accion=pendientes`: S-886 aparece. Registrado en `correcciones_log`. **No se tocaron** piezas (siguen `entregado`) ni la orden (sigue `entregada`) — si Armando quiere registrar el proceso faltante en piso, falta regresarlas a `terminado`/`activa` como en UPD-587. Sin cambios de código. |
 
-**Próximo UPD disponible: UPD-610**
+| UPD-610 | 26-sep-2026 | Armando | **Bono de Corte por Pedacería: el tope de sobrante por sesión baja de 2.5 m² a 1.5 m² a partir del lunes 28-sep-2026.** Antes de cambiarlo se midió el impacto con datos reales: con 1.5 m² la semana 14-sep (ya pagada, $750) habría quedado en $300 y la semana en curso 21-sep en $600 en vez de $900. Además, `resumen_semana` recalcula el monto en vivo con el tope vigente, así que cambiar solo la constante habría mostrado montos distintos en semanas ya pagadas. Por eso **Armando decidió que aplique desde el lunes 28-sep**, sin tocar semanas anteriores. `api/bono_pedaceria.php`: nuevas constantes `BONO_TOPE_M2_NUEVO` (1.5) y `BONO_TOPE_CAMBIO` ('2026-09-28 00:00:00') + helper `bpTopeSql()` que arma `IF(created_at >= cambio, 1.5, 2.5)` con solo constantes. Se aplica en las 6 queries (mi_bono, resumen por operador, sesiones excluidas, sesiones elegibles, marcar_pagado), así que el tope se evalúa por sesión según su fecha y una semana con sesiones de los dos lados del corte queda bien. Verificado en BD: las semanas 07/14/21-sep dan exactamente los mismos m² que antes (72.87/90.29/109.74), y el corte cae justo entre domingo 23:59:59 (2.5) y lunes 00:00:00 (1.5). `php -l` OK. Checkpoint: tag git `pre-bono-tope-15-20260926`. Sin cambios en BD ni en el frontend (el tope nunca se muestra al operador). |
+
+**Próximo UPD disponible: UPD-611**
