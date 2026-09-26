@@ -755,7 +755,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
         'folio_number'   => (int)$fac['folio_numero'],
         'currency'       => 'MXN',
         'customer'       => [
-            'legal_name'  => $fac['receptor_nombre'],
+            // El SAT exige el nombre idéntico al padrón (CFDI40145): un doble espacio capturado
+            // en el CRM basta para que rechace el timbrado (caso real CTN-532, 26-sep-2026).
+            'legal_name'  => trim(preg_replace('/\s+/u', ' ', (string)$fac['receptor_nombre'])),
             'tax_id'      => $fac['receptor_rfc'],
             'tax_system'  => $fac['receptor_regimen'],
             'email'       => $correosFactura[0] ?? null,

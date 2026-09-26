@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 26 septiembre 2026 | Próximo UPD disponible: UPD-611
+# Última actualización: 26 septiembre 2026 | Próximo UPD disponible: UPD-612
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -480,7 +480,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-611**
+Próximo UPD disponible: **UPD-612**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -679,4 +679,6 @@ Archivo completo: `docs/HISTORIAL_UPD_546_580.md` (26-ago-2026 → 10-sep-2026)
 
 | UPD-610 | 26-sep-2026 | Armando | **Bono de Corte por Pedacería: el tope de sobrante por sesión baja de 2.5 m² a 1.5 m² a partir del lunes 28-sep-2026.** Antes de cambiarlo se midió el impacto con datos reales: con 1.5 m² la semana 14-sep (ya pagada, $750) habría quedado en $300 y la semana en curso 21-sep en $600 en vez de $900. Además, `resumen_semana` recalcula el monto en vivo con el tope vigente, así que cambiar solo la constante habría mostrado montos distintos en semanas ya pagadas. Por eso **Armando decidió que aplique desde el lunes 28-sep**, sin tocar semanas anteriores. `api/bono_pedaceria.php`: nuevas constantes `BONO_TOPE_M2_NUEVO` (1.5) y `BONO_TOPE_CAMBIO` ('2026-09-28 00:00:00') + helper `bpTopeSql()` que arma `IF(created_at >= cambio, 1.5, 2.5)` con solo constantes. Se aplica en las 6 queries (mi_bono, resumen por operador, sesiones excluidas, sesiones elegibles, marcar_pagado), así que el tope se evalúa por sesión según su fecha y una semana con sesiones de los dos lados del corte queda bien. Verificado en BD: las semanas 07/14/21-sep dan exactamente los mismos m² que antes (72.87/90.29/109.74), y el corte cae justo entre domingo 23:59:59 (2.5) y lunes 00:00:00 (1.5). `php -l` OK. Checkpoint: tag git `pre-bono-tope-15-20260926`. Sin cambios en BD ni en el frontend (el tope nunca se muestra al operador). |
 
-**Próximo UPD disponible: UPD-611**
+| UPD-611 | 26-sep-2026 | Armando | **Facturación — fix del error SAT CFDI40145 ("El campo Nombre del receptor debe pertenecer al nombre asociado al RFC") por espacios dobles en el nombre.** Armando no podía timbrar la prueba de S-931 (CTN-532): en el CRM el nombre estaba como `FELIPE DE JESUS HERNANDEZ␣␣HERNANDEZ` (doble espacio). Confirmado con `scripts/validar_datos_fiscales.php` contra el sandbox: con doble espacio el SAT lo rechaza y con uno solo lo acepta. **Código:** `api/facturapi.php` (payload de `timbrar`) ahora colapsa espacios repetidos y recorta los extremos de `legal_name` antes de mandarlo al PAC, para que un error de captura en el CRM no vuelva a bloquear un timbrado. **Datos:** `clientes.razon_social` normalizado en los 5 clientes que tenían espacios dobles (CTN-274, 386, 440, 460, 532; solo el 532 tiene RFC), registrado en `clientes_bitacora`; `clientes.nombre` NO se tocó (mismo criterio de UPD-607, y porque `ordenes.cliente_nombre` todavía se usa en el fallback de autorización del portal por nombre). Borrado el borrador de prueba A-001 (receptor `MELCHOR HERNANDEZ` con el RFC de otra persona, nunca iba a timbrar). A-002 ya lo había corregido y timbrado el propio Armando a las 11:57 (antes de este fix): UUID F641E58B-…, **sigue siendo factura de prueba y hay que borrarla antes de pasar a live**. Respaldos: `_backups/pre_fix_espacios_razon_social_20260926.sql.gz` y `pre_fix_facturas_a001_a002_20260926.sql.gz`. Checkpoint: tag git `pre-fix-espacios-receptor-20260926`. `php -l` OK. |
+
+**Próximo UPD disponible: UPD-612**
