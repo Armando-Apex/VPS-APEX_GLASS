@@ -1,10 +1,17 @@
 <?php
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
-$user = requirePermiso('ver_wip');
+$user = requirePermiso('facturar');
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=facturacion'); exit;
 }
+// Sprint 3: el botón "Facturar" de Cotización/Cobranza entra con ?orden=FOLIO para abrir
+// el modal con la orden ya cargada, en vez de teclear el folio a mano.
+$ordenPrecarga = preg_replace('/[^A-Za-z0-9\-]/', '', (string)($_GET['orden'] ?? ''));
+// Sprint 3: el modo real manda en los textos del modulo. Antes estaban escritos a mano
+// ("modo PRUEBA", "SANDBOX", "PRUEBA DE PORTAL", badge WIP) y en produccion habrian
+// mentido al usuario. FACTURAPI_MODE viene de .env via api/config.php.
+$esModoLive = (FACTURAPI_MODE === 'live');
 ?>
 <style>
 .fac-wrap { padding: 24px; max-width: 1200px; }
@@ -186,11 +193,14 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 </style>
 
 <div class="fac-wrap">
+  <?php if (!$esModoLive): ?>
   <div class="alert-warn">
-    <strong>Modo prueba:</strong> Facturas a nombre de <strong>PRUEBA DE PORTAL</strong> (CTN-259). Datos guardados solo en este navegador.
+    <strong>Modo prueba (sandbox).</strong> Los CFDI que timbres aqu&iacute; NO tienen validez fiscal y no llegan al SAT.
+    El env&iacute;o de comprobantes por correo est&aacute; desactivado.
   </div>
+  <?php endif; ?>
   <div class="fac-header">
-    <span class="fac-title">Facturación <span class="fac-wip">WIP</span></span>
+    <span class="fac-title">Facturación<?php if (!$esModoLive): ?> <span class="fac-wip">PRUEBA</span><?php endif; ?></span>
     <button class="fac-btn-new" onclick="ModFacturacion.abrirNueva()">+ Nueva Factura</button>
   </div>
 
@@ -254,10 +264,6 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
             <label>Moneda</label>
             <input type="text" id="fac-moneda" value="MXN" readonly style="background:#f8fafc;color:#64748b">
           </div>
-          <div class="fac-field">
-            <label>Fecha</label>
-            <input type="date" id="fac-fecha">
-          </div>
         </div>
       </div>
 
@@ -292,6 +298,36 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
         </div>
       </div>
 
+      <!-- CFDI relacionado: solo hace falta al refacturar (sustituir un CFDI cancelado).
+           Va plegado porque es el caso menos frecuente, pero sin el nodo el SAT considera
+           incompleta la factura sustituta. -->
+      <details style="margin-bottom:14px">
+        <summary style="cursor:pointer;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em">
+          CFDI relacionado (opcional &mdash; para refacturar)
+        </summary>
+        <div class="fac-row cols2" style="margin-top:10px">
+          <div class="fac-field">
+            <label>Tipo de relaci&oacute;n</label>
+            <select id="fac-relacion-tipo">
+              <option value="">&mdash; Ninguna &mdash;</option>
+              <option value="04">04 &ndash; Sustituci&oacute;n de los CFDI previos</option>
+              <option value="01">01 &ndash; Nota de cr&eacute;dito de documento anterior</option>
+              <option value="02">02 &ndash; Nota de d&eacute;bito de documento anterior</option>
+              <option value="03">03 &ndash; Devoluci&oacute;n de mercanc&iacute;a</option>
+              <option value="05">05 &ndash; Traslados de mercanc&iacute;a facturados previamente</option>
+              <option value="06">06 &ndash; Factura generada por traslados previos</option>
+              <option value="07">07 &ndash; CFDI por aplicaci&oacute;n de anticipo</option>
+            </select>
+            <div class="fac-hint">Al refacturar un CFDI cancelado, usa 04.</div>
+          </div>
+          <div class="fac-field">
+            <label>UUID del CFDI relacionado</label>
+            <input type="text" id="fac-relacion-uuid" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" maxlength="36" style="font-family:monospace;text-transform:uppercase">
+            <div class="fac-hint" id="fac-relacion-msg">Debe ser el UUID de una factura emitida por nosotros.</div>
+          </div>
+        </div>
+      </details>
+
       <!-- Buscar por folio de orden -->
       <div class="fac-section-title">Orden de producción (opcional)</div>
       <div class="fac-field" style="margin-bottom:14px">
@@ -324,6 +360,42 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
         </select>
       </div>
 
+      <!-- Informacion Global: el SAT la exige cuando el receptor es XAXX010101000 con
+           nombre "PUBLICO EN GENERAL". Sin este nodo el PAC rechaza el timbrado
+           (comprobado en sandbox). Solo aplica a Publico en General. -->
+      <div id="fac-global-wrap" style="display:none;margin-bottom:14px">
+        <div class="fac-hint" style="margin-bottom:8px;color:var(--c-amber)">
+          El SAT exige declarar el periodo que agrupa esta factura global.
+        </div>
+        <div class="fac-row cols3">
+          <div class="fac-field">
+            <label>Periodicidad</label>
+            <select id="fac-global-periodicidad">
+              <option value="day">Diaria</option>
+              <option value="week">Semanal</option>
+              <option value="fortnight">Quincenal</option>
+              <option value="month">Mensual</option>
+            </select>
+            <div class="fac-hint">Periodo que agrupa las ventas sin RFC</div>
+          </div>
+          <div class="fac-field">
+            <label>Mes</label>
+            <select id="fac-global-meses">
+              <option value="01">01 &ndash; Enero</option><option value="02">02 &ndash; Febrero</option>
+              <option value="03">03 &ndash; Marzo</option><option value="04">04 &ndash; Abril</option>
+              <option value="05">05 &ndash; Mayo</option><option value="06">06 &ndash; Junio</option>
+              <option value="07">07 &ndash; Julio</option><option value="08">08 &ndash; Agosto</option>
+              <option value="09">09 &ndash; Septiembre</option><option value="10">10 &ndash; Octubre</option>
+              <option value="11">11 &ndash; Noviembre</option><option value="12">12 &ndash; Diciembre</option>
+            </select>
+          </div>
+          <div class="fac-field">
+            <label>A&ntilde;o</label>
+            <input type="number" id="fac-global-anio" min="2020" max="2099" step="1">
+          </div>
+        </div>
+      </div>
+
       <div class="fac-field" id="fac-cli-normal-wrap" style="margin-bottom:14px">
         <label>Cliente en CRM</label>
         <select id="fac-cli-q" onchange="ModFacturacion.seleccionarClienteSelect()">
@@ -343,7 +415,7 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
           <div class="fac-hint">Puedes poner varios separados por coma — el PDF+XML se envía a todos al timbrar</div>
         </div>
       </div>
-      <div class="fac-row cols3">
+      <div class="fac-row cols4">
         <div class="fac-field">
           <label>RFC</label>
           <input type="text" id="fac-rfc" placeholder="XAXX010101000 (público en general)" maxlength="13" style="text-transform:uppercase">
@@ -355,12 +427,17 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
           <div class="fac-hint">Código postal del domicilio fiscal</div>
         </div>
         <div class="fac-field">
+          <label>Fecha de emisi&oacute;n</label>
+          <input type="date" id="fac-fecha">
+          <div class="fac-hint">El SAT solo acepta hasta 72 horas atr&aacute;s. D&eacute;jala en hoy salvo que factures una venta de d&iacute;as anteriores.</div>
+        </div>
+        <div class="fac-field">
           <label>Tipo de factura</label>
           <select id="fac-tipo-cfdi" onchange="ModFacturacion.tipoChange()">
             <option value="I">Factura (Ingreso)</option>
-            <option value="E">Nota de Crédito (Egreso)</option>
-            <option value="P">Complemento de Pago</option>
-            <option value="IG">Factura Global (Ingreso)</option>
+            <option value="E" disabled>Nota de Crédito (Egreso) — no disponible</option>
+            <option value="P" disabled>Complemento de Pago — no disponible</option>
+            <option value="IG" disabled>Factura Global — no disponible</option>
           </select>
           <div class="fac-hint" id="fac-tipo-hint">Venta normal de productos o servicios</div>
         </div>
@@ -432,7 +509,9 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
       <!-- Conceptos -->
       <div class="fac-section-title">Conceptos</div>
       <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:7px;padding:8px 12px;font-size:11px;color:#991b1b;margin-bottom:10px;">
-        ⚠️ <strong>Las claves SAT y unidades son de ejemplo — NO están verificadas con el SAT.</strong> Antes de timbrar, el contador debe confirmar la clave correcta para cada producto/servicio.
+        <?php /* Sprint 3: el aviso se mantiene mientras el catalogo de claves no lo confirme
+                 el contador. Cuando exista clave_sat por cristal/servicio, este texto se quita. */ ?>
+        &#9888; <strong>Las claves SAT y unidades a&uacute;n no est&aacute;n verificadas con el contador.</strong> Confirma la clave correcta de cada producto o servicio antes de timbrar.
       </div>
       <table class="fac-conceptos">
         <thead>
@@ -514,6 +593,13 @@ if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
 </div>
 
 <script>
+// Espejo del interruptor de api/facturapi.php: mientras el envío de correo esté
+// apagado, no se ofrece el botón de reenviar (evita ofrecer algo que responde error).
+var FAC_CORREO_ACTIVO = false;
+
+// Modo real de FacturAPI, no escrito a mano: decide los textos de confirmacion y avisos.
+var ES_MODO_LIVE = <?= $esModoLive ? 'true' : 'false' ?>;
+
 var ModFacturacion = (function() {
   var _editingEstId = null;
   var _facturas     = [];
@@ -632,12 +718,12 @@ var ModFacturacion = (function() {
     var label = sel || '— Clave —';
     var html = '<div class="fac-csat">';
     html += '<input type="hidden" class="fac-c-clave" value="' + (sel||'') + '">';
-    html += '<div class="fac-csat-display" onclick="ModFacturacion._csatToggle(this)">' + label + '</div>';
+    html += '<div class="fac-csat-display" onclick="ModFacturacion._csatToggle(this)">' + _esc(label) + '</div>';
     html += '<div class="fac-csat-list">';
     for (var i = 0; i < CLAVES_SAT.length; i++) {
-      html += '<div class="fac-csat-opt" onclick="ModFacturacion._csatPick(this,\'' + CLAVES_SAT[i].v + '\')">';
-      html += '<span class="fac-csat-cod">' + CLAVES_SAT[i].v + '</span>';
-      html += '<span class="fac-csat-desc">' + CLAVES_SAT[i].l.split(' – ')[1] + '</span>';
+      html += '<div class="fac-csat-opt" onclick="ModFacturacion._csatPick(this,\'' + _esc(CLAVES_SAT[i].v) + '\')">';
+      html += '<span class="fac-csat-cod">' + _esc(CLAVES_SAT[i].v) + '</span>';
+      html += '<span class="fac-csat-desc">' + _esc(CLAVES_SAT[i].l.split(' – ')[1]) + '</span>';
       html += '</div>';
     }
     html += '</div></div>';
@@ -667,12 +753,12 @@ var ModFacturacion = (function() {
     var label = sel || '— Unidad —';
     var html = '<div class="fac-csat">';
     html += '<input type="hidden" class="fac-c-unidad" value="' + (sel||'') + '">';
-    html += '<div class="fac-csat-display" onclick="ModFacturacion._csatToggle(this)">' + label + '</div>';
+    html += '<div class="fac-csat-display" onclick="ModFacturacion._csatToggle(this)">' + _esc(label) + '</div>';
     html += '<div class="fac-csat-list">';
     for (var i = 0; i < UNIDADES_SAT.length; i++) {
-      html += '<div class="fac-csat-opt" onclick="ModFacturacion._csatPick(this,\'' + UNIDADES_SAT[i].v + '\')">';
-      html += '<span class="fac-csat-cod">' + UNIDADES_SAT[i].v + '</span>';
-      html += '<span class="fac-csat-desc">' + UNIDADES_SAT[i].l.split(' – ')[1] + '</span>';
+      html += '<div class="fac-csat-opt" onclick="ModFacturacion._csatPick(this,\'' + _esc(UNIDADES_SAT[i].v) + '\')">';
+      html += '<span class="fac-csat-cod">' + _esc(UNIDADES_SAT[i].v) + '</span>';
+      html += '<span class="fac-csat-desc">' + _esc(UNIDADES_SAT[i].l.split(' – ')[1]) + '</span>';
       html += '</div>';
     }
     html += '</div></div>';
@@ -721,18 +807,21 @@ var ModFacturacion = (function() {
       var pubGeneral  = (f.receptor_rfc === 'XAXX010101000');
       var pubBadge    = pubGeneral ? '<span style="font-size:9px;background:#e0e7ff;color:#3730a3;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">PÚB. GRAL.</span>' : '';
       html += '<tr>';
-      html += '<td style="font-weight:600;color:#2563eb">' + f.folio_interno + modoBadge + pubBadge + '</td>';
-      html += '<td><div style="font-weight:600">' + (f.receptor_nombre||'—') + '</div>';
-      html += '<div style="font-size:11px;color:var(--c-muted)">' + (f.receptor_rfc||'') + '</div>';
+      // S-1: todo texto que venga de BD va por _esc() — el nombre del receptor es
+      // campo libre del modal (y puede venir del OCR de una constancia), así que sin
+      // escapar era un XSS almacenado. La vista de detalle ya escapaba; este listado no.
+      html += '<td style="font-weight:600;color:#2563eb">' + _esc(f.folio_interno) + modoBadge + pubBadge + '</td>';
+      html += '<td><div style="font-weight:600">' + _esc(f.receptor_nombre||'—') + '</div>';
+      html += '<div style="font-size:11px;color:var(--c-muted)">' + _esc(f.receptor_rfc||'') + '</div>';
       if (pubGeneral && f.cliente_solicito_nombre) {
         html += '<div style="font-size:10px;color:#3730a3;margin-top:2px">Solicitó: ' + _esc(f.cliente_solicito_nombre) + '</div>';
       }
       html += '</td>';
-      html += '<td style="font-size:12px">' + (TIPOS[f.tipo_cfdi]||f.tipo_cfdi) + '</td>';
-      html += '<td style="font-size:12px">' + (f.receptor_uso_cfdi||'') + ' <span style="color:var(--c-muted)">/ ' + (f.metodo_pago||'') + '</span></td>';
+      html += '<td style="font-size:12px">' + _esc(TIPOS[f.tipo_cfdi]||f.tipo_cfdi) + '</td>';
+      html += '<td style="font-size:12px">' + _esc(f.receptor_uso_cfdi||'') + ' <span style="color:var(--c-muted)">/ ' + _esc(f.metodo_pago||'') + '</span></td>';
       html += '<td style="font-weight:600">' + _fmt(f.total) + '</td>';
       html += '<td>' + _badgeHtml(f.estatus);
-      if (esTimbrada && f.uuid) html += '<div style="font-size:10px;color:#22c55e;font-family:monospace;margin-top:2px">' + f.uuid.slice(0,8) + '…</div>';
+      if (esTimbrada && f.uuid) html += '<div style="font-size:10px;color:#22c55e;font-family:monospace;margin-top:2px">' + _esc(String(f.uuid).slice(0,8)) + '…</div>';
       if (esTimbrada && f.pac_cancel_status === 'pending') html += '<div style="font-size:10px;color:#92400e;font-weight:700;margin-top:2px">⏳ Cancelación pendiente de aceptación</div>';
       html += '</td>';
       html += '<td>';
@@ -748,7 +837,9 @@ var ModFacturacion = (function() {
       } else if (esTimbrada) {
         html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">Descargar PDF</a>';
         html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=xml&id=' + f.id + '" target="_blank">Descargar XML</a>';
-        html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.reenviarCorreo(' + f.id + ')">Reenviar correo</button>';
+        if (FAC_CORREO_ACTIVO) {
+          html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.reenviarCorreo(' + f.id + ')">Reenviar correo</button>';
+        }
         html += '<hr class="fac-menu-sep">';
         if (f.pac_cancel_status === 'pending') {
           html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.verificarCancelacion(' + f.id + ')">Verificar cancelación</button>';
@@ -756,6 +847,14 @@ var ModFacturacion = (function() {
           html += '<button class="fac-menu-item danger" onclick="ModFacturacion.menuCerrar();ModFacturacion.abrirEstatus(' + f.id + ')">Cancelar factura (SAT)</button>';
         }
         if (f.modo === 'test') {
+          html += '<button class="fac-menu-item danger" onclick="ModFacturacion.menuCerrar();ModFacturacion.eliminar(' + f.id + ')">Eliminar (prueba)</button>';
+        }
+      } else if (f.estatus === 'cancelada') {
+        // Una cancelada se sigue pudiendo descargar (obligaci\u00f3n de conservarla 5 a\u00f1os).
+        html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">Descargar PDF</a>';
+        html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=xml&id=' + f.id + '" target="_blank">Descargar XML</a>';
+        if (f.modo === 'test') {
+          html += '<hr class="fac-menu-sep">';
           html += '<button class="fac-menu-item danger" onclick="ModFacturacion.menuCerrar();ModFacturacion.eliminar(' + f.id + ')">Eliminar (prueba)</button>';
         }
       }
@@ -797,7 +896,11 @@ var ModFacturacion = (function() {
     document.getElementById('fac-regimen').value    = '';
     document.getElementById('fac-forma-pago').value  = '';
     document.getElementById('fac-metodo-pago').value = '';
+    document.getElementById('fac-relacion-tipo').value = '';
+    document.getElementById('fac-relacion-uuid').value = '';
     document.getElementById('fac-publico-general').checked = false;
+    var gwN = document.getElementById('fac-global-wrap');
+    if (gwN) gwN.style.display = 'none';
     document.getElementById('fac-solicito-wrap').style.display   = 'none';
     document.getElementById('fac-cli-normal-wrap').style.display = 'block';
     document.getElementById('fac-uso-cfdi').disabled = false;
@@ -867,11 +970,21 @@ var ModFacturacion = (function() {
     document.getElementById('fac-tipo-cfdi').value          = f.tipo_cfdi       || 'I';
     document.getElementById('fac-uso-cfdi').value           = f.receptor_uso_cfdi || '';
     document.getElementById('fac-regimen').value            = f.receptor_regimen  || '';
+    document.getElementById('fac-relacion-tipo').value      = f.relacion_tipo     || '';
+    document.getElementById('fac-relacion-uuid').value      = f.relacion_uuid     || '';
     document.getElementById('fac-forma-pago').value         = f.forma_pago        || '';
     document.getElementById('fac-metodo-pago').value        = f.metodo_pago       || '';
 
     var esPublicoGeneral = (f.receptor_rfc === 'XAXX010101000');
     document.getElementById('fac-publico-general').checked = esPublicoGeneral;
+    var gwEd = document.getElementById('fac-global-wrap');
+    if (gwEd) gwEd.style.display = esPublicoGeneral ? 'block' : 'none';
+    if (esPublicoGeneral) {
+      var hoyEd = new Date();
+      document.getElementById('fac-global-periodicidad').value = f.global_periodicidad || 'day';
+      document.getElementById('fac-global-meses').value        = f.global_meses || ('0' + (hoyEd.getMonth() + 1)).slice(-2);
+      document.getElementById('fac-global-anio').value         = f.global_anio || hoyEd.getFullYear();
+    }
     document.getElementById('fac-solicito-wrap').style.display   = esPublicoGeneral ? 'block' : 'none';
     document.getElementById('fac-cli-normal-wrap').style.display = esPublicoGeneral ? 'none'  : 'block';
     document.getElementById('fac-uso-cfdi').disabled = esPublicoGeneral;
@@ -941,25 +1054,47 @@ var ModFacturacion = (function() {
       cliente_solicito_id:  esPublicoGeneral ? (document.getElementById('fac-solicito-cli').value || null) : null,
       forma_pago:           document.getElementById('fac-forma-pago').value,
       metodo_pago:          document.getElementById('fac-metodo-pago').value,
+      relacion_tipo:        document.getElementById('fac-relacion-tipo').value || null,
+      relacion_uuid:        (document.getElementById('fac-relacion-uuid').value || '').trim().toUpperCase() || null,
+      global_periodicidad:  esPublicoGeneral ? document.getElementById('fac-global-periodicidad').value : null,
+      global_meses:         esPublicoGeneral ? document.getElementById('fac-global-meses').value : null,
+      global_anio:          esPublicoGeneral ? document.getElementById('fac-global-anio').value : null,
       conceptos:            _getConceptos(),
     };
 
     var btn = document.querySelector('#fac-overlay .fac-btn-save');
     if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
 
-    _apiFetch('../api/facturapi.php?accion=guardar', {method:'POST', body:JSON.stringify(payload)}, function(err, res) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Guardar Factura'; }
-      if (err || !res.ok) { alert(err || res.error || 'Error al guardar'); return; }
-      cerrarModal();
-      _cargarLista();
-    });
+    // El servidor puede pedir confirmacion explicita cuando el receptor no es el cliente de
+    // la orden (caso legitimo a veces, pero nunca en silencio). Si el usuario confirma, se
+    // reenvia el mismo payload con la bandera.
+    var _enviar = function(p) {
+      _apiFetch('../api/facturapi.php?accion=guardar', {method:'POST', body:JSON.stringify(p)}, function(err, res) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Guardar Factura'; }
+        if (err || !res.ok) {
+          if (res && res.requiere_confirmar === 'receptor_distinto') {
+            if (confirm(res.error)) {
+              if (btn) { btn.disabled = true; btn.textContent = 'Guardando\u2026'; }
+              p.confirmar_receptor_distinto = 1;
+              _enviar(p);
+            }
+            return;
+          }
+          alert(err || (res && res.error) || 'Error al guardar');
+          return;
+        }
+        cerrarModal();
+        _cargarLista();
+      });
+    };
+    _enviar(payload);
   }
 
   function eliminar(id) {
     var f = null;
     for (var i = 0; i < _facturas.length; i++) { if (String(_facturas[i].id) === String(id)) { f = _facturas[i]; break; } }
-    var msg = (f && f.estatus === 'timbrada')
-      ? 'Esta factura fue timbrada en modo PRUEBA.\n¿Eliminarla? Esta acción no se puede deshacer.'
+    var msg = (f && (f.estatus === 'timbrada' || f.estatus === 'cancelada'))
+      ? 'Esta factura fue ' + (f.estatus === 'cancelada' ? 'timbrada y cancelada' : 'timbrada') + ' en modo PRUEBA.\n¿Eliminarla? Se borra también su copia del PDF y XML. Esta acción no se puede deshacer.'
       : '¿Eliminar esta factura borrador? Esta acción no se puede deshacer.';
     if (!confirm(msg)) return;
     _apiFetch('../api/facturapi.php?accion=eliminar', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
@@ -972,13 +1107,24 @@ var ModFacturacion = (function() {
 
   function timbrar(id) {
     if (_timbrandoIds[id]) return; // ya en curso — evita doble clic/doble timbrado real ante FacturAPI
-    if (!confirm('¿Timbrar esta factura en modo PRUEBA con FacturAPI sandbox?')) return;
+    if (!confirm(ES_MODO_LIVE
+      ? '\u00bfTimbrar esta factura ante el SAT?\n\nEs un comprobante fiscal REAL: una vez timbrado solo se puede cancelar, no borrar.'
+      : '\u00bfTimbrar esta factura en modo PRUEBA (sandbox)?\n\nNo tiene validez fiscal.')) return;
     _timbrandoIds[id] = true;
 
     _apiFetch('../api/facturapi.php?accion=timbrar', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
       delete _timbrandoIds[id];
       if (err || !res.ok) { alert('Error al timbrar: ' + (err || res.error)); return; }
-      alert('✅ Timbrada en SANDBOX\nUUID: ' + res.uuid + '\n\nPuedes descargar el PDF desde la lista.');
+      var aviso = (ES_MODO_LIVE ? 'Factura timbrada ante el SAT' : 'Timbrada en modo PRUEBA (sin validez fiscal)')
+        + '\nUUID: ' + res.uuid + '\n\nPuedes descargar el PDF desde la lista.';
+      // El candado de modo prueba evita mandarle un CFDI de sandbox a un cliente real;
+      // se avisa para que nadie se quede esperando un correo que no va a salir.
+      if (res.correo_omitido) {
+        aviso += '\n\n⚠ NO se envió correo al cliente: el envío de comprobantes está desactivado por ahora, a propósito.';
+      } else if (res.correo_enviado) {
+        aviso += '\n\nSe envió el PDF y el XML al correo del receptor.';
+      }
+      alert(aviso);
       _cargarLista();
     });
   }
@@ -1157,6 +1303,20 @@ var ModFacturacion = (function() {
     if (f.estatus === 'timbrada') {
       html += '<div class="fac-section-title">Datos fiscales del timbrado</div>';
       html += '<div class="fac-field" style="margin-bottom:10px"><label>UUID</label><div style="font-family:monospace">' + _esc(f.uuid || '—') + '</div></div>';
+      // S2-b: la liga de verificacion del SAT es el dato con el que un cliente (o un
+      // auditor) comprueba que el CFDI existe y esta vigente. Se guardaba? No: antes se
+      // tiraba. Ahora se guarda y se muestra aqui.
+      if (f.verification_url) {
+        html += '<div class="fac-field" style="margin-bottom:10px"><label>Verificar en el SAT</label>';
+        html += '<div><a href="' + _esc(f.verification_url) + '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;word-break:break-all;font-size:12px">' + _esc(f.verification_url) + '</a></div></div>';
+      }
+      html += '<div class="fac-row cols3" style="margin-bottom:10px">';
+      html += '  <div class="fac-field"><label>Timbrada el</label><div>' + _esc(f.fecha_timbrado || '\u2014') + '</div></div>';
+      html += '  <div class="fac-field"><label>Timbr\u00f3</label><div>' + _esc(f.timbrado_por || f.creado_por || '\u2014') + '</div></div>';
+      // S2-a: aviso visible cuando el comprobante NO tiene copia en nuestro servidor y
+      // dependemos de FacturAPI para conservarlo (obligacion de 5 anos ante el SAT).
+      html += '  <div class="fac-field"><label>Resguardo local</label><div>' + (Number(f.tiene_resguardo) ? '<span style="color:#16a34a">S\u00ed</span>' : '<span style="color:#dc2626">No \u2014 solo en FacturAPI</span>') + '</div></div>';
+      html += '</div>';
       html += '<div style="display:flex;gap:8px">';
       html += '<a class="fac-cst-usar" style="width:auto;padding:6px 16px" href="../api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">Descargar PDF</a>';
       html += '<a class="fac-cst-usar" style="width:auto;padding:6px 16px;background:#64748b" href="../api/facturapi.php?accion=xml&id=' + f.id + '" target="_blank">Descargar XML</a>';
@@ -1164,9 +1324,30 @@ var ModFacturacion = (function() {
     } else if (f.estatus === 'cancelada') {
       html += '<div class="fac-section-title">Cancelación</div>';
       html += '<div class="fac-field"><label>Motivo SAT</label><div>' + _esc(f.motivo_cancel || '—') + '</div></div>';
+      html += '<div class="fac-row cols2" style="margin-top:8px">';
+      html += '  <div class="fac-field"><label>Cancel\u00f3</label><div>' + _esc(f.cancelado_por || '\u2014') + '</div></div>';
+      html += '  <div class="fac-field"><label>Fecha de cancelaci\u00f3n</label><div>' + _esc(f.cancelado_at || '\u2014') + '</div></div>';
+      html += '</div>';
       if (f.sustituye_uuid) {
         html += '<div class="fac-field" style="margin-top:10px"><label>UUID factura sustituta</label><div>' + _esc(f.sustituye_uuid) + '</div></div>';
       }
+      // Los datos del timbre y las descargas siguen siendo válidos tras cancelar: el SAT
+      // obliga a conservar el comprobante 5 años y una cancelada se sigue consultando.
+      html += '<div class="fac-section-title">Datos fiscales del timbrado</div>';
+      html += '<div class="fac-field" style="margin-bottom:10px"><label>UUID</label><div style="font-family:monospace">' + _esc(f.uuid || '\u2014') + '</div></div>';
+      if (f.verification_url) {
+        html += '<div class="fac-field" style="margin-bottom:10px"><label>Verificar en el SAT</label>';
+        html += '<div><a href="' + _esc(f.verification_url) + '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;word-break:break-all;font-size:12px">' + _esc(f.verification_url) + '</a></div></div>';
+      }
+      html += '<div class="fac-row cols3" style="margin-bottom:10px">';
+      html += '  <div class="fac-field"><label>Timbrada el</label><div>' + _esc(f.fecha_timbrado || '\u2014') + '</div></div>';
+      html += '  <div class="fac-field"><label>Timbr\u00f3</label><div>' + _esc(f.timbrado_por || f.creado_por || '\u2014') + '</div></div>';
+      html += '  <div class="fac-field"><label>Resguardo local</label><div>' + (Number(f.tiene_resguardo) ? '<span style="color:#16a34a">S\u00ed</span>' : '<span style="color:#dc2626">No \u2014 solo en FacturAPI</span>') + '</div></div>';
+      html += '</div>';
+      html += '<div style="display:flex;gap:8px">';
+      html += '<a class="fac-cst-usar" style="width:auto;padding:6px 16px" href="../api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">Descargar PDF</a>';
+      html += '<a class="fac-cst-usar" style="width:auto;padding:6px 16px;background:#64748b" href="../api/facturapi.php?accion=xml&id=' + f.id + '" target="_blank">Descargar XML</a>';
+      html += '</div>';
     }
 
     document.getElementById('fac-vista-body').innerHTML = html;
@@ -1197,7 +1378,9 @@ var ModFacturacion = (function() {
         for (var i = 0; i < _cliOpciones.length; i++) {
           var c = _cliOpciones[i];
           var nombre = c.razon_social || c.nombre || '—';
-          html += '<option value="' + i + '">' + nombre + (c.codigo ? ' (' + c.codigo + ')' : '') + '</option>';
+          // S-1 (2a pasada): razón social y código son texto libre de BD — sin escapar,
+          // un cliente con < o " rompía el <option> (mismo patrón de UPD-275).
+          html += '<option value="' + i + '">' + _esc(nombre) + (c.codigo ? ' (' + _esc(c.codigo) + ')' : '') + '</option>';
         }
         sel.innerHTML = html;
       }
@@ -1207,7 +1390,7 @@ var ModFacturacion = (function() {
         for (var j = 0; j < _cliOpciones.length; j++) {
           var c2 = _cliOpciones[j];
           var nombre2 = c2.razon_social || c2.nombre || '—';
-          html2 += '<option value="' + c2.id + '">' + nombre2 + (c2.codigo ? ' (' + c2.codigo + ')' : '') + '</option>';
+          html2 += '<option value="' + c2.id + '">' + _esc(nombre2) + (c2.codigo ? ' (' + _esc(c2.codigo) + ')' : '') + '</option>';
         }
         selSolicito.innerHTML = html2;
       }
@@ -1299,12 +1482,25 @@ var ModFacturacion = (function() {
       setVal('fac-regimen', '616');
       setVal('fac-uso-cfdi', 'S01');
       setVal('fac-email', '');
+      // El SAT exige Informacion Global en este caso: se muestran los 3 campos y se
+      // pre-llenan con el periodo de hoy (periodicidad diaria, el caso mas comun).
+      var gw = document.getElementById('fac-global-wrap');
+      if (gw) gw.style.display = 'block';
+      var hoy = new Date();
+      var gp = document.getElementById('fac-global-periodicidad');
+      var gm = document.getElementById('fac-global-meses');
+      var ga = document.getElementById('fac-global-anio');
+      if (gp && !gp.value) gp.value = 'day';
+      if (gm && !gm.value) gm.value = ('0' + (hoy.getMonth() + 1)).slice(-2);
+      if (ga && !ga.value) ga.value = hoy.getFullYear();
       _lockReceptor(true);
       var cpEl = document.getElementById('fac-cp');
       if (cpEl) { cpEl.removeAttribute('readonly'); cpEl.disabled = false; cpEl.style.background = ''; cpEl.style.color = ''; }
       document.getElementById('fac-uso-cfdi').disabled = true;
     } else {
       document.getElementById('fac-solicito-cli').value = '';
+      var gw2 = document.getElementById('fac-global-wrap');
+      if (gw2) gw2.style.display = 'none';
       _lockReceptor(false);
       document.getElementById('fac-uso-cfdi').disabled = false;
 
@@ -1361,9 +1557,12 @@ var ModFacturacion = (function() {
     var html = '';
     for (var i = 0; i < lista.length; i++) {
       var o = lista[i];
-      html += '<div class="fac-cli-opt" onclick="ModFacturacion._elegirOrdenFolio(\'' + o.folio.replace(/'/g, "\\'") + '\')">';
-      html += '<div class="fac-cli-opt-nombre">' + o.folio + '</div>';
-      html += '<div class="fac-cli-opt-sub"><span>' + (o.cliente_nombre || 'Sin cliente') + '</span></div>';
+      // S-1 (2a pasada): doble capa en el atributo onclick — .replace() cubre la capa JS
+      // (comilla simple) y _esc() la capa HTML (comilla doble, < y >). Con solo una de las
+      // dos, un valor con " se salía del atributo.
+      html += '<div class="fac-cli-opt" onclick="ModFacturacion._elegirOrdenFolio(\'' + _esc(o.folio.replace(/'/g, "\\'")) + '\')">';
+      html += '<div class="fac-cli-opt-nombre">' + _esc(o.folio) + '</div>';
+      html += '<div class="fac-cli-opt-sub"><span>' + _esc(o.cliente_nombre || 'Sin cliente') + '</span></div>';
       html += '</div>';
     }
     drop.innerHTML = html;
@@ -1668,12 +1867,15 @@ var ModFacturacion = (function() {
   function _cstMostrar(datos) {
     _cstDatos = datos;
     var html = '';
-    if (datos.rfc)    html += '<div class="fac-cst-field"><label>RFC</label><span>' + datos.rfc + '</span></div>';
-    if (datos.nombre) html += '<div class="fac-cst-field"><label>Nombre / Razón Social</label><span>' + datos.nombre + '</span></div>';
-    if (datos.cp)     html += '<div class="fac-cst-field"><label>CP Fiscal</label><span>' + datos.cp + '</span></div>';
+    // S-1 (2a pasada): estos valores salen del OCR de un PDF que SUBE el usuario, o sea
+    // que son contenido de archivo, no de BD — el vector más directo del módulo. Un PDF
+    // preparado a mano podía inyectar HTML en esta vista previa.
+    if (datos.rfc)    html += '<div class="fac-cst-field"><label>RFC</label><span>' + _esc(datos.rfc) + '</span></div>';
+    if (datos.nombre) html += '<div class="fac-cst-field"><label>Nombre / Razón Social</label><span>' + _esc(datos.nombre) + '</span></div>';
+    if (datos.cp)     html += '<div class="fac-cst-field"><label>CP Fiscal</label><span>' + _esc(datos.cp) + '</span></div>';
     if (datos.regimen && datos.regimen.length) {
       var regs = [];
-      for (var i = 0; i < datos.regimen.length; i++) regs.push(datos.regimen[i].label);
+      for (var i = 0; i < datos.regimen.length; i++) regs.push(_esc(datos.regimen[i].label));
       html += '<div class="fac-cst-field" style="grid-column:1/-1"><label>Régimen(es) Fiscal(es)</label><span style="font-size:12px">' + regs.join('<br>') + '</span></div>';
     }
     document.getElementById('fac-cst-fields').innerHTML = html;
@@ -1712,11 +1914,15 @@ var ModFacturacion = (function() {
     _cstDatos = null;
   }
 
+  // F-2: los 3 tipos distintos de Ingreso están deshabilitados a propósito — el
+  // backend los arma como una factura normal y emitirían un CFDI mal formado ante el
+  // SAT (E sin la relación 01 al UUID original; P sin el complemento de pago real;
+  // IG sin el nodo de información global). Se habilitan cuando se construyan bien.
   var TIPO_HINTS = {
     'I':  'Venta normal de productos o servicios',
-    'E':  'Devolución, descuento o bonificación a una factura emitida',
-    'P':  'Registra el pago de una factura emitida en parcialidades (PPD)',
-    'IG': 'Agrupa ventas a público general con RFC XAXX010101000'
+    'E':  'No disponible todavía: falta la relación al UUID de la factura original que exige el SAT',
+    'P':  'No disponible todavía: falta el complemento de pago ligado a los pagos de Cobranza',
+    'IG': 'No disponible todavía: falta el nodo de información global del periodo'
   };
 
   function tipoChange() {
@@ -1741,6 +1947,19 @@ var ModFacturacion = (function() {
   });
 
   _cargarLista();
+
+  // Precarga desde el botón "Facturar" de Cotización/Cobranza: abre el modal de factura
+  // nueva con el folio de orden ya puesto y dispara la búsqueda. Se espera a que la lista
+  // de clientes esté disponible para que buscarOrden() pueda seleccionar el cliente.
+  var FAC_ORDEN_PRECARGA = '<?= $ordenPrecarga ?>';
+  if (FAC_ORDEN_PRECARGA) {
+    abrirNueva();
+    var folioPre = document.getElementById('fac-orden-folio');
+    if (folioPre) {
+      folioPre.value = FAC_ORDEN_PRECARGA;
+      buscarOrden();
+    }
+  }
 
   return {
     abrirNueva:      abrirNueva,

@@ -455,9 +455,9 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       <button class="sidebar-link" data-modulo="finanzas_cobranza" onclick="cargarModulo('finanzas_cobranza')">
         <span class="sidebar-icon"><?= icono('credit-card') ?></span>Cobranza
       </button>
-      <?php if ($esDesarrollo || $esAdmin): ?>
+      <?php if (tienePermiso($_rol, 'facturar')): ?>
       <button class="sidebar-link" data-modulo="facturacion" onclick="cargarModulo('facturacion')">
-        <span class="sidebar-icon"><?= icono('file-text') ?></span>Facturación <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px">WIP</span>
+        <span class="sidebar-icon"><?= icono('file-text') ?></span>Facturación<?php if (FACTURAPI_MODE !== 'live'): ?> <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px" title="FacturAPI en modo prueba: los CFDI no tienen validez fiscal">PRUEBA</span><?php endif; ?>
       </button>
       <?php endif; ?>
       <?php if (tienePermiso($_rol, 'ver_contabilidad')): ?>

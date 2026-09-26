@@ -1,7 +1,11 @@
 <?php
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/permisos.php';
-requirePermisoApi('ver_wip');
+// El OCR de la CSF vive dentro del módulo Clientes, que exige 'ver_ordenes' — se alinea
+// con él. Antes pedía 'ver_wip' (solo dir_admin/desarrollo), lo que impedía a
+// administración y comercial subir constancias aunque el guardado de datos fiscales
+// de api/clientes.php ya esté abierto a cualquier sesión. No se relaja nada real.
+requirePermisoApi('ver_ordenes');
 
 header('Content-Type: application/json');
 

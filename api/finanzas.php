@@ -145,7 +145,14 @@ if ($method === 'GET') {
                    c.saldo_pagado,
                    c.condicion_pago, c.folio as cot_folio, c.vobo_por, c.vobo_at,
                    COALESCE(c.estatus_pago, 'pendiente') as estatus_pago,
-                   COALESCE(c.es_retrabajo, 0) as es_retrabajo
+                   COALESCE(c.es_retrabajo, 0) as es_retrabajo,
+                   -- Sprint 3: folio del CFDI vigente de esta orden, para que Cobranza muestre
+                   -- el folio en vez de ofrecer facturar de nuevo (el backend de facturacion
+                   -- bloquea un segundo timbrado por orden de todos modos). Se resuelve en la
+                   -- misma consulta: hay indice idx_facturas_orden_estatus(orden_folio,estatus).
+                   (SELECT f.folio_interno FROM facturas f
+                     WHERE f.orden_folio = o.folio AND f.estatus IN ('timbrada','timbrando')
+                     LIMIT 1) AS factura_folio
             FROM cotizaciones c
             JOIN ordenes o ON o.id = c.orden_id
             WHERE c.orden_id IS NOT NULL

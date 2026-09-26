@@ -6,6 +6,10 @@ $esAdmin           = $user['rol'] === 'dir_admin';
 $puedeVerPass      = in_array($user['rol'], ['dir_admin', 'comercial', 'administracion', 'desarrollo']);
 $puedeGenerar      = in_array($user['rol'], ['dir_admin', 'comercial', 'administracion', 'desarrollo']);
 $puedeEditarNombre = in_array($user['rol'], ['dir_admin', 'administracion']);
+// Espejo de $puede_editar en api/clientes.php: si el rol no puede guardar, no se le
+// ofrece el botón de subir la constancia — antes jefe_piso y director lo veían y al
+// guardar recibían 'Sin permiso' (mismo defecto que tenía administracion hasta UPD-605).
+$puedeEditarFiscal = in_array($user['rol'], ['dir_admin', 'dueno', 'comercial', 'administracion', 'desarrollo']);
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=clientes'); exit;
 }
@@ -237,6 +241,7 @@ const ES_ADMIN            = <?= $esAdmin           ? 'true' : 'false' ?>;
 const PUEDE_VER_PASS      = <?= $puedeVerPass      ? 'true' : 'false' ?>;
 const PUEDE_GENERAR       = <?= $puedeGenerar      ? 'true' : 'false' ?>;
 const PUEDE_EDITAR_NOMBRE = <?= $puedeEditarNombre ? 'true' : 'false' ?>;
+const PUEDE_EDITAR_FISCAL = <?= $puedeEditarFiscal ? 'true' : 'false' ?>;
 let _cliData   = [];
 let _passVis   = false;
 
@@ -695,7 +700,7 @@ function cliFiscalSeccionHtml(c) {
   return `
     <div class="cli-info-label" style="display:flex;justify-content:space-between;align-items:center">
       <span>Datos Fiscales ${badge}</span>
-      <button class="cli-btn-sm" onclick="cliFiscalAbrirWidget(${c.id})">${btnLabel}</button>
+      ${PUEDE_EDITAR_FISCAL ? `<button class="cli-btn-sm" onclick="cliFiscalAbrirWidget(${c.id})">${btnLabel}</button>` : ''}
     </div>
     ${datosHtml}
     <div id="panel-fiscal-widget"></div>`;

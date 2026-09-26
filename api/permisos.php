@@ -57,6 +57,7 @@ define('PERMISOS', [
         'gestionar_contabilidad',
         'ver_rh',
         'gestionar_rh',
+        'facturar',
     ],
     'administracion' => [
         'ver_dashboard',
@@ -73,6 +74,7 @@ define('PERMISOS', [
         'gestionar_contabilidad',
         'ver_rh',
         'gestionar_rh',
+        'facturar',
     ],
     'dueno' => [
         'ver_dashboard',
@@ -90,6 +92,7 @@ define('PERMISOS', [
         'gestionar_contabilidad',
         'ver_rh',
         'gestionar_rh',
+        'facturar',
     ],
     'desarrollo' => [
         'ver_dashboard',
@@ -108,6 +111,7 @@ define('PERMISOS', [
         'gestionar_contabilidad',
         'ver_rh',
         'gestionar_rh',
+        'facturar',
     ],
 ]);
 

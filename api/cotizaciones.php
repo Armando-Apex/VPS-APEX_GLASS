@@ -95,6 +95,12 @@ if ($method === 'GET') {
         $cot = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$cot) { jsonResponse(['error' => 'No encontrada']); exit; }
 
+        // Sprint 3: folio de la factura vigente de esta orden, si existe. Lo usa el botón
+        // "Facturar" del módulo de Cotización para mostrar el folio en vez de ofrecer un
+        // segundo CFDI (que el backend de facturación bloquea de todos modos). Reutiliza el
+        // helper que ya existía para los candados de cancelación (BLV-1).
+        $cot['factura_folio'] = cotizacionesFacturaVigente($db, $cot['orden_id'] ?? null);
+
         // Recalcular total con la fórmula canónica (A-2) — ramifica suministro/maquila
         $tots = apexTotalesCotizacion($db, $id);
         if ($tots) {

@@ -3,6 +3,9 @@ require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
 require_once __DIR__ . '/../../api/helpers/icons.php';
 $user       = requirePermiso('ver_ordenes');
+// Sprint 3: el boton "Facturar" solo se muestra a quien puede facturar (mismo permiso
+// que exige el modulo de Facturacion), para no ofrecer un boton que llevaria a un 403.
+$puedeFacturar = tienePermiso($user['rol'], 'facturar');
 $_rol       = $user['rol'];
 $id_php     = (int)($_GET['id']    ?? 0);
 $nuevo_php  = isset($_GET['nuevo']) ? 1 : 0;
@@ -271,6 +274,7 @@ var API_CRIS     = '../api/cristales.php';
 var ICONO_COT    = <?= json_encode(icono('file-text', 18)) ?>;
 var ES_ADMIN     = <?= $es_admin ? 'true' : 'false' ?>;
 var PUEDE_EDITAR = <?= $puede_editar ? 'true' : 'false' ?>;
+var PUEDE_FACTURAR = <?= $puedeFacturar ? 'true' : 'false' ?>;
 var ES_DIR_ADMIN = <?= $es_dir_admin ? 'true' : 'false' ?>;
 var MODO         = '<?= $modo ?>';
 var ID_COT       = <?= $id_cot ?>;
@@ -415,6 +419,18 @@ function renderFormulario(data) {
     }
     if (estatus === 'orden' && PUEDE_EDITAR) {
       html += '<a class="btn btn-ghost btn-sm" href="../app/imprimir_orden.php?id=' + ID_COT + '" target="_blank" rel="noopener">&#128424;&#65039; Orden de Producci&#243;n</a>';
+    }
+    // Sprint 3: entrada directa a Facturacion con la orden ya cargada. Antes habia que ir
+    // al modulo y teclear el folio a mano, lo que invita a errores de dedo.
+    // Si la orden ya tiene un CFDI vigente se muestra el folio en vez de ofrecer otro,
+    // porque el backend de facturacion bloquea un segundo timbrado para la misma orden.
+    if ((estatus === 'orden' || estatus === 'entregada') && PUEDE_FACTURAR && data.orden_folio) {
+      if (data.factura_folio) {
+        var ff = String(data.factura_folio).replace(/[^A-Za-z0-9\-]/g, '');
+        html += '<span class="btn btn-ghost btn-sm" style="cursor:default;opacity:.7" title="Esta orden ya tiene un CFDI vigente">&#129534; Facturada: ' + ff + '</span>';
+      } else {
+        html += '<button class="btn btn-ghost btn-sm" onclick="ModCotizacion._facturar()">&#129534; Facturar</button>';
+      }
     }
     if (estatus === 'orden' || estatus === 'entregada') {
       html += '<button class="btn btn-ghost btn-sm" onclick="ModCotizacion._abrirArchivos()">&#128206; Archivos</button>';
@@ -2237,8 +2253,23 @@ function escJs(s)   { return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\
 
 init();
 
+// Sprint 3: lleva al modulo de Facturacion con la orden ya cargada. cargarModulo() es
+// global del SPA (dashboard.php) y agrega los params como query string, que facturacion.php
+// lee en $ordenPrecarga para abrir el modal y disparar la busqueda de la orden.
+function facturar() {
+  var folio = (window._cotData && window._cotData.orden_folio) ? window._cotData.orden_folio : '';
+  if (!folio) { alert('Esta cotizacion todavia no tiene una orden asociada.'); return; }
+  if (typeof cargarModulo === 'function') {
+    cargarModulo('facturacion', { orden: folio });
+  } else {
+    // Fallback si se abre fuera del SPA: la propia pantalla redirige al dashboard.
+    window.location.href = '../dashboard.php?m=facturacion&orden=' + encodeURIComponent(folio);
+  }
+}
+
 return {
   init: init,
+  _facturar:          facturar,
   _guardarCotizacion: guardarCotizacion,
   _guardarCambios:    guardarCambios,
   _agregarPartida:    agregarPartida,

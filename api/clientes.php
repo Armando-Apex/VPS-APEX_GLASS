@@ -10,7 +10,15 @@ $rol            = $user['rol'];
 $usuario_id     = $user['id'];
 $usuario_nombre = $user['nombre'];
 $method         = $_SERVER['REQUEST_METHOD'];
-$puede_editar   = in_array($rol, ['dir_admin', 'dueno', 'comercial', 'desarrollo']);
+// UPD-605: 'administracion' faltaba aqui, y ese candado corre ANTES de los chequeos
+// por accion de abajo — asi que las listas de las lineas ~82/108/158, que si incluyen
+// 'administracion' a proposito, eran codigo muerto para ese rol: nunca llegaba. En la
+// practica Lina (administracion) no podia editar contacto/nombre/telefono ni guardar
+// datos fiscales (guardar_fiscal no tiene chequeo propio, hereda este), aunque el
+// modulo Clientes SI le muestra los botones ($puedeEditarNombre la incluye) — clickeaba
+// y recibia 'Sin permiso'. Tambien desbloquea el alta de cliente desde el inbox de
+// Campanas, que ya contaba con administracion en su propio gate ($puedeEnviar).
+$puede_editar   = in_array($rol, ['dir_admin', 'dueno', 'comercial', 'administracion', 'desarrollo']);
 $es_admin       = in_array($rol, ['dir_admin', 'dueno', 'desarrollo']);
 	
 $pdo = getDB();

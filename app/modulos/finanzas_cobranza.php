@@ -4,6 +4,8 @@ require_once __DIR__ . '/../../api/permisos.php';
 $user = requirePermiso('ver_ordenes');
 $_rol = $user['rol'];
 $es_finanzas = in_array($_rol, ['administracion','dir_admin','dueno','desarrollo']);
+// Sprint 3: entrada directa a Facturacion desde Cobranza, mismo permiso que exige ese modulo.
+$puedeFacturar = tienePermiso($_rol, 'facturar');
 if (!$es_finanzas) {
     echo '<div style="padding:40px;text-align:center;color:#dc2626">Sin permiso.</div>'; exit;
 }
@@ -459,6 +461,7 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 var ModFinanzasCobranza = (function() {
 
 var API        = '../api/finanzas.php';
+var PUEDE_FACTURAR = <?= $puedeFacturar ? 'true' : 'false' ?>;
 var API_SF_COB = '../api/saldo_favor.php';
 var _data      = [];
 var _lista     = [];
@@ -602,6 +605,17 @@ function renderTabla() {
       + selOpts + '</select>';
 
     var puedeImprimir = pagado >= total || ['en_proceso','pago_entrega','pagado'].indexOf(epActual) !== -1 || +o.es_retrabajo === 1;
+    // Sprint 3: "Facturar" lleva al modulo de Facturacion con la orden ya cargada, en vez
+    // de teclear el folio a mano. Si ya tiene CFDI vigente se muestra el folio.
+    var btnFacturar = '';
+    if (PUEDE_FACTURAR && o.folio) {
+      if (o.factura_folio) {
+        btnFacturar = '<span class="btn-expand" style="cursor:default;opacity:.7" title="Esta orden ya tiene un CFDI vigente">'
+          + String(o.factura_folio).replace(/[^A-Za-z0-9\-]/g, '') + '</span>';
+      } else {
+        btnFacturar = '<button class="btn-expand" onclick="ModFinanzasCobranza._facturar(\'' + escHtml(String(o.folio).replace(/[^A-Za-z0-9\-]/g,'')) + '\')">Facturar</button>';
+      }
+    }
     var btnSalida = '<button class="btn-salida" '
       + (puedeImprimir ? 'onclick="window.open(\'imprimir_salida.php?id=' + o.cot_id + '\',\'_blank\')"' : 'disabled')
       + '><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Salida</button>';
@@ -624,6 +638,7 @@ function renderTabla() {
       + '<td class="td-sel-epago">' + selHtml + '</td>'
       + '<td class="td-acciones-cob">'
       +   '<button class="btn-expand" onclick="ModFinanzasCobranza._toggle(' + o.cot_id + ',' + i + ')">Ver pagos</button>'
+      +   btnFacturar
       +   btnSalida
       + '</td>'
       + '</tr>'
@@ -843,8 +858,19 @@ function escHtml(s) {
 aplicarPeriodoDefault();
 cargar();
 
+// Sprint 3: navega a Facturacion con la orden precargada. cargarModulo() es global del SPA.
+function facturarOrden(folio) {
+  if (!folio) return;
+  if (typeof cargarModulo === 'function') {
+    cargarModulo('facturacion', { orden: folio });
+  } else {
+    window.location.href = '../dashboard.php?m=facturacion&orden=' + encodeURIComponent(folio);
+  }
+}
+
 return {
   init:           cargar,
+  _facturar:      facturarOrden,
   _filtrar:       filtrar,
   _limpiar:       limpiar,
   _toggle:        toggle,
