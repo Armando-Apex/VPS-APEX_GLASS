@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 26 septiembre 2026 | Próximo UPD disponible: UPD-612
+# Última actualización: 26 septiembre 2026 | Próximo UPD disponible: UPD-613
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -481,7 +481,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-612**
+Próximo UPD disponible: **UPD-613**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -682,4 +682,6 @@ Archivo completo: `docs/HISTORIAL_UPD_546_580.md` (26-ago-2026 → 10-sep-2026)
 
 | UPD-611 | 26-sep-2026 | Armando | **Facturación — fix del error SAT CFDI40145 ("El campo Nombre del receptor debe pertenecer al nombre asociado al RFC") por espacios dobles en el nombre.** Armando no podía timbrar la prueba de S-931 (CTN-532): en el CRM el nombre estaba como `FELIPE DE JESUS HERNANDEZ␣␣HERNANDEZ` (doble espacio). Confirmado con `scripts/validar_datos_fiscales.php` contra el sandbox: con doble espacio el SAT lo rechaza y con uno solo lo acepta. **Código:** `api/facturapi.php` (payload de `timbrar`) ahora colapsa espacios repetidos y recorta los extremos de `legal_name` antes de mandarlo al PAC, para que un error de captura en el CRM no vuelva a bloquear un timbrado. **Datos:** `clientes.razon_social` normalizado en los 5 clientes que tenían espacios dobles (CTN-274, 386, 440, 460, 532; solo el 532 tiene RFC), registrado en `clientes_bitacora`; `clientes.nombre` NO se tocó (mismo criterio de UPD-607, y porque `ordenes.cliente_nombre` todavía se usa en el fallback de autorización del portal por nombre). Borrado el borrador de prueba A-001 (receptor `MELCHOR HERNANDEZ` con el RFC de otra persona, nunca iba a timbrar). A-002 ya lo había corregido y timbrado el propio Armando a las 11:57 (antes de este fix): UUID F641E58B-…, **sigue siendo factura de prueba y hay que borrarla antes de pasar a live**. Respaldos: `_backups/pre_fix_espacios_razon_social_20260926.sql.gz` y `pre_fix_facturas_a001_a002_20260926.sql.gz`. Checkpoint: tag git `pre-fix-espacios-receptor-20260926`. `php -l` OK. |
 
-**Próximo UPD disponible: UPD-612**
+| UPD-612 | 28-sep-2026 | Armando | **Consulta + corrección de datos (no código).** (1) Consulta S-907 (5 láminas completas Claro 9mm 3600×2600, PORFIRIO PEREZ GARCIA): las 5 ya se habían descontado del inventario el 22-sep al dar VoBo (`inventario_movimientos` id=495, reserva `laminas_reservas` id=7 cumplida 5/5); entregar las últimas 3 el 28-sep no genera movimiento nuevo — sin doble descuento, sin cambios. (2) **S-945 (COT-1996, IGNACIO ROMO MUÑOZ) partida 15 capturada como Claro 9mm en vez de Claro 6mm.** Orden en `pendiente_vobo`, sin pagos, pieza sin cortar. Corregido en una transacción con guards: `cotizaciones_partidas` id=10635 → cristal_id 1 / Claro 6mm / $678.03/m² (precio_unitario 1746.1409, subtotal $1,746.14); `piezas` id=7567 cristal/cristal_corto → Claro 6mm; encabezado recalculado con la fórmula canónica (descuento 24.35%): subtotal $20,044.88→$19,324.25, IVA $3,091.88, total $23,252.06→**$22,416.13**, saldo_pendiente (50%) $11,208.07. Registrado en `correcciones_log`. Respaldo: `_backups/pre_fix_s945_p15_cristal_20260928.sql.gz`. |
+
+**Próximo UPD disponible: UPD-613**
