@@ -251,6 +251,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 /* Partidas: franja alterna explícita (evita depender de nth-child con srv-wrap intercalado) */
 .partida-row.zebra { background:#f8fafc; }
 .partida-row:hover { background:#eff6ff; }
+/* Cotizador de Insulados (UPD-613) */
+.ins-row { background:#fff; border:1px solid #c7d2fe; border-left:3px solid #6366f1; border-radius: var(--r-sm); padding:8px 10px; margin-bottom:6px; }
+.ins-head { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.ins-badge { font-size:10px; font-weight:800; background:#eef2ff; color:#4338ca; padding:2px 8px; border-radius:99px; text-transform:uppercase; letter-spacing:.3px; }
+.ins-sub { font-size:11px; color:var(--c-muted); }
+.ins-grid { display:grid; grid-template-columns: 62px 72px 72px minmax(120px,1fr) minmax(120px,1fr) minmax(140px,1.2fr) 96px 118px 60px minmax(90px,1fr); gap:6px; align-items:end; }
+.ins-campo { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.ins-campo label { font-size:9px; font-weight:700; color:#64748b; text-transform:uppercase; }
+.ins-campo input, .ins-campo select { padding:6px 7px; border:1px solid var(--c-border); border-radius:6px; font-size:12px; width:100%; }
+.ins-campo input[readonly] { background:#f8fafc; color:#64748b; }
+.ins-resumen { font-size:12px; color:#475569; margin-top:6px; }
+.ins-resumen strong { color:#1e293b; }
 .p-subhead { display:grid; grid-template-columns: 34px 190px 54px 72px 72px 115px 145px 50px 50px 50px 70px 125px 34px; gap:5px; padding:0 8px; margin-bottom:3px; }
 .p-subhead span { font-size:12px; font-weight:800; color:var(--c-muted); text-transform:uppercase; letter-spacing:.4px; text-align:center; }
 /* Autocomplete cliente */
@@ -355,6 +367,7 @@ function renderFormulario(data) {
   window._cotData = data;
   // Cargar partidas en el array local
   partidas = (data && data.partidas) ? data.partidas.slice() : [];
+  insPrepararPartidas();
   // Servicios: se pueden agregar en cotizaciones existentes no canceladas
   _canAddSrv = !!(PUEDE_EDITAR && data && data.id && data.estatus === 'cotizacion');
 
@@ -675,6 +688,7 @@ function renderFormulario(data) {
   html += '<div class="card-title">&#128230; Partidas';
   if (editable) {
     html += ' <button class="btn btn-ghost btn-sm" onclick="ModCotizacion._agregarPartida()">+ Agregar partida</button>';
+    html += ' <button class="btn btn-ghost btn-sm" style="color:#4338ca;border-color:#c7d2fe" onclick="ModCotizacion._agregarInsulado()">+ Agregar insulado</button>';
   }
   if (ES_DIR_ADMIN) {
     html += ' <button class="btn btn-ghost btn-sm" style="color:#7c3aed;border-color:#ede9fe" onclick="window.cotAbrirCatalogo()">&#9881; Cat&#225;logo servicios</button>';
@@ -764,8 +778,15 @@ function renderPartidas(editable) {
   }
 
   var html = '';
+  var insNum = 0;
   for (var i = 0; i < partidas.length; i++) {
     var p = partidas[i];
+    // Cotizador de Insulados (UPD-613): el par ext/int se dibuja como UN renglón
+    if (p.insulado_rol === 'int' && insExtIdx(p.insulado_grupo) >= 0) continue;
+    if (p.insulado_rol === 'ext') {
+      var jIns = insIntIdx(p.insulado_grupo);
+      if (jIns >= 0) { insNum++; html += renderInsulado(i, jIns, insNum, editable); continue; }
+    }
     // Venta de lámina completa (UPD-554/555): sin ningún trabajo — deshabilita
     // CPB/resaques/taladros/templado al renderizar (el servidor los fuerza a 0
     // de todas formas, esto solo evita que el asesor capture algo engañoso).
@@ -867,19 +888,30 @@ function renderPartidas(editable) {
     html += '</select>';
     html += '</div>';
 
-    // Sección de servicios (solo cotizaciones existentes)
+    html += renderSrvWrap(i, p);
+  }
+  cont.innerHTML = html;
+  recalcularResumenesInsulado();
+}
+
+// Servicios de una partida — extraído de renderPartidas para reusarlo en el
+// renglón de insulado (UPD-613). El separador del insulado (es_insulado=1) no se
+// lista aquí: se muestra en el resumen del propio insulado.
+function renderSrvWrap(i, p) {
+  var html = '';
     if (_dataCot && _dataCot.id) {
-      var srvs = p.servicios || [];
+      var srvs = (p.servicios || []).filter(function(s) { return !parseInt(s.es_insulado || 0); });
       html += '<div class="srv-wrap" id="srv-wrap-' + i + '">';
       for (var s = 0; s < srvs.length; s++) {
         var srv = srvs[s];
         html += '<div class="srv-row">';
         html += '<span class="srv-badge">+ Servicio</span>';
         html += '<span class="srv-desc">' + escHtml(srv.descripcion) + '</span>';
-        var srvEsMl = (srv.servicio_unidad === 'ml');
-        var srvUniLbl = srvEsMl ? (parseFloat(srv.unidades_por_pieza).toFixed(3).replace(/\.?0+$/, '') + ' m.l.') : (srv.unidades_por_pieza + ' und');
+        var srvEsMl = (srv.servicio_unidad === 'ml' || srv.servicio_unidad === 'm2');
+        var srvUniTxt = (srv.servicio_unidad === 'm2') ? 'm\u00b2' : 'm.l.';
+        var srvUniLbl = srvEsMl ? (parseFloat(srv.unidades_por_pieza).toFixed(3).replace(/\.?0+$/, '') + ' ' + srvUniTxt) : (srv.unidades_por_pieza + ' und');
         html += '<span class="srv-qty">' + srvUniLbl + ' &times; ' + srv.cantidad_piezas + ' pzs</span>';
-        html += '<span class="srv-precio">$' + parseFloat(srv.precio_unitario).toFixed(2) + (srvEsMl ? '/m.l.' : '/und') + '</span>';
+        html += '<span class="srv-precio">$' + parseFloat(srv.precio_unitario).toFixed(2) + (srvEsMl ? '/' + srvUniTxt : '/und') + '</span>';
         html += '<span class="srv-sub">= $' + parseFloat(srv.subtotal).toFixed(2) + '</span>';
         if (_canAddSrv) {
           html += '<button class="srv-del-btn" onclick="window.cotEliminarServicio(' + srv.id + ', ' + _dataCot.id + ', ' + i + ')">&#215;</button>';
@@ -911,25 +943,27 @@ function renderPartidas(editable) {
       }
       html += '</div>';
     }
-  }
-  cont.innerHTML = html;
+  return html;
 }
 
 // ── Agregar / eliminar partida ─────────────────────────────────────────────────
 function leerPartidasDelDOM() {
   for (var i = 0; i < partidas.length; i++) {
-    var cristalEl = document.getElementById('p_cristal_' + i);
-    var cantEl    = document.getElementById('p_cant_'    + i);
-    var anchoEl   = document.getElementById('p_ancho_'   + i);
-    var altoEl    = document.getElementById('p_alto_'    + i);
-    var detEl     = document.getElementById('p_det_'     + i);
-    var cpbEl     = document.getElementById('p_cpb_'     + i);
-    var resEl     = document.getElementById('p_res_'     + i);
-    var tpEl      = document.getElementById('p_tp_'      + i);
-    var taEl      = document.getElementById('p_ta_'      + i);
-    var templEl   = document.getElementById('p_templ_'   + i);
-    var comEl     = document.getElementById('p_com_'     + i);
-    var lamEl     = document.getElementById('p_lamina_'  + i);
+    // pEl(): la partida 'int' de un insulado lee medidas/cantidad/etc. de su 'ext' (UPD-613)
+    var cristalEl = pEl('cristal', i);
+    var cantEl    = pEl('cant',    i);
+    var anchoEl   = pEl('ancho',   i);
+    var altoEl    = pEl('alto',    i);
+    var detEl     = pEl('det',     i);
+    var cpbEl     = pEl('cpb',     i);
+    var resEl     = pEl('res',     i);
+    var tpEl      = pEl('tp',      i);
+    var taEl      = pEl('ta',      i);
+    var templEl   = pEl('templ',   i);
+    var comEl     = pEl('com',     i);
+    var lamEl     = pEl('lamina',  i);
+    var insSrvEl  = document.getElementById('ins_srv_' + i);
+    if (insSrvEl)  partidas[i].insulado_servicio_id  = parseInt(insSrvEl.value) || 0;
     if (cristalEl) partidas[i].cristal_id            = parseInt(cristalEl.value) || 0;
     if (cantEl)    partidas[i].cantidad               = parseInt(cantEl.value)    || 1;
     if (anchoEl)   partidas[i].ancho                  = parseInt(anchoEl.value)   || 0;
@@ -955,6 +989,220 @@ function agregarPartida() {
 function eliminarPartida(idx) {
   leerPartidasDelDOM();
   partidas.splice(idx, 1);
+  renderPartidas(true);
+  recalcular();
+}
+
+// ── Cotizador de Insulados (UPD-613) ──────────────────────────────────────────
+// Un insulado se captura como UNA unidad (N unidades, ancho × alto, vidrio exterior,
+// vidrio interior, separador). Internamente son 2 partidas (insulado_rol 'ext'/'int',
+// mismo insulado_grupo): la 'int' comparte medidas/cantidad/detalles con su 'ext'.
+// El separador lo calcula y guarda el SERVIDOR (api/helpers/insulados_lib.php) —
+// aquí solo es vista previa. Unidades insuladas = cantidad capturada, sin dividir.
+var INS_DET_OPTS = ['NO','Plantilla','Descuadre','Forma','Di\u00e1metro']; // mismas que renderPartidas
+var INS_CPB_OPTS = ['No','Perimetral','Larguero','Largueros','Cabezal','Cabezales','1 Larguero - 1 cabezal','2 Largueros - 1 cabezal','1 Larguero - 2 cabezales'];
+
+function insIdx(grupo, rol) {
+  for (var k = 0; k < partidas.length; k++) {
+    if (partidas[k].insulado_rol === rol && partidas[k].insulado_grupo == grupo) return k;
+  }
+  return -1;
+}
+function insExtIdx(grupo) { return insIdx(grupo, 'ext'); }
+function insIntIdx(grupo) { return insIdx(grupo, 'int'); }
+
+// Elemento de un campo de la partida i; para la 'int' de un insulado, todo menos
+// cristal/precio se toma del renglón de su 'ext' (es un solo renglón en pantalla).
+function pEl(campo, i) {
+  var p = partidas[i];
+  var src = i;
+  if (p && p.insulado_rol === 'int' && campo !== 'cristal' && campo !== 'pm2') {
+    var e = insExtIdx(p.insulado_grupo);
+    if (e >= 0) src = e;
+  }
+  return document.getElementById('p_' + campo + '_' + src);
+}
+
+function insSrvCat(id) {
+  for (var k = 0; k < _srvCatalogo.length; k++) {
+    if (_srvCatalogo[k].id == id) return _srvCatalogo[k];
+  }
+  return null;
+}
+function insSeparadores() {
+  return _srvCatalogo.filter(function(s) { return s.unidad === 'ml' || s.unidad === 'm2'; });
+}
+
+// Al cargar del servidor: el separador guardado (es_insulado=1) vive en la 'ext'.
+// Se recuerda su precio para que la vista previa respete el precio ya cotizado
+// (el servidor hace lo mismo al guardar si el separador no cambió).
+function insPrepararPartidas() {
+  for (var k = 0; k < partidas.length; k++) {
+    var p = partidas[k];
+    if (p.insulado_rol !== 'ext') continue;
+    var srvs = p.servicios || [];
+    for (var s = 0; s < srvs.length; s++) {
+      if (parseInt(srvs[s].es_insulado || 0)) {
+        p.insulado_servicio_id = parseInt(srvs[s].servicio_id || 0);
+        p.insulado_srv_orig    = p.insulado_servicio_id;
+        p.insulado_precio      = parseFloat(srvs[s].precio_unitario || 0);
+        break;
+      }
+    }
+  }
+}
+
+// Mismo cálculo que insuladoUnidadesPorPieza() en PHP (3 decimales)
+function insUnidadesPorPieza(unidad, ancho, alto) {
+  if (unidad === 'ml') return Math.round(2 * (ancho + alto)) / 1000;
+  if (unidad === 'm2') return Math.round(ancho * alto / 1000) / 1000;
+  return 1;
+}
+
+function insSeparadorInfo(i) {
+  var p     = partidas[i];
+  var sel   = document.getElementById('ins_srv_' + i);
+  var srvId = sel ? parseInt(sel.value || 0) : parseInt(p.insulado_servicio_id || 0);
+  var srv   = insSrvCat(srvId);
+  var cant  = parseInt((pEl('cant', i)  || {}).value || 0);
+  var ancho = parseInt((pEl('ancho', i) || {}).value || 0);
+  var alto  = parseInt((pEl('alto', i)  || {}).value || 0);
+  if (!srv || !cant || !ancho || !alto) return null;
+  var precio = (p.insulado_srv_orig && p.insulado_srv_orig == srvId)
+    ? parseFloat(p.insulado_precio || 0) : parseFloat(srv.precio_default || 0);
+  var upp = insUnidadesPorPieza(srv.unidad, ancho, alto);
+  return { srv: srv, precio: precio, upp: upp, unidades: cant, ancho: ancho, alto: alto,
+           subtotal: Math.round(precio * upp * cant * 100) / 100 };
+}
+
+// Servicios para el total en vivo: los guardados que NO son separador de insulado
+// + los separadores calculados en vivo.
+function insServiciosPreview() {
+  var total = 0;
+  if (_dataCot && _dataCot.partidas) {
+    for (var k = 0; k < _dataCot.partidas.length; k++) {
+      var srvs = _dataCot.partidas[k].servicios || [];
+      for (var s = 0; s < srvs.length; s++) {
+        if (!parseInt(srvs[s].es_insulado || 0)) total += parseFloat(srvs[s].subtotal || 0);
+      }
+    }
+  }
+  for (var i = 0; i < partidas.length; i++) {
+    if (partidas[i].insulado_rol !== 'ext' || insIntIdx(partidas[i].insulado_grupo) < 0) continue;
+    var inf = insSeparadorInfo(i);
+    if (inf) total += inf.subtotal;
+  }
+  return total;
+}
+
+function recalcularResumenesInsulado() {
+  function fmt(n) { return '$' + n.toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function num(n) { return (Math.round(n * 1000) / 1000).toLocaleString('es-MX', {maximumFractionDigits:3}); }
+  for (var i = 0; i < partidas.length; i++) {
+    var el = document.getElementById('ins_res_' + i);
+    if (!el) continue;
+    var inf = insSeparadorInfo(i);
+    if (!inf) { el.innerHTML = '<span style="color:var(--c-muted)">Captura unidades, medidas y separador para ver el c&aacute;lculo.</span>'; continue; }
+    var m2u  = (inf.ancho / 1000) * (inf.alto / 1000);
+    var uLbl = inf.srv.unidad === 'm2' ? 'm&sup2;' : (inf.srv.unidad === 'ml' ? 'ml' : 'und');
+    el.innerHTML = '<strong>' + inf.unidades + ' unidad' + (inf.unidades === 1 ? '' : 'es') + '</strong> &middot; '
+      + num(m2u * inf.unidades) + ' m&sup2; de insulado (' + (inf.unidades * 2) + ' piezas de vidrio) &middot; '
+      + 'Separador: ' + num(inf.upp) + ' ' + uLbl + ' &times; ' + inf.unidades + ' = ' + num(inf.upp * inf.unidades) + ' ' + uLbl
+      + ' &times; ' + fmt(inf.precio) + ' = <strong>' + fmt(inf.subtotal) + '</strong>';
+  }
+}
+
+function insPm2Init(p) {
+  var pm2 = parseFloat(p.precio_m2_usado || 0);
+  if (!pm2 && p.cristal_id) {
+    for (var ci = 0; ci < cristales.length; ci++) {
+      if (cristales[ci].id == p.cristal_id) { pm2 = parseFloat(cristales[ci].precio_m2 || 0); break; }
+    }
+  }
+  return pm2;
+}
+
+function insCampo(label, control) {
+  return '<div class="ins-campo"><label>' + label + '</label>' + control + '</div>';
+}
+
+function insSelectCristal(idx, p, editable) {
+  var h = '<select id="p_cristal_' + idx + '" onchange="window.cotCristalChange(' + idx + ')"' + (editable ? '' : ' disabled') + '>';
+  h += '<option value="">-- Cristal --</option>';
+  for (var j = 0; j < cristales.length; j++) {
+    var c = cristales[j];
+    h += '<option value="' + c.id + '"' + (p.cristal_id == c.id ? ' selected' : '') + '>' + escHtml(c.nombre) + '</option>';
+  }
+  h += '</select><input type="hidden" id="p_pm2_' + idx + '" value="' + insPm2Init(p) + '">';
+  return h;
+}
+
+function renderInsulado(i, j, n, editable) {
+  var p   = partidas[i];
+  var q   = partidas[j];
+  var dis = editable ? '' : ' disabled';
+  var ro  = editable ? '' : ' readonly';
+  var html = '<div class="ins-row" id="prow-' + i + '">';
+  html += '<div class="ins-head"><span class="ins-badge">Insulado #' + n + '</span>';
+  html += '<span class="ins-sub">partidas ' + (i + 1) + ' (exterior) y ' + (j + 1) + ' (interior)</span>';
+  if (editable) {
+    html += '<button class="btn-del" style="margin-left:auto" title="Eliminar insulado" onclick="ModCotizacion._eliminarInsulado(' + parseInt(p.insulado_grupo) + ')">&#215;</button>';
+  }
+  html += '</div><div class="ins-grid">';
+  html += insCampo('Unidades', '<input type="number" id="p_cant_' + i + '" min="1" value="' + (parseInt(p.cantidad) || 1) + '"' + ro + ' onchange="ModCotizacion._recalcular()">');
+  html += insCampo('Ancho mm', '<input type="number" id="p_ancho_' + i + '" value="' + (p.ancho || '') + '" placeholder="mm"' + ro + ' onchange="ModCotizacion._recalcular()">');
+  html += insCampo('Alto mm', '<input type="number" id="p_alto_' + i + '" value="' + (p.alto || '') + '" placeholder="mm"' + ro + ' onchange="ModCotizacion._recalcular()">');
+  html += insCampo('Vidrio exterior', insSelectCristal(i, p, editable));
+  html += insCampo('Vidrio interior', insSelectCristal(j, q, editable));
+  var sh = '<select id="ins_srv_' + i + '"' + dis + ' onchange="ModCotizacion._recalcular()">';
+  sh += '<option value="">-- Separador --</option>';
+  var seps = insSeparadores();
+  for (var s = 0; s < seps.length; s++) {
+    var uTxt = seps[s].unidad === 'm2' ? '/m\u00b2' : '/ml';
+    sh += '<option value="' + seps[s].id + '"' + (p.insulado_servicio_id == seps[s].id ? ' selected' : '') + '>'
+       + escHtml(seps[s].nombre) + ' ($' + parseFloat(seps[s].precio_default).toFixed(2) + uTxt + ')</option>';
+  }
+  sh += '</select>';
+  html += insCampo('Separador', sh);
+  var dh = '<select id="p_det_' + i + '"' + dis + '><option value="">--</option>';
+  for (var d = 0; d < INS_DET_OPTS.length; d++) {
+    dh += '<option value="' + INS_DET_OPTS[d] + '"' + (p.detalles === INS_DET_OPTS[d] ? ' selected' : '') + '>' + INS_DET_OPTS[d] + '</option>';
+  }
+  html += insCampo('Detalles', dh + '</select>');
+  var ch = '<select id="p_cpb_' + i + '"' + dis + '><option value="">--</option>';
+  for (var c = 0; c < INS_CPB_OPTS.length; c++) {
+    ch += '<option value="' + INS_CPB_OPTS[c] + '"' + (p.cpb === INS_CPB_OPTS[c] ? ' selected' : '') + '>' + INS_CPB_OPTS[c] + '</option>';
+  }
+  html += insCampo('CPB', ch + '</select>');
+  var templVal = (p.requiere_templado === 0 || p.requiere_templado === '0') ? 0 : 1;
+  html += insCampo('Templado', '<select id="p_templ_' + i + '"' + dis + '>'
+    + '<option value="1"' + (templVal === 1 ? ' selected' : '') + '>S&#237;</option>'
+    + '<option value="0"' + (templVal === 0 ? ' selected' : '') + '>No</option></select>');
+  html += insCampo('Comentarios', '<input type="text" id="p_com_' + i + '" value="' + escHtml(p.comentarios_etiqueta || '') + '" placeholder="Etiqueta..."' + ro + '>');
+  html += '</div>';
+  html += '<div class="ins-resumen" id="ins_res_' + i + '"></div>';
+  html += renderSrvWrap(i, p);
+  html += '</div>';
+  return html;
+}
+
+function agregarInsulado() {
+  leerPartidasDelDOM();
+  // Si solo hay una partida vacía (la que se crea por default), la reemplaza
+  if (partidas.length === 1 && !partidas[0].cristal_id && !partidas[0].ancho && !partidas[0].id) partidas = [];
+  var g = 0;
+  for (var k = 0; k < partidas.length; k++) g = Math.max(g, parseInt(partidas[k].insulado_grupo || 0));
+  g++;
+  var seps = insSeparadores();
+  partidas.push({ insulado_grupo: g, insulado_rol: 'ext', cantidad: 1, insulado_servicio_id: seps.length ? parseInt(seps[0].id) : 0 });
+  partidas.push({ insulado_grupo: g, insulado_rol: 'int', cantidad: 1 });
+  renderPartidas(true);
+  recalcular();
+}
+
+function eliminarInsulado(grupo) {
+  leerPartidasDelDOM();
+  partidas = partidas.filter(function(p) { return !(p.insulado_rol && p.insulado_grupo == grupo); });
   renderPartidas(true);
   recalcular();
 }
@@ -1039,10 +1287,10 @@ function recalcular() {
   var ppCod  = ppEl ? ppEl.value.trim() : (_dataCot ? (_dataCot.promo_precio_codigo || '') : '');
   var ppMap  = PROMO_PRECIO_PREVIEW[ppCod] || null;
   for (var i = 0; i < partidas.length; i++) {
-    var cristalId = parseInt(document.getElementById('p_cristal_' + i)?.value || 0);
-    var cantidad  = parseInt(document.getElementById('p_cant_'   + i)?.value || 0);
-    var ancho     = parseInt(document.getElementById('p_ancho_'  + i)?.value || 0);
-    var alto      = parseInt(document.getElementById('p_alto_'   + i)?.value || 0);
+    var cristalId = parseInt(pEl('cristal', i)?.value || 0);
+    var cantidad  = parseInt(pEl('cant',    i)?.value || 0);
+    var ancho     = parseInt(pEl('ancho',   i)?.value || 0);
+    var alto      = parseInt(pEl('alto',    i)?.value || 0);
     if (!cristalId || !cantidad || !ancho || !alto) continue;
     var m2     = (ancho / 1000) * (alto / 1000);
     var precio = parseFloat(document.getElementById('p_pm2_' + i)?.value || 0);
@@ -1068,11 +1316,12 @@ function recalcular() {
   var pctEnc    = (encCodEl && encCodEl.value.trim()) ? 5 : (_dataCot ? parseFloat(_dataCot.descuento_encuesta || 0) : 0);
   var descuento = (subtotal - subtotalPromo) * (pctDesc + pctRef + pctEnc) / 100;
   var baseNeta  = subtotal - descuento;
-  var srvTotal  = _dataCot ? parseFloat(_dataCot.servicios_subtotal || 0) : 0;
+  var srvTotal  = insServiciosPreview(); // UPD-613: guardados (sin separadores) + separadores de insulado en vivo
   var base      = baseNeta + srvTotal;
   var iva       = base * 0.16;
   var total     = base + iva;
 
+  recalcularResumenesInsulado();
   function fmt(n) { return '$' + n.toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); }
   if (document.getElementById('tSubtotal'))  document.getElementById('tSubtotal').textContent  = fmt(subtotal);
   if (document.getElementById('tDescuento')) document.getElementById('tDescuento').textContent = '-' + fmt(descuento);
@@ -1382,10 +1631,10 @@ async function guardarCambios() {
 function armarPayload(clienteId) {
   var partidasPayload = [];
   for (var i = 0; i < partidas.length; i++) {
-    var cristalId = document.getElementById('p_cristal_' + i)?.value;
-    var cantidad  = parseInt(document.getElementById('p_cant_'   + i)?.value || 1);
-    var ancho     = parseInt(document.getElementById('p_ancho_'  + i)?.value || 0);
-    var alto      = parseInt(document.getElementById('p_alto_'   + i)?.value || 0);
+    var cristalId = pEl('cristal', i)?.value;
+    var cantidad  = parseInt(pEl('cant',    i)?.value || 1);
+    var ancho     = parseInt(pEl('ancho',   i)?.value || 0);
+    var alto      = parseInt(pEl('alto',    i)?.value || 0);
     if (!cristalId || !ancho || !alto) continue;
     var pm2Guardado = parseFloat(document.getElementById('p_pm2_' + i)?.value || 0);
     partidasPayload.push({
@@ -1394,15 +1643,19 @@ function armarPayload(clienteId) {
       ancho:                ancho,
       alto:                 alto,
       precio_m2_usado:      pm2Guardado || null,
-      detalles:             document.getElementById('p_det_' + i)?.value || '',
-      cpb:                  document.getElementById('p_cpb_' + i)?.value || '',
-      resaques:             parseInt(document.getElementById('p_res_' + i)?.value || 0),
-      taladros_pasados:     parseInt(document.getElementById('p_tp_'  + i)?.value || 0),
-      taladros_avellanados: parseInt(document.getElementById('p_ta_'  + i)?.value || 0),
-      comentarios_etiqueta: document.getElementById('p_com_' + i)?.value || '',
-      requiere_templado:    parseInt(document.getElementById('p_templ_' + i)?.value ?? 1),
+      detalles:             pEl('det', i)?.value || '',
+      cpb:                  pEl('cpb', i)?.value || '',
+      resaques:             parseInt(pEl('res', i)?.value || 0),
+      taladros_pasados:     parseInt(pEl('tp',  i)?.value || 0),
+      taladros_avellanados: parseInt(pEl('ta',  i)?.value || 0),
+      comentarios_etiqueta: pEl('com', i)?.value || '',
+      requiere_templado:    parseInt(pEl('templ', i)?.value ?? 1),
       pieza_origen_id:      partidas[i] ? (partidas[i].pieza_origen_id || null) : null,
-      lamina_id:            parseInt(document.getElementById('p_lamina_' + i)?.value || 0) || null,
+      lamina_id:            parseInt(pEl('lamina', i)?.value || 0) || null,
+      // Cotizador de Insulados (UPD-613) — el servidor valida el par y calcula el separador
+      insulado_grupo:       partidas[i] ? (parseInt(partidas[i].insulado_grupo || 0) || null) : null,
+      insulado_rol:         partidas[i] ? (partidas[i].insulado_rol || null) : null,
+      insulado_servicio_id: parseInt(document.getElementById('ins_srv_' + i)?.value || 0) || 0,
     });
   }
   if (!partidasPayload.length) { toast('Agrega al menos una partida válida (cristal + medidas)', 'error'); return null; }
@@ -1858,6 +2111,11 @@ function cotSrvSel(idx, ancho, alto, cantidad) {
       if (undEl) undEl.value = perim;
       if (pzsEl) pzsEl.value = (cantidad || 1) / 2;
       if (lblEl) lblEl.textContent = 'm.l./pieza';
+    } else if (unidad === 'm2') {
+      // UPD-613: servicio por m² — área de cada pieza × todas las piezas de la partida
+      if (undEl) undEl.value = Math.round((ancho || 0) * (alto || 0) / 1000) / 1000;
+      if (pzsEl) pzsEl.value = (cantidad || 1);
+      if (lblEl) lblEl.textContent = 'm\u00b2/pieza';
     } else {
       if (undEl) undEl.value = 1;
       if (pzsEl) pzsEl.value = (cantidad || 1);
@@ -1908,6 +2166,7 @@ async function cotGuardarServicio(idx, partidaId, cotId) {
       var cot  = await res2.json();
       _dataCot = cot;
       partidas = cot.partidas ? cot.partidas.slice() : [];
+      insPrepararPartidas();
       renderPartidas(_canAddSrv);
       recalcular();
     } else {
@@ -1935,6 +2194,7 @@ async function cotEliminarServicio(srvId, cotId, idx) {
       var cot  = await res2.json();
       _dataCot = cot;
       partidas = cot.partidas ? cot.partidas.slice() : [];
+      insPrepararPartidas();
       renderPartidas(_canAddSrv);
       recalcular();
     } else {
@@ -1970,7 +2230,7 @@ function _inyectarModalCatalogo() {
         '<div class="cat-form">' +
           '<input type="text" id="catNombre" placeholder="Nombre del servicio (ej: Radio)" />' +
           '<input type="number" id="catPrecio" placeholder="Precio $" class="cat-precio-input" min="0" step="0.01" />' +
-          '<select id="catUnidad" class="cat-precio-input" title="Unidad de cobro"><option value="pieza">por pieza</option><option value="ml">por m.l.</option></select>' +
+          '<select id="catUnidad" class="cat-precio-input" title="Unidad de cobro"><option value="pieza">por pieza</option><option value="ml">por m.l.</option><option value="m2">por m&sup2;</option></select>' +
           '<button class="btn-cat-add" onclick="window.cotCrearServicioCat()">+ Agregar</button>' +
         '</div>' +
         '<div class="cat-list" id="catList"><div style="text-align:center;color:var(--c-muted);padding:20px">Cargando...</div></div>' +
@@ -1998,8 +2258,9 @@ async function _renderCatalogo() {
       html += '<input type="text" id="cat-nom-' + s.id + '" value="' + escHtml(s.nombre) + '" style="flex:1">';
       html += '<input type="number" id="cat-pre-' + s.id + '" value="' + parseFloat(s.precio_default).toFixed(2) + '" class="cat-precio-input" min="0" step="0.01">';
       html += '<select id="cat-uni-' + s.id + '" class="cat-precio-input" title="Unidad de cobro">' +
-              '<option value="pieza"' + ((s.unidad === 'ml') ? '' : ' selected') + '>por pieza</option>' +
-              '<option value="ml"' + ((s.unidad === 'ml') ? ' selected' : '') + '>por m.l.</option></select>';
+              '<option value="pieza"' + ((s.unidad === 'ml' || s.unidad === 'm2') ? '' : ' selected') + '>por pieza</option>' +
+              '<option value="ml"' + ((s.unidad === 'ml') ? ' selected' : '') + '>por m.l.</option>' +
+              '<option value="m2"' + ((s.unidad === 'm2') ? ' selected' : '') + '>por m&sup2;</option></select>';
       html += '<button class="btn-cat-save" onclick="window.cotEditarServicioCat(' + s.id + ')">&#10003;</button>';
       if (!inactivo) {
         html += '<button class="btn-cat-del" title="Desactivar" onclick="window.cotDesactivarServicioCat(' + s.id + ')">&#128465;</button>';
@@ -2274,6 +2535,8 @@ return {
   _guardarCambios:    guardarCambios,
   _agregarPartida:    agregarPartida,
   _eliminarPartida:   eliminarPartida,
+  _agregarInsulado:   agregarInsulado,
+  _eliminarInsulado:  eliminarInsulado,
   _recalcular:        recalcular,
   _buscarCliente:     buscarCliente,
   _seleccionarCliente:seleccionarCliente,

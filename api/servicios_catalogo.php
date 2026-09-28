@@ -37,7 +37,7 @@ $body = json_decode(file_get_contents('php://input'), true) ?? [];
 if ($method === 'POST') {
     $nombre  = trim($body['nombre']        ?? '');
     $precio  = (float)($body['precio_default'] ?? 0);
-    $unidad  = ($body['unidad'] ?? 'pieza') === 'ml' ? 'ml' : 'pieza';
+    $unidad  = in_array($body['unidad'] ?? '', ['ml', 'm2'], true) ? $body['unidad'] : 'pieza'; // UPD-613: + m2
 
     if (!$nombre || $precio <= 0) {
         jsonResponse(['error' => 'Nombre y precio son requeridos']);
@@ -53,7 +53,7 @@ if ($method === 'PUT') {
     $id     = (int)($body['id']            ?? 0);
     $nombre = trim($body['nombre']         ?? '');
     $precio = (float)($body['precio_default'] ?? 0);
-    $unidad = ($body['unidad'] ?? 'pieza') === 'ml' ? 'ml' : 'pieza';
+    $unidad = in_array($body['unidad'] ?? '', ['ml', 'm2'], true) ? $body['unidad'] : 'pieza'; // UPD-613: + m2
 
     if (!$id || !$nombre || $precio <= 0) {
         jsonResponse(['error' => 'Datos incompletos']);

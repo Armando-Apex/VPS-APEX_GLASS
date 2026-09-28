@@ -25,6 +25,7 @@ require_once __DIR__ . '/helpers/promo_wa_lib.php';   // Promo Estados WhatsApp 
 require_once __DIR__ . '/helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
 require_once __DIR__ . '/helpers/encuesta_descuento_lib.php'; // Descuento por Encuesta de Satisfacción (16-sep-2026)
 require_once __DIR__ . '/helpers/promo_precio_lib.php'; // Promo precio fijo por código — SALT_SEP2026 (23-sep-2026)
+require_once __DIR__ . '/helpers/insulados_lib.php';    // Cotizador de Insulados (UPD-613)
 
 // cotizacionesFacturaVigente() vive ahora en cotizacion_helpers.php (BLV-1, 26-ago-2026)
 // para que api/maquila.php también la use — no duplicar aquí.
@@ -369,7 +370,11 @@ if ($method === 'POST') {
                         $esLaminaCompleta ? 0 : ($p['resaques'] ?? 0),
                         $esLaminaCompleta ? 0 : ($p['taladros_pasados'] ?? 0),
                         $esLaminaCompleta ? 0 : ($p['taladros_avellanados'] ?? 0),
-                        $p['comentarios_etiqueta'] ?? '',
+                        // Cotizador de Insulados (UPD-613): la etiqueta dice a qué unidad y lado
+                        // pertenece la pieza, para que en piso junten la pareja correcta.
+                        !empty($p['insulado_grupo'])
+                            ? trim('INS-' . $p['insulado_grupo'] . ' ' . strtoupper((string)$p['insulado_rol']) . ' ' . ($p['comentarios_etiqueta'] ?? ''))
+                            : ($p['comentarios_etiqueta'] ?? ''),
                         $qr,
                         $esLaminaCompleta ? 'terminado' : 'pendiente',
                         (int)($cot['es_retrabajo'] ?? 0),
@@ -488,7 +493,9 @@ if ($method === 'POST') {
 
         $db->beginTransaction();
         try {
-            $db->prepare("DELETE FROM cotizacion_partida_servicios WHERE id = ? AND cotizacion_id = ?")
+            // UPD-613: el separador de un insulado no se borra suelto — se quita
+            // eliminando el insulado completo (lo regenera el guardado).
+            $db->prepare("DELETE FROM cotizacion_partida_servicios WHERE id = ? AND cotizacion_id = ? AND es_insulado = 0")
                ->execute([$srv_partida_id, $cot_id]);
 
             $st = $db->prepare("SELECT COALESCE(SUM(subtotal),0) as srv_total FROM cotizacion_partida_servicios WHERE cotizacion_id = ?");
@@ -701,6 +708,10 @@ if ($method === 'POST') {
             'pieza_origen_id'      => $es_retrabajo ? $pieza_origen_id : null,
             'lamina_id'            => $lamina_id_venta,
             'promo_precio'         => $precio_promo !== null ? 1 : 0,
+            // Cotizador de Insulados (UPD-613): se valida/normaliza en insuladoNormalizar()
+            'insulado_grupo'       => (int)($p['insulado_grupo'] ?? 0) ?: null,
+            'insulado_rol'         => $p['insulado_rol'] ?? null,
+            'insulado_servicio_id' => (int)($p['insulado_servicio_id'] ?? 0),
         ];
         if ($lamina_id_venta) {
             $idx = count($partidas_data) - 1;
@@ -712,6 +723,12 @@ if ($method === 'POST') {
     }
 
     if (empty($partidas_data)) { jsonResponse(['error' => 'Ninguna partida válida']); exit; }
+
+    // Cotizador de Insulados (UPD-613): validar pares ext/int + separador
+    $insN = insuladoNormalizar($db, $partidas_data);
+    if ($insN['error']) { jsonResponse(['error' => $insN['error']]); exit; }
+    $partidas_data = $insN['partidas'];
+    $insGrupos     = $insN['grupos'];
 
     // A-2: totales de encabezado con la fórmula canónica
     // (los subtotales por renglón se conservan solo para despliegue)
@@ -751,9 +768,11 @@ if ($method === 'POST') {
             (cotizacion_id, num_partida, cristal_id, cristal_nombre, cristal_etiqueta,
              precio_m2_usado, cantidad, ancho, alto, m2, detalles, cpb,
              resaques, taladros_pasados, taladros_avellanados, requiere_templado,
-             precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id, lamina_id, promo_precio)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id, lamina_id, promo_precio,
+             insulado_grupo, insulado_rol)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ");
+        $idsPorIdx = [];
         foreach ($partidas_data as $i => $p) {
             $stmtP->execute([
                 $cot_id, $i + 1,
@@ -762,8 +781,16 @@ if ($method === 'POST') {
                 $p['detalles'], $p['cpb'], $p['resaques'],
                 $p['taladros_pasados'], $p['taladros_avellanados'], $p['requiere_templado'],
                 $p['precio_unitario'], $p['subtotal'], $p['iva'], $p['total'],
-                $p['comentarios_etiqueta'], $p['pieza_origen_id'], $p['lamina_id'], $p['promo_precio']
+                $p['comentarios_etiqueta'], $p['pieza_origen_id'], $p['lamina_id'], $p['promo_precio'],
+                $p['insulado_grupo'], $p['insulado_rol']
             ]);
+            $idsPorIdx[$i] = (int)$db->lastInsertId();
+        }
+
+        // Cotizador de Insulados (UPD-613): el separador lo genera el servidor
+        if ($insGrupos) {
+            insuladoInsertarSeparadores($db, $cot_id, $partidas_data, $insGrupos, $idsPorIdx);
+            $total_final = insuladoRecalcularTotales($db, $cot_id, $condicion)['total'];
         }
 
         // Esquema de Referidos: registrar la relación solo si se validó un CTN
@@ -995,6 +1022,10 @@ if ($method === 'PUT') {
             'pieza_origen_id'      => $piezaOrigenVigente[count($partidas_data) + 1] ?? null,
             'lamina_id'            => $lamina_id_venta,
             'promo_precio'         => $precio_promo !== null ? 1 : 0,
+            // Cotizador de Insulados (UPD-613): se valida/normaliza en insuladoNormalizar()
+            'insulado_grupo'       => (int)($p['insulado_grupo'] ?? 0) ?: null,
+            'insulado_rol'         => $p['insulado_rol'] ?? null,
+            'insulado_servicio_id' => (int)($p['insulado_servicio_id'] ?? 0),
             ];
             if ($lamina_id_venta) {
                 $idx = count($partidas_data) - 1;
@@ -1007,13 +1038,19 @@ if ($method === 'PUT') {
 
         if (empty($partidas_data)) { jsonResponse(['error' => 'Ninguna partida válida']); exit; }
 
+        // Cotizador de Insulados (UPD-613): validar pares ext/int + separador
+        $insN = insuladoNormalizar($db, $partidas_data);
+        if ($insN['error']) { jsonResponse(['error' => $insN['error']]); exit; }
+        $partidas_data = $insN['partidas'];
+        $insGrupos     = $insN['grupos'];
+
         // A-2: estimar los servicios que sobreviven la edición (se preservan por
         // num_partida más abajo) para que el total ya los incluya desde el UPDATE.
         $stSrvEst = $db->prepare("
             SELECT COALESCE(SUM(cps.subtotal),0)
             FROM cotizacion_partida_servicios cps
             JOIN cotizaciones_partidas cp ON cp.id = cps.partida_id
-            WHERE cps.cotizacion_id = ? AND cp.num_partida <= ?
+            WHERE cps.cotizacion_id = ? AND cp.num_partida <= ? AND cps.es_insulado = 0
         ");
         $stSrvEst->execute([$id, count($partidas_data)]);
         $servicios_estimados = (float)$stSrvEst->fetchColumn();
@@ -1058,7 +1095,7 @@ if ($method === 'PUT') {
             // los servicios 'ml' contra las medidas NUEVAS de la partida (si no, un
             // espaciador queda cobrado con el perímetro viejo tras editar medidas).
             $stmtSrvBak = $db->prepare("
-                SELECT cps.*, cp.num_partida, sc.unidad AS srv_unidad
+                SELECT cps.*, cp.num_partida, cp.insulado_grupo, sc.unidad AS srv_unidad
                 FROM cotizacion_partida_servicios cps
                 JOIN cotizaciones_partidas cp ON cp.id = cps.partida_id
                 LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id
@@ -1075,10 +1112,12 @@ if ($method === 'PUT') {
                 (cotizacion_id, num_partida, cristal_id, cristal_nombre, cristal_etiqueta,
                  precio_m2_usado, cantidad, ancho, alto, m2, detalles, cpb,
                  resaques, taladros_pasados, taladros_avellanados, requiere_templado,
-                 precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id, lamina_id, promo_precio)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                 precio_unitario, subtotal, iva, total, comentarios_etiqueta, pieza_origen_id, lamina_id, promo_precio,
+                 insulado_grupo, insulado_rol)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ");
             $nuevosIdsPorNumPartida = [];
+            $idsPorIdx = [];
             foreach ($partidas_data as $i => $p) {
                 $numPart = $i + 1;
                 $stmtP->execute([
@@ -1088,9 +1127,11 @@ if ($method === 'PUT') {
                     $p['detalles'], $p['cpb'], $p['resaques'],
                     $p['taladros_pasados'], $p['taladros_avellanados'], $p['requiere_templado'],
                     $p['precio_unitario'], $p['subtotal'], $p['iva'], $p['total'],
-                    $p['comentarios_etiqueta'], $p['pieza_origen_id'], $p['lamina_id'], $p['promo_precio']
+                    $p['comentarios_etiqueta'], $p['pieza_origen_id'], $p['lamina_id'], $p['promo_precio'],
+                    $p['insulado_grupo'], $p['insulado_rol']
                 ]);
                 $nuevosIdsPorNumPartida[$numPart] = (int)$db->lastInsertId();
+                $idsPorIdx[$i] = $nuevosIdsPorNumPartida[$numPart];
             }
 
             // Restaurar servicios con nuevos partida_ids
@@ -1100,6 +1141,9 @@ if ($method === 'PUT') {
                     (cotizacion_id, partida_id, servicio_id, descripcion, precio_unitario, unidades_por_pieza, cantidad_piezas, subtotal)
                     VALUES (?,?,?,?,?,?,?,?)");
                 foreach ($srvBackup as $s) {
+                    // Separador de insulado (UPD-613): no se restaura — se regenera abajo
+                    // desde el grupo, con el precio previo si el separador no cambió.
+                    if ((int)$s['es_insulado'] === 1) continue;
                     $nuevoPartidaId = $nuevosIdsPorNumPartida[$s['num_partida']] ?? null;
                     if (!$nuevoPartidaId) continue;
 
@@ -1131,6 +1175,21 @@ if ($method === 'PUT') {
                 $srv_total_real = (float)$stSrv->fetchColumn();
                 $db->prepare("UPDATE cotizaciones SET servicios_subtotal = ? WHERE id = ?")
                    ->execute([$srv_total_real, $id]);
+            }
+
+            // Cotizador de Insulados (UPD-613): regenerar separadores y totales canónicos
+            $insPrevios = [];
+            $habiaInsulado = false;
+            foreach ($srvBackup as $s) {
+                if ((int)$s['es_insulado'] !== 1) continue;
+                $habiaInsulado = true;
+                if ($s['insulado_grupo']) {
+                    $insPrevios[(int)$s['insulado_grupo']] = ['servicio_id' => $s['servicio_id'], 'precio_unitario' => $s['precio_unitario']];
+                }
+            }
+            if ($insGrupos || $habiaInsulado) {
+                insuladoInsertarSeparadores($db, $id, $partidas_data, $insGrupos, $idsPorIdx, $insPrevios);
+                $total_final = insuladoRecalcularTotales($db, $id, $condicion)['total'];
             }
 
             // Encuesta de satisfacción: marcar el código como usado, solo si se

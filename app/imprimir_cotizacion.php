@@ -401,8 +401,17 @@ function waEnviar() {
       </tr>
     </thead>
     <tbody>
-    <?php foreach ($partidas as $p):
+    <?php
+    // Cotizador de Insulados (UPD-613): número visible de cada insulado (orden de aparición)
+    $insNumPorGrupo = [];
+    foreach ($partidas as $pp) {
+        if (!empty($pp['insulado_grupo']) && ($pp['insulado_rol'] ?? '') === 'ext') {
+            $insNumPorGrupo[(int)$pp['insulado_grupo']] = count($insNumPorGrupo) + 1;
+        }
+    }
+    foreach ($partidas as $p):
         $m2_total = (float)$p['m2'] * (int)$p['cantidad'];
+        $insNum   = !empty($p['insulado_grupo']) ? ($insNumPorGrupo[(int)$p['insulado_grupo']] ?? null) : null;
         $esLaminaCompleta = !empty($p['lamina_id']);
         if ($esLaminaCompleta) {
             // Venta de lámina completa (UPD-554/555): se vende tal cual, sin
@@ -423,10 +432,17 @@ function waEnviar() {
         ]);
         }
     ?>
+      <?php if ($insNum && ($p['insulado_rol'] ?? '') === 'ext'): ?>
+      <tr style="background:#eef2ff;">
+        <td colspan="7" style="font-size:10px;font-weight:700;color:#4338ca;">
+          INSULADO #<?= $insNum ?> &mdash; <?= (int)$p['cantidad'] ?> unidad<?= (int)$p['cantidad'] === 1 ? '' : 'es' ?> de <?= number_format($p['ancho'],0) ?> &times; <?= number_format($p['alto'],0) ?> mm
+        </td>
+      </tr>
+      <?php endif; ?>
       <tr>
         <td class="center"><?= $p['num_partida'] ?></td>
         <td>
-          <div class="cristal-nombre"><?= htmlspecialchars($p['cristal_nombre']) ?><?php if (!empty($p['promo_precio']) && !empty($c['promo_precio_codigo'])): ?> <span style="font-size:9px;font-weight:700;color:#b45309;">· PRECIO PROMOCIÓN <?= htmlspecialchars($c['promo_precio_codigo']) ?></span><?php endif; ?></div>
+          <div class="cristal-nombre"><?php if ($insNum): ?><span style="font-size:9px;font-weight:700;color:#4338ca;">INS-<?= $insNum ?> <?= ($p['insulado_rol'] ?? '') === 'ext' ? 'EXTERIOR' : 'INTERIOR' ?> · </span><?php endif; ?><?= htmlspecialchars($p['cristal_nombre']) ?><?php if (!empty($p['promo_precio']) && !empty($c['promo_precio_codigo'])): ?> <span style="font-size:9px;font-weight:700;color:#b45309;">· PRECIO PROMOCIÓN <?= htmlspecialchars($c['promo_precio_codigo']) ?></span><?php endif; ?></div>
           <?php if (!empty($detalles_extra)): ?>
           <div class="cristal-det"><?= htmlspecialchars(implode(' · ', $detalles_extra)) ?></div>
           <?php endif; ?>
@@ -441,8 +457,8 @@ function waEnviar() {
       <tr style="background:#f0fdf4;">
         <td class="center" style="color:#16a34a;font-size:9px;font-weight:700;">+SRV</td>
         <td colspan="5" style="color:#15803d;font-size:10px;padding-left:14px;">
-          <?php if (($srv['servicio_unidad'] ?? 'pieza') === 'ml'): $ml = rtrim(rtrim(number_format((float)$srv['unidades_por_pieza'],3,'.',''), '0'), '.'); ?>
-          <?= htmlspecialchars($srv['descripcion']) ?> &mdash; <?= $ml ?> m.l. &times; <?= (int)$srv['cantidad_piezas'] ?> pzs &times; $<?= number_format((float)$srv['precio_unitario'],2) ?>/m.l.
+          <?php if (in_array($srv['servicio_unidad'] ?? 'pieza', ['ml', 'm2'], true)): $ml = rtrim(rtrim(number_format((float)$srv['unidades_por_pieza'],3,'.',''), '0'), '.'); $uTxt = ($srv['servicio_unidad'] === 'm2') ? 'm²' : 'm.l.'; $pzTxt = !empty($srv['es_insulado']) ? 'unidades' : 'pzs'; ?>
+          <?= !empty($srv['es_insulado']) && $insNum ? 'Separador insulado #' . $insNum . ': ' : '' ?><?= htmlspecialchars($srv['descripcion']) ?> &mdash; <?= $ml ?> <?= $uTxt ?> &times; <?= (int)$srv['cantidad_piezas'] ?> <?= $pzTxt ?> &times; $<?= number_format((float)$srv['precio_unitario'],2) ?>/<?= $uTxt ?>
           <?php else: ?>
           <?= htmlspecialchars($srv['descripcion']) ?> &mdash; <?= (int)$srv['unidades_por_pieza'] ?> und &times; <?= (int)$srv['cantidad_piezas'] ?> pzs &times; $<?= number_format((float)$srv['precio_unitario'],2) ?>
           <?php endif; ?>
