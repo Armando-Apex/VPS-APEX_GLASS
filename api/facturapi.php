@@ -2,409 +2,7 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/permisos.php';
 require_once __DIR__ . '/mailer.php';
-
-// Recibe "correo1@x.com, correo2@x.com" y regresa solo los que son válidos (silenciosamente descarta lo demás)
-function _correosValidos($raw) {
-    $out = [];
-    foreach (explode(',', (string)$raw) as $e) {
-        $e = trim($e);
-        if ($e && filter_var($e, FILTER_VALIDATE_EMAIL)) $out[] = $e;
-    }
-    return $out;
-}
-
-// LN-1: conceptos (desc/cant/precio) reconstruidos en SERVIDOR a partir del folio de
-// orden — nunca confiar en lo que mande el cliente cuando hay una orden real detrás.
-// Usada tanto para prellenar el formulario (buscar_orden) como para validar lo que
-// se guarda (guardar). Regresa null si el folio no resuelve a una orden con cotización.
-function _facturapiConceptosDesdeOrden($pdo, $ordenFolio) {
-    $stmt = $pdo->prepare("SELECT id FROM ordenes WHERE folio = ? LIMIT 1");
-    $stmt->execute([$ordenFolio]);
-    $ordenId = $stmt->fetchColumn();
-    if (!$ordenId) return null;
-
-    $stmt = $pdo->prepare("SELECT id, tipo, descuento, COALESCE(descuento_referido,0) AS descuento_referido, COALESCE(descuento_encuesta,0) AS descuento_encuesta FROM cotizaciones WHERE orden_id = ? LIMIT 1");
-    $stmt->execute([$ordenId]);
-    $cot = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$cot) return null;
-
-    $cotId     = $cot['id'];
-    $esMaquila = ($cot['tipo'] ?? 'suministro') === 'maquila';
-    // BLV-3: descuento efectivo = manual + automáticos de referido/encuesta (mismo
-    // criterio que apexTotalesCotizacion, helpers/totales.php:51) — antes solo se
-    // usaba el manual, dejando el CFDI por un monto distinto al realmente cobrado.
-    $descuento = min(100, (float)($cot['descuento'] ?? 0) + (float)$cot['descuento_referido'] + (float)$cot['descuento_encuesta']);
-
-    $conceptos = [];
-    if ($esMaquila) {
-        $stmt = $pdo->prepare("
-            SELECT mp.*, tv.nombre AS tipo_vidrio_nombre
-            FROM cotizaciones_maquila_partidas mp
-            LEFT JOIN maquila_tipos_vidrio tv ON tv.id = mp.cristal_tipo_id
-            WHERE mp.cotizacion_id = ?
-            ORDER BY mp.num_partida ASC
-        ");
-        $stmt->execute([$cotId]);
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
-            $servicios = [];
-            if ($p['corte'])    $servicios[] = 'Corte';
-            if ($p['canteado']) $servicios[] = 'Canteado';
-            if ($p['taladros_pasados'] + $p['taladros_avellanados'] > 0) $servicios[] = 'Taladro';
-            if ($p['templado'])  $servicios[] = 'Templado';
-            $desc = trim(($p['tipo_vidrio_nombre'] ?: 'Vidrio') . ' ' . $p['espesor_mm'] . 'mm');
-            if ($servicios) $desc .= ' - Maquila: ' . implode('/', $servicios);
-            $conceptos[] = [
-                'desc'   => $desc,
-                'clave'  => '',
-                'unidad' => 'MTK',
-                'cant'   => round((float)$p['m2'] * (int)$p['cantidad'], 6),
-                'precio' => (float)$p['m2'] > 0 ? round((float)$p['subtotal'] / ((float)$p['m2'] * (int)$p['cantidad']), 6) : 0,
-                'iva'    => true,
-            ];
-        }
-    } else {
-        $stmt = $pdo->prepare("
-            SELECT cristal_nombre, m2, cantidad, precio_m2_usado, promo_precio
-            FROM cotizaciones_partidas
-            WHERE cotizacion_id = ?
-            ORDER BY num_partida ASC
-        ");
-        $stmt->execute([$cotId]);
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
-            // precio_m2_usado es bruto (sin descuento) — aplicar el % de la cotización, igual que el resto del sistema.
-            // Partidas con precio fijo de promo (SALT_SEP2026) no reciben el % de descuento.
-            $precioNeto = ($descuento > 0 && empty($p['promo_precio']))
-                ? round((float)$p['precio_m2_usado'] * (1 - $descuento / 100), 6)
-                : (float)$p['precio_m2_usado'];
-            $conceptos[] = [
-                'desc'   => $p['cristal_nombre'] ?: 'Vidrio',
-                'clave'  => '',
-                'unidad' => 'MTK',
-                'cant'   => round((float)$p['m2'] * (int)$p['cantidad'], 6),
-                'precio' => $precioNeto,
-                'iva'    => true,
-            ];
-        }
-        // BLV-3: servicios adicionales (instalado, taladro, ml, etc.) también forman
-        // parte de la base gravable canónica (helpers/totales.php: base = subtotal+servicios)
-        // pero antes no se incluían aquí — el CFDI quedaba sub-facturado en cotizaciones con servicios.
-        $stmtSrv = $pdo->prepare("
-            SELECT descripcion, precio_unitario, unidades_por_pieza, cantidad_piezas, subtotal
-            FROM cotizacion_partida_servicios WHERE cotizacion_id = ?
-        ");
-        $stmtSrv->execute([$cotId]);
-        foreach ($stmtSrv->fetchAll(PDO::FETCH_ASSOC) as $s) {
-            $conceptos[] = [
-                'desc'   => $s['descripcion'] ?: 'Servicio',
-                'clave'  => '',
-                'unidad' => 'ACT',
-                'cant'   => 1,
-                'precio' => (float)$s['subtotal'],
-                'iva'    => true,
-            ];
-        }
-    }
-    return $conceptos;
-}
-
-// Candado de contexto de negocio: ¿esta orden se puede facturar?
-// Antes NO se validaba en ningún punto (hallado auditando el 26-sep-2026), así que se
-// podía emitir un CFDI real de una orden cancelada, rechazada, sin VoBo o de RETRABAJO.
-// El retrabajo es el caso grave: todo el sistema lo aísla a propósito (fuera de ventas,
-// de cobranza y del P&L, con su propia cuenta contable) porque es corrección de un error
-// nuestro y NO se cobra — facturarlo es cobrarle al cliente algo que le debíamos.
-// Regresa null si se puede facturar, o el texto del motivo por el que no.
-function _facturapiOrdenNoFacturable($pdo, $ordenFolio) {
-    $stmt = $pdo->prepare("
-        SELECT o.estado, COALESCE(c.es_retrabajo, 0) AS es_retrabajo, c.estatus AS cot_estatus
-        FROM ordenes o
-        LEFT JOIN cotizaciones c ON c.orden_id = o.id
-        WHERE o.folio = ? LIMIT 1
-    ");
-    $stmt->execute([$ordenFolio]);
-    $o = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$o) return 'No existe una orden con el folio ' . $ordenFolio . '.';
-
-    if ((int)$o['es_retrabajo'] === 1) {
-        return 'La orden ' . $ordenFolio . ' es un RETRABAJO: es la corrección de un trabajo previo '
-             . 'y no se le cobra al cliente, así que no debe facturarse. Si de verdad hay que cobrarla, '
-             . 'primero hay que quitarle la marca de retrabajo.';
-    }
-    $etiquetas = [
-        'cancelada'      => 'está cancelada',
-        'rechazada'      => 'fue rechazada',
-        'pendiente_vobo' => 'todavía no tiene VoBo (la venta no está confirmada)',
-    ];
-    if (isset($etiquetas[$o['estado']])) {
-        return 'La orden ' . $ordenFolio . ' ' . $etiquetas[$o['estado']] . ', no se puede facturar.';
-    }
-    if (!in_array($o['estado'], ['activa', 'entregada'], true)) {
-        return 'La orden ' . $ordenFolio . ' está en estado "' . $o['estado'] . '" y no se puede facturar.';
-    }
-    if (in_array((string)$o['cot_estatus'], ['cancelada', 'rechazada'], true)) {
-        return 'La cotización de origen de la orden ' . $ordenFolio . ' está ' . $o['cot_estatus'] . ', no se puede facturar.';
-    }
-    return null;
-}
-
-// ── Complementos de Pago (CFDI tipo P, 29-sep-2026) ─────────────────────────
-// Una factura PPD obliga a emitir un Complemento de Pago por cada abono, a más tardar
-// el día 5 del mes siguiente al pago. Cada complemento es una fila de `facturas`
-// (tipo_cfdi='P', serie propia 'P', total=0 como el CFDI real, orden_folio NULL para no
-// contar como "factura vigente de la orden" en los candados existentes) más una fila
-// de `facturas_pagos` que lo liga con la factura PPD y con el abono de Cobranza.
-// Un complemento está ACTIVO si su fila de facturas está 'timbrada' o 'timbrando'
-// (una cancelación en trámite sigue contando: ante el SAT todavía existe).
-define('FACTURAPI_SERIE_COMPLEMENTO', 'P');
-
-// Formas de pago del catálogo SAT válidas en un complemento (99 "Por definir" NO se
-// permite en un pago: el pago ya ocurrió, se sabe cómo fue).
-function _facturapiFormasPagoComplemento() {
-    return ['01','02','03','04','05','06','08','12','13','14','15','17','23','24','25','26','27','28','29','30','31'];
-}
-
-// Forma de pago sugerida a partir de lo capturado en Cobranza. 'tarjeta' no distingue
-// crédito de débito, se sugiere 04 y el usuario la corrige si fue débito (28).
-// Saldo a favor no tiene equivalente automático (depende del esquema de anticipos que
-// defina el contador), así que no se sugiere nada y se obliga a escoger.
-function _facturapiFormaSugerida($formaCobranza) {
-    $map = ['efectivo'=>'01', 'transferencia'=>'03', 'tarjeta'=>'04'];
-    return $map[$formaCobranza] ?? '';
-}
-
-// Día límite para emitir el complemento de un pago: día 5 del mes siguiente.
-function _facturapiLimiteComplemento($fechaPago) {
-    $d = DateTime::createFromFormat('Y-m-d', substr((string)$fechaPago, 0, 10));
-    if (!$d) return null;
-    $d->modify('first day of next month');
-    return $d->format('Y-m') . '-05';
-}
-
-// Abonos de Cobranza de la orden de una factura PPD, cada uno con su complemento activo
-// (si existe), más el saldo de la factura según los complementos activos.
-function _facturapiEstadoPagos($pdo, $fac) {
-    $stmt = $pdo->prepare("
-        SELECT p.id, p.fecha_pago, p.hora_pago, p.monto, p.forma_pago, p.notas
-        FROM cotizacion_pagos p
-        JOIN cotizaciones c ON c.id = p.cotizacion_id
-        JOIN ordenes o      ON o.id = c.orden_id
-        WHERE o.folio = ? AND p.monto > 0
-        ORDER BY p.fecha_pago, p.hora_pago, p.id
-    ");
-    $stmt->execute([$fac['orden_folio']]);
-    $pagos = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $stmt = $pdo->prepare("
-        SELECT fp.*, x.folio_interno, x.estatus, x.uuid, x.pac_cancel_status
-        FROM facturas_pagos fp
-        JOIN facturas x ON x.id = fp.complemento_id
-        WHERE fp.factura_id = ?
-        ORDER BY fp.id
-    ");
-    $stmt->execute([$fac['id']]);
-    $comps = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $activos = [];      // cotizacion_pago_id => complemento activo
-    $sumActivo = 0.0;
-    $numActivos = 0;
-    foreach ($comps as $c) {
-        if (!in_array($c['estatus'], ['timbrada','timbrando'], true)) continue;
-        $numActivos++;
-        $sumActivo += (float)$c['monto'];
-        if ($c['cotizacion_pago_id'] !== null) $activos[(int)$c['cotizacion_pago_id']] = $c;
-    }
-
-    $fechaFactura = substr((string)($fac['fecha_timbrado'] ?: $fac['fecha']), 0, 10);
-    foreach ($pagos as &$p) {
-        $c = $activos[(int)$p['id']] ?? null;
-        $p['complemento'] = $c ? [
-            'id' => (int)$c['complemento_id'], 'folio' => $c['folio_interno'], 'estatus' => $c['estatus'],
-            'parcialidad' => (int)$c['parcialidad'], 'pac_cancel_status' => $c['pac_cancel_status'],
-        ] : null;
-        $p['forma_sugerida']   = _facturapiFormaSugerida($p['forma_pago']);
-        $p['antes_de_factura'] = ($p['fecha_pago'] < $fechaFactura);
-        $p['fecha_limite']     = _facturapiLimiteComplemento($p['fecha_pago']);
-    }
-    unset($p);
-
-    return [
-        'pagos'                => $pagos,
-        'complementos'         => $comps,
-        'total_factura'        => round((float)$fac['total'], 2),
-        'pagado_complementado' => round($sumActivo, 2),
-        'saldo'                => round((float)$fac['total'] - $sumActivo, 2),
-        'siguiente_parcialidad'=> $numActivos + 1,
-    ];
-}
-
-// ¿La orden ya está pagada completa? Si sí, el SAT exige método PUE (no PPD).
-function _facturapiOrdenLiquidada($pdo, $ordenFolio) {
-    $stmt = $pdo->prepare("
-        SELECT c.total, COALESCE((SELECT SUM(p.monto) FROM cotizacion_pagos p WHERE p.cotizacion_id = c.id), 0) AS pagado
-        FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id
-        WHERE o.folio = ? LIMIT 1
-    ");
-    $stmt->execute([$ordenFolio]);
-    $r = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$r || (float)$r['total'] <= 0) return false;
-    return (float)$r['pagado'] >= (float)$r['total'] - 0.005;
-}
-
-// Descarga un archivo (PDF/XML) de FacturAPI autenticado; regresa el binario o null si falla
-function _descargarArchivoFacturapi($url) {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_HTTPHEADER=>['Authorization: Bearer '.FACTURAPI_KEY], CURLOPT_TIMEOUT=>20]);
-    $bin = curl_exec($ch);
-    if (curl_getinfo($ch, CURLINFO_HTTP_CODE) !== 200) $bin = null;
-    unset($ch);
-    return $bin;
-}
-
-// ENVIO DE CFDI POR CORREO — APAGADO A PROPOSITO (Armando, 26-sep-2026).
-// Se baja la feature completa hasta el final del proyecto de facturacion. Motivo: al
-// probar el modulo en vivo se descubrio que el correo del receptor viene pre-llenado del
-// CRM, asi que timbrar en sandbox le mando a un cliente REAL un CFDI de pruebas adjunto.
-// Mismo patron que RUTA_WA_AVISOS_ACTIVO en rutas_lib.php: para reactivarlo basta poner
-// esta constante en true (y entonces sigue vigente el segundo candado de abajo, que
-// impide enviar mientras FACTURAPI_MODE no sea 'live').
-define('FACTURACION_ENVIO_CORREO_ACTIVO', false);
-
-// S2-a: resguardo propio del comprobante. Los CFDI viven en FacturAPI, pero el SAT
-// obliga a conservar el XML 5 años y la caída de suscripción del 24-sep-2026 dejó claro
-// que depender de ellos significa perder acceso a nuestros propios comprobantes. Se
-// guarda una copia en archivos_facturas/ (protegida con .htaccess deny) y el proxy de
-// descarga la sirve de ahí, pegando a FacturAPI solo si el archivo local falta.
-// Regresa la ruta relativa guardada, o null si no se pudo escribir (nunca lanza: el
-// timbrado ya ocurrió ante el SAT y no debe fallar por un problema de disco).
-if (!defined('APEX_DIR_FACTURAS')) define('APEX_DIR_FACTURAS', __DIR__ . '/../archivos_facturas');
-
-function _guardarArchivoFacturaLocal($bin, $folioInterno, $ext) {
-    if ($bin === null || $bin === '') return null;
-    // Nombre determinista y sin datos del cliente: folio interno + año-mes de guardado.
-    $nombre = preg_replace('/[^A-Za-z0-9_-]/', '', (string)$folioInterno) . '.' . $ext;
-    $subdir = APEX_DIR_FACTURAS . '/' . date('Y-m');
-    if (!is_dir($subdir)) {
-        if (!@mkdir($subdir, 0775, true)) {
-            error_log('APEX Facturacion: no se pudo crear '.$subdir);
-            return null;
-        }
-        // El modo de mkdir() lo recorta el umask del proceso (PHP-FPM corre con 022, asi
-        // que 0775 acababa en 0755 y la carpeta quedaba escribible SOLO por su dueno).
-        // Se fuerza explicitamente para que el grupo tambien pueda mantenerla — sin esto,
-        // cualquier limpieza o respaldo hecho por otro usuario del grupo falla en silencio.
-        @chmod($subdir, 02775);
-    }
-    $ruta = $subdir . '/' . $nombre;
-    if (@file_put_contents($ruta, $bin) === false) {
-        error_log('APEX Facturacion: no se pudo escribir '.$ruta);
-        return null;
-    }
-    @chmod($ruta, 0664);
-    return date('Y-m') . '/' . $nombre;   // ruta relativa a archivos_facturas/
-}
-
-// ── Timbrado con respuesta ambigua (auditoría complementos, 29-sep-2026) ──────
-// Si FacturAPI timbra pero su respuesta no llega (timeout, conexión cortada, 5xx), el
-// CFDI YA existe ante el SAT aunque nosotros no lo sepamos. Antes se liberaba la reserva
-// en esos casos y el usuario podía volver a timbrar → dos CFDI de la misma venta o dos
-// complementos del mismo abono. Ahora la fila se queda en 'timbrando' ("en verificación")
-// y accion=verificar_timbrado consulta a FacturAPI por serie+folio antes de decidir.
-// Un 4xx sí es rechazo definitivo (el PAC no creó nada) y se libera como siempre.
-function _facturapiRespuestaAmbigua($curlErr, $httpCode, $res) {
-    if ($curlErr) return true;
-    if ($httpCode === 0 || $httpCode >= 500) return true;
-    if ($httpCode === 200 && empty($res['uuid'])) return true;
-    return false;
-}
-
-// CFDI vigente en FacturAPI con esa serie y folio, creado a partir de $desde (hora local
-// de la reserva, con 5 min de margen por desfase de relojes). El filtro por fecha evita
-// confundirlo con uno viejo del mismo folio (en pruebas los folios se reutilizan al
-// borrar). Regresa el CFDI (mismo formato que la respuesta al crearlo), null si con
-// certeza no existe, o false si no se pudo consultar.
-function _facturapiBuscarPorFolio($serie, $folioNum, $desde) {
-    $ch = curl_init('https://www.facturapi.io/v2/invoices?series=' . urlencode($serie) . '&folio_number=' . (int)$folioNum);
-    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_HTTPHEADER=>['Authorization: Bearer '.FACTURAPI_KEY], CURLOPT_TIMEOUT=>20]);
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    unset($ch);
-    $r = json_decode((string)$resp, true);
-    if ($code !== 200 || !isset($r['data']) || !is_array($r['data'])) return false;
-    try { $tsDesde = (new DateTime($desde, new DateTimeZone('America/Monterrey')))->getTimestamp() - 300; }
-    catch (Exception $e) { return false; }
-    foreach ($r['data'] as $inv) {
-        if (($inv['status'] ?? '') !== 'valid' || empty($inv['uuid'])) continue;
-        if (strtotime($inv['created_at'] ?? '') >= $tsDesde) return $inv;
-    }
-    return null;
-}
-
-// Registra en la fila (en 'timbrando') el CFDI que devolvió FacturAPI: UUID, total del
-// PAC, liga de verificación, fecha real del timbre y resguardo local de PDF/XML. Lo usan
-// el timbrado de facturas, el de complementos y verificar_timbrado.
-function _facturapiRegistrarTimbre($pdo, $fac, $res, $usuario) {
-    $id          = (int)$fac['id'];
-    $uuid        = $res['uuid'] ?? '';
-    $facturapiId = $res['id']   ?? '';
-    $pdfUrl      = 'https://www.facturapi.io/v2/invoices/' . $facturapiId . '/pdf';
-    $xmlUrl      = 'https://www.facturapi.io/v2/invoices/' . $facturapiId . '/xml';
-
-    // S2-b: el PAC es la verdad, no nuestro cálculo. Antes se guardaba el total que
-    // calculamos nosotros y nunca se comparaba contra el del comprobante: si el PAC
-    // redondeaba distinto, BD y CFDI quedaban desalineados sin que nadie se enterara.
-    // Ahora se guarda el total del PAC y la diferencia queda en el log si existe.
-    // (FacturAPI no devuelve 'subtotal' a nivel raíz, solo 'total' — verificado contra
-    // la API real el 26-sep-2026; el subtotal/IVA nuestros se conservan tal cual.)
-    $totalPac = isset($res['total']) ? round((float)$res['total'], 2) : null;
-    if ($totalPac !== null && abs($totalPac - (float)$fac['total']) > 0.005) {
-        error_log('APEX Facturacion: total del PAC ('.$totalPac.') distinto al calculado ('
-            .$fac['total'].') en factura id='.$id.' — se guarda el del PAC');
-    }
-    // Datos del timbre que antes se tiraban: la liga de verificación del SAT (no se
-    // puede reconstruir sola, incluye parte del sello) y la fecha REAL del timbrado
-    // según el PAC, que no es la misma que la fecha capturada en el formulario.
-    $verifUrl = $res['verification_url'] ?? null;
-    $fechaTim = null;
-    if (!empty($res['date'])) {
-        try { $fechaTim = (new DateTime($res['date']))->setTimezone(new DateTimeZone('America/Monterrey'))->format('Y-m-d H:i:s'); }
-        catch (Exception $e) { $fechaTim = null; }
-    }
-
-    // S2-a: una sola descarga de PDF/XML sirve para el resguardo local Y para el correo
-    // (antes solo se descargaban si había correos que notificar, y no se guardaban).
-    $pdfBin  = _descargarArchivoFacturapi($pdfUrl);
-    $xmlBin  = _descargarArchivoFacturapi($xmlUrl);
-    $pdfPath = _guardarArchivoFacturaLocal($pdfBin, $fac['folio_interno'], 'pdf');
-    $xmlPath = _guardarArchivoFacturaLocal($xmlBin, $fac['folio_interno'], 'xml');
-    if ($xmlPath === null) {
-        // No se aborta (el CFDI ya existe ante el SAT) pero sí se deja constancia fuerte:
-        // sin el XML en disco volvemos a depender de FacturAPI para conservarlo.
-        error_log('APEX Facturacion: OJO, no se pudo resguardar el XML de la factura id='.$id
-            .' — el comprobante solo existe en FacturAPI');
-    }
-
-    // El UPDATE final confirma desde la reserva 'timbrando' (A-9b) — si por alguna
-    // razón la factura ya no estuviera en ese estatus, no se sobreescribe nada.
-    $stmt = $pdo->prepare("
-        UPDATE facturas SET
-            estatus='timbrada', facturapi_id=?, uuid=?,
-            pdf_url=?, xml_url=?, pdf_path=?, xml_path=?,
-            verification_url=?, fecha_timbrado=?,
-            total = COALESCE(?, total),
-            timbrado_por=?, timbrado_at=NOW(), updated_at=NOW()
-        WHERE id=? AND estatus='timbrando'
-    ");
-    $stmt->execute([$facturapiId, $uuid, $pdfUrl, $xmlUrl, $pdfPath, $xmlPath,
-                    $verifUrl, $fechaTim, $totalPac, $usuario, $id]);
-
-    return ['uuid'=>$uuid, 'facturapi_id'=>$facturapiId, 'pdf_url'=>$pdfUrl, 'xml_url'=>$xmlUrl,
-            'total_pac'=>$totalPac, 'pdf_bin'=>$pdfBin, 'xml_bin'=>$xmlBin];
-}
-
-// Mensaje único para el caso ambiguo (la fila se queda 'timbrando').
-define('FACTURAPI_MSG_EN_VERIFICACION', 'FacturAPI no respondió con claridad, así que no se sabe si el comprobante quedó timbrado. '
-    .'Se dejó "en verificación" para no emitirlo dos veces: en un par de minutos abre el detalle y pulsa "Verificar timbrado". '
-    .'NO lo vuelvas a capturar.');
+require_once __DIR__ . '/helpers/facturapi_lib.php';
 
 header('Content-Type: application/json');
 
@@ -494,7 +92,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
     // Relacionar con la cotización de origen vía cotizaciones.orden_id (se llena siempre al convertir, api/cotizaciones.php)
     $conceptos = _facturapiConceptosDesdeOrden($pdo, $orden['folio']) ?? [];
 
-    jsonResponse(['ok'=>true, 'orden'=>$orden, 'cliente'=>$cliente, 'conceptos'=>$conceptos]);
+    // Estado de cobro (29-sep-2026): define PUE/PPD y si Público en General ya se puede
+    // timbrar. Y aviso de venta de un mes anterior: facturarla ahora afecta un mes que el
+    // contador probablemente ya declaró.
+    $cobro = _facturapiSaldoOrden($pdo, $orden['folio']);
+    if ($cobro) $cobro['liquidada'] = _facturapiOrdenLiquidada($pdo, $orden['folio']);
+    $stmt = $pdo->prepare("SELECT vobo_at FROM cotizaciones WHERE orden_id = ? LIMIT 1");
+    $stmt->execute([$orden['id']]);
+    $voboAt = $stmt->fetchColumn() ?: null;
+    $avisoMes = null;
+    if ($voboAt && substr($voboAt, 0, 7) < date('Y-m')) {
+        $avisoMes = 'Esta venta es de ' . substr($voboAt, 0, 7) . ' (VoBo del ' . date('d/m/Y', strtotime($voboAt))
+            . '). Facturarla en ' . date('m/Y') . ' puede afectar un mes que ya se declaró: confírmalo con el contador.';
+    }
+
+    jsonResponse(['ok'=>true, 'orden'=>$orden, 'cliente'=>$cliente, 'conceptos'=>$conceptos,
+                  'cobro'=>$cobro, 'aviso_mes'=>$avisoMes]);
     exit;
 }
 
@@ -608,6 +221,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
         }
         if ($globalAnio < 2020 || $globalAnio > 2099) {
             jsonResponse(['ok'=>false,'error'=>'Año inválido para la información global.']); exit;
+        }
+        // SAT: la factura global (Público en General) solo admite PUE y una forma de pago
+        // real — se factura cuando la venta ya está cobrada completa (candado al timbrar).
+        if ($d['metodo_pago'] !== 'PUE') {
+            jsonResponse(['ok'=>false,'error'=>'Una factura a Público en General debe ser PUE (Pago en una sola exhibición): se timbra hasta que la orden esté pagada al 100%.']); exit;
+        }
+        if ((string)$d['forma_pago'] === '99') {
+            jsonResponse(['ok'=>false,'error'=>'Una factura a Público en General necesita la forma de pago real con la que se liquidó (no 99).']); exit;
         }
     }
 
@@ -911,15 +532,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     // Una orden no debe tener dos CFDI activos: si ya existe otra factura timbrada
     // (o en proceso de timbrado) ligada al mismo folio de orden, se aborta.
     // Las canceladas no estorban (refacturación tras cancelación es flujo válido).
+    // EXCEPCIÓN (29-sep-2026): una SUSTITUCIÓN (relación 04 al UUID de la vigente, p. ej.
+    // Público en General → razón social). El SAT exige timbrar primero la nueva y después
+    // cancelar la original con motivo 01 apuntando a ella; esa cancelación se hace sola
+    // al terminar este timbrado ($facOriginalSustituir).
+    $facOriginalSustituir = null;
     if (!empty($fac['orden_folio'])) {
         $stmt = $pdo->prepare("
-            SELECT folio_interno FROM facturas
+            SELECT * FROM facturas
             WHERE orden_folio = ? AND id <> ? AND estatus IN ('timbrada','timbrando')
-            LIMIT 1
         ");
         $stmt->execute([$fac['orden_folio'], $id]);
-        if ($otra = $stmt->fetchColumn()) {
-            $abortar('La orden '.$fac['orden_folio'].' ya tiene la factura '.$otra.' timbrada. Si necesitas refacturar, cancela primero la anterior.');
+        $otras = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if ($otras) {
+            $o = $otras[0];
+            $esSustitucion = count($otras) === 1 && $fac['relacion_tipo'] === '04'
+                && $o['estatus'] === 'timbrada' && $o['pac_cancel_status'] !== 'pending'
+                && strcasecmp((string)$o['uuid'], (string)$fac['relacion_uuid']) === 0;
+            if (!$esSustitucion) {
+                $abortar('La orden '.$fac['orden_folio'].' ya tiene la factura '.$o['folio_interno'].' timbrada. '
+                    .'Para cambiarla usa "Refacturar" en esa factura (sustitución), o cancélala primero.');
+            }
+            $facOriginalSustituir = $o;
         }
     }
 
@@ -958,6 +592,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     // Borradores guardados antes de la validación de PPD→99 en guardar.
     if ($fac['metodo_pago'] === 'PPD' && (string)$fac['forma_pago'] !== '99') {
         $abortar('Con método de pago PPD el SAT exige forma de pago 99 (Por definir). Edita la factura y vuelve a timbrar.');
+    }
+
+    // Candados de cobranza (29-sep-2026).
+    $esPublicoGeneral = (strtoupper(trim((string)$fac['receptor_rfc'])) === 'XAXX010101000');
+    if ($esPublicoGeneral) {
+        // Público en General solo con la venta cobrada completa, PUE y forma real.
+        if ($fac['metodo_pago'] !== 'PUE' || (string)$fac['forma_pago'] === '99') {
+            $abortar('Una factura a Público en General debe ser PUE con la forma de pago real (no 99). Edita la factura y vuelve a timbrar.');
+        }
+        if (!empty($fac['orden_folio']) && !_facturapiOrdenLiquidada($pdo, $fac['orden_folio'])) {
+            $so = _facturapiSaldoOrden($pdo, $fac['orden_folio']);
+            $abortar('La orden '.$fac['orden_folio'].' todavía tiene saldo pendiente'
+                .($so ? ' de $'.number_format($so['saldo'], 2) : '').'. A Público en General solo se factura cuando está pagada al 100%.');
+        }
+    } elseif ($fac['metodo_pago'] === 'PUE' && !empty($fac['orden_folio']) && !_facturapiOrdenLiquidada($pdo, $fac['orden_folio'])) {
+        // PUE declara que la venta ya está pagada: con saldo pendiente va en PPD, y cada
+        // abono posterior genera su Complemento de Pago automático desde Cobranza.
+        $so = _facturapiSaldoOrden($pdo, $fac['orden_folio']);
+        $abortar('La orden '.$fac['orden_folio'].' tiene saldo pendiente'
+            .($so ? ' de $'.number_format($so['saldo'], 2) : '').', así que la factura debe ser PPD (forma de pago 99). '
+            .'Los complementos de cada abono se emiten solos al registrarlos en Cobranza.');
     }
 
     $conceptos = json_decode($fac['conceptos'], true);
@@ -1133,8 +788,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
         if (!$correoEnviado) error_log('APEX Facturacion: no se pudo enviar correo de factura id='.$id.': '.($resCorreo['error'] ?? ''));
     }
 
+    // Sustitución: la original se cancela con motivo 01 apuntando a la nueva. Si falla
+    // (PAC caído, complementos vivos), se avisa — la nueva ya quedó timbrada y hay que
+    // cancelar la original a mano para no dejar dos CFDI vigentes de la misma venta.
+    $sustitucion = null;
+    if ($facOriginalSustituir && $uuid) {
+        $rc = _facturapiCancelarEnPac($pdo, $facOriginalSustituir, '01', $uuid, $user['nombre']);
+        $sustitucion = ['folio_original'=>$facOriginalSustituir['folio_interno']] + $rc;
+        if (empty($rc['ok'])) {
+            error_log('APEX Facturacion: sustitución — la factura id='.$id.' se timbró pero NO se pudo cancelar la original '
+                .$facOriginalSustituir['folio_interno'].': '.($rc['error'] ?? ''));
+        }
+    }
+
+    // PPD: los abonos que ya existían (anticipo) reciben su complemento de inmediato,
+    // para que no se olviden y queden dentro del plazo del día 5.
+    $complementos = [];
+    if ($fac['metodo_pago'] === 'PPD' && !empty($fac['orden_folio']) && $uuid) {
+        $complementos = _facturapiEmitirPendientesAuto($pdo, $id, $user['nombre']);
+    }
+
     jsonResponse([
         'ok'             => true,
+        'sustitucion'    => $sustitucion,
+        'complementos'   => $complementos,
         'uuid'           => $uuid,
         'facturapi_id'   => $facurapiId,
         'pdf_url'        => $pdfUrl,
@@ -1355,80 +1032,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'cancelar') {
     $fac = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$fac) { jsonResponse(['ok'=>false,'error'=>'Factura no encontrada o no está timbrada']); exit; }
 
-    // El SAT no deja cancelar una factura PPD mientras tenga complementos de pago vigentes
-    // relacionados: primero se cancelan los complementos, luego la factura.
-    $stmt = $pdo->prepare("
-        SELECT GROUP_CONCAT(x.folio_interno ORDER BY x.id SEPARATOR ', ')
-        FROM facturas_pagos fp JOIN facturas x ON x.id = fp.complemento_id
-        WHERE fp.factura_id = ? AND x.estatus IN ('timbrada','timbrando')
-    ");
-    $stmt->execute([$id]);
-    if ($compsVivos = $stmt->fetchColumn()) {
-        jsonResponse(['ok'=>false,'error'=>'Esta factura tiene complementos de pago vigentes ('.$compsVivos.'). Cancélalos primero y después cancela la factura.']);
-        exit;
-    }
-
-    // FacturAPI espera motive/substitution como query string, no en el body (confirmado contra la API real: con
-    // POSTFIELDS respondía "motive is required" con location:"query" en el error).
-    $url = 'https://www.facturapi.io/v2/invoices/' . $fac['facturapi_id'] . '?motive=' . urlencode($motivo);
-    if ($motivo === '01') {
-        $url .= '&substitution=' . urlencode($substitucion);
-    }
-    $ch  = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER  => true,
-        CURLOPT_CUSTOMREQUEST   => 'DELETE',
-        CURLOPT_HTTPHEADER      => [
-            'Authorization: Bearer ' . FACTURAPI_KEY,
-        ],
-        CURLOPT_TIMEOUT         => 30,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlErr  = curl_error($ch);
-    unset($ch);
-
-    if ($curlErr) {
-        jsonResponse(['ok'=>false,'error'=>'Error de conexión con FacturAPI: '.$curlErr]);
-        exit;
-    }
-
-    $res = json_decode($response, true);
-
-    if ($httpCode !== 200) {
-        $msg = $res['message'] ?? $res['error'] ?? 'Error desconocido de FacturAPI';
-        error_log('APEX FacturAPI cancelar error '.$httpCode.': '.$response);
-        jsonResponse(['ok'=>false,'error'=>'FacturAPI: '.$msg]);
-        exit;
-    }
-
-    // FacturAPI puede regresar la cancelación en 'pending' cuando el SAT exige que el receptor la acepte
-    // en su buzón (factura >$1,000 MXN o después de 72hrs) — en ese caso NO está cancelada todavía de
-    // verdad, aunque la llamada haya sido exitosa (HTTP 200). Solo marcamos estatus='cancelada' en firme
-    // cuando FacturAPI confirma 'canceled'; si no, se queda 'timbrada' con pac_cancel_status='pending'
-    // para poder verificarla después (accion=verificar_cancelacion) y reflejar el estado real.
-    $pacStatus = $res['status'] ?? 'canceled';
-    $esFirme   = ($pacStatus === 'canceled');
-
-    // S2-c: queda registrado quien cancelo y cuando (antes solo se sabia quien habia
-    // creado el borrador). cancelado_at se sella al PEDIR la cancelacion, aunque el SAT
-    // la deje 'pending' en espera de que el receptor la acepte.
-    $stmt = $pdo->prepare("
-        UPDATE facturas SET
-            estatus=?, motivo_cancel=?, sustituye_uuid=?, pac_cancel_status=?,
-            cancelado_por=?, cancelado_at=NOW(), updated_at=NOW()
-        WHERE id=?
-    ");
-    $stmt->execute([
-        $esFirme ? 'cancelada' : 'timbrada',
-        $motivo,
-        $motivo === '01' ? $substitucion : null,
-        $pacStatus,
-        $user['nombre'],
-        $id
-    ]);
-
-    jsonResponse(['ok'=>true, 'estatus'=>$pacStatus, 'firme'=>$esFirme]);
+    $r = _facturapiCancelarEnPac($pdo, $fac, $motivo, $motivo === '01' ? $substitucion : '', $user['nombre']);
+    jsonResponse($r);
     exit;
 }
 
@@ -1521,199 +1126,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'complementos_pendientes
 
 // ── POST emitir_complemento (crea y timbra el CFDI tipo P de UN abono) ─────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'emitir_complemento') {
-    $d         = json_decode(file_get_contents('php://input'), true);
-    $facturaId = (int)($d['factura_id'] ?? 0);
-    $pagoId    = (int)($d['cotizacion_pago_id'] ?? 0);
-    $forma     = trim((string)($d['forma_pago'] ?? ''));
-    if (!$facturaId || !$pagoId) { jsonResponse(['ok'=>false,'error'=>'Faltan la factura o el pago']); exit; }
-    if (!in_array($forma, _facturapiFormasPagoComplemento(), true)) {
-        jsonResponse(['ok'=>false,'error'=>'Escoge una forma de pago válida del catálogo del SAT.']); exit;
+    $d = json_decode(file_get_contents('php://input'), true);
+    jsonResponse(_facturapiEmitirComplemento($pdo, (int)($d['factura_id'] ?? 0), (int)($d['cotizacion_pago_id'] ?? 0),
+        trim((string)($d['forma_pago'] ?? '')), $user['nombre']));
+    exit;
+}
+
+// ── POST crear_cliente_fiscal (alta rápida en el CRM desde el modal de la factura) ──
+// Para cuando el cliente pide facturar a una razón social que no está en el CRM. Si el
+// RFC ya existe, NO duplica: regresa ese cliente. Antes de dar de alta valida nombre,
+// RFC, CP y régimen contra el padrón del SAT (sandbox), para no guardar datos que luego
+// truenan al timbrar. Mismo alta que api/clientes.php (código CTN-N con reintento).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'crear_cliente_fiscal') {
+    $d = json_decode(file_get_contents('php://input'), true) ?: [];
+    $razon   = strtoupper(trim(preg_replace('/\s+/u', ' ', (string)($d['razon_social'] ?? ''))));
+    $rfc     = strtoupper(trim((string)($d['rfc'] ?? '')));
+    $cp      = trim((string)($d['cp'] ?? ''));
+    $regimen = trim((string)($d['regimen'] ?? ''));
+    $email   = trim((string)($d['email'] ?? ''));
+
+    if ($razon === '' || mb_strlen($razon) > 200 || preg_match('/[<>]/', $razon)) {
+        jsonResponse(['ok'=>false,'error'=>'Captura la razón social tal como aparece en la Constancia de Situación Fiscal.']); exit;
+    }
+    if (!preg_match('/^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/u', $rfc)) {
+        jsonResponse(['ok'=>false,'error'=>'RFC con formato inválido.']); exit;
+    }
+    if (in_array($rfc, ['XAXX010101000','XEXX010101000'], true)) {
+        jsonResponse(['ok'=>false,'error'=>'El RFC genérico no se da de alta como cliente.']); exit;
+    }
+    if (!preg_match('/^[0-9]{5}$/', $cp)) { jsonResponse(['ok'=>false,'error'=>'CP fiscal inválido (5 dígitos).']); exit; }
+    $REGIMENES = ['601','603','605','606','607','608','610','611','612','614','615','616','620','621','622','623','624','625','626'];
+    if (!in_array($regimen, $REGIMENES, true)) { jsonResponse(['ok'=>false,'error'=>'Selecciona el régimen fiscal.']); exit; }
+    foreach (array_filter(array_map('trim', explode(',', $email))) as $correo) {
+        if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) { jsonResponse(['ok'=>false,'error'=>'Correo inválido: '.$correo]); exit; }
     }
 
-    // Reserva: bajo candado de la fila de la factura PPD se valida, se calcula saldo y
-    // parcialidad, y se inserta el complemento en 'timbrando'. Dos clics simultáneos
-    // sobre la misma factura quedan en fila; el segundo ve el complemento del primero.
-    $pdo->beginTransaction();
-    try {
-        $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=? FOR UPDATE");
-        $stmt->execute([$facturaId]);
-        $fac = $stmt->fetch(PDO::FETCH_ASSOC);
-        $falla = null;
-        if (!$fac || $fac['tipo_cfdi'] !== 'I' || $fac['metodo_pago'] !== 'PPD' || empty($fac['orden_folio'])) {
-            $falla = 'Solo se emiten complementos de facturas PPD ligadas a una orden.';
-        } elseif ($fac['estatus'] !== 'timbrada' || empty($fac['uuid'])) {
-            $falla = 'La factura '.$fac['folio_interno'].' no está timbrada.';
-        } elseif ($fac['pac_cancel_status'] === 'pending') {
-            $falla = 'La factura '.$fac['folio_interno'].' tiene una cancelación en trámite ante el SAT.';
-        } elseif ($fac['modo'] !== FACTURAPI_MODE) {
-            // Una factura de pruebas no tiene validez ante el SAT: su complemento no puede
-            // salir en modo real (ni al revés). Pasa al cambiar FACTURAPI_MODE a live con
-            // facturas de sandbox todavía en la tabla.
-            $falla = 'La factura '.$fac['folio_interno'].' se emitió en modo '.($fac['modo'] === 'test' ? 'prueba' : 'real')
-                .' y el sistema está en modo '.(FACTURAPI_MODE === 'test' ? 'prueba' : 'real').'; no se le puede emitir complemento.';
+    $stmt = $pdo->prepare("SELECT id, codigo, COALESCE(NULLIF(razon_social,''), nombre) AS nombre FROM clientes WHERE UPPER(TRIM(rfc)) = ? ORDER BY activo DESC, id LIMIT 1");
+    $stmt->execute([$rfc]);
+    if ($ex = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        jsonResponse(['ok'=>true, 'existente'=>true, 'id'=>(int)$ex['id'], 'codigo'=>$ex['codigo'], 'nombre'=>$ex['nombre']]); exit;
+    }
+
+    $v = _facturapiValidarReceptorSat($rfc, $razon, $cp, $regimen);
+    if (empty($v['ok'])) {
+        jsonResponse(['ok'=>false, 'error'=>$v['error'].' — revisa que la razón social sea idéntica a la de la Constancia (mayúsculas, sin régimen de capital como "SA DE CV").']); exit;
+    }
+
+    $intentos = 0;
+    while (true) {
+        $intentos++;
+        $row  = $pdo->query("SELECT MAX(CAST(SUBSTRING(codigo, 5) AS UNSIGNED)) AS max_num FROM clientes WHERE codigo LIKE 'CTN-%'")->fetch(PDO::FETCH_ASSOC);
+        $codigo = 'CTN-' . (($row['max_num'] ?? 146) + 1);
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare("INSERT INTO clientes (codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email, localidad, ciudad, rfc, cp_fiscal, regimen_fiscal)
+                           VALUES (?,?,?,'','',NULL,?,'local','',?,?,?)")
+                ->execute([$codigo, $razon, $razon, $email, $rfc, $cp, $regimen]);
+            $newId = (int)$pdo->lastInsertId();
+            $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'CREACION', '', ?, ?, ?)")
+                ->execute([$newId, 'Cliente creado desde Facturación (datos fiscales validados contra el SAT): '.$razon, $user['id'], $user['nombre']]);
+            $pdo->commit();
+            break;
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            if ($e->getCode() === '23000' && $intentos < 5) continue;
+            error_log('APEX Facturacion: crear_cliente_fiscal: '.$e->getMessage());
+            jsonResponse(['ok'=>false,'error'=>'No se pudo dar de alta al cliente.']); exit;
         }
-
-        if (!$falla) {
-            // El IVA del pago se desglosa en proporción al de la factura. Todas las facturas
-            // de hoy son 100% gravadas al 16% o 100% sin IVA; una mezcla requeriría dos
-            // renglones de impuesto por pago y no se emite a ciegas.
-            $conceptos = json_decode($fac['conceptos'], true) ?: [];
-            $conIva = 0; foreach ($conceptos as $c) { if (!empty($c['iva'])) $conIva++; }
-            if ($conIva > 0 && $conIva < count($conceptos)) {
-                $falla = 'La factura mezcla conceptos con y sin IVA; ese caso todavía no se soporta en complementos.';
-            }
-        }
-
-        if (!$falla) {
-            $estado = _facturapiEstadoPagos($pdo, $fac);
-            $pago = null;
-            foreach ($estado['pagos'] as $p) { if ((int)$p['id'] === $pagoId) { $pago = $p; break; } }
-            if (!$pago) {
-                $falla = 'Ese abono no pertenece a la orden '.$fac['orden_folio'].'.';
-            } elseif ($pago['complemento']) {
-                $falla = 'Ese abono ya tiene el complemento '.$pago['complemento']['folio'].'.';
-            } else {
-                // Los complementos se emiten en orden cronológico: la parcialidad y el
-                // saldo anterior tienen que encadenar con la fecha de los pagos (el SAT
-                // valida que los saldos cuadren). $estado['pagos'] ya viene ordenado por
-                // fecha, hora e id, igual que la lista de la pantalla.
-                foreach ($estado['pagos'] as $p) {
-                    if ((int)$p['id'] === $pagoId) break;
-                    if (!$p['complemento']) {
-                        $falla = 'Primero emite el complemento del abono del '.date('d/m/Y', strtotime($p['fecha_pago']))
-                            .' ($'.number_format((float)$p['monto'], 2).'); los complementos van en orden de fecha.';
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (!$falla) {
-            $saldoAnt = $estado['saldo'];
-            $monto    = round((float)$pago['monto'], 2);
-            // Tolerancia de centavos: el total de la factura es el del PAC, que puede
-            // redondear 1-2 centavos distinto al total de la orden (UPD-606); el último
-            // abono se ajusta al saldo exacto de la factura en vez de rechazarlo.
-            if ($monto > $saldoAnt + 0.005) {
-                if ($monto - $saldoAnt <= 0.05 && $saldoAnt > 0) {
-                    error_log('APEX Complemento: abono '.$pagoId.' ($'.$monto.') ajustado al saldo de la factura id='.$facturaId.' ($'.$saldoAnt.')');
-                    $monto = $saldoAnt;
-                } else {
-                    $falla = 'El abono ($'.number_format($monto,2).') es mayor al saldo pendiente de la factura ($'
-                        .number_format($saldoAnt,2).'). Revisa los complementos ya emitidos.';
-                }
-            }
-        }
-
-        if ($falla) { $pdo->rollBack(); jsonResponse(['ok'=>false,'error'=>$falla]); exit; }
-
-        $parcialidad  = $estado['siguiente_parcialidad'];
-        $saldoInsol   = round($saldoAnt - $monto, 2);
-        $serie        = FACTURAPI_SERIE_COMPLEMENTO;
-        $stmt = $pdo->prepare("SELECT COALESCE(MAX(folio_numero),0)+1 FROM facturas WHERE serie=? FOR UPDATE");
-        $stmt->execute([$serie]);
-        $folioNum     = (int)$stmt->fetchColumn();
-        $folioInterno = $serie . '-' . str_pad($folioNum, 3, '0', STR_PAD_LEFT);
-
-        // metodo_pago es NOT NULL en la tabla; en un CFDI P no existe, se guarda 'PPD'
-        // porque es el método de la factura que se está pagando.
-        $stmt = $pdo->prepare("
-            INSERT INTO facturas
-                (folio_interno, serie, folio_numero, orden_folio, tipo_cfdi, fecha,
-                 receptor_nombre, receptor_rfc, receptor_cp, receptor_regimen, receptor_uso_cfdi,
-                 forma_pago, metodo_pago, conceptos, subtotal, iva, total, estatus, modo, creado_por)
-            VALUES (?,?,?,NULL,'P',?,?,?,?,?,'CP01',?,'PPD','[]',0,0,0,'timbrando',?,?)
-        ");
-        $stmt->execute([$folioInterno, $serie, $folioNum, date('Y-m-d'),
-            $fac['receptor_nombre'], $fac['receptor_rfc'], $fac['receptor_cp'], $fac['receptor_regimen'],
-            $forma, FACTURAPI_MODE, $user['nombre']]);
-        $compId = (int)$pdo->lastInsertId();
-
-        $pdo->prepare("
-            INSERT INTO facturas_pagos
-                (complemento_id, factura_id, cotizacion_pago_id, parcialidad, saldo_anterior, monto, saldo_insoluto, fecha_pago, forma_pago)
-            VALUES (?,?,?,?,?,?,?,?,?)
-        ")->execute([$compId, $facturaId, $pagoId, $parcialidad, $saldoAnt, $monto, $saldoInsol, $pago['fecha_pago'], $forma]);
-        $pdo->commit();
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        error_log('APEX Complemento: error al reservar: '.$e->getMessage());
-        jsonResponse(['ok'=>false,'error'=>'No se pudo preparar el complemento. Intenta de nuevo.']); exit;
     }
-
-    // Cualquier fallo antes de quedar timbrado borra la reserva (la FK en cascada se
-    // lleva la fila de facturas_pagos) y libera el folio.
-    $abortarComp = function($msg) use ($pdo, $compId) {
-        $pdo->prepare("DELETE FROM facturas WHERE id=? AND estatus='timbrando'")->execute([$compId]);
-        jsonResponse(['ok'=>false,'error'=>$msg]); exit;
-    };
-
-    $taxes = [];
-    if ((float)$fac['iva'] > 0) {
-        $taxes[] = ['base' => round($monto / 1.16, 2), 'type' => 'IVA', 'rate' => 0.16];
-    }
-    $hora = preg_match('/^\d{2}:\d{2}(:\d{2})?$/', (string)$pago['hora_pago']) ? substr($pago['hora_pago'].':00', 0, 8) : '12:00:00';
-    $payload = [
-        'type'         => 'P',
-        'series'       => $serie,
-        'folio_number' => $folioNum,
-        'customer'     => [
-            'legal_name' => trim(preg_replace('/\s+/u', ' ', (string)$fac['receptor_nombre'])),
-            'tax_id'     => $fac['receptor_rfc'],
-            'tax_system' => $fac['receptor_regimen'],
-            'address'    => ['zip' => $fac['receptor_cp']],
-        ],
-        'complements' => [[
-            'type' => 'pago',
-            'data' => [[
-                'payment_form' => $forma,
-                'date'         => $pago['fecha_pago'] . 'T' . $hora,
-                'related_documents' => [[
-                    'uuid'         => $fac['uuid'],
-                    'series'       => $fac['serie'],
-                    'folio_number' => (int)$fac['folio_numero'],
-                    'amount'       => $monto,
-                    'installment'  => $parcialidad,
-                    'last_balance' => $saldoAnt,
-                    'taxes'        => $taxes,
-                ]],
-            ]],
-        ]],
-    ];
-
-    $ch = curl_init('https://www.facturapi.io/v2/invoices');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => json_encode($payload),
-        CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . FACTURAPI_KEY, 'Content-Type: application/json'],
-        CURLOPT_TIMEOUT        => 30,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlErr  = curl_error($ch);
-    unset($ch);
-    $res = json_decode((string)$response, true);
-    if (_facturapiRespuestaAmbigua($curlErr, $httpCode, $res)) {
-        // No se borra la reserva: el complemento pudo quedar emitido. Mientras siga en
-        // 'timbrando' cuenta como activo y el abono no se vuelve a ofrecer.
-        error_log('APEX FacturAPI complemento AMBIGUO id='.$compId.' HTTP '.$httpCode.' '.$curlErr.': '.substr((string)$response, 0, 500));
-        jsonResponse(['ok'=>false, 'en_verificacion'=>true, 'id'=>$compId, 'error'=>FACTURAPI_MSG_EN_VERIFICACION]); exit;
-    }
-    if ($httpCode !== 200) {
-        error_log('APEX FacturAPI complemento error '.$httpCode.': '.$response);
-        $abortarComp('FacturAPI: '.($res['message'] ?? $res['error'] ?? 'Error desconocido'));
-    }
-
-    $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=?");
-    $stmt->execute([$compId]);
-    $t = _facturapiRegistrarTimbre($pdo, $stmt->fetch(PDO::FETCH_ASSOC), $res, $user['nombre']);
-    $uuid = $t['uuid'];
-
-    jsonResponse([
-        'ok'=>true, 'id'=>$compId, 'folio'=>$folioInterno, 'uuid'=>$uuid, 'modo'=>FACTURAPI_MODE,
-        'parcialidad'=>$parcialidad, 'saldo_anterior'=>$saldoAnt, 'monto'=>$monto, 'saldo_insoluto'=>$saldoInsol,
-    ]);
+    jsonResponse(['ok'=>true, 'existente'=>false, 'id'=>$newId, 'codigo'=>$codigo, 'nombre'=>$razon]);
     exit;
 }
 

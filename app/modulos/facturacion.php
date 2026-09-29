@@ -327,7 +327,7 @@ $esModoLive = (FACTURAPI_MODE === 'live');
       <!-- CFDI relacionado: solo hace falta al refacturar (sustituir un CFDI cancelado).
            Va plegado porque es el caso menos frecuente, pero sin el nodo el SAT considera
            incompleta la factura sustituta. -->
-      <details style="margin-bottom:14px">
+      <details id="fac-relacion-details" style="margin-bottom:14px">
         <summary style="cursor:pointer;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em">
           CFDI relacionado (opcional &mdash; para refacturar)
         </summary>
@@ -467,6 +467,11 @@ $esModoLive = (FACTURAPI_MODE === 'live');
           </select>
           <div class="fac-hint" id="fac-tipo-hint">Venta normal de productos o servicios</div>
         </div>
+      </div>
+      <div id="fac-crm-wrap" style="margin:-4px 0 14px;font-size:12px">
+        <button type="button" class="fac-act-btn" onclick="ModFacturacion.guardarEnCrm()">Guardar en CRM</button>
+        <span class="fac-hint" style="display:inline">&iquest;La raz&oacute;n social no est&aacute; en el CRM? Llena los datos (o sube su Constancia) y dala de alta aqu&iacute;. Se valida contra el SAT antes de guardar.</span>
+        <div id="fac-crm-msg" style="margin-top:4px"></div>
       </div>
 
       <!-- CFDI -->
@@ -907,6 +912,10 @@ var ModFacturacion = (function() {
           html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.reenviarCorreo(' + f.id + ')">Reenviar correo</button>';
         }
         html += '<hr class="fac-menu-sep">';
+        if (f.tipo_cfdi === 'I' && f.orden_folio && f.metodo_pago === 'PUE' && f.pac_cancel_status !== 'pending') {
+          html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.refacturar(' + f.id + ')">'
+            + (pubGeneral ? 'Refacturar a raz\u00f3n social' : 'Refacturar (sustituir)') + '</button>';
+        }
         if (f.pac_cancel_status === 'pending') {
           html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.verificarCancelacion(' + f.id + ')">Verificar cancelación</button>';
         } else {
@@ -964,7 +973,9 @@ var ModFacturacion = (function() {
     document.getElementById('fac-regimen').value    = '';
     document.getElementById('fac-forma-pago').value  = '';
     document.getElementById('fac-metodo-pago').value = '';
-    metodoPagoChange();
+    document.getElementById('fac-publico-general').checked = false;
+    _syncPgMetodo();
+    var crmMsg = document.getElementById('fac-crm-msg'); if (crmMsg) crmMsg.textContent = '';
     document.getElementById('fac-relacion-tipo').value = '';
     document.getElementById('fac-relacion-uuid').value = '';
     document.getElementById('fac-publico-general').checked = false;
@@ -1019,6 +1030,19 @@ var ModFacturacion = (function() {
   // SAT (Anexo 20, CFDI 4.0): con MetodoPago=PPD la FormaPago debe ser 99 "Por definir";
   // la forma real de cada abono se declara en su Complemento de Pago. El servidor
   // tambien lo valida al guardar y al timbrar.
+  // Público en General: el SAT solo admite PUE en la factura global, y aquí además solo
+  // se timbra con la orden pagada al 100% (el servidor lo revisa al guardar y al timbrar).
+  function _syncPgMetodo() {
+    var chk = document.getElementById('fac-publico-general');
+    var pg  = !!(chk && chk.checked);
+    var m   = document.getElementById('fac-metodo-pago');
+    if (pg) m.value = 'PUE';
+    m.disabled = pg;
+    metodoPagoChange();
+    var crm = document.getElementById('fac-crm-wrap');
+    if (crm) crm.style.display = pg ? 'none' : 'block';
+  }
+
   function metodoPagoChange() {
     var sel  = document.getElementById('fac-forma-pago');
     var ppd  = (document.getElementById('fac-metodo-pago').value === 'PPD');
@@ -1056,7 +1080,8 @@ var ModFacturacion = (function() {
     document.getElementById('fac-relacion-uuid').value      = f.relacion_uuid     || '';
     document.getElementById('fac-forma-pago').value         = f.forma_pago        || '';
     document.getElementById('fac-metodo-pago').value        = f.metodo_pago       || '';
-    metodoPagoChange();
+    document.getElementById('fac-publico-general').checked = (f.receptor_rfc === 'XAXX010101000');
+    _syncPgMetodo();
 
     var esPublicoGeneral = (f.receptor_rfc === 'XAXX010101000');
     document.getElementById('fac-publico-general').checked = esPublicoGeneral;
@@ -1208,6 +1233,7 @@ var ModFacturacion = (function() {
       } else if (res.correo_enviado) {
         aviso += '\n\nSe envió el PDF y el XML al correo del receptor.';
       }
+      aviso += _resumenPostTimbrado(res);
       alert(aviso);
       _cargarLista();
     });
@@ -1838,12 +1864,14 @@ var ModFacturacion = (function() {
       var cpEl = document.getElementById('fac-cp');
       if (cpEl) { cpEl.removeAttribute('readonly'); cpEl.disabled = false; cpEl.style.background = ''; cpEl.style.color = ''; }
       document.getElementById('fac-uso-cfdi').disabled = true;
+      _syncPgMetodo();
     } else {
       document.getElementById('fac-solicito-cli').value = '';
       var gw2 = document.getElementById('fac-global-wrap');
       if (gw2) gw2.style.display = 'none';
       _lockReceptor(false);
       document.getElementById('fac-uso-cfdi').disabled = false;
+      _syncPgMetodo();
 
       // Restaurar los datos reales del cliente si veníamos de una orden/selección previa,
       // en vez de dejar el receptor en blanco
@@ -1980,8 +2008,97 @@ var ModFacturacion = (function() {
           msgEl.className = 'fac-cli-ok vis';
           msgEl.textContent = '✓ Orden ' + folio + ' cargada: cliente y ' + res.conceptos.length + ' concepto(s).';
         }
+        // Estado de cobro: decide PUE/PPD y si Público en General ya se puede timbrar.
+        var extra = [];
+        var pgOn = document.getElementById('fac-publico-general').checked;
+        if (res.cobro) {
+          if (res.cobro.liquidada) {
+            extra.push('Pagada al 100%: la factura va en PUE con la forma de pago real.');
+          } else {
+            extra.push('Saldo pendiente ' + _fmt(res.cobro.saldo) + ' de ' + _fmt(res.cobro.total) + ': '
+              + (pgOn ? 'a Público en General NO se puede timbrar hasta que est\u00e9 pagada al 100%.'
+                      : 'la factura va en PPD (forma 99) y cada abono genera su complemento autom\u00e1tico al registrarlo en Cobranza.'));
+            if (pgOn) msgEl.className = 'fac-cli-warn vis';
+          }
+        }
+        if (res.aviso_mes) { extra.push('\u26a0 ' + res.aviso_mes); msgEl.className = 'fac-cli-warn vis'; }
+        if (extra.length) msgEl.textContent += ' ' + extra.join(' ');
       }
     });
+  }
+
+  // Alta rápida en el CRM de la razón social capturada en el modal (29-sep-2026). Si el
+  // RFC ya existe no duplica: selecciona ese cliente.
+  var _crmGuardando = false;
+  function guardarEnCrm() {
+    if (_crmGuardando) return;
+    var msg = document.getElementById('fac-crm-msg');
+    var datos = {
+      razon_social: document.getElementById('fac-receptor-nombre').value.trim(),
+      rfc:          document.getElementById('fac-rfc').value.trim().toUpperCase(),
+      cp:           document.getElementById('fac-cp').value.trim(),
+      regimen:      document.getElementById('fac-regimen').value,
+      email:        document.getElementById('fac-email').value.trim()
+    };
+    if (!datos.razon_social || !datos.rfc || !datos.cp || !datos.regimen) {
+      msg.style.color = '#dc2626';
+      msg.textContent = 'Llena razón social, RFC, CP fiscal y régimen (o sube la Constancia) antes de guardar en el CRM.';
+      return;
+    }
+    _crmGuardando = true;
+    msg.style.color = 'var(--c-muted)';
+    msg.textContent = 'Validando contra el SAT y dando de alta…';
+    _apiFetch('../api/facturapi.php?accion=crear_cliente_fiscal', {method:'POST', body:JSON.stringify(datos)}, function(err, res) {
+      _crmGuardando = false;
+      if (err || !res.ok) { msg.style.color = '#dc2626'; msg.textContent = (err || res.error); return; }
+      msg.style.color = '#166534';
+      msg.textContent = res.existente
+        ? 'Ese RFC ya existía en el CRM como ' + res.codigo + ' (' + res.nombre + '); quedó seleccionado.'
+        : 'Dado de alta en el CRM como ' + res.codigo + ' y seleccionado.';
+      _cargarListaClientes(function() { _seleccionarClientePorId(res.id); });
+    });
+  }
+
+  // Sustituir una factura timbrada por otra (típico: Público en General → razón social).
+  // Abre un borrador nuevo de la misma orden con relación 04 al UUID original; al timbrar
+  // la nueva, el servidor cancela la original con motivo 01 apuntando a ella.
+  function refacturar(id) {
+    var f = null;
+    for (var i = 0; i < _facturas.length; i++) { if (String(_facturas[i].id) === String(id)) { f = _facturas[i]; break; } }
+    if (!f || !f.uuid || !f.orden_folio) return;
+    abrirNueva();
+    document.getElementById('fac-modal-titulo').textContent = 'Refacturar ' + f.folio_interno;
+    document.getElementById('fac-orden-folio').value = f.orden_folio;
+    document.getElementById('fac-relacion-tipo').value = '04';
+    document.getElementById('fac-relacion-uuid').value = f.uuid;
+    var det = document.getElementById('fac-relacion-details'); if (det) det.open = true;
+    document.getElementById('fac-metodo-pago').value = f.metodo_pago || 'PUE';
+    metodoPagoChange();
+    if (f.metodo_pago !== 'PPD') document.getElementById('fac-forma-pago').value = f.forma_pago || '';
+    buscarOrden();
+    alert('Se abrió un borrador que SUSTITUYE a ' + f.folio_interno + '.\n\n'
+      + 'Elige la razón social correcta (del CRM, con su Constancia o con "Guardar en CRM"), revisa y timbra.\n'
+      + 'Al timbrar la nueva, ' + f.folio_interno + ' se cancela sola ante el SAT (motivo 01, sustitución).');
+  }
+
+  function _resumenPostTimbrado(res) {
+    var t = '';
+    if (res.sustitucion) {
+      t += res.sustitucion.ok
+        ? '\n\nLa factura original ' + res.sustitucion.folio_original + (res.sustitucion.firme ? ' quedó CANCELADA ante el SAT.' : ' quedó con cancelación en trámite (verifícala desde la lista).')
+        : '\n\n\u26a0 ATENCIÓN: NO se pudo cancelar la original ' + res.sustitucion.folio_original + ': ' + (res.sustitucion.error || '')
+          + '\nCanc\u00e9lala a mano (motivo 01) para no dejar dos facturas vigentes de la misma venta.';
+    }
+    if (res.complementos && res.complementos.length) {
+      t += '\n\nComplementos de pago de abonos anteriores:';
+      for (var i = 0; i < res.complementos.length; i++) {
+        var c = res.complementos[i];
+        t += '\n• Abono del ' + (c.fecha_pago || '') + ' (' + _fmt(c.monto_pago) + '): '
+          + (c.ok ? c.folio + ' timbrado' + (c.fecha_limite && c.fecha_limite < new Date().toISOString().slice(0,10) ? ' (FUERA del plazo del día 5 — avisa al contador)' : '')
+                  : (c.error || 'no se emitió'));
+      }
+    }
+    return t;
   }
 
   // ── Menú 3 puntos ─────────────────────────────────────────────────────────
@@ -2325,6 +2442,8 @@ var ModFacturacion = (function() {
     cstDescartar:    cstDescartar,
     tipoChange:      tipoChange,
     metodoPagoChange: metodoPagoChange,
+    guardarEnCrm:     guardarEnCrm,
+    refacturar:       refacturar,
     timbrar:              timbrar,
     verificarCancelacion: verificarCancelacion,
     verificarTimbrado:    verificarTimbrado,

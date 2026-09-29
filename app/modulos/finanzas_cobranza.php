@@ -694,7 +694,7 @@ function renderPanelPagos(o) {
   var sfLabel = (typeof sfSaldo === 'number' && sfSaldo > 0)
     ? 'Saldo a Favor (Disp: $' + sfSaldo.toLocaleString('es-MX',{minimumFractionDigits:2}) + ')'
     : 'Saldo a Favor';
-  html += '<div class="pf"><label>Forma</label><select id="pf-forma-' + o.cot_id + '" onchange="ModFinanzasCobranza._onFormaChange(' + o.cot_id + ',' + pendP.toFixed(2) + ')"><option value="efectivo">Efectivo</option><option value="tarjeta">Tarjeta</option><option value="transferencia">Transferencia</option><option value="saldo_favor">' + escHtml(sfLabel) + '</option></select></div>';
+  html += '<div class="pf"><label>Forma</label><select id="pf-forma-' + o.cot_id + '" onchange="ModFinanzasCobranza._onFormaChange(' + o.cot_id + ',' + pendP.toFixed(2) + ')"><option value="efectivo">Efectivo</option><option value="tarjeta_credito">Tarjeta crédito</option><option value="tarjeta_debito">Tarjeta débito</option><option value="transferencia">Transferencia</option><option value="saldo_favor">' + escHtml(sfLabel) + '</option></select></div>';
   html += '<div class="pf" style="flex:1"><label>Notas</label><input type="text" id="pf-notas-' + o.cot_id + '" placeholder="Opcional..." style="min-width:180px"></div>';
   html += '<button class="btn-reg" id="pf-btn-' + o.cot_id + '" onclick="ModFinanzasCobranza._registrarPago(' + o.cot_id + ',this)">Registrar</button>';
   html += '</div></div></div>';
@@ -754,7 +754,26 @@ function onFormaChange(cot_id, pendiente) {
   }
 }
 
-async function registrarPago(cot_id, btn) {
+// Resultado de los Complementos de Pago automáticos (orden con factura PPD, 29-sep-2026).
+function _resumenComplementosPago(list) {
+  if (!list || !list.length) return '';
+  var t = '\n\nComplemento de pago (factura en parcialidades):';
+  for (var i = 0; i < list.length; i++) {
+    var c = list[i];
+    t += '\n• Abono del ' + (c.fecha_pago || '') + ': ' + (c.ok ? (c.folio + ' timbrado') : (c.error || 'no se emitió; queda en Facturación → Complementos pendientes'));
+  }
+  return t;
+}
+// Pago mayor al saldo de una orden ya facturada: se pregunta antes de registrar nada.
+function _confirmarExcedente(data) {
+  var f = function(n) { return '$' + parseFloat(n || 0).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); };
+  return confirm(data.error + '\n\n¿Qué hacer con el excedente?\n\n'
+    + 'ACEPTAR: aplicar ' + f(data.saldo_pendiente) + ' a la orden (y a su factura ' + (data.factura || '') + ') y abonar los '
+    + f(data.excedente) + ' restantes al Saldo a Favor del cliente.\n\n'
+    + 'CANCELAR: no registrar nada (corrige el monto y vuelve a intentar).');
+}
+
+async function registrarPago(cot_id, btn, extra) {
   if (btn && btn.disabled) return; // ya se está procesando este mismo clic
 
   var fecha = document.getElementById('pf-fecha-' + cot_id)?.value;
@@ -781,7 +800,8 @@ async function registrarPago(cot_id, btn) {
     res  = await fetch(API, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({accion:'registrar_pago', cotizacion_id: cot_id, fecha_pago: fecha, hora_pago: hora, monto: monto, forma_pago: forma, notas: notas})
+      body: JSON.stringify({accion:'registrar_pago', cotizacion_id: cot_id, fecha_pago: fecha, hora_pago: hora, monto: monto, forma_pago: forma, notas: notas,
+                            excedente_accion: (extra && extra.excedente_accion) || null})
     });
     data = await res.json();
   } catch (e) {
@@ -790,13 +810,21 @@ async function registrarPago(cot_id, btn) {
     return;
   }
 
+  if (!data.ok && data.requiere === 'decision_excedente') {
+    if (btn) { btn.disabled = false; btn.textContent = 'Registrar'; }
+    if (_confirmarExcedente(data)) return registrarPago(cot_id, btn, {excedente_accion: 'saldo_favor'});
+    return;
+  }
   if (data.ok) {
     _abiertos[cot_id] = true;
     delete _sfCache[clienteId]; // forzar re-fetch: el saldo a favor pudo cambiar (uso o excedente)
     await cargar(); // re-renderiza el panel con un botón nuevo ya habilitado
+    var avisoPago = '';
     if (data.excedente) {
-      alert('Pago registrado.\n\nEl excedente de $' + parseFloat(data.excedente).toLocaleString('es-MX',{minimumFractionDigits:2}) + ' fue abonado al saldo a favor del cliente.');
+      avisoPago += '\n\nEl excedente de $' + parseFloat(data.excedente).toLocaleString('es-MX',{minimumFractionDigits:2}) + ' fue abonado al saldo a favor del cliente.';
     }
+    avisoPago += _resumenComplementosPago(data.complementos);
+    if (avisoPago) alert('Pago registrado.' + avisoPago);
   } else {
     if (btn) { btn.disabled = false; btn.textContent = 'Registrar'; }
     alert(data.error || 'Error al registrar pago');

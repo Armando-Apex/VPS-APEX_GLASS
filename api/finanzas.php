@@ -11,6 +11,7 @@ require_once __DIR__ . '/helpers/polizas_lib.php'; // Fase 6.2 — pólizas auto
 require_once __DIR__ . '/helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
 require_once __DIR__ . '/helpers/promo_precio_lib.php'; // Promo precio fijo por código — SALT_SEP2026 (23-sep-2026)
 require_once __DIR__ . '/wa_helper.php';
+require_once __DIR__ . '/helpers/facturapi_lib.php'; // Complementos de pago automáticos (29-sep-2026)
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -261,11 +262,21 @@ if ($method === 'POST') {
 
         $forma     = $body['forma_pago']       ?? 'efectivo';
         $notas     = trim($body['notas']       ?? '');
+        // Tipo de tarjeta (29-sep-2026): el SAT distingue crédito (04) de débito (28) en el
+        // Complemento de Pago. La pantalla manda 'tarjeta_credito'/'tarjeta_debito'.
+        $tarjetaTipo = null;
+        if ($forma === 'tarjeta_credito') { $forma = 'tarjeta'; $tarjetaTipo = 'credito'; }
+        elseif ($forma === 'tarjeta_debito') { $forma = 'tarjeta'; $tarjetaTipo = 'debito'; }
+        elseif ($forma === 'tarjeta' && in_array($body['tarjeta_tipo'] ?? '', ['credito','debito'], true)) { $tarjetaTipo = $body['tarjeta_tipo']; }
+        // Qué hacer con un pago mayor al saldo cuando la orden ya está facturada (la
+        // pantalla lo pregunta antes): 'saldo_favor' = aplicar el saldo y el resto al
+        // monedero del cliente. Sin esa decisión explícita, no se registra.
+        $excedenteAccion = ($body['excedente_accion'] ?? '') === 'saldo_favor' ? 'saldo_favor' : null;
 
         if (!$cot_id || $monto <= 0) {
             jsonResponse(['error' => 'Datos incompletos']); exit;
         }
-        if (!in_array($forma, ['efectivo','tarjeta','transferencia','saldo_favor'])) {
+        if (!in_array($forma, ['efectivo','tarjeta','transferencia','saldo_favor'], true)) {
             jsonResponse(['error' => 'Forma de pago inválida']); exit;
         }
 
@@ -319,6 +330,29 @@ if ($method === 'POST') {
             }
             $excedente       = round($monto - $saldo_pendiente, 2);
 
+            // Orden ya facturada (29-sep-2026): el complemento de pago nunca puede exceder
+            // el saldo de la factura, así que CUALQUIER excedente (también < $10) requiere
+            // decisión explícita antes de registrar nada.
+            $facVig = _facturapiFacturaVigenteDeCotizacion($db, $cot_id);
+            if ($facVig && $facVig['metodo_pago'] === 'PPD' && $forma === 'tarjeta' && !$tarjetaTipo) {
+                $db->rollBack();
+                jsonResponse(['ok'=>false, 'requiere'=>'tipo_tarjeta',
+                    'error'=>'Esta orden tiene la factura '.$facVig['folio_interno'].' en parcialidades: indica si la tarjeta fue de crédito o de débito (el complemento de pago lo exige).']);
+                exit;
+            }
+            $forzarSaldoFavor = false;
+            if ($facVig && $excedente > 0.005) {
+                if ($excedenteAccion !== 'saldo_favor') {
+                    $db->rollBack();
+                    jsonResponse(['ok'=>false, 'requiere'=>'decision_excedente',
+                        'saldo_pendiente'=>$saldo_pendiente, 'excedente'=>$excedente, 'factura'=>$facVig['folio_interno'],
+                        'error'=>'El pago ($'.number_format($monto, 2).') es mayor al saldo pendiente ($'.number_format($saldo_pendiente, 2)
+                            .') de una orden ya facturada ('.$facVig['folio_interno'].').']);
+                    exit;
+                }
+                $forzarSaldoFavor = true;
+            }
+
             // A-10: excedente real va a una cuenta explícita (saldo a favor) — pero
             // solo si es >= $10 (Armando, 26-ago-2026): un excedente menor (ej. deuda
             // de $994 pagada con $1000) no vale la pena convertirlo en un depósito
@@ -328,12 +362,16 @@ if ($method === 'POST') {
             $UMBRAL_EXCEDENTE_SALDO_FAVOR = 10.00;
             $monto_aplicar = ($excedente >= $UMBRAL_EXCEDENTE_SALDO_FAVOR) ? $saldo_pendiente : $monto;
             $depositar_favor = ($excedente >= $UMBRAL_EXCEDENTE_SALDO_FAVOR) ? $excedente : 0.0;
+            if ($forzarSaldoFavor) {   // orden facturada: nada por encima del saldo, ni centavos
+                $monto_aplicar   = $saldo_pendiente;
+                $depositar_favor = $excedente;
+            }
 
             // Insertar pago (por el monto que realmente se aplica a la orden)
             $db->prepare("INSERT INTO cotizacion_pagos
-                (cotizacion_id, fecha_pago, hora_pago, monto, forma_pago, notas, registrado_por)
-                VALUES (?,?,?,?,?,?,?)
-            ")->execute([$cot_id, $fecha, $hora, $monto_aplicar, $forma, $notas, $usuario_nombre]);
+                (cotizacion_id, fecha_pago, hora_pago, monto, forma_pago, tarjeta_tipo, notas, registrado_por)
+                VALUES (?,?,?,?,?,?,?,?)
+            ")->execute([$cot_id, $fecha, $hora, $monto_aplicar, $forma, ($forma === 'tarjeta' ? $tarjetaTipo : null), $notas, $usuario_nombre]);
             $pagoId = (int)$db->lastInsertId();
 
             // Actualizar saldo_pagado en cotizaciones
@@ -428,11 +466,26 @@ if ($method === 'POST') {
             $stmt->execute([$cot_id]);
             $cot = $stmt->fetch(PDO::FETCH_ASSOC);
 
+            // Complemento de pago automático (29-sep-2026): si la orden tiene factura PPD
+            // vigente, se emiten en orden los complementos pendientes (este abono incluido).
+            // Nunca rompe el registro del pago: si el PAC falla, queda en "Complementos
+            // pendientes" de Facturación con su aviso.
+            $complementos = [];
+            if ($facVig && $facVig['metodo_pago'] === 'PPD') {
+                try {
+                    $complementos = _facturapiEmitirPendientesAuto($db, (int)$facVig['id'], $usuario_nombre);
+                } catch (Throwable $e) {
+                    error_log('APEX Cobranza: complemento automático falló (factura id='.$facVig['id'].'): '.$e->getMessage());
+                    $complementos = [['ok'=>false, 'error'=>'No se pudo emitir el complemento en automático; quedó en Facturación → Complementos pendientes.']];
+                }
+            }
+
             jsonResponse([
                 'ok'              => true,
                 'saldo_pagado'    => $cot['saldo_pagado'],
                 'total'           => $total_real,
                 'excedente'       => $depositar_favor > 0 ? $depositar_favor : null,
+                'complementos'    => $complementos,
             ]);
         } catch (Exception $e) {
             $db->rollBack();

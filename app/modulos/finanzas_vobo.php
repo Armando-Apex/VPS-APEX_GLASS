@@ -290,7 +290,8 @@ function renderDetalle() {
   html += '<div class="pf-field"><label>Forma de pago</label>';
   html += '<select id="pf-forma" onchange="ModFinanzasVobo._onFormaChange(' + parseFloat(pendiente).toFixed(2) + ')">';
   html += '<option value="efectivo">Efectivo</option>';
-  html += '<option value="tarjeta">Tarjeta</option>';
+  html += '<option value="tarjeta_credito">Tarjeta de crédito</option>';
+  html += '<option value="tarjeta_debito">Tarjeta de débito</option>';
   html += '<option value="transferencia">Transferencia</option>';
   html += '<option value="saldo_favor">' + escHtml(sfLabel) + '</option>';
   html += '</select></div>';
@@ -328,8 +329,27 @@ function onFormaChange(pendiente) {
   }
 }
 
+// Resultado de los Complementos de Pago automáticos (orden con factura PPD, 29-sep-2026).
+function _resumenComplementosPago(list) {
+  if (!list || !list.length) return '';
+  var t = '\n\nComplemento de pago (factura en parcialidades):';
+  for (var i = 0; i < list.length; i++) {
+    var c = list[i];
+    t += '\n• Abono del ' + (c.fecha_pago || '') + ': ' + (c.ok ? (c.folio + ' timbrado') : (c.error || 'no se emitió; queda en Facturación → Complementos pendientes'));
+  }
+  return t;
+}
+// Pago mayor al saldo de una orden ya facturada: se pregunta antes de registrar nada.
+function _confirmarExcedente(data) {
+  var f = function(n) { return '$' + parseFloat(n || 0).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); };
+  return confirm(data.error + '\n\n¿Qué hacer con el excedente?\n\n'
+    + 'ACEPTAR: aplicar ' + f(data.saldo_pendiente) + ' a la orden (y a su factura ' + (data.factura || '') + ') y abonar los '
+    + f(data.excedente) + ' restantes al Saldo a Favor del cliente.\n\n'
+    + 'CANCELAR: no registrar nada (corrige el monto y vuelve a intentar).');
+}
+
 // ── Registrar pago ────────────────────────────────────────────
-async function registrarPago(cot_id, orden_id, btn) {
+async function registrarPago(cot_id, orden_id, btn, extra) {
   if (btn && btn.disabled) return; // ya se está procesando este mismo clic
 
   var fecha = document.getElementById('pf-fecha')?.value;
@@ -345,6 +365,7 @@ async function registrarPago(cot_id, orden_id, btn) {
   }
 
   var payload = { accion:'registrar_pago', cotizacion_id: cot_id, fecha_pago: fecha, hora_pago: hora, monto: monto, forma_pago: forma, notas: notas };
+  if (extra && extra.excedente_accion) payload.excedente_accion = extra.excedente_accion;
 
   if (btn) { btn.disabled = true; btn.textContent = 'Registrando...'; }
 
@@ -362,12 +383,18 @@ async function registrarPago(cot_id, orden_id, btn) {
     return;
   }
 
+  if (!data.ok && data.requiere === 'decision_excedente') {
+    if (btn) { btn.disabled = false; btn.textContent = 'Registrar pago'; }
+    if (_confirmarExcedente(data)) return registrarPago(cot_id, orden_id, btn, {excedente_accion: 'saldo_favor'});
+    return;
+  }
   if (data.ok) {
     // Recargar detalle para mostrar el nuevo pago (re-renderiza con un botón nuevo ya habilitado)
     await abrirDetalle(orden_id);
     if (data.excedente) {
       toast('Pago registrado. El excedente de $' + parseFloat(data.excedente).toLocaleString('es-MX',{minimumFractionDigits:2}) + ' fue abonado al saldo a favor del cliente.');
     }
+    if (data.complementos && data.complementos.length) alert('Pago registrado.' + _resumenComplementosPago(data.complementos));
   } else {
     if (btn) { btn.disabled = false; btn.textContent = 'Registrar pago'; }
     toast(data.error || 'Error al registrar pago', 'error');
