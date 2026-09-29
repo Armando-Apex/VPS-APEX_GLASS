@@ -661,10 +661,13 @@ var ModFacturacion = (function() {
     {v:'KGM', l:'KGM – Kilogramo'},
   ];
 
+  // Escapa para HTML Y para atributos: textContent->innerHTML solo convierte & < >, así
+  // que un valor con comillas dentro de value="..."/href="..." rompía el atributo
+  // (XSS almacenado vía descripción de concepto, auditoría de seguridad 29-sep-2026).
   function _esc(s) {
     var d = document.createElement('div');
-    d.textContent = s || '';
-    return d.innerHTML;
+    d.textContent = (s === null || s === undefined) ? '' : String(s);
+    return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   // S2-07: conceptos corruptos no deben tumbar el modal — se parsea con fallback.
@@ -770,7 +773,7 @@ var ModFacturacion = (function() {
   function _csatWidget(sel) {
     var label = sel || '— Clave —';
     var html = '<div class="fac-csat">';
-    html += '<input type="hidden" class="fac-c-clave" value="' + (sel||'') + '">';
+    html += '<input type="hidden" class="fac-c-clave" value="' + _esc(sel||'') + '">';
     html += '<div class="fac-csat-display" onclick="ModFacturacion._csatToggle(this)">' + _esc(label) + '</div>';
     html += '<div class="fac-csat-list">';
     for (var i = 0; i < CLAVES_SAT.length; i++) {
@@ -805,7 +808,7 @@ var ModFacturacion = (function() {
   function _unidadWidget(sel) {
     var label = sel || '— Unidad —';
     var html = '<div class="fac-csat">';
-    html += '<input type="hidden" class="fac-c-unidad" value="' + (sel||'') + '">';
+    html += '<input type="hidden" class="fac-c-unidad" value="' + _esc(sel||'') + '">';
     html += '<div class="fac-csat-display" onclick="ModFacturacion._csatToggle(this)">' + _esc(label) + '</div>';
     html += '<div class="fac-csat-list">';
     for (var i = 0; i < UNIDADES_SAT.length; i++) {
@@ -822,11 +825,11 @@ var ModFacturacion = (function() {
     var applyIva = (iva === false || iva === 0) ? false : true;
     var imp = (parseFloat(cant)||0) * (parseFloat(precio)||0);
     return '<tr>' +
-      '<td><input type="text" class="fac-c-desc" value="' + (desc||'') + '" placeholder="Descripción" oninput="ModFacturacion.recalc()"></td>' +
+      '<td><input type="text" class="fac-c-desc" value="' + _esc(desc||'') + '" placeholder="Descripción" oninput="ModFacturacion.recalc()"></td>' +
       '<td>' + _csatWidget(clave||'') + '</td>' +
       '<td>' + _unidadWidget(unidad||'') + '</td>' +
-      '<td><input type="number" class="fac-c-cant" value="' + (cant||1) + '" min="1" oninput="ModFacturacion.recalc()"></td>' +
-      '<td><input type="number" class="fac-c-precio" value="' + (precio||'') + '" min="0" step="0.01" placeholder="0.00" oninput="ModFacturacion.recalc()"></td>' +
+      '<td><input type="number" class="fac-c-cant" value="' + _esc(cant||1) + '" min="1" oninput="ModFacturacion.recalc()"></td>' +
+      '<td><input type="number" class="fac-c-precio" value="' + _esc(precio||'') + '" min="0" step="0.01" placeholder="0.00" oninput="ModFacturacion.recalc()"></td>' +
       '<td style="text-align:center"><input type="checkbox" class="fac-c-iva" ' + (applyIva ? 'checked' : '') + ' title="Aplica IVA 16%" onchange="ModFacturacion.recalc()"></td>' +
       '<td class="fac-c-imp" style="color:#475569;font-weight:600">' + _fmt(imp) + '</td>' +
       '<td><button class="fac-del-row" onclick="this.closest(\'tr\').remove();ModFacturacion.recalc()">&times;</button></td>' +
@@ -1250,7 +1253,7 @@ var ModFacturacion = (function() {
   }
 
   function verificarCancelacion(id) {
-    _apiFetch('../api/facturapi.php?accion=verificar_cancelacion&id=' + id, {}, function(err, res) {
+    _apiFetch('../api/facturapi.php?accion=verificar_cancelacion', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
       if (err || !res.ok) { alert('Error al verificar: ' + (err || (res && res.error))); return; }
       alert(res.firme ? '✅ La cancelación ya quedó firme ante el SAT.' : '⏳ Sigue pendiente de aceptación del receptor en su buzón SAT.');
       _cargarLista();

@@ -652,6 +652,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
     // redondea primero a 2 decimales (igual que FacturAPI/el SAT hacen por
     // concepto), y el IVA se calcula sobre la base gravable ya redondeada — evita
     // que el total quede desfasado en centavos contra lo que el PAC realmente timbra.
+    // Seguridad (29-sep-2026): los conceptos sin orden se guardaban tal como llegaban del
+    // navegador — texto con comillas/HTML en la descripción terminaba ejecutándose en la
+    // pantalla de quien abría el borrador. Se normalizan a tipos y formatos estrictos
+    // (la pantalla además escapa al mostrar). Con orden, más abajo se sustituyen por los
+    // del servidor de todos modos.
+    if (!is_array($d['conceptos']) || !$d['conceptos'] || count($d['conceptos']) > 200) {
+        jsonResponse(['ok'=>false,'error'=>'Conceptos inválidos']); exit;
+    }
+    $conceptosLimpios = [];
+    foreach (array_values($d['conceptos']) as $c) {
+        if (!is_array($c)) { jsonResponse(['ok'=>false,'error'=>'Conceptos inválidos']); exit; }
+        $desc = preg_replace('/[\x00-\x1F\x7F<>]/u', ' ', (string)($c['desc'] ?? ''));
+        $desc = trim(preg_replace('/\s+/u', ' ', $desc));
+        $clave  = strtoupper(trim((string)($c['clave']  ?? '')));
+        $unidad = strtoupper(trim((string)($c['unidad'] ?? '')));
+        $conceptosLimpios[] = [
+            'desc'   => mb_substr($desc, 0, 1000),
+            'clave'  => preg_match('/^[0-9]{8}$/', $clave) ? $clave : '',
+            'unidad' => preg_match('/^[A-Z0-9]{1,3}$/', $unidad) ? $unidad : '',
+            'cant'   => (float)($c['cant'] ?? 0),
+            'precio' => (float)($c['precio'] ?? 0),
+            'iva'    => !empty($c['iva']),
+        ];
+    }
+    $d['conceptos'] = $conceptosLimpios;
+
     $sub = 0; $subGravable = 0;
     foreach ($d['conceptos'] as $c) {
         $imp = round((float)($c['cant'] ?? 0) * (float)($c['precio'] ?? 0), 2);
@@ -1309,6 +1335,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'cancelar') {
     if ($motivo === '01' && $substitucion === '') {
         jsonResponse(['ok'=>false,'error'=>'Motivo 01 requiere el UUID de la factura sustituta']); exit;
     }
+    if ($motivo === '01') {
+        // Auditoría 29-sep-2026: formato de UUID y que la sustituta sea un CFDI vigente
+        // emitido por nosotros (y distinto de la factura que se cancela); antes se mandaba
+        // a FacturAPI cualquier texto, solo URL-encoded.
+        $substitucion = strtoupper($substitucion);
+        if (!preg_match('/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/', $substitucion)) {
+            jsonResponse(['ok'=>false,'error'=>'El UUID de la factura sustituta no tiene un formato válido.']); exit;
+        }
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM facturas WHERE UPPER(uuid)=? AND estatus='timbrada' AND id<>?");
+        $stmt->execute([$substitucion, $id]);
+        if (!(int)$stmt->fetchColumn()) {
+            jsonResponse(['ok'=>false,'error'=>'La factura sustituta debe ser una factura timbrada y vigente emitida desde este sistema.']); exit;
+        }
+    }
 
     $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=? AND estatus='timbrada'");
     $stmt->execute([$id]);
@@ -1392,9 +1432,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'cancelar') {
     exit;
 }
 
-// ── GET verificar_cancelacion (re-consulta a FacturAPI el estatus real de una cancelación 'pending') ──
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'verificar_cancelacion') {
-    $id = (int)($_GET['id'] ?? 0);
+// ── POST verificar_cancelacion (re-consulta a FacturAPI el estatus real de una cancelación 'pending') ──
+// POST (antes GET): modifica la fila, y un GET se puede disparar desde un enlace externo
+// con la cookie de sesión (SameSite=Lax la manda en navegación). Auditoría 29-sep-2026.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'verificar_cancelacion') {
+    $dVc = json_decode(file_get_contents('php://input'), true);
+    $id = (int)($dVc['id'] ?? 0);
     if (!$id) { jsonResponse(['ok'=>false,'error'=>'ID requerido']); exit; }
 
     $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=? AND pac_cancel_status IS NOT NULL");

@@ -48,7 +48,7 @@ if (!move_uploaded_file($file['tmp_name'], $tmpFile)) {
 
 // ── Intento 1: pdftotext (PDFs nativos con capa de texto) ────────────────────
 $outFile = $tmpFile . '.txt';
-exec('pdftotext -f 1 -l 2 ' . escapeshellarg($tmpFile) . ' ' . escapeshellarg($outFile) . ' 2>/dev/null', $_, $ret);
+exec('timeout 20 pdftotext -f 1 -l 2 ' . escapeshellarg($tmpFile) . ' ' . escapeshellarg($outFile) . ' 2>/dev/null', $_, $ret);
 
 $texto = '';
 if ($ret === 0 && file_exists($outFile)) {
@@ -61,14 +61,14 @@ $usedOcr = false;
 if (strlen($texto) < 100) {
     $jpgBase = $tmpDir . '/' . $token . '_pg';
     // Solo página 1 (RFC, nombre y CP siempre están ahí); régimen se selecciona manualmente si no se detecta
-    exec('pdftoppm -r 150 -f 1 -l 1 -jpeg ' . escapeshellarg($tmpFile) . ' ' . escapeshellarg($jpgBase) . ' 2>/dev/null', $_, $ret2);
+    exec('timeout 20 pdftoppm -r 150 -f 1 -l 1 -jpeg ' . escapeshellarg($tmpFile) . ' ' . escapeshellarg($jpgBase) . ' 2>/dev/null', $_, $ret2);
 
     $textoOcr = '';
     foreach (['-1.jpg', '-01.jpg'] as $sufijo) {
         $imgFile = $jpgBase . $sufijo;
         if (!file_exists($imgFile)) continue;
         $ocrOut = $tmpDir . '/' . $token . '_ocr';
-        exec('tesseract ' . escapeshellarg($imgFile) . ' ' . escapeshellarg($ocrOut) . ' -l spa --psm 6 2>/dev/null');
+        exec('timeout 40 tesseract ' . escapeshellarg($imgFile) . ' ' . escapeshellarg($ocrOut) . ' -l spa --psm 6 2>/dev/null');
         $ocrTxt = $ocrOut . '.txt';
         if (file_exists($ocrTxt)) {
             $textoOcr = file_get_contents($ocrTxt);
