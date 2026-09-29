@@ -524,11 +524,12 @@ $esModoLive = (FACTURAPI_MODE === 'live');
         </div>
         <div class="fac-field">
           <label>Método de Pago</label>
-          <select id="fac-metodo-pago" required>
+          <select id="fac-metodo-pago" required onchange="ModFacturacion.metodoPagoChange()">
             <option value="" selected disabled>— Selecciona método de pago —</option>
             <option value="PUE">PUE – Pago en una sola exhibición</option>
             <option value="PPD">PPD – Pago en parcialidades o diferido</option>
           </select>
+          <div id="fac-ppd-nota" style="display:none;font-size:11px;color:var(--c-muted);margin-top:4px">En PPD el SAT exige forma de pago 99 (Por definir). La forma real de cada abono va en su Complemento de Pago.</div>
         </div>
       </div>
 
@@ -729,7 +730,10 @@ var ModFacturacion = (function() {
   function _actualizarContadores() {
     var cnt = {borrador:0, timbrada:0, cancelada:0};
     for (var i = 0; i < _facturas.length; i++) {
-      if (cnt[_facturas[i].estatus] !== undefined) cnt[_facturas[i].estatus]++;
+      // 'timbrando' (en verificación) se cuenta y se lista con las timbradas: ante el SAT
+      // el comprobante pudo haber quedado emitido.
+      var est = (_facturas[i].estatus === 'timbrando') ? 'timbrada' : _facturas[i].estatus;
+      if (cnt[est] !== undefined) cnt[est]++;
     }
     ['borrador','timbrada','cancelada'].forEach(function(k) {
       var el = document.getElementById('fac-cnt-' + k);
@@ -740,7 +744,9 @@ var ModFacturacion = (function() {
   function _facturasFiltradas() {
     // Con texto en el buscador se ignora el tab activo — igual que Cobranza (UPD-316),
     // para poder encontrar una factura sin importar en qué pestaña de estatus esté.
-    var base = _filtroTexto ? _facturas : _facturas.filter(function(f) { return f.estatus === _tabActivo; });
+    var base = _filtroTexto ? _facturas : _facturas.filter(function(f) {
+      return f.estatus === _tabActivo || (_tabActivo === 'timbrada' && f.estatus === 'timbrando');
+    });
     if (!_filtroTexto) return base;
     return base.filter(function(f) {
       var campos = [f.folio_interno, f.orden_folio, f.receptor_nombre, f.receptor_rfc, f.cliente_solicito_nombre, f.cp_factura_folio, f.cp_orden_folio];
@@ -757,6 +763,7 @@ var ModFacturacion = (function() {
 
   function _badgeHtml(est) {
     var labels = {borrador:'Borrador', timbrada:'Timbrada', cancelada:'Cancelada'};
+    if (est === 'timbrando') return '<span class="fac-badge" style="background:#fef3c7;color:#92400e">En verificaci\u00f3n</span>';
     return '<span class="fac-badge ' + est + '">' + (labels[est] || est) + '</span>';
   }
 
@@ -905,6 +912,8 @@ var ModFacturacion = (function() {
         if (f.modo === 'test') {
           html += '<button class="fac-menu-item danger" onclick="ModFacturacion.menuCerrar();ModFacturacion.eliminar(' + f.id + ')">Eliminar (prueba)</button>';
         }
+      } else if (f.estatus === 'timbrando') {
+        html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.verificarTimbrado(' + f.id + ')">Verificar timbrado</button>';
       } else if (f.estatus === 'cancelada') {
         // Una cancelada se sigue pudiendo descargar (obligaci\u00f3n de conservarla 5 a\u00f1os).
         html += '<a class="fac-menu-item" href="../api/facturapi.php?accion=pdf&id=' + f.id + '" target="_blank">Descargar PDF</a>';
@@ -952,6 +961,7 @@ var ModFacturacion = (function() {
     document.getElementById('fac-regimen').value    = '';
     document.getElementById('fac-forma-pago').value  = '';
     document.getElementById('fac-metodo-pago').value = '';
+    metodoPagoChange();
     document.getElementById('fac-relacion-tipo').value = '';
     document.getElementById('fac-relacion-uuid').value = '';
     document.getElementById('fac-publico-general').checked = false;
@@ -1003,6 +1013,19 @@ var ModFacturacion = (function() {
     document.getElementById('fac-t-total').textContent = _fmt(total);
   }
 
+  // SAT (Anexo 20, CFDI 4.0): con MetodoPago=PPD la FormaPago debe ser 99 "Por definir";
+  // la forma real de cada abono se declara en su Complemento de Pago. El servidor
+  // tambien lo valida al guardar y al timbrar.
+  function metodoPagoChange() {
+    var sel  = document.getElementById('fac-forma-pago');
+    var ppd  = (document.getElementById('fac-metodo-pago').value === 'PPD');
+    var nota = document.getElementById('fac-ppd-nota');
+    if (ppd) sel.value = '99';
+    else if (sel.disabled && sel.value === '99') sel.value = '';
+    sel.disabled = ppd;
+    if (nota) nota.style.display = ppd ? 'block' : 'none';
+  }
+
   function abrirNueva() {
     document.getElementById('fac-modal-titulo').textContent = 'Nueva Factura';
     _clearForm();
@@ -1030,6 +1053,7 @@ var ModFacturacion = (function() {
     document.getElementById('fac-relacion-uuid').value      = f.relacion_uuid     || '';
     document.getElementById('fac-forma-pago').value         = f.forma_pago        || '';
     document.getElementById('fac-metodo-pago').value        = f.metodo_pago       || '';
+    metodoPagoChange();
 
     var esPublicoGeneral = (f.receptor_rfc === 'XAXX010101000');
     document.getElementById('fac-publico-general').checked = esPublicoGeneral;
@@ -1170,6 +1194,7 @@ var ModFacturacion = (function() {
 
     _apiFetch('../api/facturapi.php?accion=timbrar', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
       delete _timbrandoIds[id];
+      if (!err && res && res.en_verificacion) { alert(res.error); _cargarLista(); return; }
       if (err || !res.ok) { alert('Error al timbrar: ' + (err || res.error)); return; }
       var aviso = (ES_MODO_LIVE ? 'Factura timbrada ante el SAT' : 'Timbrada en modo PRUEBA (sin validez fiscal)')
         + '\nUUID: ' + res.uuid + '\n\nPuedes descargar el PDF desde la lista.';
@@ -1204,6 +1229,23 @@ var ModFacturacion = (function() {
       delete _reenviandoIds[id];
       if (err || !res.ok) { alert('Error al reenviar: ' + (err || (res && res.error))); return; }
       alert('✅ Correo reenviado a: ' + res.correos.join(', '));
+    });
+  }
+
+  var _verificandoTim = {};
+  function verificarTimbrado(id) {
+    if (_verificandoTim[id]) return;
+    _verificandoTim[id] = true;
+    _apiFetch('../api/facturapi.php?accion=verificar_timbrado', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
+      delete _verificandoTim[id];
+      if (err || !res.ok) { alert('No se pudo verificar: ' + (err || (res && res.error))); return; }
+      if (res.resultado === 'timbrada') {
+        alert('El comprobante ' + res.folio + ' S\u00cd qued\u00f3 timbrado ante el SAT y ya se registr\u00f3.\nUUID: ' + res.uuid);
+      } else {
+        alert('El comprobante ' + res.folio + ' NO lleg\u00f3 a timbrarse. '
+          + (res.tipo_cfdi === 'P' ? 'El abono vuelve a quedar pendiente de complemento.' : 'La factura regres\u00f3 a borrador; puedes volver a timbrarla.'));
+      }
+      _cargarLista();
     });
   }
 
@@ -1381,6 +1423,13 @@ var ModFacturacion = (function() {
       html += '<div id="fac-vista-pagos" style="margin-bottom:14px;font-size:12px;color:var(--c-muted)">Cargando pagos&hellip;</div>';
     }
 
+    if (f.estatus === 'timbrando') {
+      html += '<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:7px;padding:10px 12px;font-size:12px;color:#92400e;margin-bottom:14px">'
+        + '<strong>En verificaci\u00f3n.</strong> FacturAPI no confirm\u00f3 si este comprobante qued\u00f3 timbrado. No lo vuelvas a capturar: '
+        + 'pulsa el bot\u00f3n para consultarlo (despu\u00e9s de 2 minutos del intento).'
+        + '<div style="margin-top:8px"><button class="fac-act-btn" onclick="ModFacturacion.verificarTimbrado(' + Number(f.id) + ')">Verificar timbrado</button></div></div>';
+    }
+
     if (f.estatus === 'timbrada') {
       html += '<div class="fac-section-title">Datos fiscales del timbrado</div>';
       html += '<div class="fac-field" style="margin-bottom:10px"><label>UUID</label><div style="font-family:monospace">' + _esc(f.uuid || '—') + '</div></div>';
@@ -1489,8 +1538,13 @@ var ModFacturacion = (function() {
       return;
     }
     var html = '';
+    var yaSiguiente = {};   // factura_id -> ya se ofreció su abono más antiguo
     for (var i = 0; i < _pendientes.length; i++) {
       var p = _pendientes[i];
+      // Los complementos van en orden de fecha (el servidor también lo exige): solo el
+      // abono pendiente más antiguo de cada factura se puede emitir.
+      var esSiguiente = !yaSiguiente[p.factura_id];
+      yaSiguiente[p.factura_id] = true;
       var modoBadge = (p.modo === 'test') ? '<span style="font-size:9px;background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">PRUEBA</span>' : '';
       html += '<tr>';
       html += '<td style="font-weight:600;color:#2563eb">' + _esc(p.factura_folio) + modoBadge + '<div style="font-size:11px;color:var(--c-muted);font-weight:400">' + _esc(p.orden_folio || '') + '</div></td>';
@@ -1499,7 +1553,9 @@ var ModFacturacion = (function() {
       html += '<td style="font-weight:600">' + _fmt(p.monto) + '</td>';
       html += '<td style="font-size:12px">' + _esc(FORMA_COBRANZA_LABEL[p.forma_pago] || p.forma_pago || '\u2014') + '</td>';
       html += '<td>' + _limiteHtml(p.fecha_limite, p.dias_restantes) + '</td>';
-      html += '<td><button class="fac-act-btn" onclick="ModFacturacion.abrirComplemento(' + Number(p.factura_id) + ',' + Number(p.pago_id) + ')">Emitir</button></td>';
+      html += '<td>' + (esSiguiente
+        ? '<button class="fac-act-btn" onclick="ModFacturacion.abrirComplemento(' + Number(p.factura_id) + ',' + Number(p.pago_id) + ')">Emitir</button>'
+        : '<span style="font-size:11px;color:var(--c-muted)">Despu\u00e9s del abono anterior</span>') + '</td>';
       html += '</tr>';
     }
     tbody.innerHTML = html;
@@ -1513,7 +1569,8 @@ var ModFacturacion = (function() {
       if (!box) return;
       if (err || !res.ok) { box.textContent = 'No se pudieron cargar los pagos: ' + (err || res.error); return; }
       _pagosCache[facturaId] = res;
-      var puedeEmitir = (res.factura.estatus === 'timbrada' && res.factura.pac_cancel_status !== 'pending');
+      var puedeEmitir = (res.factura.estatus === 'timbrada' && res.factura.pac_cancel_status !== 'pending' && res.factura.modo_ok);
+      var ofrecido = false;   // solo el abono pendiente más antiguo lleva botón
       var html = '<div style="display:flex;gap:24px;margin-bottom:10px;color:#1e293b;font-size:13px">';
       html += '<div>Total factura: <strong>' + _fmt(res.total_factura) + '</strong></div>';
       html += '<div>Con complemento: <strong>' + _fmt(res.pagado_complementado) + '</strong></div>';
@@ -1527,9 +1584,14 @@ var ModFacturacion = (function() {
           var p = res.pagos[i];
           html += '<tr><td>' + _esc(p.fecha_pago) + '</td><td style="font-weight:600">' + _fmt(p.monto) + '</td>';
           html += '<td>' + _esc(FORMA_COBRANZA_LABEL[p.forma_pago] || p.forma_pago || '\u2014') + '</td><td>';
-          if (p.complemento) {
+          if (p.complemento && p.complemento.estatus === 'timbrando') {
+            html += '<span style="color:#92400e;font-weight:600">' + _esc(p.complemento.folio) + ' en verificaci\u00f3n</span> <span style="color:var(--c-muted)">(ver\u00edficalo desde la lista)</span>';
+          } else if (p.complemento) {
             html += '<span style="color:#16a34a;font-weight:600">' + _esc(p.complemento.folio) + '</span> <span style="color:var(--c-muted)">(parcialidad ' + Number(p.complemento.parcialidad) + ')</span>';
+          } else if (puedeEmitir && ofrecido) {
+            html += '<span style="color:var(--c-muted)">Pendiente \u2014 despu\u00e9s del abono anterior</span>';
           } else if (puedeEmitir) {
+            ofrecido = true;
             html += '<button class="fac-act-btn" onclick="ModFacturacion.abrirComplemento(' + Number(res.factura.id) + ',' + Number(p.id) + ')">Emitir complemento</button>';
             html += '<div style="font-size:10px;color:var(--c-muted);margin-top:2px">L\u00edmite: ' + _esc(p.fecha_limite || '') + '</div>';
           } else {
@@ -1614,6 +1676,13 @@ var ModFacturacion = (function() {
     _apiFetch('../api/facturapi.php?accion=emitir_complemento', {method:'POST', body:JSON.stringify(body)}, function(err, res) {
       _cpEmitiendo = false;
       btn.disabled = false; btn.textContent = 'Timbrar complemento';
+      if (!err && res && res.en_verificacion) {
+        alert(res.error);
+        cerrarComplemento();
+        _cargarLista();
+        if (document.getElementById('fac-vista-overlay').classList.contains('open')) _cargarPagosVista(facturaId);
+        return;
+      }
       if (err || !res.ok) { alert('Error al timbrar el complemento: ' + (err || res.error)); return; }
       alert((ES_MODO_LIVE ? 'Complemento timbrado ante el SAT' : 'Complemento timbrado en modo PRUEBA (sin validez fiscal)')
         + '\nFolio: ' + res.folio + '\nUUID: ' + res.uuid + '\nSaldo insoluto: ' + _fmt(res.saldo_insoluto));
@@ -2252,8 +2321,10 @@ var ModFacturacion = (function() {
     cstAplicar:      cstAplicar,
     cstDescartar:    cstDescartar,
     tipoChange:      tipoChange,
+    metodoPagoChange: metodoPagoChange,
     timbrar:              timbrar,
     verificarCancelacion: verificarCancelacion,
+    verificarTimbrado:    verificarTimbrado,
     reenviarCorreo:       reenviarCorreo,
     menuToggle:           menuToggle,
     menuCerrar:           menuCerrar,

@@ -303,6 +303,109 @@ function _guardarArchivoFacturaLocal($bin, $folioInterno, $ext) {
     return date('Y-m') . '/' . $nombre;   // ruta relativa a archivos_facturas/
 }
 
+// ── Timbrado con respuesta ambigua (auditoría complementos, 29-sep-2026) ──────
+// Si FacturAPI timbra pero su respuesta no llega (timeout, conexión cortada, 5xx), el
+// CFDI YA existe ante el SAT aunque nosotros no lo sepamos. Antes se liberaba la reserva
+// en esos casos y el usuario podía volver a timbrar → dos CFDI de la misma venta o dos
+// complementos del mismo abono. Ahora la fila se queda en 'timbrando' ("en verificación")
+// y accion=verificar_timbrado consulta a FacturAPI por serie+folio antes de decidir.
+// Un 4xx sí es rechazo definitivo (el PAC no creó nada) y se libera como siempre.
+function _facturapiRespuestaAmbigua($curlErr, $httpCode, $res) {
+    if ($curlErr) return true;
+    if ($httpCode === 0 || $httpCode >= 500) return true;
+    if ($httpCode === 200 && empty($res['uuid'])) return true;
+    return false;
+}
+
+// CFDI vigente en FacturAPI con esa serie y folio, creado a partir de $desde (hora local
+// de la reserva, con 5 min de margen por desfase de relojes). El filtro por fecha evita
+// confundirlo con uno viejo del mismo folio (en pruebas los folios se reutilizan al
+// borrar). Regresa el CFDI (mismo formato que la respuesta al crearlo), null si con
+// certeza no existe, o false si no se pudo consultar.
+function _facturapiBuscarPorFolio($serie, $folioNum, $desde) {
+    $ch = curl_init('https://www.facturapi.io/v2/invoices?series=' . urlencode($serie) . '&folio_number=' . (int)$folioNum);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_HTTPHEADER=>['Authorization: Bearer '.FACTURAPI_KEY], CURLOPT_TIMEOUT=>20]);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    unset($ch);
+    $r = json_decode((string)$resp, true);
+    if ($code !== 200 || !isset($r['data']) || !is_array($r['data'])) return false;
+    try { $tsDesde = (new DateTime($desde, new DateTimeZone('America/Monterrey')))->getTimestamp() - 300; }
+    catch (Exception $e) { return false; }
+    foreach ($r['data'] as $inv) {
+        if (($inv['status'] ?? '') !== 'valid' || empty($inv['uuid'])) continue;
+        if (strtotime($inv['created_at'] ?? '') >= $tsDesde) return $inv;
+    }
+    return null;
+}
+
+// Registra en la fila (en 'timbrando') el CFDI que devolvió FacturAPI: UUID, total del
+// PAC, liga de verificación, fecha real del timbre y resguardo local de PDF/XML. Lo usan
+// el timbrado de facturas, el de complementos y verificar_timbrado.
+function _facturapiRegistrarTimbre($pdo, $fac, $res, $usuario) {
+    $id          = (int)$fac['id'];
+    $uuid        = $res['uuid'] ?? '';
+    $facturapiId = $res['id']   ?? '';
+    $pdfUrl      = 'https://www.facturapi.io/v2/invoices/' . $facturapiId . '/pdf';
+    $xmlUrl      = 'https://www.facturapi.io/v2/invoices/' . $facturapiId . '/xml';
+
+    // S2-b: el PAC es la verdad, no nuestro cálculo. Antes se guardaba el total que
+    // calculamos nosotros y nunca se comparaba contra el del comprobante: si el PAC
+    // redondeaba distinto, BD y CFDI quedaban desalineados sin que nadie se enterara.
+    // Ahora se guarda el total del PAC y la diferencia queda en el log si existe.
+    // (FacturAPI no devuelve 'subtotal' a nivel raíz, solo 'total' — verificado contra
+    // la API real el 26-sep-2026; el subtotal/IVA nuestros se conservan tal cual.)
+    $totalPac = isset($res['total']) ? round((float)$res['total'], 2) : null;
+    if ($totalPac !== null && abs($totalPac - (float)$fac['total']) > 0.005) {
+        error_log('APEX Facturacion: total del PAC ('.$totalPac.') distinto al calculado ('
+            .$fac['total'].') en factura id='.$id.' — se guarda el del PAC');
+    }
+    // Datos del timbre que antes se tiraban: la liga de verificación del SAT (no se
+    // puede reconstruir sola, incluye parte del sello) y la fecha REAL del timbrado
+    // según el PAC, que no es la misma que la fecha capturada en el formulario.
+    $verifUrl = $res['verification_url'] ?? null;
+    $fechaTim = null;
+    if (!empty($res['date'])) {
+        try { $fechaTim = (new DateTime($res['date']))->setTimezone(new DateTimeZone('America/Monterrey'))->format('Y-m-d H:i:s'); }
+        catch (Exception $e) { $fechaTim = null; }
+    }
+
+    // S2-a: una sola descarga de PDF/XML sirve para el resguardo local Y para el correo
+    // (antes solo se descargaban si había correos que notificar, y no se guardaban).
+    $pdfBin  = _descargarArchivoFacturapi($pdfUrl);
+    $xmlBin  = _descargarArchivoFacturapi($xmlUrl);
+    $pdfPath = _guardarArchivoFacturaLocal($pdfBin, $fac['folio_interno'], 'pdf');
+    $xmlPath = _guardarArchivoFacturaLocal($xmlBin, $fac['folio_interno'], 'xml');
+    if ($xmlPath === null) {
+        // No se aborta (el CFDI ya existe ante el SAT) pero sí se deja constancia fuerte:
+        // sin el XML en disco volvemos a depender de FacturAPI para conservarlo.
+        error_log('APEX Facturacion: OJO, no se pudo resguardar el XML de la factura id='.$id
+            .' — el comprobante solo existe en FacturAPI');
+    }
+
+    // El UPDATE final confirma desde la reserva 'timbrando' (A-9b) — si por alguna
+    // razón la factura ya no estuviera en ese estatus, no se sobreescribe nada.
+    $stmt = $pdo->prepare("
+        UPDATE facturas SET
+            estatus='timbrada', facturapi_id=?, uuid=?,
+            pdf_url=?, xml_url=?, pdf_path=?, xml_path=?,
+            verification_url=?, fecha_timbrado=?,
+            total = COALESCE(?, total),
+            timbrado_por=?, timbrado_at=NOW(), updated_at=NOW()
+        WHERE id=? AND estatus='timbrando'
+    ");
+    $stmt->execute([$facturapiId, $uuid, $pdfUrl, $xmlUrl, $pdfPath, $xmlPath,
+                    $verifUrl, $fechaTim, $totalPac, $usuario, $id]);
+
+    return ['uuid'=>$uuid, 'facturapi_id'=>$facturapiId, 'pdf_url'=>$pdfUrl, 'xml_url'=>$xmlUrl,
+            'total_pac'=>$totalPac, 'pdf_bin'=>$pdfBin, 'xml_bin'=>$xmlBin];
+}
+
+// Mensaje único para el caso ambiguo (la fila se queda 'timbrando').
+define('FACTURAPI_MSG_EN_VERIFICACION', 'FacturAPI no respondió con claridad, así que no se sabe si el comprobante quedó timbrado. '
+    .'Se dejó "en verificación" para no emitirlo dos veces: en un par de minutos abre el detalle y pulsa "Verificar timbrado". '
+    .'NO lo vuelvas a capturar.');
+
 header('Content-Type: application/json');
 
 // S2-c/S2-d: permiso propio en vez de 'ver_wip' (cajon de sastre de modulos WIP) —
@@ -454,6 +557,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
     }
     if (!preg_match('/^(0[1-9]|1[0-7]|2[0-9]|3[01]|99)$/', (string)$d['forma_pago'])) {
         jsonResponse(['ok'=>false,'error'=>'Forma de pago fuera de catálogo: '.$d['forma_pago']]); exit;
+    }
+    // SAT (Anexo 20, CFDI 4.0): con PPD la forma de pago debe ser 99 "Por definir"; la
+    // forma real de cada abono se declara en su Complemento de Pago.
+    if ($d['metodo_pago'] === 'PPD' && (string)$d['forma_pago'] !== '99') {
+        jsonResponse(['ok'=>false,'error'=>'Con método de pago PPD el SAT exige forma de pago 99 (Por definir). La forma real de cada abono va en su Complemento de Pago.']); exit;
     }
 
     // Correo(s) del receptor: acepta varios separados por coma (algunos clientes piden que la
@@ -821,6 +929,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
             .'(Pago en una sola exhibición), no PPD. Edita la factura, cambia el método de pago y vuelve a timbrar.');
     }
 
+    // Borradores guardados antes de la validación de PPD→99 en guardar.
+    if ($fac['metodo_pago'] === 'PPD' && (string)$fac['forma_pago'] !== '99') {
+        $abortar('Con método de pago PPD el SAT exige forma de pago 99 (Por definir). Edita la factura y vuelve a timbrar.');
+    }
+
     $conceptos = json_decode($fac['conceptos'], true);
 
     // Bloquear timbrado si algún concepto no trae una clave SAT real asignada —
@@ -945,11 +1058,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     $curlErr  = curl_error($ch);
     unset($ch);
 
-    if ($curlErr) {
-        $abortar('Error de conexión con FacturAPI: '.$curlErr);
-    }
+    $res = json_decode((string)$response, true);
 
-    $res = json_decode($response, true);
+    if (_facturapiRespuestaAmbigua($curlErr, $httpCode, $res)) {
+        // No se libera la reserva: el CFDI pudo quedar emitido (ver _facturapiRespuestaAmbigua).
+        error_log('APEX FacturAPI timbrar AMBIGUO factura id='.$id.' HTTP '.$httpCode.' '.$curlErr.': '.substr((string)$response, 0, 500));
+        jsonResponse(['ok'=>false, 'en_verificacion'=>true, 'error'=>FACTURAPI_MSG_EN_VERIFICACION]); exit;
+    }
 
     if ($httpCode !== 200) {
         $msg = $res['message'] ?? $res['error'] ?? 'Error desconocido de FacturAPI';
@@ -958,58 +1073,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     }
 
     // Guardar resultado en BD
-    $uuid        = $res['uuid']         ?? '';
-    $facurapiId  = $res['id']           ?? '';
-    $pdfUrl      = 'https://www.facturapi.io/v2/invoices/' . $facurapiId . '/pdf';
-    $xmlUrl      = 'https://www.facturapi.io/v2/invoices/' . $facurapiId . '/xml';
-
-    // S2-b: el PAC es la verdad, no nuestro cálculo. Antes se guardaba el total que
-    // calculamos nosotros y nunca se comparaba contra el del comprobante: si el PAC
-    // redondeaba distinto, BD y CFDI quedaban desalineados sin que nadie se enterara.
-    // Ahora se guarda el total del PAC y la diferencia queda en el log si existe.
-    // (FacturAPI no devuelve 'subtotal' a nivel raíz, solo 'total' — verificado contra
-    // la API real el 26-sep-2026; el subtotal/IVA nuestros se conservan tal cual.)
-    $totalPac = isset($res['total']) ? round((float)$res['total'], 2) : null;
-    if ($totalPac !== null && abs($totalPac - (float)$fac['total']) > 0.005) {
-        error_log('APEX Facturacion: total del PAC ('.$totalPac.') distinto al calculado ('
-            .$fac['total'].') en factura id='.$id.' — se guarda el del PAC');
-    }
-    // Datos del timbre que antes se tiraban: la liga de verificación del SAT (no se
-    // puede reconstruir sola, incluye parte del sello) y la fecha REAL del timbrado
-    // según el PAC, que no es la misma que la fecha capturada en el formulario.
-    $verifUrl = $res['verification_url'] ?? null;
-    $fechaTim = null;
-    if (!empty($res['date'])) {
-        try { $fechaTim = (new DateTime($res['date']))->setTimezone(new DateTimeZone('America/Monterrey'))->format('Y-m-d H:i:s'); }
-        catch (Exception $e) { $fechaTim = null; }
-    }
-
-    // S2-a: una sola descarga de PDF/XML sirve para el resguardo local Y para el correo
-    // (antes solo se descargaban si había correos que notificar, y no se guardaban).
-    $pdfBin  = _descargarArchivoFacturapi($pdfUrl);
-    $xmlBin  = _descargarArchivoFacturapi($xmlUrl);
-    $pdfPath = _guardarArchivoFacturaLocal($pdfBin, $fac['folio_interno'], 'pdf');
-    $xmlPath = _guardarArchivoFacturaLocal($xmlBin, $fac['folio_interno'], 'xml');
-    if ($xmlPath === null) {
-        // No se aborta (el CFDI ya existe ante el SAT) pero sí se deja constancia fuerte:
-        // sin el XML en disco volvemos a depender de FacturAPI para conservarlo.
-        error_log('APEX Facturacion: OJO, no se pudo resguardar el XML de la factura id='.$id
-            .' — el comprobante solo existe en FacturAPI');
-    }
-
-    // El UPDATE final confirma desde la reserva 'timbrando' (A-9b) — si por alguna
-    // razón la factura ya no estuviera en ese estatus, no se sobreescribe nada.
-    $stmt = $pdo->prepare("
-        UPDATE facturas SET
-            estatus='timbrada', facturapi_id=?, uuid=?,
-            pdf_url=?, xml_url=?, pdf_path=?, xml_path=?,
-            verification_url=?, fecha_timbrado=?,
-            total = COALESCE(?, total),
-            timbrado_por=?, timbrado_at=NOW(), updated_at=NOW()
-        WHERE id=? AND estatus='timbrando'
-    ");
-    $stmt->execute([$facurapiId, $uuid, $pdfUrl, $xmlUrl, $pdfPath, $xmlPath,
-                    $verifUrl, $fechaTim, $totalPac, $user['nombre'], $id]);
+    $t = _facturapiRegistrarTimbre($pdo, $fac, $res, $user['nombre']);
+    $uuid = $t['uuid']; $facurapiId = $t['facturapi_id']; $pdfUrl = $t['pdf_url']; $xmlUrl = $t['xml_url'];
+    $totalPac = $t['total_pac']; $pdfBin = $t['pdf_bin']; $xmlBin = $t['xml_bin'];
 
     // Envío de PDF+XML a todos los correos capturados — best-effort, nunca bloquea la respuesta de
     // timbrado (la factura ya quedó timbrada ante el SAT independientemente de si el correo se logra enviar).
@@ -1374,6 +1440,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'pagos_factura') {
         'id'=>(int)$fac['id'], 'folio'=>$fac['folio_interno'], 'orden_folio'=>$fac['orden_folio'],
         'estatus'=>$fac['estatus'], 'pac_cancel_status'=>$fac['pac_cancel_status'],
         'receptor_nombre'=>$fac['receptor_nombre'], 'fecha'=>substr((string)($fac['fecha_timbrado'] ?: $fac['fecha']), 0, 10),
+        'modo_ok'=>($fac['modo'] === FACTURAPI_MODE),
     ];
     jsonResponse(['ok'=>true] + $estado);
     exit;
@@ -1390,12 +1457,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'complementos_pendientes
         JOIN cotizaciones c     ON c.orden_id = o.id
         JOIN cotizacion_pagos p ON p.cotizacion_id = c.id
         WHERE f.tipo_cfdi = 'I' AND f.metodo_pago = 'PPD' AND f.estatus = 'timbrada' AND p.monto > 0
+          AND f.modo = ".$pdo->quote(FACTURAPI_MODE)."
           AND NOT EXISTS (
               SELECT 1 FROM facturas_pagos fp JOIN facturas x ON x.id = fp.complemento_id
               WHERE fp.factura_id = f.id AND fp.cotizacion_pago_id = p.id
                 AND x.estatus IN ('timbrada','timbrando')
           )
-        ORDER BY p.fecha_pago, p.id
+        ORDER BY p.fecha_pago, p.hora_pago, p.id
     ")->fetchAll(PDO::FETCH_ASSOC);
     $hoy = date('Y-m-d');
     foreach ($rows as &$r) {
@@ -1434,6 +1502,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'emitir_complemento') {
             $falla = 'La factura '.$fac['folio_interno'].' no está timbrada.';
         } elseif ($fac['pac_cancel_status'] === 'pending') {
             $falla = 'La factura '.$fac['folio_interno'].' tiene una cancelación en trámite ante el SAT.';
+        } elseif ($fac['modo'] !== FACTURAPI_MODE) {
+            // Una factura de pruebas no tiene validez ante el SAT: su complemento no puede
+            // salir en modo real (ni al revés). Pasa al cambiar FACTURAPI_MODE a live con
+            // facturas de sandbox todavía en la tabla.
+            $falla = 'La factura '.$fac['folio_interno'].' se emitió en modo '.($fac['modo'] === 'test' ? 'prueba' : 'real')
+                .' y el sistema está en modo '.(FACTURAPI_MODE === 'test' ? 'prueba' : 'real').'; no se le puede emitir complemento.';
         }
 
         if (!$falla) {
@@ -1455,6 +1529,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'emitir_complemento') {
                 $falla = 'Ese abono no pertenece a la orden '.$fac['orden_folio'].'.';
             } elseif ($pago['complemento']) {
                 $falla = 'Ese abono ya tiene el complemento '.$pago['complemento']['folio'].'.';
+            } else {
+                // Los complementos se emiten en orden cronológico: la parcialidad y el
+                // saldo anterior tienen que encadenar con la fecha de los pagos (el SAT
+                // valida que los saldos cuadren). $estado['pagos'] ya viene ordenado por
+                // fecha, hora e id, igual que la lista de la pantalla.
+                foreach ($estado['pagos'] as $p) {
+                    if ((int)$p['id'] === $pagoId) break;
+                    if (!$p['complemento']) {
+                        $falla = 'Primero emite el complemento del abono del '.date('d/m/Y', strtotime($p['fecha_pago']))
+                            .' ($'.number_format((float)$p['monto'], 2).'); los complementos van en orden de fecha.';
+                        break;
+                    }
+                }
             }
         }
 
@@ -1563,41 +1650,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'emitir_complemento') {
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curlErr  = curl_error($ch);
     unset($ch);
-    if ($curlErr) $abortarComp('Error de conexión con FacturAPI: '.$curlErr);
-    $res = json_decode($response, true);
+    $res = json_decode((string)$response, true);
+    if (_facturapiRespuestaAmbigua($curlErr, $httpCode, $res)) {
+        // No se borra la reserva: el complemento pudo quedar emitido. Mientras siga en
+        // 'timbrando' cuenta como activo y el abono no se vuelve a ofrecer.
+        error_log('APEX FacturAPI complemento AMBIGUO id='.$compId.' HTTP '.$httpCode.' '.$curlErr.': '.substr((string)$response, 0, 500));
+        jsonResponse(['ok'=>false, 'en_verificacion'=>true, 'id'=>$compId, 'error'=>FACTURAPI_MSG_EN_VERIFICACION]); exit;
+    }
     if ($httpCode !== 200) {
         error_log('APEX FacturAPI complemento error '.$httpCode.': '.$response);
         $abortarComp('FacturAPI: '.($res['message'] ?? $res['error'] ?? 'Error desconocido'));
     }
 
-    $uuid      = $res['uuid'] ?? '';
-    $fapiId    = $res['id']   ?? '';
-    $pdfUrl    = 'https://www.facturapi.io/v2/invoices/' . $fapiId . '/pdf';
-    $xmlUrl    = 'https://www.facturapi.io/v2/invoices/' . $fapiId . '/xml';
-    $verifUrl  = $res['verification_url'] ?? null;
-    $fechaTim  = null;
-    if (!empty($res['date'])) {
-        try { $fechaTim = (new DateTime($res['date']))->setTimezone(new DateTimeZone('America/Monterrey'))->format('Y-m-d H:i:s'); }
-        catch (Exception $e) { $fechaTim = null; }
-    }
-    $pdfPath = _guardarArchivoFacturaLocal(_descargarArchivoFacturapi($pdfUrl), $folioInterno, 'pdf');
-    $xmlPath = _guardarArchivoFacturaLocal(_descargarArchivoFacturapi($xmlUrl), $folioInterno, 'xml');
-    if ($xmlPath === null) {
-        error_log('APEX Complemento: OJO, no se pudo resguardar el XML del complemento id='.$compId);
-    }
-
-    $pdo->prepare("
-        UPDATE facturas SET
-            estatus='timbrada', facturapi_id=?, uuid=?, pdf_url=?, xml_url=?, pdf_path=?, xml_path=?,
-            verification_url=?, fecha_timbrado=?, timbrado_por=?, timbrado_at=NOW(), updated_at=NOW()
-        WHERE id=? AND estatus='timbrando'
-    ")->execute([$fapiId, $uuid, $pdfUrl, $xmlUrl, $pdfPath, $xmlPath, $verifUrl, $fechaTim, $user['nombre'], $compId]);
+    $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=?");
+    $stmt->execute([$compId]);
+    $t = _facturapiRegistrarTimbre($pdo, $stmt->fetch(PDO::FETCH_ASSOC), $res, $user['nombre']);
+    $uuid = $t['uuid'];
 
     jsonResponse([
         'ok'=>true, 'id'=>$compId, 'folio'=>$folioInterno, 'uuid'=>$uuid, 'modo'=>FACTURAPI_MODE,
         'parcialidad'=>$parcialidad, 'saldo_anterior'=>$saldoAnt, 'monto'=>$monto, 'saldo_insoluto'=>$saldoInsol,
     ]);
     exit;
+}
+
+// ── POST verificar_timbrado (resuelve una factura o complemento atorado en 'timbrando') ──
+// Consulta a FacturAPI por serie+folio: si el CFDI existe se registra como timbrado; si
+// con certeza no existe se libera (la factura vuelve a borrador, el complemento se borra
+// y su abono vuelve a pendientes). Solo después de 2 minutos, para no pisar un timbrado
+// que todavía está en curso (el PAC tiene 30 s de timeout).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'verificar_timbrado') {
+    $d  = json_decode(file_get_contents('php://input'), true);
+    $id = (int)($d['id'] ?? 0);
+    $stmt = $pdo->prepare("SELECT *, (updated_at <= NOW() - INTERVAL 2 MINUTE) AS maduro FROM facturas WHERE id=? AND estatus='timbrando'");
+    $stmt->execute([$id]);
+    $fac = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$fac) { jsonResponse(['ok'=>false,'error'=>'Este comprobante ya no está en verificación. Recarga la lista.']); exit; }
+    if (!(int)$fac['maduro']) {
+        jsonResponse(['ok'=>false,'error'=>'El timbrado empezó hace menos de 2 minutos y podría seguir en curso. Espera un momento y vuelve a verificar.']); exit;
+    }
+    if ($fac['modo'] !== FACTURAPI_MODE) {
+        jsonResponse(['ok'=>false,'error'=>'Este comprobante se reservó en otro modo (prueba/real); no se puede verificar con la llave actual.']); exit;
+    }
+
+    $inv = _facturapiBuscarPorFolio($fac['serie'], $fac['folio_numero'], $fac['updated_at']);
+    if ($inv === false) {
+        jsonResponse(['ok'=>false,'error'=>'No se pudo consultar FacturAPI. Intenta de nuevo en unos minutos.']); exit;
+    }
+    if ($inv) {
+        $t = _facturapiRegistrarTimbre($pdo, $fac, $inv, $user['nombre']);
+        error_log('APEX Facturacion: verificar_timbrado id='.$id.' — el CFDI SÍ existía en FacturAPI (UUID '.$t['uuid'].'), registrado');
+        jsonResponse(['ok'=>true, 'resultado'=>'timbrada', 'folio'=>$fac['folio_interno'], 'uuid'=>$t['uuid']]); exit;
+    }
+    if ($fac['tipo_cfdi'] === 'P') {
+        $pdo->prepare("DELETE FROM facturas WHERE id=? AND estatus='timbrando'")->execute([$id]);
+    } else {
+        $pdo->prepare("UPDATE facturas SET estatus='borrador' WHERE id=? AND estatus='timbrando'")->execute([$id]);
+    }
+    error_log('APEX Facturacion: verificar_timbrado id='.$id.' — no existe en FacturAPI, reserva liberada');
+    jsonResponse(['ok'=>true, 'resultado'=>'liberada', 'folio'=>$fac['folio_interno'], 'tipo_cfdi'=>$fac['tipo_cfdi']]); exit;
 }
 
 jsonResponse(['ok'=>false,'error'=>'Acción no válida'], 400);
