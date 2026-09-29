@@ -208,8 +208,33 @@ $esModoLive = (FACTURAPI_MODE === 'live');
     <button class="fac-tab active" onclick="ModFacturacion._tab('borrador')" data-tab="borrador">Borradores <span class="fac-tab-cnt" id="fac-cnt-borrador">&#8212;</span></button>
     <button class="fac-tab"        onclick="ModFacturacion._tab('timbrada')" data-tab="timbrada">Timbradas <span class="fac-tab-cnt" id="fac-cnt-timbrada">&#8212;</span></button>
     <button class="fac-tab"        onclick="ModFacturacion._tab('cancelada')" data-tab="cancelada">Canceladas <span class="fac-tab-cnt" id="fac-cnt-cancelada">&#8212;</span></button>
+    <button class="fac-tab"        onclick="ModFacturacion._tab('pendientes')" data-tab="pendientes">Complementos pendientes <span class="fac-tab-cnt" id="fac-cnt-pendientes">&#8212;</span></button>
   </div>
 
+  <!-- Complementos de pago pendientes: abonos de facturas PPD vigentes sin su CFDI tipo P -->
+  <div id="fac-pend-wrap" style="display:none">
+    <div class="fac-hint" style="font-size:12px;margin-bottom:10px;max-width:760px">
+      Cada abono a una factura PPD necesita su Complemento de Pago a m&aacute;s tardar el <strong>d&iacute;a 5 del mes siguiente</strong> al pago.
+    </div>
+    <div class="fac-table-wrap">
+      <table class="fac-table">
+        <thead>
+          <tr>
+            <th>Factura</th>
+            <th>Cliente</th>
+            <th>Fecha del pago</th>
+            <th>Monto</th>
+            <th>Forma (Cobranza)</th>
+            <th>Fecha l&iacute;mite</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="fac-pend-tbody"><tr><td colspan="7" class="fac-empty">Cargando&hellip;</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="fac-main-wrap">
   <div class="fac-field" style="margin-bottom:12px;max-width:420px">
     <input type="text" id="fac-buscar" placeholder="Buscar por folio de factura, folio de orden, cliente o RFC…" autocomplete="off"
       oninput="ModFacturacion.buscarFacturas()"
@@ -233,6 +258,7 @@ $esModoLive = (FACTURAPI_MODE === 'live');
         <tr><td colspan="7" class="fac-empty">No hay facturas. Crea la primera.</td></tr>
       </tbody>
     </table>
+  </div>
   </div>
 </div>
 
@@ -436,7 +462,7 @@ $esModoLive = (FACTURAPI_MODE === 'live');
           <select id="fac-tipo-cfdi" onchange="ModFacturacion.tipoChange()">
             <option value="I">Factura (Ingreso)</option>
             <option value="E" disabled>Nota de Crédito (Egreso) — no disponible</option>
-            <option value="P" disabled>Complemento de Pago — no disponible</option>
+            <option value="P" disabled>Complemento de Pago — se emite desde el detalle de una factura PPD</option>
             <option value="IG" disabled>Factura Global — no disponible</option>
           </select>
           <div class="fac-hint" id="fac-tipo-hint">Venta normal de productos o servicios</div>
@@ -578,6 +604,21 @@ $esModoLive = (FACTURAPI_MODE === 'live');
   </div>
 </div>
 
+<!-- ── Modal emitir Complemento de Pago (CFDI tipo P) ── -->
+<div class="fac-overlay" id="fac-cp-overlay" style="z-index:1600">
+  <div class="fac-modal" style="width:520px">
+    <div class="fac-modal-head">
+      <h3>Emitir Complemento de Pago</h3>
+      <button class="fac-modal-close" onclick="ModFacturacion.cerrarComplemento()">&times;</button>
+    </div>
+    <div class="fac-modal-body" id="fac-cp-body"></div>
+    <div class="fac-modal-foot">
+      <button class="fac-btn-cancel" onclick="ModFacturacion.cerrarComplemento()">Cancelar</button>
+      <button class="fac-btn-save" id="fac-cp-btn" onclick="ModFacturacion.confirmarComplemento()">Timbrar complemento</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Modal ver detalle (solo lectura, cualquier estatus) ── -->
 <div class="fac-overlay" id="fac-vista-overlay">
   <div class="fac-modal">
@@ -660,6 +701,7 @@ var ModFacturacion = (function() {
       _actualizarContadores();
       _renderTabla();
     });
+    _cargarPendientes();
   }
 
   var _filtroTexto = '';
@@ -677,6 +719,10 @@ var ModFacturacion = (function() {
     for (var i = 0; i < btns.length; i++) {
       btns[i].classList.toggle('active', btns[i].getAttribute('data-tab') === nombre);
     }
+    var esPend = (nombre === 'pendientes');
+    document.getElementById('fac-pend-wrap').style.display = esPend ? 'block' : 'none';
+    document.getElementById('fac-main-wrap').style.display = esPend ? 'none' : 'block';
+    if (esPend) { _renderPendientes(); return; }
     _renderTabla();
   }
 
@@ -697,7 +743,7 @@ var ModFacturacion = (function() {
     var base = _filtroTexto ? _facturas : _facturas.filter(function(f) { return f.estatus === _tabActivo; });
     if (!_filtroTexto) return base;
     return base.filter(function(f) {
-      var campos = [f.folio_interno, f.orden_folio, f.receptor_nombre, f.receptor_rfc, f.cliente_solicito_nombre];
+      var campos = [f.folio_interno, f.orden_folio, f.receptor_nombre, f.receptor_rfc, f.cliente_solicito_nombre, f.cp_factura_folio, f.cp_orden_folio];
       for (var i = 0; i < campos.length; i++) {
         if (campos[i] && String(campos[i]).toLowerCase().indexOf(_filtroTexto) !== -1) return true;
       }
@@ -816,10 +862,20 @@ var ModFacturacion = (function() {
       if (pubGeneral && f.cliente_solicito_nombre) {
         html += '<div style="font-size:10px;color:#3730a3;margin-top:2px">Solicitó: ' + _esc(f.cliente_solicito_nombre) + '</div>';
       }
+      var esComp = (f.tipo_cfdi === 'P');
+      if (esComp && f.cp_factura_folio) {
+        html += '<div style="font-size:10px;color:#475569;margin-top:2px">Pago de ' + _esc(f.cp_factura_folio)
+          + (f.cp_orden_folio ? ' (' + _esc(f.cp_orden_folio) + ')' : '') + ' &middot; parcialidad ' + _esc(String(f.cp_parcialidad || '')) + '</div>';
+      }
       html += '</td>';
       html += '<td style="font-size:12px">' + _esc(TIPOS[f.tipo_cfdi]||f.tipo_cfdi) + '</td>';
-      html += '<td style="font-size:12px">' + _esc(f.receptor_uso_cfdi||'') + ' <span style="color:var(--c-muted)">/ ' + _esc(f.metodo_pago||'') + '</span></td>';
-      html += '<td style="font-weight:600">' + _fmt(f.total) + '</td>';
+      if (esComp) {
+        html += '<td style="font-size:12px">' + _esc(f.receptor_uso_cfdi||'') + ' <span style="color:var(--c-muted)">/ ' + _esc(f.forma_pago||'') + '</span></td>';
+        html += '<td style="font-weight:600">' + _fmt(f.cp_monto) + '<div style="font-size:10px;color:var(--c-muted);font-weight:400">pagado</div></td>';
+      } else {
+        html += '<td style="font-size:12px">' + _esc(f.receptor_uso_cfdi||'') + ' <span style="color:var(--c-muted)">/ ' + _esc(f.metodo_pago||'') + '</span></td>';
+        html += '<td style="font-weight:600">' + _fmt(f.total) + '</td>';
+      }
       html += '<td>' + _badgeHtml(f.estatus);
       if (esTimbrada && f.uuid) html += '<div style="font-size:10px;color:#22c55e;font-family:monospace;margin-top:2px">' + _esc(String(f.uuid).slice(0,8)) + '…</div>';
       if (esTimbrada && f.pac_cancel_status === 'pending') html += '<div style="font-size:10px;color:#92400e;font-weight:700;margin-top:2px">⏳ Cancelación pendiente de aceptación</div>';
@@ -1277,6 +1333,23 @@ var ModFacturacion = (function() {
     html += '  <div class="fac-field"><label>Uso CFDI</label><div>' + _esc(f.receptor_uso_cfdi || '—') + '</div></div>';
     html += '</div>';
 
+    if (f.tipo_cfdi === 'P') {
+      html += '<div class="fac-section-title">Pago amparado</div>';
+      html += '<div class="fac-row cols3" style="margin-bottom:10px">';
+      html += '  <div class="fac-field"><label>Factura pagada</label><div>' + _esc(f.cp_factura_folio || '\u2014') + (f.cp_orden_folio ? ' <span style="color:var(--c-muted)">(' + _esc(f.cp_orden_folio) + ')</span>' : '') + '</div></div>';
+      html += '  <div class="fac-field"><label>Parcialidad</label><div>' + _esc(String(f.cp_parcialidad || '\u2014')) + '</div></div>';
+      html += '  <div class="fac-field"><label>Fecha del pago</label><div>' + _esc(f.cp_fecha_pago || '\u2014') + '</div></div>';
+      html += '</div>';
+      html += '<div class="fac-row cols4" style="margin-bottom:14px">';
+      html += '  <div class="fac-field"><label>Forma de pago</label><div>' + _esc(_formaCpLabel(f.cp_forma_pago || f.forma_pago)) + '</div></div>';
+      html += '  <div class="fac-field"><label>Saldo anterior</label><div>' + _fmt(f.cp_saldo_anterior) + '</div></div>';
+      html += '  <div class="fac-field"><label>Monto pagado</label><div style="font-weight:700">' + _fmt(f.cp_monto) + '</div></div>';
+      html += '  <div class="fac-field"><label>Saldo insoluto</label><div>' + _fmt(f.cp_saldo_insoluto) + '</div></div>';
+      html += '</div>';
+      if (f.cp_factura_uuid) {
+        html += '<div class="fac-field" style="margin-bottom:14px"><label>UUID de la factura pagada</label><div style="font-family:monospace;font-size:12px">' + _esc(f.cp_factura_uuid) + '</div></div>';
+      }
+    } else {
     html += '<div class="fac-section-title">Conceptos</div>';
     html += '<table class="fac-table" style="margin-bottom:14px"><thead><tr><th>Descripción</th><th>Clave SAT</th><th>Unidad</th><th>Cant.</th><th>Precio unit.</th><th>IVA</th><th>Importe</th></tr></thead><tbody>';
     for (var j = 0; j < conceptos.length; j++) {
@@ -1299,6 +1372,14 @@ var ModFacturacion = (function() {
     html += 'IVA: <strong>' + _fmt(f.iva) + '</strong><br>';
     html += '<span style="font-size:16px">Total: <strong>' + _fmt(f.total) + '</strong></span>';
     html += '</div>';
+    }
+
+    // Facturas PPD: abonos de Cobranza y sus complementos (se llena al abrir).
+    var esPpd = (f.tipo_cfdi === 'I' && f.metodo_pago === 'PPD' && f.orden_folio && f.estatus !== 'borrador');
+    if (esPpd) {
+      html += '<div class="fac-section-title">Pagos y complementos</div>';
+      html += '<div id="fac-vista-pagos" style="margin-bottom:14px;font-size:12px;color:var(--c-muted)">Cargando pagos&hellip;</div>';
+    }
 
     if (f.estatus === 'timbrada') {
       html += '<div class="fac-section-title">Datos fiscales del timbrado</div>';
@@ -1352,6 +1433,194 @@ var ModFacturacion = (function() {
 
     document.getElementById('fac-vista-body').innerHTML = html;
     document.getElementById('fac-vista-overlay').classList.add('open');
+    if (esPpd) _cargarPagosVista(f.id);
+  }
+
+  // ── Complementos de Pago (CFDI tipo P) ───────────────────────────────────────
+  var FORMAS_PAGO_CP = [
+    {v:'01', l:'Efectivo'}, {v:'02', l:'Cheque nominativo'}, {v:'03', l:'Transferencia electr\u00f3nica'},
+    {v:'04', l:'Tarjeta de cr\u00e9dito'}, {v:'28', l:'Tarjeta de d\u00e9bito'}, {v:'05', l:'Monedero electr\u00f3nico'},
+    {v:'06', l:'Dinero electr\u00f3nico'}, {v:'08', l:'Vales de despensa'}, {v:'12', l:'Daci\u00f3n en pago'},
+    {v:'13', l:'Pago por subrogaci\u00f3n'}, {v:'14', l:'Pago por consignaci\u00f3n'}, {v:'15', l:'Condonaci\u00f3n'},
+    {v:'17', l:'Compensaci\u00f3n'}, {v:'23', l:'Novaci\u00f3n'}, {v:'24', l:'Confusi\u00f3n'}, {v:'25', l:'Remisi\u00f3n de deuda'},
+    {v:'26', l:'Prescripci\u00f3n o caducidad'}, {v:'27', l:'A satisfacci\u00f3n del acreedor'}, {v:'29', l:'Tarjeta de servicios'},
+    {v:'30', l:'Aplicaci\u00f3n de anticipos'}, {v:'31', l:'Intermediario pagos'}
+  ];
+  var FORMA_COBRANZA_LABEL = {efectivo:'Efectivo', tarjeta:'Tarjeta', transferencia:'Transferencia', saldo_favor:'Saldo a favor'};
+
+  function _formaCpLabel(cod) {
+    for (var i = 0; i < FORMAS_PAGO_CP.length; i++) { if (FORMAS_PAGO_CP[i].v === cod) return cod + ' \u2013 ' + FORMAS_PAGO_CP[i].l; }
+    return cod || '\u2014';
+  }
+
+  var _pendientes = [];
+
+  function _cargarPendientes() {
+    _apiFetch('../api/facturapi.php?accion=complementos_pendientes', {}, function(err, res) {
+      if (err || !res.ok) return;
+      _pendientes = res.pendientes || [];
+      var el = document.getElementById('fac-cnt-pendientes');
+      if (el) {
+        el.textContent = _pendientes.length;
+        var urgente = false;
+        for (var i = 0; i < _pendientes.length; i++) { if (_pendientes[i].dias_restantes !== null && _pendientes[i].dias_restantes <= 3) urgente = true; }
+        el.style.color = urgente ? '#dc2626' : '';
+        el.style.fontWeight = urgente ? '700' : '';
+      }
+      if (_tabActivo === 'pendientes') _renderPendientes();
+    });
+  }
+
+  function _limiteHtml(fecha, dias) {
+    if (!fecha) return '\u2014';
+    var color = '#475569', nota = '';
+    if (dias !== null && dias < 0) { color = '#dc2626'; nota = 'Vencido'; }
+    else if (dias !== null && dias <= 3) { color = '#dc2626'; nota = (dias === 0 ? 'Vence hoy' : 'Faltan ' + dias + ' d\u00edas'); }
+    else if (dias !== null) { nota = 'Faltan ' + dias + ' d\u00edas'; }
+    return '<div style="color:' + color + ';font-weight:600">' + _esc(fecha) + '</div>'
+      + (nota ? '<div style="font-size:10px;color:' + color + '">' + nota + '</div>' : '');
+  }
+
+  function _renderPendientes() {
+    var tbody = document.getElementById('fac-pend-tbody');
+    if (!tbody) return;
+    if (!_pendientes.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="fac-empty">No hay complementos pendientes.</td></tr>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < _pendientes.length; i++) {
+      var p = _pendientes[i];
+      var modoBadge = (p.modo === 'test') ? '<span style="font-size:9px;background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">PRUEBA</span>' : '';
+      html += '<tr>';
+      html += '<td style="font-weight:600;color:#2563eb">' + _esc(p.factura_folio) + modoBadge + '<div style="font-size:11px;color:var(--c-muted);font-weight:400">' + _esc(p.orden_folio || '') + '</div></td>';
+      html += '<td>' + _esc(p.receptor_nombre || '') + '</td>';
+      html += '<td>' + _esc(p.fecha_pago) + '</td>';
+      html += '<td style="font-weight:600">' + _fmt(p.monto) + '</td>';
+      html += '<td style="font-size:12px">' + _esc(FORMA_COBRANZA_LABEL[p.forma_pago] || p.forma_pago || '\u2014') + '</td>';
+      html += '<td>' + _limiteHtml(p.fecha_limite, p.dias_restantes) + '</td>';
+      html += '<td><button class="fac-act-btn" onclick="ModFacturacion.abrirComplemento(' + Number(p.factura_id) + ',' + Number(p.pago_id) + ')">Emitir</button></td>';
+      html += '</tr>';
+    }
+    tbody.innerHTML = html;
+  }
+
+  var _pagosCache = {};   // factura_id -> respuesta de pagos_factura
+
+  function _cargarPagosVista(facturaId) {
+    _apiFetch('../api/facturapi.php?accion=pagos_factura&id=' + encodeURIComponent(facturaId), {}, function(err, res) {
+      var box = document.getElementById('fac-vista-pagos');
+      if (!box) return;
+      if (err || !res.ok) { box.textContent = 'No se pudieron cargar los pagos: ' + (err || res.error); return; }
+      _pagosCache[facturaId] = res;
+      var puedeEmitir = (res.factura.estatus === 'timbrada' && res.factura.pac_cancel_status !== 'pending');
+      var html = '<div style="display:flex;gap:24px;margin-bottom:10px;color:#1e293b;font-size:13px">';
+      html += '<div>Total factura: <strong>' + _fmt(res.total_factura) + '</strong></div>';
+      html += '<div>Con complemento: <strong>' + _fmt(res.pagado_complementado) + '</strong></div>';
+      html += '<div>Saldo: <strong>' + _fmt(res.saldo) + '</strong></div>';
+      html += '</div>';
+      if (!res.pagos.length) {
+        html += '<div>La orden todav\u00eda no tiene abonos registrados en Cobranza.</div>';
+      } else {
+        html += '<table class="fac-table"><thead><tr><th>Fecha</th><th>Monto</th><th>Forma (Cobranza)</th><th>Complemento</th></tr></thead><tbody>';
+        for (var i = 0; i < res.pagos.length; i++) {
+          var p = res.pagos[i];
+          html += '<tr><td>' + _esc(p.fecha_pago) + '</td><td style="font-weight:600">' + _fmt(p.monto) + '</td>';
+          html += '<td>' + _esc(FORMA_COBRANZA_LABEL[p.forma_pago] || p.forma_pago || '\u2014') + '</td><td>';
+          if (p.complemento) {
+            html += '<span style="color:#16a34a;font-weight:600">' + _esc(p.complemento.folio) + '</span> <span style="color:var(--c-muted)">(parcialidad ' + Number(p.complemento.parcialidad) + ')</span>';
+          } else if (puedeEmitir) {
+            html += '<button class="fac-act-btn" onclick="ModFacturacion.abrirComplemento(' + Number(res.factura.id) + ',' + Number(p.id) + ')">Emitir complemento</button>';
+            html += '<div style="font-size:10px;color:var(--c-muted);margin-top:2px">L\u00edmite: ' + _esc(p.fecha_limite || '') + '</div>';
+          } else {
+            html += '<span style="color:var(--c-muted)">Sin complemento</span>';
+          }
+          html += '</td></tr>';
+        }
+        html += '</tbody></table>';
+      }
+      box.innerHTML = html;
+      box.style.color = '';
+    });
+  }
+
+  var _cpActual = null;       // {factura, pago, estado}
+  var _cpEmitiendo = false;
+
+  function abrirComplemento(facturaId, pagoId) {
+    _apiFetch('../api/facturapi.php?accion=pagos_factura&id=' + encodeURIComponent(facturaId), {}, function(err, res) {
+      if (err || !res.ok) { alert('No se pudieron cargar los pagos: ' + (err || res.error)); return; }
+      var pago = null;
+      for (var i = 0; i < res.pagos.length; i++) { if (Number(res.pagos[i].id) === Number(pagoId)) { pago = res.pagos[i]; break; } }
+      if (!pago) { alert('Ese abono ya no existe en Cobranza.'); return; }
+      if (pago.complemento) { alert('Ese abono ya tiene el complemento ' + pago.complemento.folio + '.'); return; }
+      _cpActual = {factura: res.factura, pago: pago, estado: res};
+
+      var monto = parseFloat(pago.monto) || 0;
+      var saldoAnt = parseFloat(res.saldo) || 0;
+      var html = '';
+      html += '<div class="fac-row cols2" style="margin-bottom:12px">';
+      html += '  <div class="fac-field"><label>Factura</label><div><strong>' + _esc(res.factura.folio) + '</strong> <span style="color:var(--c-muted)">(' + _esc(res.factura.orden_folio) + ')</span></div></div>';
+      html += '  <div class="fac-field"><label>Cliente</label><div>' + _esc(res.factura.receptor_nombre) + '</div></div>';
+      html += '</div>';
+      html += '<div class="fac-row cols2" style="margin-bottom:12px">';
+      html += '  <div class="fac-field"><label>Fecha del pago</label><div>' + _esc(pago.fecha_pago) + '</div></div>';
+      html += '  <div class="fac-field"><label>Parcialidad</label><div>' + Number(res.siguiente_parcialidad) + '</div></div>';
+      html += '</div>';
+      html += '<div class="fac-row cols3" style="margin-bottom:12px">';
+      html += '  <div class="fac-field"><label>Saldo anterior</label><div>' + _fmt(saldoAnt) + '</div></div>';
+      html += '  <div class="fac-field"><label>Monto del pago</label><div style="font-weight:700">' + _fmt(monto) + '</div></div>';
+      html += '  <div class="fac-field"><label>Saldo insoluto</label><div>' + _fmt(Math.max(0, saldoAnt - monto)) + '</div></div>';
+      html += '</div>';
+      html += '<div class="fac-field" style="margin-bottom:12px"><label>Forma de pago (SAT)</label><select id="fac-cp-forma">';
+      html += '<option value="">\u2014 Selecciona \u2014</option>';
+      for (var j = 0; j < FORMAS_PAGO_CP.length; j++) {
+        html += '<option value="' + FORMAS_PAGO_CP[j].v + '"' + (FORMAS_PAGO_CP[j].v === pago.forma_sugerida ? ' selected' : '') + '>' + FORMAS_PAGO_CP[j].v + ' \u2013 ' + _esc(FORMAS_PAGO_CP[j].l) + '</option>';
+      }
+      html += '</select><div class="fac-hint">En Cobranza se registr\u00f3 como: <strong>' + _esc(FORMA_COBRANZA_LABEL[pago.forma_pago] || pago.forma_pago || 'sin forma') + '</strong>'
+        + (pago.forma_pago === 'tarjeta' ? '. Si fue tarjeta de d\u00e9bito, cambia a 28.' : '') + '</div></div>';
+
+      var avisos = [];
+      if (pago.antes_de_factura) avisos.push('Este pago es <strong>anterior a la fecha de la factura</strong> (' + _esc(res.factura.fecha) + '). Si fue un anticipo, confirma con el contador el tratamiento correcto antes de timbrar.');
+      if (pago.forma_pago === 'saldo_favor') avisos.push('Este pago se aplic\u00f3 con <strong>saldo a favor</strong>. Confirma con el contador la forma de pago que corresponde (por ejemplo 30 \u2013 Aplicaci\u00f3n de anticipos).');
+      if (monto > saldoAnt + 0.05) avisos.push('El pago es mayor al saldo de la factura; el SAT lo va a rechazar.');
+      for (var k = 0; k < avisos.length; k++) {
+        html += '<div class="alert-warn" style="margin-bottom:8px;display:block">' + avisos[k] + '</div>';
+      }
+      document.getElementById('fac-cp-body').innerHTML = html;
+      var btn = document.getElementById('fac-cp-btn');
+      btn.disabled = false; btn.textContent = 'Timbrar complemento';
+      document.getElementById('fac-cp-overlay').classList.add('open');
+    });
+  }
+
+  function cerrarComplemento() {
+    _cpActual = null;
+    document.getElementById('fac-cp-overlay').classList.remove('open');
+  }
+
+  function confirmarComplemento() {
+    if (_cpEmitiendo || !_cpActual) return;
+    var forma = document.getElementById('fac-cp-forma').value;
+    if (!forma) { alert('Selecciona la forma de pago.'); return; }
+    if (!confirm(ES_MODO_LIVE
+      ? '\u00bfTimbrar este Complemento de Pago ante el SAT?\n\nEs un comprobante fiscal REAL: una vez timbrado solo se puede cancelar.'
+      : '\u00bfTimbrar este Complemento de Pago en modo PRUEBA (sandbox)?\n\nNo tiene validez fiscal.')) return;
+    var facturaId = _cpActual.factura.id;
+    _cpEmitiendo = true;
+    var btn = document.getElementById('fac-cp-btn');
+    btn.disabled = true; btn.textContent = 'Timbrando\u2026';
+    var body = {factura_id: facturaId, cotizacion_pago_id: Number(_cpActual.pago.id), forma_pago: forma};
+    _apiFetch('../api/facturapi.php?accion=emitir_complemento', {method:'POST', body:JSON.stringify(body)}, function(err, res) {
+      _cpEmitiendo = false;
+      btn.disabled = false; btn.textContent = 'Timbrar complemento';
+      if (err || !res.ok) { alert('Error al timbrar el complemento: ' + (err || res.error)); return; }
+      alert((ES_MODO_LIVE ? 'Complemento timbrado ante el SAT' : 'Complemento timbrado en modo PRUEBA (sin validez fiscal)')
+        + '\nFolio: ' + res.folio + '\nUUID: ' + res.uuid + '\nSaldo insoluto: ' + _fmt(res.saldo_insoluto));
+      cerrarComplemento();
+      _cargarLista();
+      if (document.getElementById('fac-vista-overlay').classList.contains('open')) _cargarPagosVista(facturaId);
+    });
   }
 
   function cerrarVista() {
@@ -1997,7 +2266,10 @@ var ModFacturacion = (function() {
     togglePublicoGeneral: togglePublicoGeneral,
     buscarFacturas:       buscarFacturas,
     abrirVista:           abrirVista,
-    cerrarVista:          cerrarVista
+    cerrarVista:          cerrarVista,
+    abrirComplemento:     abrirComplemento,
+    cerrarComplemento:    cerrarComplemento,
+    confirmarComplemento: confirmarComplemento
   };
 })();
 

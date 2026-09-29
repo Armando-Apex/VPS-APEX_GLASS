@@ -147,6 +147,109 @@ function _facturapiOrdenNoFacturable($pdo, $ordenFolio) {
     return null;
 }
 
+// ── Complementos de Pago (CFDI tipo P, 29-sep-2026) ─────────────────────────
+// Una factura PPD obliga a emitir un Complemento de Pago por cada abono, a más tardar
+// el día 5 del mes siguiente al pago. Cada complemento es una fila de `facturas`
+// (tipo_cfdi='P', serie propia 'P', total=0 como el CFDI real, orden_folio NULL para no
+// contar como "factura vigente de la orden" en los candados existentes) más una fila
+// de `facturas_pagos` que lo liga con la factura PPD y con el abono de Cobranza.
+// Un complemento está ACTIVO si su fila de facturas está 'timbrada' o 'timbrando'
+// (una cancelación en trámite sigue contando: ante el SAT todavía existe).
+define('FACTURAPI_SERIE_COMPLEMENTO', 'P');
+
+// Formas de pago del catálogo SAT válidas en un complemento (99 "Por definir" NO se
+// permite en un pago: el pago ya ocurrió, se sabe cómo fue).
+function _facturapiFormasPagoComplemento() {
+    return ['01','02','03','04','05','06','08','12','13','14','15','17','23','24','25','26','27','28','29','30','31'];
+}
+
+// Forma de pago sugerida a partir de lo capturado en Cobranza. 'tarjeta' no distingue
+// crédito de débito, se sugiere 04 y el usuario la corrige si fue débito (28).
+// Saldo a favor no tiene equivalente automático (depende del esquema de anticipos que
+// defina el contador), así que no se sugiere nada y se obliga a escoger.
+function _facturapiFormaSugerida($formaCobranza) {
+    $map = ['efectivo'=>'01', 'transferencia'=>'03', 'tarjeta'=>'04'];
+    return $map[$formaCobranza] ?? '';
+}
+
+// Día límite para emitir el complemento de un pago: día 5 del mes siguiente.
+function _facturapiLimiteComplemento($fechaPago) {
+    $d = DateTime::createFromFormat('Y-m-d', substr((string)$fechaPago, 0, 10));
+    if (!$d) return null;
+    $d->modify('first day of next month');
+    return $d->format('Y-m') . '-05';
+}
+
+// Abonos de Cobranza de la orden de una factura PPD, cada uno con su complemento activo
+// (si existe), más el saldo de la factura según los complementos activos.
+function _facturapiEstadoPagos($pdo, $fac) {
+    $stmt = $pdo->prepare("
+        SELECT p.id, p.fecha_pago, p.hora_pago, p.monto, p.forma_pago, p.notas
+        FROM cotizacion_pagos p
+        JOIN cotizaciones c ON c.id = p.cotizacion_id
+        JOIN ordenes o      ON o.id = c.orden_id
+        WHERE o.folio = ? AND p.monto > 0
+        ORDER BY p.fecha_pago, p.hora_pago, p.id
+    ");
+    $stmt->execute([$fac['orden_folio']]);
+    $pagos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $stmt = $pdo->prepare("
+        SELECT fp.*, x.folio_interno, x.estatus, x.uuid, x.pac_cancel_status
+        FROM facturas_pagos fp
+        JOIN facturas x ON x.id = fp.complemento_id
+        WHERE fp.factura_id = ?
+        ORDER BY fp.id
+    ");
+    $stmt->execute([$fac['id']]);
+    $comps = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $activos = [];      // cotizacion_pago_id => complemento activo
+    $sumActivo = 0.0;
+    $numActivos = 0;
+    foreach ($comps as $c) {
+        if (!in_array($c['estatus'], ['timbrada','timbrando'], true)) continue;
+        $numActivos++;
+        $sumActivo += (float)$c['monto'];
+        if ($c['cotizacion_pago_id'] !== null) $activos[(int)$c['cotizacion_pago_id']] = $c;
+    }
+
+    $fechaFactura = substr((string)($fac['fecha_timbrado'] ?: $fac['fecha']), 0, 10);
+    foreach ($pagos as &$p) {
+        $c = $activos[(int)$p['id']] ?? null;
+        $p['complemento'] = $c ? [
+            'id' => (int)$c['complemento_id'], 'folio' => $c['folio_interno'], 'estatus' => $c['estatus'],
+            'parcialidad' => (int)$c['parcialidad'], 'pac_cancel_status' => $c['pac_cancel_status'],
+        ] : null;
+        $p['forma_sugerida']   = _facturapiFormaSugerida($p['forma_pago']);
+        $p['antes_de_factura'] = ($p['fecha_pago'] < $fechaFactura);
+        $p['fecha_limite']     = _facturapiLimiteComplemento($p['fecha_pago']);
+    }
+    unset($p);
+
+    return [
+        'pagos'                => $pagos,
+        'complementos'         => $comps,
+        'total_factura'        => round((float)$fac['total'], 2),
+        'pagado_complementado' => round($sumActivo, 2),
+        'saldo'                => round((float)$fac['total'] - $sumActivo, 2),
+        'siguiente_parcialidad'=> $numActivos + 1,
+    ];
+}
+
+// ¿La orden ya está pagada completa? Si sí, el SAT exige método PUE (no PPD).
+function _facturapiOrdenLiquidada($pdo, $ordenFolio) {
+    $stmt = $pdo->prepare("
+        SELECT c.total, COALESCE((SELECT SUM(p.monto) FROM cotizacion_pagos p WHERE p.cotizacion_id = c.id), 0) AS pagado
+        FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id
+        WHERE o.folio = ? LIMIT 1
+    ");
+    $stmt->execute([$ordenFolio]);
+    $r = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$r || (float)$r['total'] <= 0) return false;
+    return (float)$r['pagado'] >= (float)$r['total'] - 0.005;
+}
+
 // Descarga un archivo (PDF/XML) de FacturAPI autenticado; regresa el binario o null si falla
 function _descargarArchivoFacturapi($url) {
     $ch = curl_init($url);
@@ -305,9 +408,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'lista') {
                f.verification_url, f.fecha_timbrado, f.timbrado_por, f.cancelado_por, f.cancelado_at,
                (f.xml_path IS NOT NULL) AS tiene_resguardo, f.creado_por,
                f.global_periodicidad, f.global_meses, f.global_anio,
-               f.relacion_tipo, f.relacion_uuid
+               f.relacion_tipo, f.relacion_uuid,
+               fp.parcialidad AS cp_parcialidad, fp.monto AS cp_monto, fp.saldo_anterior AS cp_saldo_anterior,
+               fp.saldo_insoluto AS cp_saldo_insoluto, fp.fecha_pago AS cp_fecha_pago, fp.forma_pago AS cp_forma_pago,
+               fr.id AS cp_factura_id, fr.folio_interno AS cp_factura_folio, fr.orden_folio AS cp_orden_folio, fr.uuid AS cp_factura_uuid
         FROM facturas f
         LEFT JOIN clientes cs ON cs.id = f.cliente_solicito_id
+        LEFT JOIN facturas_pagos fp ON fp.complemento_id = f.id
+        LEFT JOIN facturas fr ON fr.id = fp.factura_id
         ORDER BY f.id DESC
         LIMIT 200
     ")->fetchAll(PDO::FETCH_ASSOC);
@@ -705,6 +813,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
         $abortar($motivoNo);
     }
 
+    // PPD solo aplica si al emitir todavía hay saldo por cobrar. Si la orden ya está pagada
+    // completa, el SAT exige PUE — timbrar en PPD obligaría a emitir complementos de pagos
+    // que ocurrieron antes de la factura (caso real A-002/S-931, 26-sep-2026).
+    if ($fac['metodo_pago'] === 'PPD' && !empty($fac['orden_folio']) && _facturapiOrdenLiquidada($pdo, $fac['orden_folio'])) {
+        $abortar('La orden '.$fac['orden_folio'].' ya está pagada completa, así que el método de pago debe ser PUE '
+            .'(Pago en una sola exhibición), no PPD. Edita la factura, cambia el método de pago y vuelve a timbrar.');
+    }
+
     $conceptos = json_decode($fac['conceptos'], true);
 
     // Bloquear timbrado si algún concepto no trae una clave SAT real asignada —
@@ -1076,6 +1192,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'eliminar') {
     $stmt->execute([$id]);
     $paths = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
+    // Una factura PPD con complementos ligados no se puede borrar sin borrar antes sus
+    // complementos (la FK lo impide de todos modos; aquí se da un mensaje claro).
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM facturas_pagos WHERE factura_id=?");
+    $stmt->execute([$id]);
+    if ((int)$stmt->fetchColumn() > 0) {
+        jsonResponse(['ok'=>false,'error'=>'Esta factura tiene complementos de pago ligados. Elimina primero sus complementos.']);
+        exit;
+    }
+
     // Una factura en modo test también se puede borrar si está CANCELADA, no solo
     // timbrada — al probar el flujo completo lo normal es acabar con canceladas de
     // prueba, y antes esas quedaban imborrables desde la UI (había que ir a SQL).
@@ -1123,6 +1248,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'cancelar') {
     $stmt->execute([$id]);
     $fac = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$fac) { jsonResponse(['ok'=>false,'error'=>'Factura no encontrada o no está timbrada']); exit; }
+
+    // El SAT no deja cancelar una factura PPD mientras tenga complementos de pago vigentes
+    // relacionados: primero se cancelan los complementos, luego la factura.
+    $stmt = $pdo->prepare("
+        SELECT GROUP_CONCAT(x.folio_interno ORDER BY x.id SEPARATOR ', ')
+        FROM facturas_pagos fp JOIN facturas x ON x.id = fp.complemento_id
+        WHERE fp.factura_id = ? AND x.estatus IN ('timbrada','timbrando')
+    ");
+    $stmt->execute([$id]);
+    if ($compsVivos = $stmt->fetchColumn()) {
+        jsonResponse(['ok'=>false,'error'=>'Esta factura tiene complementos de pago vigentes ('.$compsVivos.'). Cancélalos primero y después cancela la factura.']);
+        exit;
+    }
 
     // FacturAPI espera motive/substitution como query string, no en el body (confirmado contra la API real: con
     // POSTFIELDS respondía "motive is required" con location:"query" en el error).
@@ -1218,6 +1356,247 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'verificar_cancelacion')
     $stmt->execute([$esFirme ? 'cancelada' : 'timbrada', $pacStatus, $id]);
 
     jsonResponse(['ok'=>true, 'estatus'=>$pacStatus, 'firme'=>$esFirme]);
+    exit;
+}
+
+// ── GET pagos_factura (abonos de Cobranza de una factura PPD y sus complementos) ──
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'pagos_factura') {
+    $id = (int)($_GET['id'] ?? 0);
+    $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=?");
+    $stmt->execute([$id]);
+    $fac = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$fac || $fac['tipo_cfdi'] !== 'I' || $fac['metodo_pago'] !== 'PPD' || empty($fac['orden_folio'])) {
+        jsonResponse(['ok'=>false,'error'=>'Solo las facturas PPD ligadas a una orden llevan complementos de pago.']); exit;
+    }
+    $estado = _facturapiEstadoPagos($pdo, $fac);
+    unset($estado['complementos']);
+    $estado['factura'] = [
+        'id'=>(int)$fac['id'], 'folio'=>$fac['folio_interno'], 'orden_folio'=>$fac['orden_folio'],
+        'estatus'=>$fac['estatus'], 'pac_cancel_status'=>$fac['pac_cancel_status'],
+        'receptor_nombre'=>$fac['receptor_nombre'], 'fecha'=>substr((string)($fac['fecha_timbrado'] ?: $fac['fecha']), 0, 10),
+    ];
+    jsonResponse(['ok'=>true] + $estado);
+    exit;
+}
+
+// ── GET complementos_pendientes (abonos de facturas PPD vigentes sin complemento) ──
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'complementos_pendientes') {
+    $rows = $pdo->query("
+        SELECT f.id AS factura_id, f.folio_interno AS factura_folio, f.orden_folio, f.receptor_nombre,
+               f.total AS factura_total, f.modo,
+               p.id AS pago_id, p.fecha_pago, p.monto, p.forma_pago
+        FROM facturas f
+        JOIN ordenes o          ON o.folio = f.orden_folio
+        JOIN cotizaciones c     ON c.orden_id = o.id
+        JOIN cotizacion_pagos p ON p.cotizacion_id = c.id
+        WHERE f.tipo_cfdi = 'I' AND f.metodo_pago = 'PPD' AND f.estatus = 'timbrada' AND p.monto > 0
+          AND NOT EXISTS (
+              SELECT 1 FROM facturas_pagos fp JOIN facturas x ON x.id = fp.complemento_id
+              WHERE fp.factura_id = f.id AND fp.cotizacion_pago_id = p.id
+                AND x.estatus IN ('timbrada','timbrando')
+          )
+        ORDER BY p.fecha_pago, p.id
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    $hoy = date('Y-m-d');
+    foreach ($rows as &$r) {
+        $r['fecha_limite'] = _facturapiLimiteComplemento($r['fecha_pago']);
+        $r['dias_restantes'] = $r['fecha_limite']
+            ? (int)((strtotime($r['fecha_limite']) - strtotime($hoy)) / 86400) : null;
+    }
+    unset($r);
+    jsonResponse(['ok'=>true, 'pendientes'=>$rows]);
+    exit;
+}
+
+// ── POST emitir_complemento (crea y timbra el CFDI tipo P de UN abono) ─────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'emitir_complemento') {
+    $d         = json_decode(file_get_contents('php://input'), true);
+    $facturaId = (int)($d['factura_id'] ?? 0);
+    $pagoId    = (int)($d['cotizacion_pago_id'] ?? 0);
+    $forma     = trim((string)($d['forma_pago'] ?? ''));
+    if (!$facturaId || !$pagoId) { jsonResponse(['ok'=>false,'error'=>'Faltan la factura o el pago']); exit; }
+    if (!in_array($forma, _facturapiFormasPagoComplemento(), true)) {
+        jsonResponse(['ok'=>false,'error'=>'Escoge una forma de pago válida del catálogo del SAT.']); exit;
+    }
+
+    // Reserva: bajo candado de la fila de la factura PPD se valida, se calcula saldo y
+    // parcialidad, y se inserta el complemento en 'timbrando'. Dos clics simultáneos
+    // sobre la misma factura quedan en fila; el segundo ve el complemento del primero.
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=? FOR UPDATE");
+        $stmt->execute([$facturaId]);
+        $fac = $stmt->fetch(PDO::FETCH_ASSOC);
+        $falla = null;
+        if (!$fac || $fac['tipo_cfdi'] !== 'I' || $fac['metodo_pago'] !== 'PPD' || empty($fac['orden_folio'])) {
+            $falla = 'Solo se emiten complementos de facturas PPD ligadas a una orden.';
+        } elseif ($fac['estatus'] !== 'timbrada' || empty($fac['uuid'])) {
+            $falla = 'La factura '.$fac['folio_interno'].' no está timbrada.';
+        } elseif ($fac['pac_cancel_status'] === 'pending') {
+            $falla = 'La factura '.$fac['folio_interno'].' tiene una cancelación en trámite ante el SAT.';
+        }
+
+        if (!$falla) {
+            // El IVA del pago se desglosa en proporción al de la factura. Todas las facturas
+            // de hoy son 100% gravadas al 16% o 100% sin IVA; una mezcla requeriría dos
+            // renglones de impuesto por pago y no se emite a ciegas.
+            $conceptos = json_decode($fac['conceptos'], true) ?: [];
+            $conIva = 0; foreach ($conceptos as $c) { if (!empty($c['iva'])) $conIva++; }
+            if ($conIva > 0 && $conIva < count($conceptos)) {
+                $falla = 'La factura mezcla conceptos con y sin IVA; ese caso todavía no se soporta en complementos.';
+            }
+        }
+
+        if (!$falla) {
+            $estado = _facturapiEstadoPagos($pdo, $fac);
+            $pago = null;
+            foreach ($estado['pagos'] as $p) { if ((int)$p['id'] === $pagoId) { $pago = $p; break; } }
+            if (!$pago) {
+                $falla = 'Ese abono no pertenece a la orden '.$fac['orden_folio'].'.';
+            } elseif ($pago['complemento']) {
+                $falla = 'Ese abono ya tiene el complemento '.$pago['complemento']['folio'].'.';
+            }
+        }
+
+        if (!$falla) {
+            $saldoAnt = $estado['saldo'];
+            $monto    = round((float)$pago['monto'], 2);
+            // Tolerancia de centavos: el total de la factura es el del PAC, que puede
+            // redondear 1-2 centavos distinto al total de la orden (UPD-606); el último
+            // abono se ajusta al saldo exacto de la factura en vez de rechazarlo.
+            if ($monto > $saldoAnt + 0.005) {
+                if ($monto - $saldoAnt <= 0.05 && $saldoAnt > 0) {
+                    error_log('APEX Complemento: abono '.$pagoId.' ($'.$monto.') ajustado al saldo de la factura id='.$facturaId.' ($'.$saldoAnt.')');
+                    $monto = $saldoAnt;
+                } else {
+                    $falla = 'El abono ($'.number_format($monto,2).') es mayor al saldo pendiente de la factura ($'
+                        .number_format($saldoAnt,2).'). Revisa los complementos ya emitidos.';
+                }
+            }
+        }
+
+        if ($falla) { $pdo->rollBack(); jsonResponse(['ok'=>false,'error'=>$falla]); exit; }
+
+        $parcialidad  = $estado['siguiente_parcialidad'];
+        $saldoInsol   = round($saldoAnt - $monto, 2);
+        $serie        = FACTURAPI_SERIE_COMPLEMENTO;
+        $stmt = $pdo->prepare("SELECT COALESCE(MAX(folio_numero),0)+1 FROM facturas WHERE serie=? FOR UPDATE");
+        $stmt->execute([$serie]);
+        $folioNum     = (int)$stmt->fetchColumn();
+        $folioInterno = $serie . '-' . str_pad($folioNum, 3, '0', STR_PAD_LEFT);
+
+        // metodo_pago es NOT NULL en la tabla; en un CFDI P no existe, se guarda 'PPD'
+        // porque es el método de la factura que se está pagando.
+        $stmt = $pdo->prepare("
+            INSERT INTO facturas
+                (folio_interno, serie, folio_numero, orden_folio, tipo_cfdi, fecha,
+                 receptor_nombre, receptor_rfc, receptor_cp, receptor_regimen, receptor_uso_cfdi,
+                 forma_pago, metodo_pago, conceptos, subtotal, iva, total, estatus, modo, creado_por)
+            VALUES (?,?,?,NULL,'P',?,?,?,?,?,'CP01',?,'PPD','[]',0,0,0,'timbrando',?,?)
+        ");
+        $stmt->execute([$folioInterno, $serie, $folioNum, date('Y-m-d'),
+            $fac['receptor_nombre'], $fac['receptor_rfc'], $fac['receptor_cp'], $fac['receptor_regimen'],
+            $forma, FACTURAPI_MODE, $user['nombre']]);
+        $compId = (int)$pdo->lastInsertId();
+
+        $pdo->prepare("
+            INSERT INTO facturas_pagos
+                (complemento_id, factura_id, cotizacion_pago_id, parcialidad, saldo_anterior, monto, saldo_insoluto, fecha_pago, forma_pago)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        ")->execute([$compId, $facturaId, $pagoId, $parcialidad, $saldoAnt, $monto, $saldoInsol, $pago['fecha_pago'], $forma]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('APEX Complemento: error al reservar: '.$e->getMessage());
+        jsonResponse(['ok'=>false,'error'=>'No se pudo preparar el complemento. Intenta de nuevo.']); exit;
+    }
+
+    // Cualquier fallo antes de quedar timbrado borra la reserva (la FK en cascada se
+    // lleva la fila de facturas_pagos) y libera el folio.
+    $abortarComp = function($msg) use ($pdo, $compId) {
+        $pdo->prepare("DELETE FROM facturas WHERE id=? AND estatus='timbrando'")->execute([$compId]);
+        jsonResponse(['ok'=>false,'error'=>$msg]); exit;
+    };
+
+    $taxes = [];
+    if ((float)$fac['iva'] > 0) {
+        $taxes[] = ['base' => round($monto / 1.16, 2), 'type' => 'IVA', 'rate' => 0.16];
+    }
+    $hora = preg_match('/^\d{2}:\d{2}(:\d{2})?$/', (string)$pago['hora_pago']) ? substr($pago['hora_pago'].':00', 0, 8) : '12:00:00';
+    $payload = [
+        'type'         => 'P',
+        'series'       => $serie,
+        'folio_number' => $folioNum,
+        'customer'     => [
+            'legal_name' => trim(preg_replace('/\s+/u', ' ', (string)$fac['receptor_nombre'])),
+            'tax_id'     => $fac['receptor_rfc'],
+            'tax_system' => $fac['receptor_regimen'],
+            'address'    => ['zip' => $fac['receptor_cp']],
+        ],
+        'complements' => [[
+            'type' => 'pago',
+            'data' => [[
+                'payment_form' => $forma,
+                'date'         => $pago['fecha_pago'] . 'T' . $hora,
+                'related_documents' => [[
+                    'uuid'         => $fac['uuid'],
+                    'series'       => $fac['serie'],
+                    'folio_number' => (int)$fac['folio_numero'],
+                    'amount'       => $monto,
+                    'installment'  => $parcialidad,
+                    'last_balance' => $saldoAnt,
+                    'taxes'        => $taxes,
+                ]],
+            ]],
+        ]],
+    ];
+
+    $ch = curl_init('https://www.facturapi.io/v2/invoices');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . FACTURAPI_KEY, 'Content-Type: application/json'],
+        CURLOPT_TIMEOUT        => 30,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr  = curl_error($ch);
+    unset($ch);
+    if ($curlErr) $abortarComp('Error de conexión con FacturAPI: '.$curlErr);
+    $res = json_decode($response, true);
+    if ($httpCode !== 200) {
+        error_log('APEX FacturAPI complemento error '.$httpCode.': '.$response);
+        $abortarComp('FacturAPI: '.($res['message'] ?? $res['error'] ?? 'Error desconocido'));
+    }
+
+    $uuid      = $res['uuid'] ?? '';
+    $fapiId    = $res['id']   ?? '';
+    $pdfUrl    = 'https://www.facturapi.io/v2/invoices/' . $fapiId . '/pdf';
+    $xmlUrl    = 'https://www.facturapi.io/v2/invoices/' . $fapiId . '/xml';
+    $verifUrl  = $res['verification_url'] ?? null;
+    $fechaTim  = null;
+    if (!empty($res['date'])) {
+        try { $fechaTim = (new DateTime($res['date']))->setTimezone(new DateTimeZone('America/Monterrey'))->format('Y-m-d H:i:s'); }
+        catch (Exception $e) { $fechaTim = null; }
+    }
+    $pdfPath = _guardarArchivoFacturaLocal(_descargarArchivoFacturapi($pdfUrl), $folioInterno, 'pdf');
+    $xmlPath = _guardarArchivoFacturaLocal(_descargarArchivoFacturapi($xmlUrl), $folioInterno, 'xml');
+    if ($xmlPath === null) {
+        error_log('APEX Complemento: OJO, no se pudo resguardar el XML del complemento id='.$compId);
+    }
+
+    $pdo->prepare("
+        UPDATE facturas SET
+            estatus='timbrada', facturapi_id=?, uuid=?, pdf_url=?, xml_url=?, pdf_path=?, xml_path=?,
+            verification_url=?, fecha_timbrado=?, timbrado_por=?, timbrado_at=NOW(), updated_at=NOW()
+        WHERE id=? AND estatus='timbrando'
+    ")->execute([$fapiId, $uuid, $pdfUrl, $xmlUrl, $pdfPath, $xmlPath, $verifUrl, $fechaTim, $user['nombre'], $compId]);
+
+    jsonResponse([
+        'ok'=>true, 'id'=>$compId, 'folio'=>$folioInterno, 'uuid'=>$uuid, 'modo'=>FACTURAPI_MODE,
+        'parcialidad'=>$parcialidad, 'saldo_anterior'=>$saldoAnt, 'monto'=>$monto, 'saldo_insoluto'=>$saldoInsol,
+    ]);
     exit;
 }
 
