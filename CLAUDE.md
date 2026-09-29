@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 29 septiembre 2026 | Próximo UPD disponible: UPD-618
+# Última actualización: 29 septiembre 2026 | Próximo UPD disponible: UPD-619
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -481,7 +481,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-618**
+Próximo UPD disponible: **UPD-619**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -662,4 +662,6 @@ Archivo completo: `docs/HISTORIAL_UPD_581_604.md` (12-sep-2026 → 26-sep-2026)
 
 | UPD-617 | 29-sep-2026 | Armando | **Auditoría de seguridad del módulo Facturación + correcciones.** Verificado OK: todas las acciones exigen sesión + permiso `facturar`, las de escritura token CSRF + Origin; SQL 100% parametrizado; proxy PDF/XML con realpath+prefijo; `archivos_facturas/` y `_backups/` dan 403 web; llave FacturAPI solo en `.env` 640; upload de CSF valida tipo/tamaño y escapa comandos; en live no se borran timbradas/canceladas; headers HSTS/nosniff/frame-ancestors activos. **Corregido:** (1) **XSS almacenado en conceptos** — `_conceptoRow`/`_csatWidget`/`_unidadWidget` metían descripción/clave/unidad/cantidad/precio en `value="..."` sin escapar, y `_esc()` (textContent→innerHTML) no escapaba comillas; con CSP `'unsafe-inline'` un borrador con descripción `"><img onerror=...>` ejecutaba código con la sesión de quien lo abría. `_esc()` ahora escapa `"` y `'`, se aplica en esos campos, y `accion=guardar` normaliza los conceptos del body (desc sin controles ni `<>`, máx 1000; clave 8 dígitos; unidad 1-3 alfanum; cant/precio float; iva bool; máx 200 conceptos). Probado con el bloque real extraído del archivo. (2) `verificar_cancelacion` pasó de GET a POST (cambiaba BD vía GET). (3) Cancelación motivo 01: el UUID sustituto se valida (formato + que sea factura nuestra timbrada y distinta). (4) `api/extraer_constancia.php`: `timeout` 20/20/40 s a pdftotext/pdftoppm/tesseract. **No atendido (bajo):** logs con respuesta completa de FacturAPI (RFC/nombre); CFDI de prueba A-002/P-001 en historial git (repo privado). `php -l` + `node --check`. Sin prueba en navegador con sesión. Checkpoint: tag git `pre-seguridad-facturacion-20260929`. |
 
-**Próximo UPD disponible: UPD-618**
+| UPD-618 | 29-sep-2026 | Armando | **Escaneo Aikido (SAST/secretos/IaC) del proyecto Facturación + Complementos de Pago — limpio.** Aikido MCP configurado en el VPS (`AIKIDO_API_KEY` en `env` de `/root/.claude/settings.json`, archivo ahora 600; respaldo `settings.json.bak-20260929-021405`; tras guardar la llave hay que reconectar con `/mcp` o reiniciar Claude Code). Escaneados 16 archivos (facturapi, facturacion, extraer_constancia, clientes api/módulo, cotizacion_helpers, finanzas, mailer, cotizaciones, cotizacion, finanzas_cobranza, config, permisos, validar_datos_fiscales, archivos_facturas/.htaccess, dashboard). Único hallazgo: `api/clientes.php` `editar_telefono` armaba `UPDATE clientes SET $campo` — **falso positivo** (lista blanca previa), pero se cambió a una consulta SQL fija por campo (`$sqlPorCampo`) con validación estricta; re-escaneo sin hallazgos. `php -l` OK. Nota: el escaneo corrió después del fix de XSS de UPD-617, así que no se sabe si Aikido lo habría detectado. |
+
+**Próximo UPD disponible: UPD-619**

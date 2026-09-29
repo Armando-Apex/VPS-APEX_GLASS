@@ -172,7 +172,14 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_telefono') {
     $valor   = trim($_POST['valor']   ?? '');
 
     if (!$id) { jsonResponse(['error' => 'ID requerido']); exit; }
-    if (!in_array($campo, ['telefono', 'telefono_alterno', 'email'])) {
+    // Una consulta fija por campo: el SQL nunca se arma con texto recibido (antes era
+    // "SET $campo" con lista blanca; seguro, pero dependía de que nadie tocara la lista).
+    $sqlPorCampo = [
+        'telefono'         => 'UPDATE clientes SET telefono = ? WHERE id = ?',
+        'telefono_alterno' => 'UPDATE clientes SET telefono_alterno = ? WHERE id = ?',
+        'email'            => 'UPDATE clientes SET email = ? WHERE id = ?',
+    ];
+    if (!is_string($campo) || !isset($sqlPorCampo[$campo])) {
         jsonResponse(['error' => 'Campo inválido']); exit;
     }
     if ($campo === 'email' && $valor !== '') {
@@ -194,7 +201,7 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_telefono') {
     $nuevoValor    = $valor ?: null;
 
     $pdo->beginTransaction();
-    $pdo->prepare("UPDATE clientes SET $campo = ? WHERE id = ?")
+    $pdo->prepare($sqlPorCampo[$campo])
         ->execute([$nuevoValor, $id]);
     $etiquetas = ['telefono' => 'Teléfono', 'telefono_alterno' => 'Teléfono Alterno WA', 'email' => 'Correo'];
     $etiqueta  = $etiquetas[$campo];
