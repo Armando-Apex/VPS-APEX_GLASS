@@ -7,6 +7,9 @@ _backups/
 
 # Archivos subidos por usuarios
 archivos_ordenes/
+# Comprobantes fiscales (XML/PDF con RFC y datos del cliente) — nunca al repo. El .htaccess ya trackeado se conserva.
+archivos_facturas/*
+!archivos_facturas/.htaccess
 
 # Logs y temporales
 *.log
