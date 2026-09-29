@@ -24,6 +24,11 @@ const PROMO_PRECIO_CODIGOS = [
         'fin'         => '2026-09-30 23:59:59',           // último momento para aplicar/editar/convertir
         'vobo_limite' => '2026-10-05 23:59:59',           // último momento para dar VoBo
     ],
+    'MTY_SEP2026' => [
+        'precios'     => [1 => 517.2414, 2 => 719.8276], // $600 / $835 con IVA
+        'fin'         => '2026-09-30 23:59:59',
+        'vobo_limite' => '2026-10-05 23:59:59',
+    ],
 ];
 
 // Normaliza y valida el código. Devuelve ['error'=>?string, 'codigo'=>?string].

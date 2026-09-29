@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 29 septiembre 2026 | Próximo UPD disponible: UPD-621
+# Última actualización: 29 septiembre 2026 | Próximo UPD disponible: UPD-622
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -481,7 +481,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-621**
+Próximo UPD disponible: **UPD-622**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -668,4 +668,6 @@ Archivo completo: `docs/HISTORIAL_UPD_581_604.md` (12-sep-2026 → 26-sep-2026)
 
 | UPD-620 | 29-sep-2026 | Armando | **Campaña WA de reenvío a Coahuila creada en borrador (datos, no código): `campanas.id=60` "Promo Saltillo Sep - Coahuila (reenvío 29-sep)"**, plantilla `promo_saltillo_sep` con la misma imagen y las mismas ladas que la campaña 58 (UPD-601). Se armó con un script de un solo uso que copia la lógica de `accion=crear`: clientes primero, sin repetir teléfonos (se comparan los últimos 10 dígitos) y excluyendo `sin_whatsapp=1` (UPD-602). Quedan **246 destinatarios (71 clientes + 175 prospectos)**. Otros 62 prospectos tienen el mismo teléfono que un cliente y se cuentan una sola vez. Verificado: ninguno de los 78 números que dieron error 131026 en la campaña 58 está incluido; los 18 que fallaron por límites de Meta (131049/130472/131050) sí se incluyen. Se probó primero en modo de prueba (transacción revertida, sin guardar nada), por eso el id es 60 y no 59. **No se ha enviado:** Armando la dispara con "Enviar" en el módulo Campañas. Ojo: el código `SALT_SEP2026` solo se puede aplicar hasta el 30-sep a las 23:59 y el VoBo tiene que darse a más tardar el 05-oct; no se extendió. Rollback: `DELETE FROM campana_envios WHERE campana_id=60; DELETE FROM campanas WHERE id=60;` (solo mientras siga en borrador). |
 
-**Próximo UPD disponible: UPD-621**
+| UPD-621 | 29-sep-2026 | Armando | **Nuevo código de precio fijo `MTY_SEP2026` (campaña Monterrey): mismas reglas que `SALT_SEP2026` (UPD-601).** Claro 6mm (cristal_id 1) a **$600/m²** y Claro 9mm (cristal_id 2) a **$835/m²**, ambos con IVA; se guardan sin IVA como 517.2414 y 719.8276, y con esos 4 decimales el precio con IVA da exacto, sin el centavo de menos de Saltillo. Se puede aplicar hasta el **30-sep-2026 a las 23:59:59** y el VoBo tiene que darse a más tardar el 05-oct-2026 a las 23:59:59 (mismo límite que Saltillo). El cambio fue agregar una entrada a `PROMO_PRECIO_CODIGOS` en `api/helpers/promo_precio_lib.php` y otra a su espejo `PROMO_PRECIO_PREVIEW` en `app/modulos/cotizacion.php`; también se actualizó el texto de ayuda del campo para que nombre los dos códigos. Se conservó CRLF. No toca la BD. `php -l` OK; `promoPrecioValidar('mty_sep2026')` lo acepta. Checkpoint: tag git `pre-promo-mty-sep2026-20260929`. Falta crear la campaña WA (Armando va a pasar el nombre). |
+
+**Próximo UPD disponible: UPD-622**

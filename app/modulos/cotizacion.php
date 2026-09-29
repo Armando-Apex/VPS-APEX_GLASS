@@ -589,7 +589,7 @@ function renderFormulario(data) {
   if (editable) {
     html += '<div class="field"><label>C&oacute;digo Precio Especial</label>';
     html += '<input type="text" id="fPromoPrecioCodigo" value="' + escHtml(ppCod) + '" placeholder="Ej: SALT_SEP2026" maxlength="30" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
-    html += '<small style="color:var(--c-muted);">Opcional. SALT_SEP2026: Claro 6mm $585/m&sup2; y Claro 9mm $835/m&sup2; con IVA (hasta 30-sep).</small></div>';
+    html += '<small style="color:var(--c-muted);">Opcional. SALT_SEP2026: Claro 6mm $585 / 9mm $835 por m&sup2;. MTY_SEP2026: Claro 6mm $600 / 9mm $835 por m&sup2;. Con IVA, hasta 30-sep.</small></div>';
   } else if (ppCod) {
     html += '<div class="field"><label>Precio Especial</label>';
     html += '<input type="text" readonly value="' + escHtml(ppCod) + ' (ya aplicado)"></div>';
@@ -1277,7 +1277,7 @@ window.cotLaminaChange = function(idx) {
 
 // Precios de promo por código — SOLO para la vista previa; el servidor es la fuente
 // de verdad (api/helpers/promo_precio_lib.php, mantener ambos en sync).
-var PROMO_PRECIO_PREVIEW = { 'SALT_SEP2026': { 1: 504.3103, 2: 719.8275 } };
+var PROMO_PRECIO_PREVIEW = { 'SALT_SEP2026': { 1: 504.3103, 2: 719.8275 }, 'MTY_SEP2026': { 1: 517.2414, 2: 719.8276 } };
 
 // ── Recalcular totales ────────────────────────────────────────────────────────
 function recalcular() {
