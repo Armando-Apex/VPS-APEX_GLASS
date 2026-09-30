@@ -721,36 +721,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
         ];
     }
 
-    // Llamada a FacturAPI
-    $apiKey = FACTURAPI_KEY;
-    $ch = curl_init('https://www.facturapi.io/v2/invoices');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => json_encode($payload),
-        CURLOPT_HTTPHEADER     => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-        ],
-        CURLOPT_TIMEOUT        => 30,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlErr  = curl_error($ch);
-    unset($ch);
+    // Llamada a FacturAPI. external_id identifica la factura en FacturAPI para
+    // verificar_timbrado; idempotency_key evita un segundo CFDI si esta misma reserva
+    // llegara dos veces (ver _facturapiIdempotencyKey en helpers/facturapi_lib.php).
+    $payload['external_id']     = _facturapiExternalId($fac);
+    $payload['idempotency_key'] = _facturapiIdempotencyKey($fac);
+    $r = _facturapiLlamar('POST', 'https://www.facturapi.io/v2/invoices', $payload);
+    $httpCode = $r['code']; $res = $r['res'];
 
-    $res = json_decode((string)$response, true);
-
-    if (_facturapiRespuestaAmbigua($curlErr, $httpCode, $res)) {
+    if (_facturapiRespuestaAmbigua($r['err'], $httpCode, $res)) {
         // No se libera la reserva: el CFDI pudo quedar emitido (ver _facturapiRespuestaAmbigua).
-        error_log('APEX FacturAPI timbrar AMBIGUO factura id='.$id.' HTTP '.$httpCode.' '.$curlErr.': '.substr((string)$response, 0, 500));
-        jsonResponse(['ok'=>false, 'en_verificacion'=>true, 'error'=>FACTURAPI_MSG_EN_VERIFICACION]); exit;
+        _facturapiLogError('timbrar AMBIGUO factura id='.$id, $r);
+        jsonResponse(['ok'=>false, 'en_verificacion'=>true, 'error'=>_facturapiMsgAmbiguo($httpCode, $res)]); exit;
     }
 
     if ($httpCode !== 200) {
-        $msg = $res['message'] ?? $res['error'] ?? 'Error desconocido de FacturAPI';
-        error_log('APEX FacturAPI error '.$httpCode.': '.$response);
-        $abortar('FacturAPI: '.$msg);
+        _facturapiLogError('timbrar error factura id='.$id, $r);
+        $abortar('FacturAPI: '._facturapiMensajeError($r));
     }
 
     // Guardar resultado en BD
@@ -1050,20 +1037,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'verificar_cancelacion'
     $fac = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$fac) { jsonResponse(['ok'=>false,'error'=>'Factura no encontrada o sin cancelación en trámite']); exit; }
 
-    $ch = curl_init('https://www.facturapi.io/v2/invoices/' . $fac['facturapi_id']);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . FACTURAPI_KEY],
-        CURLOPT_TIMEOUT        => 20,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    unset($ch);
+    $r = _facturapiLlamar('GET', 'https://www.facturapi.io/v2/invoices/' . $fac['facturapi_id'], null, null, 20);
+    if ($r['code'] !== 200) {
+        _facturapiLogError('verificar_cancelacion factura id='.$id, $r);
+        jsonResponse(['ok'=>false,'error'=>'No se pudo consultar FacturAPI: '._facturapiMensajeError($r)]); exit;
+    }
 
-    if ($httpCode !== 200) { jsonResponse(['ok'=>false,'error'=>'No se pudo consultar FacturAPI']); exit; }
-
-    $res       = json_decode($response, true);
-    $pacStatus = $res['status'] ?? $fac['pac_cancel_status'];
+    // 'rejected' = el receptor la rechazó o expiró; 'none' = el SAT no tiene solicitud.
+    // En ambos casos la factura sigue vigente y se puede volver a pedir la cancelación.
+    $pacStatus = _facturapiEstadoCancelacion($r['res']);
+    if ($pacStatus === 'none') $pacStatus = 'rejected';
     $esFirme   = ($pacStatus === 'canceled');
 
     $stmt = $pdo->prepare("UPDATE facturas SET estatus=?, pac_cancel_status=?, updated_at=NOW() WHERE id=?");
@@ -1199,7 +1182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'crear_cliente_fiscal')
 }
 
 // ── POST verificar_timbrado (resuelve una factura o complemento atorado en 'timbrando') ──
-// Consulta a FacturAPI por serie+folio: si el CFDI existe se registra como timbrado; si
+// Busca el CFDI en FacturAPI (por external_id y, si no, por serie+folio): si existe se registra como timbrado; si
 // con certeza no existe se libera (la factura vuelve a borrador, el complemento se borra
 // y su abono vuelve a pendientes). Solo después de 2 minutos, para no pisar un timbrado
 // que todavía está en curso (el PAC tiene 30 s de timeout).
@@ -1217,9 +1200,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'verificar_timbrado') {
         jsonResponse(['ok'=>false,'error'=>'Este comprobante se reservó en otro modo (prueba/real); no se puede verificar con la llave actual.']); exit;
     }
 
-    $inv = _facturapiBuscarPorFolio($fac['serie'], $fac['folio_numero'], $fac['updated_at']);
+    $inv = _facturapiBuscarCfdi($fac, $fac['updated_at']);
     if ($inv === false) {
         jsonResponse(['ok'=>false,'error'=>'No se pudo consultar FacturAPI. Intenta de nuevo en unos minutos.']); exit;
+    }
+    if ($inv === 'pendiente') {
+        // Intermitencia del SAT: FacturAPI sigue reintentando (hasta ~50 min). No se libera.
+        jsonResponse(['ok'=>true, 'resultado'=>'pendiente', 'folio'=>$fac['folio_interno']]); exit;
     }
     if ($inv) {
         $t = _facturapiRegistrarTimbre($pdo, $fac, $inv, $user['nombre']);

@@ -894,6 +894,7 @@ var ModFacturacion = (function() {
       html += '<td>' + _badgeHtml(f.estatus);
       if (esTimbrada && f.uuid) html += '<div style="font-size:10px;color:#22c55e;font-family:monospace;margin-top:2px">' + _esc(String(f.uuid).slice(0,8)) + '…</div>';
       if (esTimbrada && f.pac_cancel_status === 'pending') html += '<div style="font-size:10px;color:#92400e;font-weight:700;margin-top:2px">⏳ Cancelación pendiente de aceptación</div>';
+      if (esTimbrada && f.pac_cancel_status === 'rejected') html += '<div style="font-size:10px;color:#b91c1c;font-weight:700;margin-top:2px">Cancelaci\u00f3n rechazada</div>';
       html += '</td>';
       html += '<td>';
       html += '<div class="fac-menu-wrap">';
@@ -1268,7 +1269,9 @@ var ModFacturacion = (function() {
     _apiFetch('../api/facturapi.php?accion=verificar_timbrado', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
       delete _verificandoTim[id];
       if (err || !res.ok) { alert('No se pudo verificar: ' + (err || (res && res.error))); return; }
-      if (res.resultado === 'timbrada') {
+      if (res.resultado === 'pendiente') {
+        alert('El comprobante ' + res.folio + ' sigue en espera del SAT (falla temporal). FacturAPI lo reintenta solo durante la pr\u00f3xima hora; vuelve a verificar m\u00e1s tarde. NO lo vuelvas a capturar.');
+      } else if (res.resultado === 'timbrada') {
         alert('El comprobante ' + res.folio + ' S\u00cd qued\u00f3 timbrado ante el SAT y ya se registr\u00f3.\nUUID: ' + res.uuid);
       } else {
         alert('El comprobante ' + res.folio + ' NO lleg\u00f3 a timbrarse. '
@@ -1281,7 +1284,9 @@ var ModFacturacion = (function() {
   function verificarCancelacion(id) {
     _apiFetch('../api/facturapi.php?accion=verificar_cancelacion', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
       if (err || !res.ok) { alert('Error al verificar: ' + (err || (res && res.error))); return; }
-      alert(res.firme ? '✅ La cancelación ya quedó firme ante el SAT.' : '⏳ Sigue pendiente de aceptación del receptor en su buzón SAT.');
+      if (res.firme) alert('La cancelaci\u00f3n ya qued\u00f3 firme ante el SAT.');
+      else if (res.estatus === 'rejected') alert('La cancelaci\u00f3n NO procedi\u00f3 (el receptor la rechaz\u00f3 o venci\u00f3 el plazo). La factura sigue vigente; si hace falta, vuelve a solicitar la cancelaci\u00f3n.');
+      else alert('Sigue en tr\u00e1mite: pendiente de aceptaci\u00f3n del receptor en su buz\u00f3n SAT o en validaci\u00f3n del SAT.');
       _cargarLista();
     });
   }

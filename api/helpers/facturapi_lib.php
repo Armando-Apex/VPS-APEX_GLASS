@@ -333,30 +333,148 @@ function _guardarArchivoFacturaLocal($bin, $folioInterno, $ext) {
 function _facturapiRespuestaAmbigua($curlErr, $httpCode, $res) {
     if ($curlErr) return true;
     if ($httpCode === 0 || $httpCode >= 500) return true;
-    if ($httpCode === 200 && empty($res['uuid'])) return true;
+    // 202 = intermitencia del SAT (guía oficial "Intermitencias", 29-sep-2026): FacturAPI
+    // guarda el CFDI en 'pending' con el folio reservado y lo reintenta solo hasta 50 min.
+    // Puede terminar timbrado, así que NO es un rechazo: antes se tomaba como error y se
+    // liberaba el folio, lo que permitía timbrar de nuevo y dejar dos CFDI de la misma venta.
+    if ($httpCode === 202) return true;
+    if ($httpCode === 200 && (empty($res['uuid']) || ($res['status'] ?? '') === 'pending')) return true;
+    // 409 idempotency_key_in_use = esa misma petición ya creó un CFDI antes (verificado en
+    // sandbox: FacturAPI no duplica, responde 409). Se resuelve con "Verificar timbrado".
+    if ($httpCode === 409 && is_array($res) && ($res['code'] ?? '') === 'idempotency_key_in_use') return true;
     return false;
 }
 
-// CFDI vigente en FacturAPI con esa serie y folio, creado a partir de $desde (hora local
-// de la reserva, con 5 min de margen por desfase de relojes). El filtro por fecha evita
-// confundirlo con uno viejo del mismo folio (en pruebas los folios se reutilizan al
-// borrar). Regresa el CFDI (mismo formato que la respuesta al crearlo), null si con
-// certeza no existe, o false si no se pudo consultar.
-function _facturapiBuscarPorFolio($serie, $folioNum, $desde) {
-    $ch = curl_init('https://www.facturapi.io/v2/invoices?series=' . urlencode($serie) . '&folio_number=' . (int)$folioNum);
-    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_HTTPHEADER=>['Authorization: Bearer '.FACTURAPI_KEY], CURLOPT_TIMEOUT=>20]);
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+// Mensaje para el usuario según el tipo de respuesta ambigua.
+function _facturapiMsgAmbiguo($httpCode, $res) {
+    if ($httpCode === 202 || ($httpCode === 200 && ($res['status'] ?? '') === 'pending')) return FACTURAPI_MSG_PENDIENTE_SAT;
+    return FACTURAPI_MSG_EN_VERIFICACION;
+}
+
+// ── Llamadas a FacturAPI (buenas prácticas de su documentación oficial, 29-sep-2026) ──
+// Un solo punto para las llamadas que timbran, cancelan o consultan: manda Accept-Language
+// y conserva el header X-Facturapi-Log-Id (el id que pide soporte de FacturAPI para
+// rastrear un incidente) y Retry-After (viene con el 429 de exceso de peticiones).
+// Regresa ['code','res','raw','err','log_id','retry_after']. Nunca lanza.
+function _facturapiLlamar($metodo, $url, $payload = null, $llave = null, $timeout = 30) {
+    $logId = ''; $retry = null;
+    $headers = ['Authorization: Bearer ' . ($llave ?? FACTURAPI_KEY), 'Accept-Language: es'];
+    $opts = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST  => $metodo,
+        CURLOPT_TIMEOUT        => $timeout,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_HEADERFUNCTION => function($ch, $h) use (&$logId, &$retry) {
+            $par = explode(':', $h, 2);
+            if (count($par) === 2) {
+                $n = strtolower(trim($par[0]));
+                if ($n === 'x-facturapi-log-id') $logId = trim($par[1]);
+                elseif ($n === 'retry-after')    $retry = (int)trim($par[1]);
+            }
+            return strlen($h);
+        },
+    ];
+    if ($payload !== null) {
+        $opts[CURLOPT_POSTFIELDS] = json_encode($payload);
+        $headers[] = 'Content-Type: application/json';
+    }
+    $opts[CURLOPT_HTTPHEADER] = $headers;
+    $ch = curl_init($url);
+    curl_setopt_array($ch, $opts);
+    $raw  = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
     unset($ch);
-    $r = json_decode((string)$resp, true);
-    if ($code !== 200 || !isset($r['data']) || !is_array($r['data'])) return false;
+    return ['code'=>$code, 'res'=>json_decode((string)$raw, true), 'raw'=>(string)$raw,
+            'err'=>$err, 'log_id'=>$logId, 'retry_after'=>$retry];
+}
+
+// Mensaje legible de un error de FacturAPI: el mensaje general más el detalle y el código
+// del SAT/PAC que vienen en errors[] (antes solo se mostraba el mensaje general).
+function _facturapiMensajeError($r) {
+    $res = is_array($r['res']) ? $r['res'] : [];
+    if ($r['code'] === 429 || ($res['code'] ?? '') === 'rate_limit_exceeded') {
+        return 'FacturAPI está recibiendo demasiadas peticiones. Espera '.max(1, (int)$r['retry_after']).' segundos e intenta de nuevo.';
+    }
+    $msg = $res['message'] ?? $res['error'] ?? 'Error desconocido de FacturAPI';
+    $extra = []; $codigoExt = '';
+    foreach (($res['errors'] ?? []) as $e) {
+        if (!is_array($e)) continue;
+        $fuente = $e['source'] ?? '';
+        if ($codigoExt === '' && in_array($fuente, ['sat','pac'], true) && !empty($e['code'])) {
+            $codigoExt = strtoupper($fuente).' '.$e['code'];
+        }
+        if (!empty($e['message']) && $e['message'] !== $msg && count($extra) < 3) $extra[] = $e['message'];
+    }
+    return $msg.($extra ? ' — '.implode('; ', $extra) : '').($codigoExt !== '' ? ' ['.$codigoExt.']' : '');
+}
+
+// Deja en el log una llamada fallida con el id de soporte de FacturAPI.
+function _facturapiLogError($contexto, $r) {
+    error_log('APEX FacturAPI '.$contexto.' HTTP '.$r['code'].($r['log_id'] !== '' ? ' log_id='.$r['log_id'] : '')
+        .($r['err'] ? ' curl: '.$r['err'] : '').' — '.substr($r['raw'], 0, 500));
+}
+
+// Identificadores que se mandan con cada CFDI (documentación oficial):
+//  - external_id: nuestro id, para encontrar el CFDI exacto en FacturAPI al verificar
+//    (antes solo se podía por serie+folio, que se repiten en pruebas al borrar).
+//  - idempotency_key: único por RESERVA de timbrado. Si la misma petición llega dos veces,
+//    FacturAPI no crea un segundo CFDI (responde 409). Probado en sandbox el 29-sep-2026:
+//    un rechazo (4xx) NO gasta la clave. Se amarra a la reserva y no solo a la fila porque
+//    un CFDI que FacturAPI marca 'failed' tras una intermitencia podría conservarla y
+//    bloquear para siempre el re-timbrado de esa factura.
+function _facturapiExternalId($fac) {
+    return 'apex-'.$fac['modo'].'-'.$fac['tipo_cfdi'].'-'.(int)$fac['id'];
+}
+function _facturapiIdempotencyKey($fac) {
+    return _facturapiExternalId($fac).'-'.preg_replace('/\D/', '', (string)$fac['updated_at']);
+}
+
+// Busca en FacturAPI el CFDI de una reserva en 'timbrando', creado a partir de $desde (hora
+// local de la reserva, con 5 min de margen por desfase de relojes). Primero por
+// external_id y, si no aparece (reservas anteriores al 29-sep-2026 no lo mandaban), por
+// serie+folio. Regresa el CFDI vigente, 'pendiente' si FacturAPI lo tiene en espera del
+// SAT (intermitencia, no se debe liberar el folio), null si con certeza no existe, o false
+// si no se pudo consultar.
+function _facturapiBuscarCfdi($fac, $desde) {
     try { $tsDesde = (new DateTime($desde, new DateTimeZone('America/Monterrey')))->getTimestamp() - 300; }
     catch (Exception $e) { return false; }
-    foreach ($r['data'] as $inv) {
-        if (($inv['status'] ?? '') !== 'valid' || empty($inv['uuid'])) continue;
-        if (strtotime($inv['created_at'] ?? '') >= $tsDesde) return $inv;
+    $base = 'https://www.facturapi.io/v2/invoices?';
+    $consultas = [
+        $base.'external_id='.urlencode(_facturapiExternalId($fac)),
+        $base.'series='.urlencode($fac['serie']).'&folio_number='.(int)$fac['folio_numero'],
+    ];
+    $pendiente = false;
+    foreach ($consultas as $url) {
+        $r = _facturapiLlamar('GET', $url, null, null, 20);
+        if ($r['code'] !== 200 || !isset($r['res']['data']) || !is_array($r['res']['data'])) {
+            _facturapiLogError('buscar CFDI factura id='.(int)$fac['id'], $r);
+            return false;
+        }
+        foreach ($r['res']['data'] as $inv) {
+            if (strtotime($inv['created_at'] ?? '') < $tsDesde) continue;
+            $st = $inv['status'] ?? '';
+            if ($st === 'valid' && !empty($inv['uuid'])) return $inv;
+            if ($st === 'pending') $pendiente = true;
+        }
+        if ($pendiente) return 'pendiente';
     }
     return null;
+}
+
+// Traduce la respuesta de FacturAPI a nuestro pac_cancel_status (guía oficial
+// "Cancelaciones"). La factura trae DOS campos: status (valid/canceled) y
+// cancellation_status (none/verifying/pending/accepted/rejected). Antes se guardaba
+// 'status', así que una cancelación en espera del receptor quedaba como 'valid': la
+// pantalla dejaba de mostrarla en trámite y los candados que miran 'pending' no la veían.
+// 'verifying' (el SAT la está validando) se trata igual que 'pending': en trámite.
+function _facturapiEstadoCancelacion($res) {
+    if (($res['status'] ?? '') === 'canceled') return 'canceled';
+    $cs = $res['cancellation_status'] ?? '';
+    if ($cs === 'accepted') return 'canceled';
+    if ($cs === 'rejected') return 'rejected';
+    if ($cs === 'none')     return 'none';
+    return 'pending';
 }
 
 // Registra en la fila (en 'timbrando') el CFDI que devolvió FacturAPI: UUID, total del
@@ -422,6 +540,9 @@ function _facturapiRegistrarTimbre($pdo, $fac, $res, $usuario) {
 }
 
 // Mensaje único para el caso ambiguo (la fila se queda 'timbrando').
+define('FACTURAPI_MSG_PENDIENTE_SAT', 'El SAT tuvo una falla temporal y FacturAPI dejó el comprobante en espera: lo reintenta solo durante '
+    .'la próxima hora y puede quedar timbrado. Se dejó "en verificación" para no emitirlo dos veces: en una hora abre el detalle '
+    .'y pulsa "Verificar timbrado". NO lo vuelvas a capturar.');
 define('FACTURAPI_MSG_EN_VERIFICACION', 'FacturAPI no respondió con claridad, así que no se sabe si el comprobante quedó timbrado. '
     .'Se dejó "en verificación" para no emitirlo dos veces: en un par de minutos abre el detalle y pulsa "Verificar timbrado". '
     .'NO lo vuelvas a capturar.');
@@ -587,28 +708,22 @@ function _facturapiEmitirComplemento($pdo, $facturaId, $pagoId, $forma, $usuario
         ]],
     ];
 
-    $ch = curl_init('https://www.facturapi.io/v2/invoices');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => json_encode($payload),
-        CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . FACTURAPI_KEY, 'Content-Type: application/json'],
-        CURLOPT_TIMEOUT        => 30,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlErr  = curl_error($ch);
-    unset($ch);
-    $res = json_decode((string)$response, true);
-    if (_facturapiRespuestaAmbigua($curlErr, $httpCode, $res)) {
+    // Un complemento reservado es siempre una fila nueva, así que su external_id ya es
+    // único por reserva y sirve también de idempotency_key.
+    $payload['external_id']     = _facturapiExternalId(['modo'=>FACTURAPI_MODE, 'tipo_cfdi'=>'P', 'id'=>$compId]);
+    $payload['idempotency_key'] = $payload['external_id'];
+
+    $r = _facturapiLlamar('POST', 'https://www.facturapi.io/v2/invoices', $payload);
+    $httpCode = $r['code']; $res = $r['res'];
+    if (_facturapiRespuestaAmbigua($r['err'], $httpCode, $res)) {
         // No se borra la reserva: el complemento pudo quedar emitido. Mientras siga en
         // 'timbrando' cuenta como activo y el abono no se vuelve a ofrecer.
-        error_log('APEX FacturAPI complemento AMBIGUO id='.$compId.' HTTP '.$httpCode.' '.$curlErr.': '.substr((string)$response, 0, 500));
-        return ['ok'=>false, 'en_verificacion'=>true, 'id'=>$compId, 'folio'=>$folioInterno, 'error'=>FACTURAPI_MSG_EN_VERIFICACION];
+        _facturapiLogError('complemento AMBIGUO id='.$compId, $r);
+        return ['ok'=>false, 'en_verificacion'=>true, 'id'=>$compId, 'folio'=>$folioInterno, 'error'=>_facturapiMsgAmbiguo($httpCode, $res)];
     }
     if ($httpCode !== 200) {
-        error_log('APEX FacturAPI complemento error '.$httpCode.': '.$response);
-        return $abortarComp('FacturAPI: '.($res['message'] ?? $res['error'] ?? 'Error desconocido'));
+        _facturapiLogError('complemento error id='.$compId, $r);
+        return $abortarComp('FacturAPI: '._facturapiMensajeError($r));
     }
 
     $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id=?");
@@ -644,38 +759,23 @@ function _facturapiCancelarEnPac($pdo, $fac, $motivo, $sustitucion, $usuario) {
     if ($motivo === '01') {
         $url .= '&substitution=' . urlencode($sustitucion);
     }
-    $ch  = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER  => true,
-        CURLOPT_CUSTOMREQUEST   => 'DELETE',
-        CURLOPT_HTTPHEADER      => [
-            'Authorization: Bearer ' . FACTURAPI_KEY,
-        ],
-        CURLOPT_TIMEOUT         => 30,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlErr  = curl_error($ch);
-    unset($ch);
-
-    if ($curlErr) {
-        return ['ok'=>false,'error'=>'Error de conexión con FacturAPI: '.$curlErr];
+    $r = _facturapiLlamar('DELETE', $url);
+    if ($r['err']) {
+        _facturapiLogError('cancelar factura id='.(int)$fac['id'], $r);
+        return ['ok'=>false,'error'=>'Error de conexión con FacturAPI: '.$r['err']];
+    }
+    $res = $r['res'];
+    if ($r['code'] !== 200) {
+        _facturapiLogError('cancelar factura id='.(int)$fac['id'], $r);
+        return ['ok'=>false,'error'=>'FacturAPI: '._facturapiMensajeError($r)];
     }
 
-    $res = json_decode($response, true);
-
-    if ($httpCode !== 200) {
-        $msg = $res['message'] ?? $res['error'] ?? 'Error desconocido de FacturAPI';
-        error_log('APEX FacturAPI cancelar error '.$httpCode.': '.$response);
-        return ['ok'=>false,'error'=>'FacturAPI: '.$msg];
-    }
-
-    // FacturAPI puede regresar la cancelación en 'pending' cuando el SAT exige que el receptor la acepte
-    // en su buzón (factura >$1,000 MXN o después de 72hrs) — en ese caso NO está cancelada todavía de
-    // verdad, aunque la llamada haya sido exitosa (HTTP 200). Solo marcamos estatus='cancelada' en firme
-    // cuando FacturAPI confirma 'canceled'; si no, se queda 'timbrada' con pac_cancel_status='pending'
-    // para poder verificarla después (accion=verificar_cancelacion) y reflejar el estado real.
-    $pacStatus = $res['status'] ?? 'canceled';
+    // FacturAPI puede dejar la cancelación en trámite: 'pending' cuando el SAT exige que el
+    // receptor la acepte en su buzón (factura >$1,000 MXN o después de 72 h) o 'verifying'
+    // mientras el SAT la valida. Solo es firme con status 'canceled'; si no, se queda
+    // 'timbrada' con pac_cancel_status='pending' y se revisa con accion=verificar_cancelacion.
+    $pacStatus = _facturapiEstadoCancelacion($res);
+    if ($pacStatus === 'none' || $pacStatus === 'rejected') $pacStatus = 'pending'; // recién pedida: en trámite
     $esFirme   = ($pacStatus === 'canceled');
 
     // S2-c: queda registrado quien cancelo y cuando (antes solo se sabia quien habia
