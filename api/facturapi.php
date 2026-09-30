@@ -106,8 +106,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
             . '). Facturarla en ' . date('m/Y') . ' puede afectar un mes que ya se declaró: confírmalo con el contador.';
     }
 
+    // Anticipos (esquema A): se avisa desde aquí cómo va a quedar la factura.
+    $avisoAnt = null;
+    $antO = _facturapiAnticiposDeOrden($pdo, $orden['folio']);
+    if ($antO['sin_facturar']) {
+        $avisoAnt = 'Se pagó con saldo a favor de un depósito cuyo anticipo todavía no se factura: primero factúralo en "Anticipos por facturar".';
+    } elseif ($antO['anticipos']) {
+        $avisoAnt = 'Se pagó $' . number_format($antO['total_anticipos'], 2) . ' con anticipo ya facturado ('
+            . implode(', ', array_column($antO['anticipos'], 'folio')) . '): la factura va por el total, en PUE, con forma de pago '
+            . _facturapiFormaEsperadaConAnticipo($pdo, $orden['folio'], $antO['total_anticipos'])
+            . ' (la del monto mayor) y al timbrarla se emite sola la nota de crédito.';
+    }
+
     jsonResponse(['ok'=>true, 'orden'=>$orden, 'cliente'=>$cliente, 'conceptos'=>$conceptos,
-                  'cobro'=>$cobro, 'aviso_mes'=>$avisoMes]);
+                  'cobro'=>$cobro, 'aviso_mes'=>$avisoMes, 'aviso_anticipo'=>$avisoAnt]);
     exit;
 }
 
@@ -125,6 +137,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'lista') {
                (f.xml_path IS NOT NULL) AS tiene_resguardo, f.creado_por,
                f.global_periodicidad, f.global_meses, f.global_anio,
                f.relacion_tipo, f.relacion_uuid,
+               (SELECT COUNT(*) FROM facturas_anticipos fa WHERE fa.factura_id = f.id) AS anticipos_aplicados,
+               (SELECT x.folio_interno FROM facturas_anticipos fa2 JOIN facturas x ON x.id = fa2.nota_credito_id
+                  WHERE fa2.factura_id = f.id AND x.estatus IN ('timbrada','timbrando') LIMIT 1) AS nota_credito_folio,
                fp.parcialidad AS cp_parcialidad, fp.monto AS cp_monto, fp.saldo_anterior AS cp_saldo_anterior,
                fp.saldo_insoluto AS cp_saldo_insoluto, fp.fecha_pago AS cp_fecha_pago, fp.forma_pago AS cp_forma_pago,
                fr.id AS cp_factura_id, fr.folio_interno AS cp_factura_folio, fr.orden_folio AS cp_orden_folio, fr.uuid AS cp_factura_uuid
@@ -640,6 +655,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
         }
     }
 
+    // Esquema A de anticipos (Fase 3): si la orden se pagó con saldo a favor que viene de un
+    // anticipo ya facturado, esta factura va por el TOTAL, relacionada (07) a esos CFDI de
+    // anticipo, con la forma de pago del monto mayor (30 si es el anticipo) y en PUE; al
+    // timbrarla se emite sola la nota de crédito por lo aplicado.
+    $antOrden = null;
+    if (!empty($fac['orden_folio']) && empty($fac['saldo_favor_id'])) {
+        $antOrden = _facturapiAnticiposDeOrden($pdo, $fac['orden_folio']);
+        if ($antOrden['sin_facturar']) {
+            $pz = $antOrden['sin_facturar'][0];
+            $abortar('La orden '.$fac['orden_folio'].' se pagó con saldo a favor de un depósito del '.date('d/m/Y', strtotime($pz['fecha']))
+                .' cuyo anticipo todavía no se factura. Primero factúralo en "Anticipos por facturar" y después timbra esta factura.');
+        }
+        if ($antOrden['anticipos']) {
+            if ($fac['metodo_pago'] !== 'PUE') {
+                $abortar('La orden '.$fac['orden_folio'].' se pagó en parte con un anticipo ya facturado: se factura en PUE cuando esté liquidada '
+                    .'(el esquema de anticipos con pagos en parcialidades no está soportado todavía).');
+            }
+            $formaEsp = _facturapiFormaEsperadaConAnticipo($pdo, $fac['orden_folio'], $antOrden['total_anticipos']);
+            if ((string)$fac['forma_pago'] !== (string)$formaEsp) {
+                $abortar('La orden '.$fac['orden_folio'].' se pagó en parte con anticipo ($'.number_format($antOrden['total_anticipos'], 2)
+                    .'). El SAT pide la forma de pago con la que se pagó el monto mayor: '.$formaEsp
+                    .($formaEsp === '30' ? ' (Aplicación de anticipos)' : '').'. Edita la factura y vuelve a timbrar.');
+            }
+        } else {
+            $antOrden = null;
+        }
+    }
+
     $conceptos = json_decode($fac['conceptos'], true);
 
     // Bloquear timbrado si algún concepto no trae una clave SAT real asignada —
@@ -729,6 +772,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
             'relationship' => $fac['relacion_tipo'],
             'documents'    => [$fac['relacion_uuid']],
         ]];
+    }
+    // Anticipos aplicados: relación 07 "CFDI por aplicación de anticipo" a cada CFDI de anticipo.
+    if ($antOrden) {
+        $payload['related_documents'] = $payload['related_documents'] ?? [];
+        $payload['related_documents'][] = [
+            'relationship' => '07',
+            'documents'    => array_column($antOrden['anticipos'], 'uuid'),
+        ];
     }
 
     // Información Global (nodo InformacionGlobal del CFDI 4.0). Obligatorio con el RFC
@@ -821,10 +872,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
         $complementos = _facturapiEmitirPendientesAuto($pdo, $id, $user['nombre']);
     }
 
+    // Nota de crédito de la aplicación de anticipos (esquema A). Nunca rompe la respuesta:
+    // si falla, la factura muestra "Falta nota de crédito" con el botón para reintentar.
+    $notaCredito = null;
+    if ($antOrden && $uuid) {
+        $ins = $pdo->prepare("INSERT INTO facturas_anticipos (factura_id, anticipo_id, saldo_favor_id, monto) VALUES (?,?,?,?)");
+        foreach ($antOrden['anticipos'] as $a) $ins->execute([$id, $a['anticipo_id'], $a['saldo_favor_id'], $a['monto']]);
+        $notaCredito = _facturapiEmitirNotaAnticipo($pdo, $id, $user['nombre']);
+    }
+
     jsonResponse([
         'ok'             => true,
         'sustitucion'    => $sustitucion,
         'complementos'   => $complementos,
+        'nota_credito'   => $notaCredito,
         'uuid'           => $uuid,
         'facturapi_id'   => $facurapiId,
         'pdf_url'        => $pdfUrl,
@@ -1331,6 +1392,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'anticipo_crear') {
     exit;
 }
 
+// ── POST emitir_nota_anticipo (reintento manual de la nota de crédito de una factura) ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'emitir_nota_anticipo') {
+    $d = json_decode(file_get_contents('php://input'), true) ?: [];
+    jsonResponse(_facturapiEmitirNotaAnticipo($pdo, (int)($d['id'] ?? 0), $user['nombre']));
+    exit;
+}
+
 // ── POST verificar_timbrado (resuelve una factura o complemento atorado en 'timbrando') ──
 // Busca el CFDI en FacturAPI (por external_id y, si no, por serie+folio): si existe se registra como timbrado; si
 // con certeza no existe se libera (la factura vuelve a borrador, el complemento se borra
@@ -1361,9 +1429,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'verificar_timbrado') {
     if ($inv) {
         $t = _facturapiRegistrarTimbre($pdo, $fac, $inv, $user['nombre']);
         error_log('APEX Facturacion: verificar_timbrado id='.$id.' — el CFDI SÍ existía en FacturAPI (UUID '.$t['uuid'].'), registrado');
-        jsonResponse(['ok'=>true, 'resultado'=>'timbrada', 'folio'=>$fac['folio_interno'], 'uuid'=>$t['uuid']]); exit;
+        // Factura de orden pagada con anticipo: su nota de crédito (si no aplica, no hace nada).
+        $nota = null;
+        if ($fac['tipo_cfdi'] === 'I' && !empty($fac['orden_folio'])) {
+            $nota = _facturapiEmitirNotaAnticipo($pdo, $id, $user['nombre']);
+            if (!empty($nota['sin_anticipo'])) $nota = null;
+        }
+        jsonResponse(['ok'=>true, 'resultado'=>'timbrada', 'folio'=>$fac['folio_interno'], 'uuid'=>$t['uuid'], 'nota_credito'=>$nota]); exit;
     }
-    if ($fac['tipo_cfdi'] === 'P') {
+    if ($fac['tipo_cfdi'] === 'P' || $fac['tipo_cfdi'] === 'E') {
+        // Complementos y notas de crédito de anticipo se arman solos: si no llegaron a
+        // timbrarse se borra la reserva y se vuelven a emitir desde su origen.
         $pdo->prepare("DELETE FROM facturas WHERE id=? AND estatus='timbrando'")->execute([$id]);
     } else {
         $pdo->prepare("UPDATE facturas SET estatus='borrador' WHERE id=? AND estatus='timbrando'")->execute([$id]);

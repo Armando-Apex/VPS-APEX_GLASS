@@ -201,6 +201,205 @@ function _facturapiConceptoAnticipo($monto) {
     ];
 }
 
+// ── Aplicación de anticipos a una orden (Fase 3, 30-sep-2026) ───────────────
+// El saldo a favor es un monedero: no guarda qué depósito se gastó en qué orden. Se
+// asigna PEPS (primero en entrar, primero en salir): cada consumo (fila negativa) toma
+// de los depósitos más antiguos que tengan saldo, en orden de fecha e id. Regresa, por
+// cada fila de consumo, los pedazos de depósito que la pagaron.
+function _facturapiAsignacionPeps($pdo, $clienteId) {
+    $stmt = $pdo->prepare("SELECT id, tipo, monto, fecha FROM clientes_saldo_favor WHERE cliente_id = ? ORDER BY fecha, id");
+    $stmt->execute([(int)$clienteId]);
+    $cola = []; $asig = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $m = round((float)$r['monto'], 2);
+        if ($m > 0) { $r['resto'] = $m; $cola[] = $r; continue; }
+        if ($m == 0) continue;
+        $falta = -$m; $piezas = [];
+        foreach ($cola as &$d) {
+            if ($falta <= 0.004) break;
+            if ($d['resto'] <= 0.004) continue;
+            $toma = round(min($d['resto'], $falta), 2);
+            $d['resto'] = round($d['resto'] - $toma, 2);
+            $falta = round($falta - $toma, 2);
+            $piezas[] = ['deposito_id'=>(int)$d['id'], 'tipo'=>$d['tipo'], 'fecha'=>$d['fecha'], 'monto'=>$toma];
+        }
+        unset($d);
+        if ($falta > 0.004) $piezas[] = ['deposito_id'=>null, 'tipo'=>'sin_origen', 'fecha'=>null, 'monto'=>$falta];
+        $asig[(int)$r['id']] = $piezas;
+    }
+    return $asig;
+}
+
+// Cómo se pagó con saldo a favor una orden, clasificado para el esquema A:
+//  anticipos   → pedazos de depósitos con CFDI de anticipo vigente (van con relación 07
+//                y nota de crédito), agrupados por CFDI de anticipo
+//  sin_facturar→ depósitos desde ANTICIPOS_DESDE cuyo anticipo todavía no se factura
+//                (bloquea: primero se factura el anticipo)
+//  referido    → monto que vino de bonos de referido (Fase 4: descuento)
+//  anterior    → saldo anterior al arranque o sin origen claro (Fase 4: factura normal)
+function _facturapiAnticiposDeOrden($pdo, $ordenFolio) {
+    $vacio = ['aplicado'=>0.0, 'anticipos'=>[], 'total_anticipos'=>0.0, 'sin_facturar'=>[], 'referido'=>0.0, 'anterior'=>0.0];
+    $stmt = $pdo->prepare("SELECT c.id, c.cliente_id FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id WHERE o.folio = ? LIMIT 1");
+    $stmt->execute([$ordenFolio]);
+    $cot = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$cot || !$cot['cliente_id']) return $vacio;
+    $stmt = $pdo->prepare("SELECT id FROM clientes_saldo_favor WHERE cotizacion_id = ? AND tipo = 'aplicacion' AND monto < 0");
+    $stmt->execute([(int)$cot['id']]);
+    $apls = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    if (!$apls) return $vacio;
+
+    $asig = _facturapiAsignacionPeps($pdo, $cot['cliente_id']);
+    $stAnt = $pdo->prepare("SELECT id, folio_interno, uuid FROM facturas
+        WHERE saldo_favor_id = ? AND modo = ? AND estatus = 'timbrada' AND (pac_cancel_status IS NULL OR pac_cancel_status <> 'pending') ORDER BY id LIMIT 1");
+    $r = $vacio; $porAnt = [];
+    foreach ($apls as $aid) {
+        foreach (($asig[(int)$aid] ?? []) as $pz) {
+            $r['aplicado'] = round($r['aplicado'] + $pz['monto'], 2);
+            if ($pz['tipo'] === 'referido') { $r['referido'] = round($r['referido'] + $pz['monto'], 2); continue; }
+            if ($pz['tipo'] !== 'deposito' || $pz['fecha'] < ANTICIPOS_DESDE) { $r['anterior'] = round($r['anterior'] + $pz['monto'], 2); continue; }
+            $stAnt->execute([$pz['deposito_id'], FACTURAPI_MODE]);
+            $ant = $stAnt->fetch(PDO::FETCH_ASSOC);
+            if (!$ant) { $r['sin_facturar'][] = $pz; continue; }
+            $k = (int)$ant['id'];
+            if (!isset($porAnt[$k])) $porAnt[$k] = ['anticipo_id'=>$k, 'folio'=>$ant['folio_interno'], 'uuid'=>$ant['uuid'], 'saldo_favor_id'=>$pz['deposito_id'], 'monto'=>0.0];
+            $porAnt[$k]['monto'] = round($porAnt[$k]['monto'] + $pz['monto'], 2);
+            $r['total_anticipos'] = round($r['total_anticipos'] + $pz['monto'], 2);
+        }
+    }
+    $r['anticipos'] = array_values($porAnt);
+    return $r;
+}
+
+// Forma de pago que exige el SAT en la factura de una orden con anticipo aplicado: la del
+// monto mayor, contando el anticipo como forma 30 "Aplicación de anticipos". Los pagos con
+// saldo a favor que NO son anticipo facturado (referido / saldo anterior) no cuentan aquí.
+function _facturapiFormaEsperadaConAnticipo($pdo, $ordenFolio, $totalAnticipos) {
+    $stmt = $pdo->prepare("SELECT p.forma_pago, p.tarjeta_tipo, SUM(p.monto) m
+        FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id JOIN cotizacion_pagos p ON p.cotizacion_id = c.id
+        WHERE o.folio = ? AND p.forma_pago <> 'saldo_favor' GROUP BY p.forma_pago, p.tarjeta_tipo");
+    $stmt->execute([$ordenFolio]);
+    $sumas = ['30' => round((float)$totalAnticipos, 2)];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
+        $sat = _facturapiFormaSatDeposito($p['forma_pago'], $p['tarjeta_tipo'] ?: 'credito');
+        if ($sat) $sumas[$sat] = round(($sumas[$sat] ?? 0) + (float)$p['m'], 2);
+    }
+    arsort($sumas);
+    return array_key_first($sumas);
+}
+
+define('FACTURAPI_SERIE_NOTA', 'N');
+
+// Emite (o reintenta) la nota de crédito de la aplicación de anticipos de una factura
+// timbrada: CFDI E, serie N, un concepto 84111506/ACT "Aplicación de anticipo" por el total
+// aplicado (IVA incluido), forma 30, PUE, relación 07 a la factura. Si la factura todavía no
+// tiene sus renglones en facturas_anticipos (se timbró por "Verificar timbrado"), los arma
+// con la asignación actual. Regresa ['ok', 'folio'?, 'uuid'?, 'error'?, 'en_verificacion'?]
+// u ['ok'=>true,'sin_anticipo'=>true] si no aplica. No llamar dentro de una transacción.
+function _facturapiEmitirNotaAnticipo($pdo, $facturaId, $usuario) {
+    $facturaId = (int)$facturaId;
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id = ? FOR UPDATE");
+        $stmt->execute([$facturaId]);
+        $fac = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$fac || $fac['tipo_cfdi'] !== 'I' || empty($fac['orden_folio']) || $fac['estatus'] !== 'timbrada' || empty($fac['uuid'])) {
+            $pdo->rollBack(); return ['ok'=>false, 'error'=>'Solo se emite nota de crédito de anticipo sobre una factura de orden timbrada.'];
+        }
+        if ($fac['modo'] !== FACTURAPI_MODE) { $pdo->rollBack(); return ['ok'=>false, 'error'=>'La factura es de otro modo (prueba/real).']; }
+
+        $stmt = $pdo->prepare("SELECT * FROM facturas_anticipos WHERE factura_id = ?");
+        $stmt->execute([$facturaId]);
+        $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!$filas) {
+            $ant = _facturapiAnticiposDeOrden($pdo, $fac['orden_folio']);
+            if (!$ant['anticipos']) { $pdo->rollBack(); return ['ok'=>true, 'sin_anticipo'=>true]; }
+            $ins = $pdo->prepare("INSERT INTO facturas_anticipos (factura_id, anticipo_id, saldo_favor_id, monto) VALUES (?,?,?,?)");
+            foreach ($ant['anticipos'] as $a) $ins->execute([$facturaId, $a['anticipo_id'], $a['saldo_favor_id'], $a['monto']]);
+            $stmt = $pdo->prepare("SELECT * FROM facturas_anticipos WHERE factura_id = ?");
+            $stmt->execute([$facturaId]);
+            $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        // ¿Ya hay nota vigente o en proceso?
+        $stmt = $pdo->prepare("SELECT x.id, x.folio_interno, x.estatus, x.uuid FROM facturas_anticipos fa JOIN facturas x ON x.id = fa.nota_credito_id
+            WHERE fa.factura_id = ? AND x.estatus IN ('timbrada','timbrando') LIMIT 1");
+        $stmt->execute([$facturaId]);
+        if ($ya = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $pdo->rollBack();
+            if ($ya['estatus'] === 'timbrando') return ['ok'=>false, 'en_verificacion'=>true, 'error'=>'La nota de crédito '.$ya['folio_interno'].' está en verificación: usa "Verificar timbrado" en ella.'];
+            return ['ok'=>true, 'folio'=>$ya['folio_interno'], 'uuid'=>$ya['uuid'], 'existente'=>true];
+        }
+
+        $monto = 0.0; foreach ($filas as $f) $monto = round($monto + (float)$f['monto'], 2);
+        $conc  = _facturapiConceptoAnticipo($monto);
+        $conc['conceptos'][0]['desc'] = 'Aplicación de anticipo';
+        $esPg  = (strtoupper((string)$fac['receptor_rfc']) === 'XAXX010101000');
+        $serie = FACTURAPI_SERIE_NOTA;
+        $stmt  = $pdo->prepare("SELECT COALESCE(MAX(folio_numero),0)+1 FROM facturas WHERE serie=? FOR UPDATE");
+        $stmt->execute([$serie]);
+        $folioNum = (int)$stmt->fetchColumn();
+        $folioInterno = $serie . '-' . str_pad($folioNum, 3, '0', STR_PAD_LEFT);
+        $pdo->prepare("
+            INSERT INTO facturas
+                (folio_interno, serie, folio_numero, orden_folio, tipo_cfdi, fecha,
+                 receptor_nombre, receptor_rfc, receptor_cp, receptor_regimen, receptor_uso_cfdi, cliente_solicito_id,
+                 forma_pago, metodo_pago, relacion_tipo, relacion_uuid,
+                 conceptos, subtotal, iva, total, estatus, modo, creado_por)
+            VALUES (?,?,?,NULL,'E',?,?,?,?,?,?,?,'30','PUE','07',?,?,?,?,?,'timbrando',?,?)
+        ")->execute([$folioInterno, $serie, $folioNum, date('Y-m-d'),
+            $fac['receptor_nombre'], $fac['receptor_rfc'], $fac['receptor_cp'], $fac['receptor_regimen'], ($esPg ? 'S01' : 'G02'),
+            $fac['cliente_solicito_id'], $fac['uuid'],
+            json_encode($conc['conceptos']), $conc['subtotal'], $conc['iva'], $conc['total'], FACTURAPI_MODE, $usuario]);
+        $notaId = (int)$pdo->lastInsertId();
+        $pdo->prepare("UPDATE facturas_anticipos SET nota_credito_id = ? WHERE factura_id = ?")->execute([$notaId, $facturaId]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('APEX Nota anticipo: error al reservar factura id='.$facturaId.': '.$e->getMessage());
+        return ['ok'=>false, 'error'=>'No se pudo preparar la nota de crédito. Intenta de nuevo.'];
+    }
+
+    $payload = [
+        'type'           => 'E',
+        'series'         => $serie,
+        'folio_number'   => $folioNum,
+        'use'            => $esPg ? 'S01' : 'G02',
+        'payment_form'   => '30',
+        'payment_method' => 'PUE',
+        'customer'       => [
+            'legal_name' => trim(preg_replace('/\s+/u', ' ', (string)$fac['receptor_nombre'])),
+            'tax_id'     => $fac['receptor_rfc'],
+            'tax_system' => $fac['receptor_regimen'],
+            'address'    => ['zip' => $fac['receptor_cp']],
+        ],
+        'items' => [[
+            'quantity' => 1,
+            'product'  => [
+                'description' => 'Aplicación de anticipo', 'product_key' => ANTICIPO_CLAVE, 'unit_key' => 'ACT',
+                'price' => $conc['total'], 'tax_included' => true,
+                'taxes' => [['type'=>'IVA', 'rate'=>0.16, 'factor'=>'Tasa']],
+            ],
+        ]],
+        'related_documents' => [['relationship' => '07', 'documents' => [$fac['uuid']]]],
+    ];
+    $payload['external_id']     = _facturapiExternalId(['modo'=>FACTURAPI_MODE, 'tipo_cfdi'=>'E', 'id'=>$notaId]);
+    $payload['idempotency_key'] = $payload['external_id'];
+
+    $r = _facturapiLlamar('POST', 'https://www.facturapi.io/v2/invoices', $payload);
+    if (_facturapiRespuestaAmbigua($r['err'], $r['code'], $r['res'])) {
+        _facturapiLogError('nota anticipo AMBIGUO id='.$notaId, $r);
+        return ['ok'=>false, 'en_verificacion'=>true, 'folio'=>$folioInterno, 'error'=>_facturapiMsgAmbiguo($r['code'], $r['res'])];
+    }
+    if ($r['code'] !== 200) {
+        _facturapiLogError('nota anticipo error id='.$notaId, $r);
+        $pdo->prepare("DELETE FROM facturas WHERE id = ? AND estatus = 'timbrando'")->execute([$notaId]);
+        return ['ok'=>false, 'error'=>'FacturAPI: '._facturapiMensajeError($r)];
+    }
+    $stmt = $pdo->prepare("SELECT * FROM facturas WHERE id = ?");
+    $stmt->execute([$notaId]);
+    $t = _facturapiRegistrarTimbre($pdo, $stmt->fetch(PDO::FETCH_ASSOC), $r['res'], $usuario);
+    return ['ok'=>true, 'folio'=>$folioInterno, 'uuid'=>$t['uuid'], 'monto'=>$conc['total']];
+}
+
 // Factura de anticipo vigente (o en proceso) de un depósito, en el modo actual.
 function _facturapiAnticipoVigente($pdo, $saldoFavorId, $excluirId = 0) {
     $stmt = $pdo->prepare("SELECT id, folio_interno, estatus FROM facturas
@@ -800,6 +999,24 @@ function _facturapiCancelarEnPac($pdo, $fac, $motivo, $sustitucion, $usuario) {
     $stmt->execute([(int)$fac['id']]);
     if ($compsVivos = $stmt->fetchColumn()) {
         return ['ok'=>false,'error'=>'Esta factura tiene complementos de pago vigentes ('.$compsVivos.'). Cancélalos primero y después cancela la factura.'];
+    }
+
+    // Esquema A de anticipos: la nota de crédito de la aplicación va relacionada (07) a esta
+    // factura; primero se cancela la nota. Y un CFDI de anticipo ya aplicado en una factura
+    // vigente no se cancela: dejaría a esa factura relacionada a un anticipo inexistente.
+    $stmt = $pdo->prepare("SELECT GROUP_CONCAT(DISTINCT x.folio_interno SEPARATOR ', ') FROM facturas_anticipos fa JOIN facturas x ON x.id = fa.nota_credito_id
+        WHERE fa.factura_id = ? AND x.estatus IN ('timbrada','timbrando')");
+    $stmt->execute([(int)$fac['id']]);
+    if ($notas = $stmt->fetchColumn()) {
+        return ['ok'=>false,'error'=>'Esta factura tiene la nota de crédito de anticipo '.$notas.' vigente. Cancélala primero y después cancela la factura.'];
+    }
+    if (!empty($fac['saldo_favor_id'])) {
+        $stmt = $pdo->prepare("SELECT GROUP_CONCAT(DISTINCT f.folio_interno SEPARATOR ', ') FROM facturas_anticipos fa JOIN facturas f ON f.id = fa.factura_id
+            WHERE fa.anticipo_id = ? AND f.estatus IN ('timbrada','timbrando')");
+        $stmt->execute([(int)$fac['id']]);
+        if ($usadas = $stmt->fetchColumn()) {
+            return ['ok'=>false,'error'=>'Este anticipo ya se aplicó en la factura '.$usadas.'. Cancela primero esa factura (y su nota de crédito).'];
+        }
     }
 
     // FacturAPI espera motive/substitution como query string, no en el body (confirmado contra la API real: con

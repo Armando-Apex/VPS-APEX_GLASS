@@ -916,6 +916,8 @@ var ModFacturacion = (function() {
       // campo libre del modal (y puede venir del OCR de una constancia), así que sin
       // escapar era un XSS almacenado. La vista de detalle ya escapaba; este listado no.
       var antBadge = f.saldo_favor_id ? '<span style="font-size:9px;background:#e0f2fe;color:#075985;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">ANTICIPO</span>' : '';
+      if (f.tipo_cfdi === 'E') antBadge += '<span style="font-size:9px;background:#fce7f3;color:#9d174d;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">NOTA DE CR\u00c9DITO</span>';
+      var faltaNota = (f.estatus === 'timbrada' && Number(f.anticipos_aplicados) > 0 && !f.nota_credito_folio);
       html += '<td style="font-weight:600;color:#2563eb">' + _esc(f.folio_interno) + modoBadge + pubBadge + antBadge + '</td>';
       html += '<td><div style="font-weight:600">' + _esc(f.receptor_nombre||'—') + '</div>';
       html += '<div style="font-size:11px;color:var(--c-muted)">' + _esc(f.receptor_rfc||'') + '</div>';
@@ -940,6 +942,8 @@ var ModFacturacion = (function() {
       if (esTimbrada && f.uuid) html += '<div style="font-size:10px;color:#22c55e;font-family:monospace;margin-top:2px">' + _esc(String(f.uuid).slice(0,8)) + '…</div>';
       if (esTimbrada && f.pac_cancel_status === 'pending') html += '<div style="font-size:10px;color:#92400e;font-weight:700;margin-top:2px">⏳ Cancelación pendiente de aceptación</div>';
       if (esTimbrada && f.pac_cancel_status === 'rejected') html += '<div style="font-size:10px;color:#b91c1c;font-weight:700;margin-top:2px">Cancelaci\u00f3n rechazada</div>';
+      if (faltaNota) html += '<div style="font-size:10px;color:#b91c1c;font-weight:700;margin-top:2px">Falta nota de cr\u00e9dito del anticipo</div>';
+      else if (f.nota_credito_folio) html += '<div style="font-size:10px;color:#9d174d;margin-top:2px">Nota: ' + _esc(f.nota_credito_folio) + '</div>';
       html += '</td>';
       html += '<td>';
       html += '<div class="fac-menu-wrap">';
@@ -961,6 +965,9 @@ var ModFacturacion = (function() {
         if (f.tipo_cfdi === 'I' && f.orden_folio && f.metodo_pago === 'PUE' && f.pac_cancel_status !== 'pending') {
           html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.refacturar(' + f.id + ')">'
             + (pubGeneral ? 'Refacturar a raz\u00f3n social' : 'Refacturar (sustituir)') + '</button>';
+        }
+        if (faltaNota) {
+          html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.emitirNotaAnticipo(' + f.id + ')">Emitir nota de cr\u00e9dito</button>';
         }
         if (f.pac_cancel_status === 'pending') {
           html += '<button class="fac-menu-item" onclick="ModFacturacion.menuCerrar();ModFacturacion.verificarCancelacion(' + f.id + ')">Verificar cancelación</button>';
@@ -1317,11 +1324,24 @@ var ModFacturacion = (function() {
       if (res.resultado === 'pendiente') {
         alert('El comprobante ' + res.folio + ' sigue en espera del SAT (falla temporal). FacturAPI lo reintenta solo durante la pr\u00f3xima hora; vuelve a verificar m\u00e1s tarde. NO lo vuelvas a capturar.');
       } else if (res.resultado === 'timbrada') {
-        alert('El comprobante ' + res.folio + ' S\u00cd qued\u00f3 timbrado ante el SAT y ya se registr\u00f3.\nUUID: ' + res.uuid);
+        alert('El comprobante ' + res.folio + ' S\u00cd qued\u00f3 timbrado ante el SAT y ya se registr\u00f3.\nUUID: ' + res.uuid + _resumenPostTimbrado(res));
       } else {
         alert('El comprobante ' + res.folio + ' NO lleg\u00f3 a timbrarse. '
           + (res.tipo_cfdi === 'P' ? 'El abono vuelve a quedar pendiente de complemento.' : 'La factura regres\u00f3 a borrador; puedes volver a timbrarla.'));
       }
+      _cargarLista();
+    });
+  }
+
+  var _notaEmitiendo = {};
+  function emitirNotaAnticipo(id) {
+    if (_notaEmitiendo[id]) return;
+    if (!confirm('\u00bfEmitir la nota de cr\u00e9dito por la aplicaci\u00f3n del anticipo de esta factura?' + (ES_MODO_LIVE ? '\n\nEs un comprobante fiscal REAL.' : '\n\nModo PRUEBA (sin validez fiscal).'))) return;
+    _notaEmitiendo[id] = true;
+    _apiFetch('../api/facturapi.php?accion=emitir_nota_anticipo', {method:'POST', body:JSON.stringify({id:id})}, function(err, res) {
+      delete _notaEmitiendo[id];
+      if (err || !res.ok) { alert((res && res.en_verificacion ? '' : 'No se pudo emitir la nota de cr\u00e9dito: ') + (err || res.error)); _cargarLista(); return; }
+      alert(res.sin_anticipo ? 'Esta factura no tiene anticipos aplicados.' : 'Nota de cr\u00e9dito ' + res.folio + (res.existente ? ' (ya exist\u00eda)' : ' timbrada') + '\nUUID: ' + res.uuid);
       _cargarLista();
     });
   }
@@ -2211,6 +2231,7 @@ var ModFacturacion = (function() {
           }
         }
         if (res.aviso_mes) { extra.push('\u26a0 ' + res.aviso_mes); msgEl.className = 'fac-cli-warn vis'; }
+        if (res.aviso_anticipo) { extra.push('\u26a0 Anticipo: ' + res.aviso_anticipo); msgEl.className = 'fac-cli-warn vis'; }
         if (extra.length) msgEl.textContent += ' ' + extra.join(' ');
       }
     });
@@ -2272,6 +2293,12 @@ var ModFacturacion = (function() {
 
   function _resumenPostTimbrado(res) {
     var t = '';
+    if (res.nota_credito) {
+      t += res.nota_credito.ok
+        ? '\n\nNota de cr\u00e9dito por aplicaci\u00f3n de anticipo: ' + res.nota_credito.folio + (res.nota_credito.monto ? ' (' + _fmt(res.nota_credito.monto) + ')' : '')
+        : '\n\n\u26a0 La nota de cr\u00e9dito del anticipo NO se emiti\u00f3: ' + (res.nota_credito.error || '')
+          + '\nEm\u00edtela desde el men\u00fa de la factura ("Emitir nota de cr\u00e9dito").';
+    }
     if (res.sustitucion) {
       t += res.sustitucion.ok
         ? '\n\nLa factura original ' + res.sustitucion.folio_original + (res.sustitucion.firme ? ' quedó CANCELADA ante el SAT.' : ' quedó con cancelación en trámite (verifícala desde la lista).')
@@ -2651,6 +2678,7 @@ var ModFacturacion = (function() {
     cerrarVista:          cerrarVista,
     abrirComplemento:     abrirComplemento,
     abrirAnticipo:        abrirAnticipo,
+    emitirNotaAnticipo:   emitirNotaAnticipo,
     cerrarAnticipo:       cerrarAnticipo,
     confirmarAnticipo:    confirmarAnticipo,
     _antReceptor:         _antReceptor,
