@@ -10,6 +10,10 @@
 //  El bono de referido (tipo 'referido') NO pasa por aquí: no es dinero recibido.
 // ============================================================
 
+// Arranque de la facturación en Apex: los depósitos desde esta fecha se facturan como
+// anticipo en Apex; los anteriores se revisan uno por uno (¿se facturaron en CONTPAQi?).
+if (!defined('ANTICIPOS_DESDE')) define('ANTICIPOS_DESDE', '2026-10-01');
+
 // Formas que acepta la captura de un depósito. La pantalla manda tarjeta_credito /
 // tarjeta_debito (el SAT distingue 04 crédito de 28 débito).
 function sfFormasCaptura() {
@@ -139,4 +143,57 @@ function sfRegistrarDevolucion($db, $clienteId, $monto, $referencia, $notas, $co
            ->execute([(int)$clienteId, $falta, $hoy, $referencia, $notas, (int)$cotId, $usuario]);
         sfMarcarFormaDesdeCotizacion($db, (int)$db->lastInsertId(), $cotId);
     }
+}
+
+// Saldo vigente de cada entrada del monedero de un cliente (lo que PEPS todavía no ha
+// consumido). Regresa [id de la fila de entrada => resto]. Un reintegro suma a su origen.
+function sfRemanentes($db, $clienteId) {
+    $stmt = $db->prepare("SELECT id, tipo, monto, origen_id FROM clientes_saldo_favor WHERE cliente_id = ? ORDER BY fecha, id");
+    $stmt->execute([(int)$clienteId]);
+    $cola = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $m = round((float)$r['monto'], 2);
+        if ($m > 0) {
+            $clave = ($r['tipo'] === 'reintegro' && $r['origen_id']) ? (int)$r['origen_id'] : (int)$r['id'];
+            $cola[] = ['k' => $clave, 'resto' => $m];
+            continue;
+        }
+        $falta = -$m;
+        foreach ($cola as &$d) {
+            if ($falta <= 0.004) break;
+            $toma = min($d['resto'], $falta);
+            $d['resto'] = round($d['resto'] - $toma, 2);
+            $falta = round($falta - $toma, 2);
+        }
+        unset($d);
+    }
+    $res = [];
+    foreach ($cola as $d) { if ($d['resto'] > 0.004) $res[$d['k']] = round(($res[$d['k']] ?? 0) + $d['resto'], 2); }
+    return $res;
+}
+
+// Depósitos anteriores al arranque (ANTICIPOS_DESDE) que todavía tienen saldo vigente, para
+// que Administración marque si se facturaron como anticipo en CONTPAQi (UPD-629). Los bonos
+// de referido no aparecen: nunca son anticipo.
+function sfAnticiposPrevios($db) {
+    $clientes = $db->query("SELECT DISTINCT cliente_id FROM clientes_saldo_favor WHERE tipo = 'deposito' AND fecha < '" . ANTICIPOS_DESDE . "'")->fetchAll(PDO::FETCH_COLUMN);
+    $det = $db->prepare("SELECT sf.id, sf.cliente_id, sf.monto, sf.forma_pago, sf.tarjeta_tipo, sf.fecha, sf.referencia, sf.notas,
+            sf.previo_facturado, sf.previo_folio, sf.previo_uuid, sf.previo_revisado_por, sf.previo_revisado_at,
+            c.codigo AS cliente_codigo, COALESCE(NULLIF(c.razon_social,''), c.nombre) AS cliente_nombre
+        FROM clientes_saldo_favor sf JOIN clientes c ON c.id = sf.cliente_id WHERE sf.id = ?");
+    $out = [];
+    foreach ($clientes as $cid) {
+        foreach (sfRemanentes($db, $cid) as $id => $resto) {
+            $det->execute([(int)$id]);
+            $r = $det->fetch(PDO::FETCH_ASSOC);
+            if (!$r || $r['fecha'] >= ANTICIPOS_DESDE) continue;
+            $stTipo = $db->prepare("SELECT tipo FROM clientes_saldo_favor WHERE id = ?");
+            $stTipo->execute([(int)$id]);
+            if ($stTipo->fetchColumn() !== 'deposito') continue;
+            $r['saldo_vigente'] = $resto;
+            $out[] = $r;
+        }
+    }
+    usort($out, function($a, $b) { return strcmp($a['cliente_nombre'], $b['cliente_nombre']) ?: ($a['id'] - $b['id']); });
+    return $out;
 }

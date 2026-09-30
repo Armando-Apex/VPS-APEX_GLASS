@@ -126,6 +126,16 @@ if ($method === 'GET') {
         exit;
     }
 
+    // Depósitos anteriores al arranque de la facturación en Apex (01-oct-2026) con saldo
+    // vigente: Administración marca si se facturaron como anticipo en CONTPAQi (UPD-629).
+    if ($accion === 'anticipos_previos') {
+        if (!$puede_registrar) jsonResponse(['error' => 'Sin permiso'], 403);
+        $lista = sfAnticiposPrevios($db);
+        $pend = 0; foreach ($lista as $r) { if ($r['previo_facturado'] === null) $pend++; }
+        jsonResponse(['ok' => true, 'desde' => ANTICIPOS_DESDE, 'pendientes' => $pend, 'depositos' => $lista]);
+        exit;
+    }
+
     jsonResponse(['error' => 'Acción no reconocida']); exit;
 }
 
@@ -137,6 +147,41 @@ if ($method === 'POST') {
 
     $body   = json_decode(file_get_contents('php://input'), true) ?? [];
     $accion = $body['accion'] ?? '';
+
+    // Marca un depósito anterior al arranque como facturado (o no) en CONTPAQi. Si se
+    // facturó, su UUID se relaciona (07) en la factura de la orden donde se use, con su nota
+    // de crédito; si no, la factura va normal. Mientras no se revise, no se timbra una
+    // factura que lo use (helpers/facturapi_lib.php, _facturapiAnticiposDeOrden).
+    if ($accion === 'marcar_anticipo_previo') {
+        $id   = (int)($body['id'] ?? 0);
+        $fact = $body['facturado'] ?? '';
+        $stmt = $db->prepare("SELECT id, tipo, fecha FROM clientes_saldo_favor WHERE id = ?");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row || $row['tipo'] !== 'deposito' || $row['fecha'] >= ANTICIPOS_DESDE) {
+            jsonResponse(['error' => 'Solo se marcan depósitos anteriores al ' . date('d/m/Y', strtotime(ANTICIPOS_DESDE)) . '.']); exit;
+        }
+        if ($fact === 'si') {
+            $folio = trim(preg_replace('/[^A-Za-z0-9 \-_\/]/', '', (string)($body['folio'] ?? '')));
+            $uuid  = strtoupper(trim((string)($body['uuid'] ?? '')));
+            if ($folio === '') { jsonResponse(['error' => 'Captura el folio de la factura de CONTPAQi.']); exit; }
+            if (!preg_match('/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/', $uuid)) {
+                jsonResponse(['error' => 'El UUID (folio fiscal) debe tener 36 caracteres con guiones, por ejemplo 6D8C8ACB-75E9-447C-A4DA-D6B1AFF8D0CC.']); exit;
+            }
+            $db->prepare("UPDATE clientes_saldo_favor SET previo_facturado = 1, previo_folio = ?, previo_uuid = ?, previo_revisado_por = ?, previo_revisado_at = NOW() WHERE id = ?")
+               ->execute([mb_substr($folio, 0, 40), $uuid, $user['nombre'], $id]);
+        } elseif ($fact === 'no') {
+            $db->prepare("UPDATE clientes_saldo_favor SET previo_facturado = 0, previo_folio = NULL, previo_uuid = NULL, previo_revisado_por = ?, previo_revisado_at = NOW() WHERE id = ?")
+               ->execute([$user['nombre'], $id]);
+        } elseif ($fact === 'limpiar') {
+            $db->prepare("UPDATE clientes_saldo_favor SET previo_facturado = NULL, previo_folio = NULL, previo_uuid = NULL, previo_revisado_por = NULL, previo_revisado_at = NULL WHERE id = ?")
+               ->execute([$id]);
+        } else {
+            jsonResponse(['error' => 'Indica si se facturó (sí/no).']); exit;
+        }
+        jsonResponse(['ok' => true]);
+        exit;
+    }
 
     if ($accion === 'deposito') {
         $cliente_id = (int)($body['cliente_id'] ?? 0);

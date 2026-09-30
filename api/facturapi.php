@@ -114,12 +114,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
         $avisosExtra[] = 'Incluye $' . number_format($antO['referido'], 2) . ' de bono de referido: va como descuento dentro de la factura (el total del CFDI baja en ese monto).';
     }
     if ($antO['anterior'] > 0.004) {
-        $avisosExtra[] = 'Incluye $' . number_format($antO['anterior'], 2) . ' de saldo a favor anterior al 01/10/2026 (nunca se facturó como anticipo): la factura va normal, con la forma de pago con la que el cliente pagó originalmente ese dinero. Confírmalo con el contador.';
+        $avisosExtra[] = 'Incluye $' . number_format($antO['anterior'], 2) . ' de saldo a favor anterior al 01/10/2026 que no se facturó como anticipo: esa parte va normal en la factura, con la forma de pago con la que el cliente pagó originalmente ese dinero. Confírmalo con el contador.';
     }
     if ($antO['aplicado'] > 0.004) {
         $avisosExtra[] = 'Con saldo a favor aplicado se factura en PUE cuando la orden esté liquidada.';
     }
-    if ($antO['sin_facturar']) {
+    if ($antO['previo_sin_revisar']) {
+        $avisoAnt = 'Se pagó con saldo a favor de un depósito anterior al 01/10/2026 que todavía no se revisa (¿se facturó en CONTPAQi?): márcalo en Cobranza → Saldo a Favor → "Anticipos anteriores al 1-oct" antes de timbrar.';
+    } elseif ($antO['sin_facturar']) {
         $avisoAnt = 'Se pagó con saldo a favor de un depósito cuyo anticipo todavía no se factura: primero factúralo en "Anticipos por facturar".';
     } elseif ($antO['anticipos']) {
         $avisoAnt = 'Se pagó $' . number_format($antO['total_anticipos'], 2) . ' con anticipo ya facturado ('
@@ -683,6 +685,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
                 .'): se factura en PUE cuando esté liquidada, no en parcialidades.');
         }
         $descReferido = $antOrden['referido'];
+        if ($antOrden['previo_sin_revisar']) {
+            $pz = $antOrden['previo_sin_revisar'][0];
+            $abortar('La orden '.$fac['orden_folio'].' se pagó con saldo a favor de un depósito del '.date('d/m/Y', strtotime($pz['fecha']))
+                .' (anterior al arranque) que todavía no se revisa: ¿se facturó como anticipo en CONTPAQi? Márcalo en Cobranza → Saldo a Favor → '
+                .'"Anticipos anteriores al 1-oct" y vuelve a timbrar.');
+        }
         if ($antOrden['sin_facturar']) {
             $pz = $antOrden['sin_facturar'][0];
             $abortar('La orden '.$fac['orden_folio'].' se pagó con saldo a favor de un depósito del '.date('d/m/Y', strtotime($pz['fecha']))
@@ -937,8 +945,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     // si falla, la factura muestra "Falta nota de crédito" con el botón para reintentar.
     $notaCredito = null;
     if ($antOrden && $uuid) {
-        $ins = $pdo->prepare("INSERT INTO facturas_anticipos (factura_id, anticipo_id, saldo_favor_id, monto) VALUES (?,?,?,?)");
-        foreach ($antOrden['anticipos'] as $a) $ins->execute([$id, $a['anticipo_id'], $a['saldo_favor_id'], $a['monto']]);
+        $ins = $pdo->prepare("INSERT INTO facturas_anticipos (factura_id, anticipo_id, anticipo_uuid, saldo_favor_id, monto) VALUES (?,?,?,?,?)");
+        foreach ($antOrden['anticipos'] as $a) $ins->execute([$id, $a['anticipo_id'], $a['uuid'], $a['saldo_favor_id'], $a['monto']]);
         $notaCredito = _facturapiEmitirNotaAnticipo($pdo, $id, $user['nombre']);
     }
 

@@ -168,7 +168,7 @@ define('FACTURAPI_SERIE_COMPLEMENTO', 'P');
 // un solo concepto (84111506 / ACT / "Anticipo del bien o servicio"), PUE y la forma de
 // pago real. Solo depósitos desde el arranque de la facturación en el sistema: los
 // anteriores nunca se facturaron como anticipo (ver Fase 4 en CLAUDE.md).
-define('ANTICIPOS_DESDE', '2026-10-01');
+if (!defined('ANTICIPOS_DESDE')) define('ANTICIPOS_DESDE', '2026-10-01');   // también en saldo_favor_lib.php
 // CP del lugar de expedición (domicilio fiscal del emisor en FacturAPI). En una factura a
 // Público en General el SAT exige que el CP del receptor sea este.
 define('FACTURAPI_EMISOR_CP', '66367');
@@ -219,7 +219,7 @@ function _facturapiAsignacionPeps($pdo, $clienteId) {
 //  referido    → monto que vino de bonos de referido (Fase 4: descuento)
 //  anterior    → saldo anterior al arranque o sin origen claro (Fase 4: factura normal)
 function _facturapiAnticiposDeOrden($pdo, $ordenFolio) {
-    $vacio = ['aplicado'=>0.0, 'anticipos'=>[], 'total_anticipos'=>0.0, 'sin_facturar'=>[], 'referido'=>0.0, 'anterior'=>0.0];
+    $vacio = ['aplicado'=>0.0, 'anticipos'=>[], 'total_anticipos'=>0.0, 'sin_facturar'=>[], 'referido'=>0.0, 'anterior'=>0.0, 'previo_sin_revisar'=>[]];
     $stmt = $pdo->prepare("SELECT c.id, c.cliente_id FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id WHERE o.folio = ? LIMIT 1");
     $stmt->execute([$ordenFolio]);
     $cot = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -230,12 +230,26 @@ function _facturapiAnticiposDeOrden($pdo, $ordenFolio) {
     if (!$piezas) return $vacio;
     $stAnt = $pdo->prepare("SELECT id, folio_interno, uuid FROM facturas
         WHERE saldo_favor_id = ? AND modo = ? AND estatus = 'timbrada' AND (pac_cancel_status IS NULL OR pac_cancel_status <> 'pending') ORDER BY id LIMIT 1");
+    // Depósitos anteriores al arranque: Administración marca si se facturaron como anticipo
+    // en CONTPAQi (UPD-629). Si sí, se relacionan (07) por su UUID igual que los de Apex.
+    $stPrev = $pdo->prepare("SELECT previo_facturado, previo_folio, previo_uuid FROM clientes_saldo_favor WHERE id = ?");
     $r = $vacio; $porAnt = [];
     foreach ([$piezas] as $lista) {
         foreach ($lista as $pz) {
             $r['aplicado'] = round($r['aplicado'] + $pz['monto'], 2);
             if ($pz['tipo'] === 'referido') { $r['referido'] = round($r['referido'] + $pz['monto'], 2); continue; }
-            if ($pz['tipo'] !== 'deposito' || $pz['fecha'] < ANTICIPOS_DESDE) { $r['anterior'] = round($r['anterior'] + $pz['monto'], 2); continue; }
+            if ($pz['tipo'] !== 'deposito') { $r['anterior'] = round($r['anterior'] + $pz['monto'], 2); continue; }
+            if ($pz['fecha'] < ANTICIPOS_DESDE) {
+                $stPrev->execute([$pz['deposito_id']]);
+                $pv = $stPrev->fetch(PDO::FETCH_ASSOC);
+                if (!$pv || $pv['previo_facturado'] === null) { $r['previo_sin_revisar'][] = $pz; continue; }
+                if ((int)$pv['previo_facturado'] !== 1 || empty($pv['previo_uuid'])) { $r['anterior'] = round($r['anterior'] + $pz['monto'], 2); continue; }
+                $k = 'ext-' . (int)$pz['deposito_id'];
+                if (!isset($porAnt[$k])) $porAnt[$k] = ['anticipo_id'=>null, 'folio'=>'CONTPAQi ' . $pv['previo_folio'], 'uuid'=>$pv['previo_uuid'], 'saldo_favor_id'=>$pz['deposito_id'], 'monto'=>0.0];
+                $porAnt[$k]['monto'] = round($porAnt[$k]['monto'] + $pz['monto'], 2);
+                $r['total_anticipos'] = round($r['total_anticipos'] + $pz['monto'], 2);
+                continue;
+            }
             $stAnt->execute([$pz['deposito_id'], FACTURAPI_MODE]);
             $ant = $stAnt->fetch(PDO::FETCH_ASSOC);
             if (!$ant) { $r['sin_facturar'][] = $pz; continue; }
@@ -304,8 +318,8 @@ function _facturapiEmitirNotaAnticipo($pdo, $facturaId, $usuario) {
         if (!$filas) {
             $ant = _facturapiAnticiposDeOrden($pdo, $fac['orden_folio']);
             if (!$ant['anticipos']) { $pdo->rollBack(); return ['ok'=>true, 'sin_anticipo'=>true]; }
-            $ins = $pdo->prepare("INSERT INTO facturas_anticipos (factura_id, anticipo_id, saldo_favor_id, monto) VALUES (?,?,?,?)");
-            foreach ($ant['anticipos'] as $a) $ins->execute([$facturaId, $a['anticipo_id'], $a['saldo_favor_id'], $a['monto']]);
+            $ins = $pdo->prepare("INSERT INTO facturas_anticipos (factura_id, anticipo_id, anticipo_uuid, saldo_favor_id, monto) VALUES (?,?,?,?,?)");
+            foreach ($ant['anticipos'] as $a) $ins->execute([$facturaId, $a['anticipo_id'], $a['uuid'], $a['saldo_favor_id'], $a['monto']]);
             $stmt = $pdo->prepare("SELECT * FROM facturas_anticipos WHERE factura_id = ?");
             $stmt->execute([$facturaId]);
             $filas = $stmt->fetchAll(PDO::FETCH_ASSOC);

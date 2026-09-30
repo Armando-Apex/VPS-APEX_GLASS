@@ -281,7 +281,10 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
     <div class="sf-toolbar">
       <input type="text" class="sf-search" id="sf-q" placeholder="Buscar cliente..." oninput="sfFiltrar()">
       <button class="btn-sf-nuevo" onclick="sfAbrirModal()">&#43; Registrar Dep&#243;sito</button>
+      <button class="btn-sf-nuevo" id="sf-prev-btn" style="background:#475569" onclick="sfPrevToggle()">Anticipos anteriores al 1-oct <span id="sf-prev-cnt"></span></button>
     </div>
+    <!-- Depositos anteriores al arranque de la facturacion en Apex: ¿se facturaron en CONTPAQi? (UPD-629) -->
+    <div id="sf-prev-box" style="display:none;margin-bottom:16px"></div>
     <div class="sf-table">
       <table>
         <thead><tr>
@@ -939,8 +942,115 @@ function sfSwitchTab(tab) {
   if (secCob) secCob.style.display = isCobranza ? '' : 'none';
   if (!isCobranza && !_sfData.length) sfCargar();
   if (!isCobranza && ES_DIR_ADMIN) sfCargarVoboPendientes();
+  if (!isCobranza) sfPrevCargar();
 }
 window.sfSwitchTab = sfSwitchTab;
+
+// ── Anticipos anteriores al 1-oct (UPD-629) ─────────────────────────────────
+// Depositos de saldo a favor anteriores al arranque de la facturacion en Apex que siguen
+// vigentes. Administracion marca si se facturaron como anticipo en CONTPAQi: si si, al
+// usarse en una orden la factura se relaciona (07) con ese UUID y lleva su nota de credito.
+var _sfPrev = [];
+var _sfPrevAbierto = false;
+var _sfPrevGuardando = {};
+
+async function sfPrevCargar() {
+  try {
+    var r = await fetch(API_SF + '?accion=anticipos_previos&t=' + Date.now());
+    var d = await r.json();
+    if (!d || !d.ok) { var b = document.getElementById('sf-prev-btn'); if (b) b.style.display = 'none'; return; }
+    _sfPrev = d.depositos || [];
+    var c = document.getElementById('sf-prev-cnt');
+    if (c) c.textContent = d.pendientes > 0 ? '(' + d.pendientes + ' por revisar)' : '(revisados)';
+    var btn = document.getElementById('sf-prev-btn');
+    if (btn) btn.style.background = d.pendientes > 0 ? '#b45309' : '#475569';
+    if (_sfPrevAbierto) sfPrevRender();
+  } catch(e) {}
+}
+window.sfPrevCargar = sfPrevCargar;
+
+function sfPrevToggle() {
+  _sfPrevAbierto = !_sfPrevAbierto;
+  var box = document.getElementById('sf-prev-box');
+  if (!box) return;
+  box.style.display = _sfPrevAbierto ? 'block' : 'none';
+  if (_sfPrevAbierto) sfPrevRender();
+}
+window.sfPrevToggle = sfPrevToggle;
+
+function sfPrevRender() {
+  var box = document.getElementById('sf-prev-box');
+  if (!box) return;
+  var fmt = function(n) { return '$' + parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var html = '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">'
+    + '<div style="font-weight:700;font-size:14px;margin-bottom:4px">Anticipos anteriores al 1 de octubre de 2026</div>'
+    + '<div style="font-size:12px;color:#475569;margin-bottom:12px;max-width:820px">Estos dep&#243;sitos siguen con saldo y se registraron antes de facturar en Apex. '
+    + 'Indica de cada uno si <b>se factur&#243; como anticipo en CONTPAQi</b>. Si s&#237;, captura el folio y el <b>UUID</b> (folio fiscal de 36 caracteres): '
+    + 'al usarse en una orden, la factura se relacionar&#225; con ese CFDI y se emitir&#225; su nota de cr&#233;dito. Si no, la factura de la orden va normal. '
+    + 'Mientras un dep&#243;sito no est&#233; revisado, no se puede timbrar la factura de una orden que lo use.</div>';
+  if (!_sfPrev.length) {
+    box.innerHTML = html + '<div style="color:#64748b;font-size:13px">No hay dep&#243;sitos anteriores con saldo vigente.</div></div>';
+    return;
+  }
+  html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
+    + '<thead><tr style="background:#f8fafc;color:#64748b;text-align:left">'
+    + '<th style="padding:6px 8px">Cliente</th><th style="padding:6px 8px">Fecha</th><th style="padding:6px 8px">Referencia</th>'
+    + '<th style="padding:6px 8px">Monto</th><th style="padding:6px 8px">Saldo vigente</th><th style="padding:6px 8px">&#191;Facturado en CONTPAQi?</th>'
+    + '<th style="padding:6px 8px">Folio</th><th style="padding:6px 8px">UUID</th><th style="padding:6px 8px"></th></tr></thead><tbody>';
+  _sfPrev.forEach(function(r) {
+    var id = Number(r.id);
+    var est = r.previo_facturado === null ? '' : (String(r.previo_facturado) === '1' ? 'si' : 'no');
+    html += '<tr style="border-top:1px solid #f1f5f9;' + (est === '' ? 'background:#fffbeb' : '') + '">'
+      + '<td style="padding:6px 8px"><b>' + escHtmlSf(r.cliente_nombre) + '</b><div style="color:#64748b">' + escHtmlSf(r.cliente_codigo) + '</div></td>'
+      + '<td style="padding:6px 8px;white-space:nowrap">' + escHtmlSf(r.fecha) + '</td>'
+      + '<td style="padding:6px 8px">' + escHtmlSf(r.referencia || '') + (r.notas ? '<div style="color:#64748b">' + escHtmlSf(r.notas) + '</div>' : '') + '</td>'
+      + '<td style="padding:6px 8px;white-space:nowrap">' + fmt(r.monto) + '</td>'
+      + '<td style="padding:6px 8px;white-space:nowrap;font-weight:700">' + fmt(r.saldo_vigente) + '</td>'
+      + '<td style="padding:6px 8px"><select id="sfp-sel-' + id + '" onchange="sfPrevCambio(' + id + ')" style="padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px">'
+      + '<option value=""' + (est === '' ? ' selected' : '') + '>&#8212; Sin revisar &#8212;</option>'
+      + '<option value="si"' + (est === 'si' ? ' selected' : '') + '>S&#237;, se factur&#243;</option>'
+      + '<option value="no"' + (est === 'no' ? ' selected' : '') + '>No se factur&#243;</option></select>'
+      + (r.previo_revisado_por ? '<div style="color:#64748b;margin-top:2px">' + escHtmlSf(r.previo_revisado_por) + '</div>' : '') + '</td>'
+      + '<td style="padding:6px 8px"><input id="sfp-folio-' + id + '" type="text" maxlength="40" value="' + escHtmlSf(r.previo_folio || '') + '" placeholder="Ej. 8754" style="width:80px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px"' + (est === 'si' ? '' : ' disabled') + '></td>'
+      + '<td style="padding:6px 8px"><input id="sfp-uuid-' + id + '" type="text" maxlength="36" value="' + escHtmlSf(r.previo_uuid || '') + '" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" style="width:290px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;font-family:monospace;text-transform:uppercase"' + (est === 'si' ? '' : ' disabled') + '></td>'
+      + '<td style="padding:6px 8px"><button id="sfp-btn-' + id + '" onclick="sfPrevGuardar(' + id + ')" style="padding:5px 10px;border:none;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer">Guardar</button></td>'
+      + '</tr>';
+  });
+  box.innerHTML = html + '</tbody></table></div></div>';
+}
+
+function sfPrevCambio(id) {
+  var v = document.getElementById('sfp-sel-' + id).value;
+  document.getElementById('sfp-folio-' + id).disabled = (v !== 'si');
+  document.getElementById('sfp-uuid-' + id).disabled  = (v !== 'si');
+}
+window.sfPrevCambio = sfPrevCambio;
+
+async function sfPrevGuardar(id) {
+  if (_sfPrevGuardando[id]) return;
+  var v = document.getElementById('sfp-sel-' + id).value;
+  var body = {accion: 'marcar_anticipo_previo', id: id, facturado: v || 'limpiar'};
+  if (v === 'si') {
+    body.folio = document.getElementById('sfp-folio-' + id).value.trim();
+    body.uuid  = document.getElementById('sfp-uuid-' + id).value.trim().toUpperCase();
+    if (!body.folio) { alert('Captura el folio de la factura de CONTPAQi.'); return; }
+    if (!/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/.test(body.uuid)) { alert('El UUID debe tener 36 caracteres con guiones (folio fiscal del CFDI).'); return; }
+  }
+  _sfPrevGuardando[id] = true;
+  var btn = document.getElementById('sfp-btn-' + id);
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+  try {
+    var r = await fetch(API_SF, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error desconocido');
+    await sfPrevCargar();
+  } catch(e) {
+    alert('No se pudo guardar: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
+  }
+  delete _sfPrevGuardando[id];
+}
+window.sfPrevGuardar = sfPrevGuardar;
 
 // ── Apartado de Precio: VoBo pendiente (solo dir_admin) ──────────────────────
 async function sfCargarVoboPendientes() {
