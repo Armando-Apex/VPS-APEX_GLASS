@@ -161,6 +161,55 @@ function _facturapiOrdenNoFacturable($pdo, $ordenFolio) {
 // (una cancelación en trámite sigue contando: ante el SAT todavía existe).
 define('FACTURAPI_SERIE_COMPLEMENTO', 'P');
 
+// ── Anticipos de clientes — esquema A del SAT (Fase 2, 30-sep-2026) ──────────
+// Apéndice 6 de la Guía de llenado del CFDI 4.0: el dinero que el cliente deja a cuenta
+// (saldo a favor) es un ANTICIPO y se factura cuando se recibe, con un CFDI de ingreso de
+// un solo concepto (84111506 / ACT / "Anticipo del bien o servicio"), PUE y la forma de
+// pago real. Solo depósitos desde el arranque de la facturación en el sistema: los
+// anteriores nunca se facturaron como anticipo (ver Fase 4 en CLAUDE.md).
+define('ANTICIPOS_DESDE', '2026-10-01');
+// CP del lugar de expedición (domicilio fiscal del emisor en FacturAPI). En una factura a
+// Público en General el SAT exige que el CP del receptor sea este.
+define('FACTURAPI_EMISOR_CP', '66367');
+define('ANTICIPO_CLAVE', '84111506');
+define('ANTICIPO_DESCRIPCION', 'Anticipo del bien o servicio');
+
+// Forma de pago del SAT a partir de la del depósito; null si no se conoce.
+function _facturapiFormaSatDeposito($forma, $tarjetaTipo) {
+    if ($forma === 'efectivo')      return '01';
+    if ($forma === 'cheque')        return '02';
+    if ($forma === 'transferencia') return '03';
+    if ($forma === 'tarjeta')       return $tarjetaTipo === 'debito' ? '28' : ($tarjetaTipo === 'credito' ? '04' : null);
+    return null;
+}
+
+// Concepto único del anticipo. El total del CFDI debe ser EXACTAMENTE el dinero recibido,
+// y dividir entre 1.16 con base a 2 decimales no cuadra en ~14% de los montos por el
+// redondeo del IVA (probado con 200,000 montos). Por eso el precio va con el IVA incluido
+// ('iva_incluido' → tax_included de FacturAPI) y el PAC desglosa la base: probado en
+// sandbox, 1,000.03 y 1,000.10 timbran con total exacto. subtotal/iva son informativos
+// (el total del PAC es el que se guarda al timbrar).
+function _facturapiConceptoAnticipo($monto) {
+    $monto = round((float)$monto, 2);
+    $base  = round($monto / 1.16, 2);
+    return [
+        'conceptos' => [[
+            'desc' => ANTICIPO_DESCRIPCION, 'clave' => ANTICIPO_CLAVE, 'unidad' => 'ACT',
+            'cant' => 1, 'precio' => $monto, 'iva' => true, 'iva_incluido' => true,
+        ]],
+        'subtotal' => $base, 'iva' => round($monto - $base, 2), 'total' => $monto,
+    ];
+}
+
+// Factura de anticipo vigente (o en proceso) de un depósito, en el modo actual.
+function _facturapiAnticipoVigente($pdo, $saldoFavorId, $excluirId = 0) {
+    $stmt = $pdo->prepare("SELECT id, folio_interno, estatus FROM facturas
+        WHERE saldo_favor_id = ? AND id <> ? AND modo = ? AND estatus IN ('borrador','timbrando','timbrada')
+        ORDER BY id LIMIT 1");
+    $stmt->execute([(int)$saldoFavorId, (int)$excluirId, FACTURAPI_MODE]);
+    return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
 // Formas de pago del catálogo SAT válidas en un complemento (99 "Por definir" NO se
 // permite en un pago: el pago ya ocurrió, se sabe cómo fue).
 function _facturapiFormasPagoComplemento() {

@@ -209,6 +209,32 @@ $esModoLive = (FACTURAPI_MODE === 'live');
     <button class="fac-tab"        onclick="ModFacturacion._tab('timbrada')" data-tab="timbrada">Timbradas <span class="fac-tab-cnt" id="fac-cnt-timbrada">&#8212;</span></button>
     <button class="fac-tab"        onclick="ModFacturacion._tab('cancelada')" data-tab="cancelada">Canceladas <span class="fac-tab-cnt" id="fac-cnt-cancelada">&#8212;</span></button>
     <button class="fac-tab"        onclick="ModFacturacion._tab('pendientes')" data-tab="pendientes">Complementos pendientes <span class="fac-tab-cnt" id="fac-cnt-pendientes">&#8212;</span></button>
+    <button class="fac-tab"        onclick="ModFacturacion._tab('anticipos')" data-tab="anticipos">Anticipos por facturar <span class="fac-tab-cnt" id="fac-cnt-anticipos">&#8212;</span></button>
+  </div>
+
+  <!-- Anticipos por facturar: depositos de saldo a favor sin su CFDI de anticipo (esquema A del SAT) -->
+  <div id="fac-ant-wrap" style="display:none">
+    <div class="fac-hint" style="font-size:12px;margin-bottom:10px;max-width:760px">
+      El dinero que un cliente deja a cuenta es un <strong>anticipo</strong>: el SAT pide facturarlo <strong>cuando se recibe</strong>,
+      aunque todav&iacute;a no se sepa qu&eacute; va a comprar. Se listan los dep&oacute;sitos desde el <span id="fac-ant-desde">1-oct-2026</span>.
+      El bono de referido no aparece: no es dinero recibido.
+    </div>
+    <div class="fac-table-wrap">
+      <table class="fac-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Cliente</th>
+            <th>Monto</th>
+            <th>Forma de pago</th>
+            <th>Referencia</th>
+            <th>Datos fiscales</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="fac-ant-tbody"><tr><td colspan="7" class="fac-empty">Cargando&hellip;</td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Complementos de pago pendientes: abonos de facturas PPD vigentes sin su CFDI tipo P -->
@@ -625,6 +651,20 @@ $esModoLive = (FACTURAPI_MODE === 'live');
   </div>
 </div>
 
+<div class="fac-overlay" id="fac-ant-overlay" style="z-index:1600">
+  <div class="fac-modal" style="width:520px">
+    <div class="fac-modal-head">
+      <h3>Facturar anticipo</h3>
+      <button class="fac-modal-close" onclick="ModFacturacion.cerrarAnticipo()">&times;</button>
+    </div>
+    <div class="fac-modal-body" id="fac-ant-body"></div>
+    <div class="fac-modal-foot">
+      <button class="fac-btn-cancel" onclick="ModFacturacion.cerrarAnticipo()">Cancelar</button>
+      <button class="fac-btn-save" id="fac-ant-btn" onclick="ModFacturacion.confirmarAnticipo()">Timbrar anticipo</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Modal ver detalle (solo lectura, cualquier estatus) ── -->
 <div class="fac-overlay" id="fac-vista-overlay">
   <div class="fac-modal">
@@ -711,6 +751,7 @@ var ModFacturacion = (function() {
       _renderTabla();
     });
     _cargarPendientes();
+    _cargarAnticipos();
   }
 
   var _filtroTexto = '';
@@ -729,9 +770,12 @@ var ModFacturacion = (function() {
       btns[i].classList.toggle('active', btns[i].getAttribute('data-tab') === nombre);
     }
     var esPend = (nombre === 'pendientes');
+    var esAnt  = (nombre === 'anticipos');
     document.getElementById('fac-pend-wrap').style.display = esPend ? 'block' : 'none';
-    document.getElementById('fac-main-wrap').style.display = esPend ? 'none' : 'block';
+    document.getElementById('fac-ant-wrap').style.display  = esAnt ? 'block' : 'none';
+    document.getElementById('fac-main-wrap').style.display = (esPend || esAnt) ? 'none' : 'block';
     if (esPend) { _renderPendientes(); return; }
+    if (esAnt)  { _renderAnticipos(); return; }
     _renderTabla();
   }
 
@@ -871,7 +915,8 @@ var ModFacturacion = (function() {
       // S-1: todo texto que venga de BD va por _esc() — el nombre del receptor es
       // campo libre del modal (y puede venir del OCR de una constancia), así que sin
       // escapar era un XSS almacenado. La vista de detalle ya escapaba; este listado no.
-      html += '<td style="font-weight:600;color:#2563eb">' + _esc(f.folio_interno) + modoBadge + pubBadge + '</td>';
+      var antBadge = f.saldo_favor_id ? '<span style="font-size:9px;background:#e0f2fe;color:#075985;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">ANTICIPO</span>' : '';
+      html += '<td style="font-weight:600;color:#2563eb">' + _esc(f.folio_interno) + modoBadge + pubBadge + antBadge + '</td>';
       html += '<td><div style="font-weight:600">' + _esc(f.receptor_nombre||'—') + '</div>';
       html += '<div style="font-size:11px;color:var(--c-muted)">' + _esc(f.receptor_rfc||'') + '</div>';
       if (pubGeneral && f.cliente_solicito_nombre) {
@@ -1593,6 +1638,145 @@ var ModFacturacion = (function() {
       html += '</tr>';
     }
     tbody.innerHTML = html;
+  }
+
+  // ── Anticipos por facturar (esquema A del SAT) ──────────────────────────────
+  var FORMAS_ANTICIPO = [
+    {v:'01', l:'Efectivo'}, {v:'02', l:'Cheque nominativo'}, {v:'03', l:'Transferencia electr\u00f3nica'},
+    {v:'04', l:'Tarjeta de cr\u00e9dito'}, {v:'28', l:'Tarjeta de d\u00e9bito'}
+  ];
+  var USOS_ANTICIPO = [
+    {v:'G03', l:'Gastos en general'}, {v:'G01', l:'Adquisici\u00f3n de mercanc\u00edas'},
+    {v:'I01', l:'Construcciones'}, {v:'I02', l:'Mobiliario y equipo de oficina'}, {v:'I08', l:'Otra maquinaria y equipo'},
+    {v:'S01', l:'Sin efectos fiscales'}
+  ];
+  var _anticipos = [];
+  var _antActual = null;
+  var _antEmitiendo = false;
+
+  function _formaAnticipoTxt(a) {
+    if (a.forma_pago === 'tarjeta') return a.tarjeta_tipo === 'debito' ? 'Tarjeta d\u00e9bito' : (a.tarjeta_tipo === 'credito' ? 'Tarjeta cr\u00e9dito' : 'Tarjeta (sin tipo)');
+    return {efectivo:'Efectivo', transferencia:'Transferencia', cheque:'Cheque'}[a.forma_pago] || '';
+  }
+
+  function _cargarAnticipos() {
+    _apiFetch('../api/facturapi.php?accion=anticipos_pendientes', {}, function(err, res) {
+      if (err || !res.ok) return;
+      _anticipos = res.anticipos || [];
+      var el = document.getElementById('fac-cnt-anticipos');
+      if (el) el.textContent = _anticipos.length;
+      var d = document.getElementById('fac-ant-desde');
+      if (d && res.desde) d.textContent = res.desde.split('-').reverse().join('/');
+      if (_tabActivo === 'anticipos') _renderAnticipos();
+    });
+  }
+
+  function _renderAnticipos() {
+    var tbody = document.getElementById('fac-ant-tbody');
+    if (!tbody) return;
+    if (!_anticipos.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="fac-empty">No hay anticipos por facturar.</td></tr>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < _anticipos.length; i++) {
+      var a = _anticipos[i];
+      var forma = _formaAnticipoTxt(a);
+      html += '<tr>';
+      html += '<td>' + _esc(a.fecha) + '</td>';
+      html += '<td><div style="font-weight:600">' + _esc(a.cliente_nombre || '') + '</div><div style="font-size:11px;color:var(--c-muted)">' + _esc(a.cliente_codigo || '') + (a.rfc ? ' \u00b7 ' + _esc(a.rfc) : '') + '</div></td>';
+      html += '<td style="font-weight:600">' + _fmt(a.monto) + '</td>';
+      html += '<td style="font-size:12px">' + (forma ? _esc(forma) : '<span style="color:#b45309;font-weight:600">Sin registrar</span>') + '</td>';
+      html += '<td style="font-size:12px">' + _esc(a.referencia || '') + '</td>';
+      html += '<td style="font-size:12px">' + (a.fiscal_completo ? '<span style="color:#15803d;font-weight:600">Completos</span>' : '<span style="color:#b45309;font-weight:600">Incompletos</span>') + '</td>';
+      html += '<td><button class="fac-act-btn" onclick="ModFacturacion.abrirAnticipo(' + Number(a.id) + ')">' + (a.borrador_id ? 'Continuar' : 'Facturar') + '</button></td>';
+      html += '</tr>';
+    }
+    tbody.innerHTML = html;
+  }
+
+  function abrirAnticipo(sfId) {
+    var a = null;
+    for (var i = 0; i < _anticipos.length; i++) { if (Number(_anticipos[i].id) === Number(sfId)) { a = _anticipos[i]; break; } }
+    if (!a) return;
+    _antActual = a;
+    var html = '';
+    html += '<div class="fac-row cols2" style="margin-bottom:12px">';
+    html += '  <div class="fac-field"><label>Cliente</label><div><strong>' + _esc(a.cliente_nombre || '') + '</strong> <span style="color:var(--c-muted)">(' + _esc(a.cliente_codigo || '') + ')</span></div></div>';
+    html += '  <div class="fac-field"><label>Monto recibido</label><div style="font-weight:700">' + _fmt(a.monto) + '</div></div>';
+    html += '</div>';
+    html += '<div class="fac-row cols2" style="margin-bottom:12px">';
+    html += '  <div class="fac-field"><label>Fecha del dep\u00f3sito</label><div>' + _esc(a.fecha) + '</div></div>';
+    html += '  <div class="fac-field"><label>Concepto</label><div style="font-size:12px">84111506 \u2013 Anticipo del bien o servicio</div></div>';
+    html += '</div>';
+    html += '<div class="fac-field" style="margin-bottom:12px"><label>Receptor</label>';
+    html += '<label style="display:block;font-weight:400"><input type="radio" name="fac-ant-rec" value="cliente"' + (a.fiscal_completo ? ' checked' : ' disabled') + ' onchange="ModFacturacion._antReceptor()"> Datos fiscales del cliente' + (a.fiscal_completo ? ' (' + _esc(a.rfc) + ')' : ' \u2013 incompletos, captura su Constancia en Clientes') + '</label>';
+    html += '<label style="display:block;font-weight:400"><input type="radio" name="fac-ant-rec" value="pg"' + (a.fiscal_completo ? '' : ' checked') + ' onchange="ModFacturacion._antReceptor()"> P\u00fablico en General</label></div>';
+    html += '<div class="fac-field" id="fac-ant-uso-wrap" style="margin-bottom:12px"><label>Uso de CFDI</label><select id="fac-ant-uso">';
+    for (var j = 0; j < USOS_ANTICIPO.length; j++) html += '<option value="' + USOS_ANTICIPO[j].v + '">' + USOS_ANTICIPO[j].v + ' \u2013 ' + _esc(USOS_ANTICIPO[j].l) + '</option>';
+    html += '</select></div>';
+    if (a.forma_sat) {
+      html += '<div class="fac-field" style="margin-bottom:12px"><label>Forma de pago</label><div>' + _esc(a.forma_sat) + ' \u2013 ' + _esc(_formaAnticipoTxt(a)) + '</div></div>';
+    } else {
+      html += '<div class="fac-field" style="margin-bottom:12px"><label>Forma de pago</label><select id="fac-ant-forma"><option value="">\u2014 Selecciona \u2014</option>';
+      for (var k = 0; k < FORMAS_ANTICIPO.length; k++) html += '<option value="' + FORMAS_ANTICIPO[k].v + '">' + FORMAS_ANTICIPO[k].v + ' \u2013 ' + _esc(FORMAS_ANTICIPO[k].l) + '</option>';
+      html += '</select><div class="fac-hint">El dep\u00f3sito no tiene forma de pago registrada (por ejemplo, dinero de una orden pagada con formas mezcladas).</div></div>';
+    }
+    if (a.borrador_id) html += '<div class="alert-warn" style="display:block;margin-bottom:8px">Este dep\u00f3sito ya tiene un borrador de anticipo; se usar\u00e1 ese.</div>';
+    document.getElementById('fac-ant-body').innerHTML = html;
+    _antReceptor();
+    var btn = document.getElementById('fac-ant-btn');
+    btn.disabled = false; btn.textContent = 'Timbrar anticipo';
+    document.getElementById('fac-ant-overlay').classList.add('open');
+  }
+
+  function _antReceptor() {
+    var pg = document.querySelector('input[name="fac-ant-rec"]:checked');
+    var esPg = pg && pg.value === 'pg';
+    var w = document.getElementById('fac-ant-uso-wrap');
+    if (w) w.style.display = esPg ? 'none' : 'block';
+  }
+
+  function cerrarAnticipo() {
+    _antActual = null;
+    document.getElementById('fac-ant-overlay').classList.remove('open');
+  }
+
+  function confirmarAnticipo() {
+    if (_antEmitiendo || !_antActual) return;
+    var a = _antActual;
+    var recEl = document.querySelector('input[name="fac-ant-rec"]:checked');
+    if (!recEl) { alert('Escoge el receptor.'); return; }
+    var body = {saldo_favor_id: Number(a.id), publico_general: recEl.value === 'pg'};
+    if (recEl.value !== 'pg') body.uso_cfdi = document.getElementById('fac-ant-uso').value;
+    if (!a.forma_sat) {
+      var fEl = document.getElementById('fac-ant-forma');
+      if (!fEl || !fEl.value) { alert('Selecciona la forma de pago.'); return; }
+      body.forma_pago = fEl.value;
+    }
+    if (!confirm(ES_MODO_LIVE
+      ? '\u00bfTimbrar la factura de anticipo por ' + _fmt(a.monto) + ' ante el SAT?\n\nEs un comprobante fiscal REAL: una vez timbrado solo se puede cancelar.'
+      : '\u00bfTimbrar la factura de anticipo por ' + _fmt(a.monto) + ' en modo PRUEBA (sandbox)?\n\nNo tiene validez fiscal.')) return;
+    _antEmitiendo = true;
+    var btn = document.getElementById('fac-ant-btn');
+    btn.disabled = true; btn.textContent = 'Timbrando\u2026';
+    var fin = function() { _antEmitiendo = false; btn.disabled = false; btn.textContent = 'Timbrar anticipo'; };
+    _apiFetch('../api/facturapi.php?accion=anticipo_crear', {method:'POST', body:JSON.stringify(body)}, function(err, res) {
+      if (err || !res.ok) { fin(); alert('No se pudo preparar el anticipo: ' + (err || res.error)); return; }
+      var facId = res.id;
+      _apiFetch('../api/facturapi.php?accion=timbrar', {method:'POST', body:JSON.stringify({id:facId})}, function(err2, res2) {
+        fin();
+        if (!err2 && res2 && res2.en_verificacion) { alert(res2.error); cerrarAnticipo(); _cargarLista(); return; }
+        if (err2 || !res2.ok) {
+          alert('Error al timbrar el anticipo: ' + (err2 || res2.error) + '\n\nEl borrador ' + res.folio + ' qued\u00f3 guardado; corrige el dato y vuelve a intentar desde esta misma lista.');
+          cerrarAnticipo(); _cargarLista(); return;
+        }
+        alert((ES_MODO_LIVE ? 'Factura de anticipo timbrada ante el SAT' : 'Factura de anticipo timbrada en modo PRUEBA (sin validez fiscal)')
+          + '\nFolio: ' + res.folio + '\nUUID: ' + res2.uuid);
+        cerrarAnticipo();
+        _cargarLista();
+      });
+    });
   }
 
   var _pagosCache = {};   // factura_id -> respuesta de pagos_factura
@@ -2466,6 +2650,10 @@ var ModFacturacion = (function() {
     abrirVista:           abrirVista,
     cerrarVista:          cerrarVista,
     abrirComplemento:     abrirComplemento,
+    abrirAnticipo:        abrirAnticipo,
+    cerrarAnticipo:       cerrarAnticipo,
+    confirmarAnticipo:    confirmarAnticipo,
+    _antReceptor:         _antReceptor,
     cerrarComplemento:    cerrarComplemento,
     confirmarComplemento: confirmarComplemento
   };

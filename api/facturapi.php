@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
 // ── GET lista ─────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'lista') {
     $rows = $pdo->query("
-        SELECT f.id, f.folio_interno, f.serie, f.folio_numero, f.orden_folio, f.tipo_cfdi, f.fecha,
+        SELECT f.id, f.folio_interno, f.serie, f.folio_numero, f.orden_folio, f.saldo_favor_id, f.tipo_cfdi, f.fecha,
                f.receptor_nombre, f.receptor_rfc, f.receptor_cp, f.receptor_regimen,
                f.receptor_uso_cfdi, f.receptor_email, f.cliente_solicito_id,
                COALESCE(NULLIF(cs.razon_social,''), cs.nombre) AS cliente_solicito_nombre,
@@ -421,11 +421,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
         // sus facturas quedaban huérfanas para siempre (incluida la posibilidad de cancelarlas).
         // La trazabilidad no se pierde: creado_por se conserva y ahora además se registra
         // timbrado_por/cancelado_por con su fecha.
-        $stmt = $pdo->prepare("SELECT folio_interno FROM facturas WHERE id=? AND estatus='borrador'");
+        $stmt = $pdo->prepare("SELECT folio_interno, saldo_favor_id FROM facturas WHERE id=? AND estatus='borrador'");
         $stmt->execute([$id]);
-        $folioInterno = $stmt->fetchColumn();
+        $filaBorr = $stmt->fetch(PDO::FETCH_ASSOC);
+        $folioInterno = $filaBorr['folio_interno'] ?? null;
         if (!$folioInterno) {
             jsonResponse(['ok'=>false,'error'=>'Factura no encontrada o ya timbrada']); exit;
+        }
+        // Una factura de anticipo se arma sola a partir del depósito (monto, forma, concepto
+        // del SAT); editarla a mano rompería el cuadre con el dinero recibido.
+        if (!empty($filaBorr['saldo_favor_id'])) {
+            jsonResponse(['ok'=>false,'error'=>'Las facturas de anticipo no se editan. Elimina este borrador y vuelve a crearlo desde "Anticipos por facturar".']); exit;
         }
 
         $stmt = $pdo->prepare("
@@ -615,6 +621,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
             .'Los complementos de cada abono se emiten solos al registrarlos en Cobranza.');
     }
 
+    // Factura de anticipo (esquema A): el total debe ser exactamente el dinero del depósito
+    // y un depósito solo puede tener un CFDI de anticipo vigente.
+    if (!empty($fac['saldo_favor_id'])) {
+        $stmt = $pdo->prepare("SELECT monto, tipo FROM clientes_saldo_favor WHERE id=?");
+        $stmt->execute([(int)$fac['saldo_favor_id']]);
+        $dep = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$dep || $dep['tipo'] !== 'deposito') {
+            $abortar('El depósito de saldo a favor de esta factura de anticipo ya no existe.');
+        }
+        if (abs((float)$dep['monto'] - (float)$fac['total']) > 0.005) {
+            $abortar('El total de esta factura de anticipo no coincide con el depósito ($'.number_format((float)$dep['monto'], 2).'). Elimínala y vuelve a crearla.');
+        }
+        if ($otraAnt = _facturapiAnticipoVigente($pdo, $fac['saldo_favor_id'], $id)) {
+            if ($otraAnt['estatus'] !== 'borrador') {
+                $abortar('Este depósito ya tiene la factura de anticipo '.$otraAnt['folio_interno'].'.');
+            }
+        }
+    }
+
     $conceptos = json_decode($fac['conceptos'], true);
 
     // Bloquear timbrado si algún concepto no trae una clave SAT real asignada —
@@ -637,7 +662,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
                 'product_key'  => $c['clave']  ?: '01010101',
                 'unit_key'     => $c['unidad'] ?: 'ACT',
                 'price'        => (float)$c['precio'],
-                'tax_included' => false,
+                // Solo el anticipo manda el precio con IVA incluido (ver _facturapiConceptoAnticipo).
+                'tax_included' => !empty($c['iva_incluido']),
                 'taxes'        => $applyIva
                     ? [['type'=>'IVA','rate'=>0.16,'factor'=>'Tasa']]
                     : [],
@@ -1178,6 +1204,130 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'crear_cliente_fiscal')
         }
     }
     jsonResponse(['ok'=>true, 'existente'=>false, 'id'=>$newId, 'codigo'=>$codigo, 'nombre'=>$razon]);
+    exit;
+}
+
+// ── GET anticipos_pendientes (depósitos de saldo a favor sin su CFDI de anticipo) ──
+// Esquema A del SAT (Fase 2, 30-sep-2026). Solo depósitos en dinero desde ANTICIPOS_DESDE;
+// el bono de referido (tipo 'referido') nunca es anticipo. Si el depósito ya tiene un
+// borrador de anticipo se regresa para continuarlo en vez de crear otro.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'anticipos_pendientes') {
+    $stmt = $pdo->prepare("
+        SELECT sf.id, sf.cliente_id, sf.monto, sf.forma_pago, sf.tarjeta_tipo, sf.fecha, sf.referencia,
+               c.codigo AS cliente_codigo, COALESCE(NULLIF(c.razon_social,''), c.nombre) AS cliente_nombre,
+               c.rfc, c.razon_social, c.cp_fiscal, c.regimen_fiscal,
+               (SELECT f.id FROM facturas f WHERE f.saldo_favor_id = sf.id AND f.modo = ? AND f.estatus = 'borrador' ORDER BY f.id DESC LIMIT 1) AS borrador_id
+        FROM clientes_saldo_favor sf
+        JOIN clientes c ON c.id = sf.cliente_id
+        WHERE sf.tipo = 'deposito' AND sf.monto > 0 AND sf.fecha >= ?
+          AND NOT EXISTS (SELECT 1 FROM facturas f2 WHERE f2.saldo_favor_id = sf.id AND f2.modo = ? AND f2.estatus IN ('timbrando','timbrada'))
+        ORDER BY sf.fecha, sf.id
+    ");
+    $stmt->execute([FACTURAPI_MODE, ANTICIPOS_DESDE, FACTURAPI_MODE]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as &$r) {
+        $r['forma_sat']      = _facturapiFormaSatDeposito($r['forma_pago'], $r['tarjeta_tipo']);
+        $r['fiscal_completo'] = (trim((string)$r['rfc']) !== '' && trim((string)$r['razon_social']) !== ''
+            && trim((string)$r['cp_fiscal']) !== '' && trim((string)$r['regimen_fiscal']) !== '');
+        unset($r['razon_social']);
+    }
+    unset($r);
+    jsonResponse(['ok'=>true, 'desde'=>ANTICIPOS_DESDE, 'anticipos'=>$rows]);
+    exit;
+}
+
+// ── POST anticipo_crear (arma el borrador del CFDI de anticipo de un depósito) ──
+// Todo sale del servidor: receptor (datos fiscales del cliente o Público en General),
+// concepto del SAT, monto y forma de pago del depósito. La pantalla solo escoge entre
+// cliente / Público en General, el uso de CFDI y, si el depósito no la guardó, la forma.
+// Después la pantalla lo timbra con accion=timbrar (mismos candados de siempre).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'anticipo_crear') {
+    $d    = json_decode(file_get_contents('php://input'), true) ?: [];
+    $sfId = (int)($d['saldo_favor_id'] ?? 0);
+    $pg   = !empty($d['publico_general']);
+
+    $stmt = $pdo->prepare("
+        SELECT sf.*, c.codigo, c.nombre, c.razon_social, c.rfc, c.cp_fiscal, c.regimen_fiscal, c.email
+        FROM clientes_saldo_favor sf JOIN clientes c ON c.id = sf.cliente_id
+        WHERE sf.id = ?
+    ");
+    $stmt->execute([$sfId]);
+    $dep = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$dep || $dep['tipo'] !== 'deposito' || (float)$dep['monto'] <= 0) {
+        jsonResponse(['ok'=>false,'error'=>'Depósito no encontrado (solo los depósitos en dinero se facturan como anticipo).']); exit;
+    }
+    if ($dep['fecha'] < ANTICIPOS_DESDE) {
+        jsonResponse(['ok'=>false,'error'=>'Los depósitos anteriores al '.date('d/m/Y', strtotime(ANTICIPOS_DESDE)).' no se facturan como anticipo.']); exit;
+    }
+    if ($ya = _facturapiAnticipoVigente($pdo, $sfId)) {
+        if ($ya['estatus'] === 'borrador') { jsonResponse(['ok'=>true, 'id'=>(int)$ya['id'], 'folio'=>$ya['folio_interno'], 'existente'=>true]); exit; }
+        jsonResponse(['ok'=>false,'error'=>'Este depósito ya tiene la factura de anticipo '.$ya['folio_interno'].'.']); exit;
+    }
+
+    // Forma de pago: la del depósito; si no se guardó (mezcla de formas al regresar dinero
+    // de una orden) se escoge en pantalla, solo entre las formas reales de un cobro.
+    $forma = _facturapiFormaSatDeposito($dep['forma_pago'], $dep['tarjeta_tipo']);
+    if (!$forma) {
+        $forma = (string)($d['forma_pago'] ?? '');
+        if (!in_array($forma, ['01','02','03','04','28'], true)) {
+            jsonResponse(['ok'=>false,'error'=>'El depósito no tiene forma de pago registrada: indica con qué se pagó.']); exit;
+        }
+    }
+
+    if ($pg) {
+        $rec = ['nombre'=>'PUBLICO EN GENERAL', 'rfc'=>'XAXX010101000', 'cp'=>FACTURAPI_EMISOR_CP, 'regimen'=>'616', 'uso'=>'S01'];
+        $glob = ['day', date('m', strtotime($dep['fecha'])), (int)date('Y', strtotime($dep['fecha']))];
+        $solicito = (int)$dep['cliente_id'];
+    } else {
+        $rfc = strtoupper(trim((string)$dep['rfc']));
+        $nom = trim(preg_replace('/\s+/u', ' ', (string)$dep['razon_social']));
+        $cp  = trim((string)$dep['cp_fiscal']);
+        $reg = trim((string)$dep['regimen_fiscal']);
+        if ($rfc === '' || $nom === '' || $cp === '' || $reg === '') {
+            jsonResponse(['ok'=>false,'error'=>'El cliente '.$dep['codigo'].' no tiene completos sus datos fiscales (RFC, razón social, CP y régimen). Captura su Constancia en Clientes, o factura el anticipo a Público en General.']); exit;
+        }
+        $uso = strtoupper(trim((string)($d['uso_cfdi'] ?? 'G03')));
+        if (!in_array($uso, ['G01','G03','I01','I02','I03','I04','I08','S01'], true)) {
+            jsonResponse(['ok'=>false,'error'=>'Uso de CFDI no válido para un anticipo: '.$uso]); exit;
+        }
+        $rec = ['nombre'=>$nom, 'rfc'=>$rfc, 'cp'=>$cp, 'regimen'=>$reg, 'uso'=>$uso];
+        $glob = [null, null, null];
+        $solicito = null;
+    }
+
+    $conc = _facturapiConceptoAnticipo($dep['monto']);
+    $serie = 'A';
+    $intentos = 0;
+    while (true) {
+        $intentos++;
+        $stmt = $pdo->prepare("SELECT COALESCE(MAX(folio_numero),0)+1 FROM facturas WHERE serie=?");
+        $stmt->execute([$serie]);
+        $folioNum     = (int)$stmt->fetchColumn();
+        $folioInterno = $serie . '-' . str_pad($folioNum, 3, '0', STR_PAD_LEFT);
+        try {
+            $pdo->prepare("
+                INSERT INTO facturas
+                    (folio_interno, serie, folio_numero, orden_folio, saldo_favor_id, tipo_cfdi, fecha,
+                     receptor_nombre, receptor_rfc, receptor_cp, receptor_regimen, receptor_uso_cfdi,
+                     receptor_email, cliente_solicito_id, forma_pago, metodo_pago,
+                     global_periodicidad, global_meses, global_anio,
+                     conceptos, subtotal, iva, total, estatus, modo, creado_por)
+                VALUES (?,?,?,NULL,?,'I',?,?,?,?,?,?,?,?,?,'PUE',?,?,?,?,?,?,?,'borrador',?,?)
+            ")->execute([
+                $folioInterno, $serie, $folioNum, $sfId, date('Y-m-d'),
+                $rec['nombre'], $rec['rfc'], $rec['cp'], $rec['regimen'], $rec['uso'],
+                ($pg ? null : ($dep['email'] ?: null)), $solicito, $forma,
+                $glob[0], $glob[1], $glob[2],
+                json_encode($conc['conceptos']), $conc['subtotal'], $conc['iva'], $conc['total'],
+                FACTURAPI_MODE, $user['nombre'],
+            ]);
+            break;
+        } catch (PDOException $e) {
+            if ($e->getCode() === '23000' && $intentos < 5) continue;
+            throw $e;
+        }
+    }
+    jsonResponse(['ok'=>true, 'id'=>(int)$pdo->lastInsertId(), 'folio'=>$folioInterno, 'total'=>$conc['total']]);
     exit;
 }
 
