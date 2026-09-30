@@ -249,21 +249,33 @@ function _facturapiAnticiposDeOrden($pdo, $ordenFolio) {
     return $r;
 }
 
-// Forma de pago que exige el SAT en la factura de una orden con anticipo aplicado: la del
-// monto mayor, contando el anticipo como forma 30 "Aplicación de anticipos". Los pagos con
-// saldo a favor que NO son anticipo facturado (referido / saldo anterior) no cuentan aquí.
-function _facturapiFormaEsperadaConAnticipo($pdo, $ordenFolio, $totalAnticipos) {
+// Formas de pago válidas para la factura del TOTAL de una orden con anticipo aplicado.
+// Anexo 20 (Guía de llenado CFDI 4.0), Apéndice 6-A-II y caso de uso del Apéndice 8: la
+// factura del total lleva la forma con la que se pagó la diferencia al concretar la venta
+// (en el ejemplo oficial: anticipo con cheque, diferencia con cheque → 02), y la forma 30
+// "Aplicación de anticipos" va en el CFDI de egreso. Con varias formas, la del mayor
+// importe; si hay empate, "a su consideración una de las formas" (Anexo 20, campo
+// FormaPago) → se aceptan todas las empatadas. Solo si el anticipo cubrió todo (no hubo
+// pago en dinero) la forma es 30. Tarjeta sin tipo registrado (pagos anteriores al
+// 29-sep-2026) acepta 04 o 28. Los pagos con saldo a favor no cuentan.
+// Regresa la lista de claves válidas.
+function _facturapiFormasValidasConAnticipo($pdo, $ordenFolio) {
     $stmt = $pdo->prepare("SELECT p.forma_pago, p.tarjeta_tipo, SUM(p.monto) m
         FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id JOIN cotizacion_pagos p ON p.cotizacion_id = c.id
-        WHERE o.folio = ? AND p.forma_pago <> 'saldo_favor' GROUP BY p.forma_pago, p.tarjeta_tipo");
+        WHERE o.folio = ? AND p.forma_pago <> 'saldo_favor' AND p.monto > 0 GROUP BY p.forma_pago, p.tarjeta_tipo");
     $stmt->execute([$ordenFolio]);
-    $sumas = ['30' => round((float)$totalAnticipos, 2)];
+    $sumas = []; $claves = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
-        $sat = _facturapiFormaSatDeposito($p['forma_pago'], $p['tarjeta_tipo'] ?: 'credito');
-        if ($sat) $sumas[$sat] = round(($sumas[$sat] ?? 0) + (float)$p['m'], 2);
+        if ($p['forma_pago'] === 'tarjeta' && !$p['tarjeta_tipo']) { $k = 'tarjeta?'; $cl = ['04','28']; }
+        else { $sat = _facturapiFormaSatDeposito($p['forma_pago'], $p['tarjeta_tipo']); if (!$sat) continue; $k = $sat; $cl = [$sat]; }
+        $sumas[$k] = round(($sumas[$k] ?? 0) + (float)$p['m'], 2);
+        $claves[$k] = $cl;
     }
-    arsort($sumas);
-    return array_key_first($sumas);
+    if (!$sumas) return ['30'];
+    $max = max($sumas);
+    $validas = [];
+    foreach ($sumas as $k => $m) { if (abs($m - $max) < 0.005) $validas = array_merge($validas, $claves[$k]); }
+    return array_values(array_unique($validas));
 }
 
 define('FACTURAPI_SERIE_NOTA', 'N');

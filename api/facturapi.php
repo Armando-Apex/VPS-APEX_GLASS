@@ -124,8 +124,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
     } elseif ($antO['anticipos']) {
         $avisoAnt = 'Se pagó $' . number_format($antO['total_anticipos'], 2) . ' con anticipo ya facturado ('
             . implode(', ', array_column($antO['anticipos'], 'folio')) . '): la factura va por el total, en PUE, con forma de pago '
-            . _facturapiFormaEsperadaConAnticipo($pdo, $orden['folio'], $antO['total_anticipos'])
-            . ' (la del monto mayor) y al timbrarla se emite sola la nota de crédito.';
+            . implode(' o ', _facturapiFormasValidasConAnticipo($pdo, $orden['folio']))
+            . ' (la del pago en dinero de mayor importe; 30 solo si el anticipo cubrió todo) y al timbrarla se emite sola la nota de crédito con forma 30.';
     }
 
     if ($avisosExtra) $avisoAnt = trim(($avisoAnt ?? '') . ' ' . implode(' ', $avisosExtra));
@@ -693,11 +693,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
                 $abortar('La orden '.$fac['orden_folio'].' se pagó en parte con un anticipo ya facturado: se factura en PUE cuando esté liquidada '
                     .'(el esquema de anticipos con pagos en parcialidades no está soportado todavía).');
             }
-            $formaEsp = _facturapiFormaEsperadaConAnticipo($pdo, $fac['orden_folio'], $antOrden['total_anticipos']);
-            if ((string)$fac['forma_pago'] !== (string)$formaEsp) {
-                $abortar('La orden '.$fac['orden_folio'].' se pagó en parte con anticipo ($'.number_format($antOrden['total_anticipos'], 2)
-                    .'). El SAT pide la forma de pago con la que se pagó el monto mayor: '.$formaEsp
-                    .($formaEsp === '30' ? ' (Aplicación de anticipos)' : '').'. Edita la factura y vuelve a timbrar.');
+            $formasOk = _facturapiFormasValidasConAnticipo($pdo, $fac['orden_folio']);
+            if (!in_array((string)$fac['forma_pago'], $formasOk, true)) {
+                $abortar('La orden '.$fac['orden_folio'].' se pagó en parte con anticipo ($'.number_format($antOrden['total_anticipos'], 2).'). '
+                    .($formasOk === ['30']
+                        ? 'Como el anticipo cubrió todo, la forma de pago es 30 (Aplicación de anticipos).'
+                        : 'La factura del total lleva la forma con la que se pagó la diferencia (la de mayor importe): '.implode(' o ', $formasOk)
+                          .'. La forma 30 va en la nota de crédito, no aquí (Anexo 20, Apéndice 6).')
+                    .' Edita la factura y vuelve a timbrar.');
             }
         } else {
             $antOrden = null;
