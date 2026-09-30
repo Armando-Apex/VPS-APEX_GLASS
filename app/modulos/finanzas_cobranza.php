@@ -322,6 +322,17 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
           <input class="sf-form-input" id="sf-fecha" type="date">
         </div>
         <div class="sf-form-row">
+          <label class="sf-form-label" for="sf-forma">Forma de pago <span style="color:#ef4444">*</span></label>
+          <select class="sf-form-input" id="sf-forma">
+            <option value="">— Selecciona —</option>
+            <option value="transferencia">Transferencia</option>
+            <option value="efectivo">Efectivo</option>
+            <option value="cheque">Cheque</option>
+            <option value="tarjeta_credito">Tarjeta de crédito</option>
+            <option value="tarjeta_debito">Tarjeta de débito</option>
+          </select>
+        </div>
+        <div class="sf-form-row">
           <label class="sf-form-label" for="sf-ref">Referencia / No. de transferencia</label>
           <input class="sf-form-input" id="sf-ref" type="text" placeholder="Ej. SPEI-123456">
         </div>
@@ -1117,6 +1128,7 @@ async function sfToggleHist(cid, idx) {
             return '<div class="sf-mov-row">'
               + '<span class="sf-mov-tipo sf-mov-' + m.tipo + '">' + m.tipo.charAt(0).toUpperCase() + m.tipo.slice(1) + '</span>'
               + '<span class="sf-mov-fecha">' + m.fecha + '</span>'
+              + (m.forma_pago ? '<span style="font-size:11px;color:#475569;font-weight:600">' + escHtmlSf(sfFormaTxt(m.forma_pago, m.tarjeta_tipo)) + '</span>' : '')
               + (m.referencia ? '<span class="sf-mov-ref">' + escHtmlSf(m.referencia) + '</span>' : '<span class="sf-mov-ref" style="font-style:italic;color:#cbd5e1">Sin referencia</span>')
               + (m.notas ? '<span style="font-size:12px;color:#64748b">' + escHtmlSf(m.notas) + '</span>' : '')
               + '<span class="sf-mov-monto ' + (pos?'positivo':'negativo') + '">' + (pos?'+':'') + fmt(m.monto) + '</span>'
@@ -1149,12 +1161,18 @@ async function sfToggleHist(cid, idx) {
 }
 window.sfToggleHist = sfToggleHist;
 
+function sfFormaTxt(forma, tipo) {
+  if (forma === 'tarjeta') return tipo === 'debito' ? 'Tarjeta d\u00e9bito' : (tipo === 'credito' ? 'Tarjeta cr\u00e9dito' : 'Tarjeta');
+  return {efectivo:'Efectivo', transferencia:'Transferencia', cheque:'Cheque'}[forma] || forma;
+}
+
 function sfAbrirModal(clienteId, clienteNombre) {
   document.getElementById('sf-cli-busq').value = clienteNombre || '';
   document.getElementById('sf-cli-id').value   = clienteId    || '';
   document.getElementById('sf-monto').value    = '';
   document.getElementById('sf-fecha').value    = new Date().toISOString().substring(0,10);
   document.getElementById('sf-ref').value      = '';
+  document.getElementById('sf-forma').value    = '';
   document.getElementById('sf-notas').value    = '';
   document.getElementById('sf-cli-lista').style.display = 'none';
   document.getElementById('sf-ap-check').checked = false;
@@ -1213,12 +1231,14 @@ async function sfGuardar() {
   var monto     = parseFloat(document.getElementById('sf-monto').value || 0);
   var fecha     = document.getElementById('sf-fecha').value;
   var ref       = document.getElementById('sf-ref').value.trim();
+  var forma     = document.getElementById('sf-forma').value;
   var notas     = document.getElementById('sf-notas').value.trim();
   var esApartado = document.getElementById('sf-ap-check').checked;
 
   if (!cid)      { alert('Selecciona un cliente'); document.getElementById('sf-cli-busq').focus(); return; }
   if (monto <= 0){ alert('El monto debe ser mayor a cero'); document.getElementById('sf-monto').focus(); return; }
   if (!fecha)    { alert('La fecha es obligatoria'); return; }
+  if (!forma)    { alert('Indica la forma de pago del dep\u00f3sito (la factura del anticipo la exige)'); document.getElementById('sf-forma').focus(); return; }
 
   var payload;
   if (esApartado) {
@@ -1227,13 +1247,13 @@ async function sfGuardar() {
     if (!_sfApItems.length) { alert('Agrega al menos un producto apartado'); return; }
     payload = {
       accion: 'crear_apartado', cliente_id: parseInt(cid), monto: monto, fecha: fecha,
-      referencia: ref, notas: notas, vigencia_dias: vigencia,
+      referencia: ref, notas: notas, vigencia_dias: vigencia, forma_pago: forma,
       items: _sfApItems.map(function(it) {
         return {cristal_id: it.cristal_id, precio_m2_pactado: it.precio_m2_pactado, m2_referencia: it.m2_referencia};
       })
     };
   } else {
-    payload = {accion:'deposito', cliente_id: parseInt(cid), monto: monto, fecha: fecha, referencia: ref, notas: notas};
+    payload = {accion:'deposito', cliente_id: parseInt(cid), monto: monto, fecha: fecha, referencia: ref, notas: notas, forma_pago: forma};
   }
 
   var btn = document.getElementById('sf-btn-guardar');

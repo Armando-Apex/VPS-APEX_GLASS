@@ -8,6 +8,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
+require_once __DIR__ . '/helpers/saldo_favor_lib.php';
 require_once __DIR__ . '/helpers/totales.php'; // A-03: barrera de cobro en corregir_estatus
 require_once __DIR__ . '/helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
 
@@ -131,6 +132,7 @@ if ($method === 'POST') {
                            'Saldo cobrado movido a favor por cancelación de orden',
                            $cot['id'], $user['nombre']
                        ]);
+                    sfMarcarFormaDesdeCotizacion($db, (int)$db->lastInsertId(), $cot['id']); // anticipo: forma de pago (UPD-623)
                     $db->prepare("UPDATE cotizaciones SET saldo_pagado=0, saldo_pendiente=0, estatus_pago='pendiente', updated_at=NOW() WHERE id=?")
                        ->execute([$cot['id']]);
                 }

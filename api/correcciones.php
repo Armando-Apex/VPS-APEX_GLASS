@@ -7,6 +7,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
+require_once __DIR__ . '/helpers/saldo_favor_lib.php';
 require_once __DIR__ . '/helpers/totales.php'; // A-2/C-5: fórmula canónica, ramifica maquila
 require_once 'cotizacion_helpers.php'; // BLV-5: cotizacionesFacturaVigente()
 
@@ -494,6 +495,7 @@ if ($method === 'POST') {
                        'Excedente por corrección que redujo el total por debajo de lo ya cobrado',
                        $cot_id, $usuario
                    ]);
+                sfMarcarFormaDesdeCotizacion($db, (int)$db->lastInsertId(), $cot_id); // anticipo: forma de pago (UPD-623)
                 $nuevo_saldo_pagado = $nuevo_total;
 
                 $db->prepare("

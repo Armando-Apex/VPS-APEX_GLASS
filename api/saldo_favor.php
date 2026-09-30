@@ -4,6 +4,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
+require_once __DIR__ . '/helpers/saldo_favor_lib.php';
 header('Content-Type: application/json; charset=utf-8');
 
 $user   = requireSessionApi();
@@ -31,7 +32,7 @@ if ($method === 'GET') {
     if ($accion === 'historial' && isset($_GET['cliente_id'])) {
         $cid  = (int)$_GET['cliente_id'];
         $stmt = $db->prepare("
-            SELECT sf.id, sf.tipo, sf.monto, sf.fecha, sf.referencia, sf.notas,
+            SELECT sf.id, sf.tipo, sf.monto, sf.forma_pago, sf.tarjeta_tipo, sf.fecha, sf.referencia, sf.notas,
                    sf.cotizacion_id, sf.creado_por, sf.created_at
             FROM clientes_saldo_favor sf
             WHERE sf.cliente_id = ?
@@ -146,6 +147,9 @@ if ($method === 'POST') {
 
         if (!$cliente_id) { jsonResponse(['error' => 'Cliente requerido']); exit; }
         if ($monto <= 0)  { jsonResponse(['error' => 'El monto debe ser mayor a cero']); exit; }
+        // Anticipo (esquema A del SAT): su CFDI exige la forma de pago real.
+        $formaSf = sfNormalizarForma($body['forma_pago'] ?? '');
+        if (!$formaSf) { jsonResponse(['error' => 'Indica la forma de pago del depósito']); exit; }
 
         $stmt = $db->prepare("SELECT id FROM clientes WHERE id = ? AND activo = 1");
         $stmt->execute([$cliente_id]);
@@ -162,9 +166,9 @@ if ($method === 'POST') {
         }
 
         $db->prepare("
-            INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, creado_por)
-            VALUES (?, 'deposito', ?, ?, ?, ?, ?)
-        ")->execute([$cliente_id, $monto, $fecha, $referencia, $notas, $user['nombre']]);
+            INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, forma_pago, tarjeta_tipo, fecha, referencia, notas, creado_por)
+            VALUES (?, 'deposito', ?, ?, ?, ?, ?, ?, ?)
+        ")->execute([$cliente_id, $monto, $formaSf[0], $formaSf[1], $fecha, $referencia, $notas, $user['nombre']]);
 
         $stmt2 = $db->prepare("SELECT COALESCE(SUM(monto),0) as saldo FROM clientes_saldo_favor WHERE cliente_id = ?");
         $stmt2->execute([$cliente_id]);
@@ -188,6 +192,8 @@ if ($method === 'POST') {
         if ($monto <= 0)                                { jsonResponse(['error' => 'El monto debe ser mayor a cero']); exit; }
         if ($vigencia_dias < 1 || $vigencia_dias > 45)  { jsonResponse(['error' => 'La vigencia debe ser de 1 a 45 días']); exit; }
         if (!count($items))                             { jsonResponse(['error' => 'Agrega al menos un producto apartado']); exit; }
+        $formaSf = sfNormalizarForma($body['forma_pago'] ?? '');
+        if (!$formaSf)                                  { jsonResponse(['error' => 'Indica la forma de pago del depósito']); exit; }
 
         $stmt = $db->prepare("SELECT id FROM clientes WHERE id = ? AND activo = 1");
         $stmt->execute([$cliente_id]);
@@ -223,9 +229,9 @@ if ($method === 'POST') {
         $db->beginTransaction();
         try {
             $db->prepare("
-                INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, creado_por)
-                VALUES (?, 'deposito', ?, ?, ?, ?, ?)
-            ")->execute([$cliente_id, $monto, $fecha, $referencia, $notas, $user['nombre']]);
+                INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, forma_pago, tarjeta_tipo, fecha, referencia, notas, creado_por)
+                VALUES (?, 'deposito', ?, ?, ?, ?, ?, ?, ?)
+            ")->execute([$cliente_id, $monto, $formaSf[0], $formaSf[1], $fecha, $referencia, $notas, $user['nombre']]);
             $saldo_favor_id = (int)$db->lastInsertId();
 
             $db->prepare("

@@ -328,6 +328,13 @@ if ($method === 'POST') {
             if ($saldo_pendiente <= 0.01) {
                 throw new Exception('La cotización ya está liquidada — registra el excedente como depósito en Saldo a Favor');
             }
+            // Un pago con saldo a favor nunca excede lo que se debe (30-sep-2026): antes se
+            // descontaba del monedero el monto completo y el sobrante regresaba como un
+            // "depósito" nuevo, que para el SAT parecería un anticipo recibido sin que
+            // entrara dinero. Ahora solo se toma del saldo lo necesario.
+            if ($forma === 'saldo_favor' && $monto > $saldo_pendiente) {
+                $monto = $saldo_pendiente;
+            }
             $excedente       = round($monto - $saldo_pendiente, 2);
 
             // Orden ya facturada (29-sep-2026): el complemento de pago nunca puede exceder
@@ -417,10 +424,12 @@ if ($method === 'POST') {
                 $stmt_fol->execute([$cot_id]);
                 $fila_fol = $stmt_fol->fetch(PDO::FETCH_ASSOC);
                 $ref_dep  = 'Excedente de pago en ' . ($fila_fol ? $fila_fol['folio'] : 'cot. #'.$cot_id);
+                // Anticipo (esquema A del SAT): el excedente hereda la forma del pago que lo generó.
                 $db->prepare("INSERT INTO clientes_saldo_favor
-                    (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
-                    VALUES (?, 'deposito', ?, ?, ?, ?, ?, ?)
-                ")->execute([$cliente_id_dep, $depositar_favor, $fecha, $ref_dep, $notas, $cot_id, $usuario_nombre]);
+                    (cliente_id, tipo, monto, forma_pago, tarjeta_tipo, fecha, referencia, notas, cotizacion_id, creado_por)
+                    VALUES (?, 'deposito', ?, ?, ?, ?, ?, ?, ?, ?)
+                ")->execute([$cliente_id_dep, $depositar_favor, $forma, ($forma === 'tarjeta' ? $tarjetaTipo : null),
+                             $fecha, $ref_dep, $notas, $cot_id, $usuario_nombre]);
             }
 
             // Fase 6.2 — póliza automática de cobro real (Debe Bancos / Haber CxC), por el

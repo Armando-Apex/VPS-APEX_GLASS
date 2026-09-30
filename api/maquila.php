@@ -5,6 +5,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
+require_once __DIR__ . '/helpers/saldo_favor_lib.php';
 require_once 'cotizacion_helpers.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -520,6 +521,7 @@ if ($recurso === 'cotizacion') {
                        'Saldo cobrado movido a favor por cancelación (maquila)',
                        $id, $usuario_nombre
                    ]);
+                sfMarcarFormaDesdeCotizacion($db, (int)$db->lastInsertId(), $id); // anticipo: forma de pago (UPD-623)
                 $db->prepare("UPDATE cotizaciones SET saldo_pagado=0, saldo_pendiente=0, estatus_pago='pendiente', updated_at=NOW() WHERE id=?")
                    ->execute([$id]);
             }
