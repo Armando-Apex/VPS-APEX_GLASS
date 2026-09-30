@@ -1394,15 +1394,9 @@ if ($method === 'PUT') {
             // Dinero cobrado → saldo a favor del cliente (mismo flujo que 'rechazar')
             $monto = (float)$cot['saldo_pagado'];
             if ($monto > 0 && $cot['cliente_id']) {
-                $db->prepare("INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
-                              VALUES (?, 'deposito', ?, CURDATE(), ?, ?, ?, ?)")
-                   ->execute([
-                       $cot['cliente_id'], $monto,
-                       'Cancelación ' . $cot['folio'],
-                       'Saldo cobrado movido a favor por cancelación',
-                       $id, $usuario_nombre
-                   ]);
-                sfMarcarFormaDesdeCotizacion($db, (int)$db->lastInsertId(), $id); // anticipo: forma de pago (UPD-623)
+                // Devolución al saldo a favor: lo pagado con saldo regresa como reintegro ligado a su
+                // depósito de origen; solo el resto es depósito nuevo (anticipos esquema A, UPD-626).
+                sfRegistrarDevolucion($db, $cot['cliente_id'], $monto, 'Cancelación ' . $cot['folio'], 'Saldo cobrado movido a favor por cancelación', $id, $usuario_nombre);
                 $db->prepare("UPDATE cotizaciones SET saldo_pagado=0, saldo_pendiente=0, estatus_pago='pendiente', updated_at=NOW() WHERE id=?")
                    ->execute([$id]);
             }
@@ -1460,17 +1454,9 @@ if ($method === 'PUT') {
             //    el UPDATE de arriba ya puso saldo_pagado=0, por lo que el dinero
             //    deja de contarse como "cobrado" en el mismo paso)
             if ($montoDevuelto > 0) {
-                $db->prepare("INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
-                              VALUES (?, 'deposito', ?, CURDATE(), ?, ?, ?, ?)")
-                   ->execute([
-                       $cot['cliente_id'],
-                       $montoDevuelto,
-                       'Rechazo ' . $cot['folio'],
-                       'Rechazo por calidad: ' . mb_substr($motivo, 0, 150),
-                       $id,
-                       $user['nombre']
-                   ]);
-                sfMarcarFormaDesdeCotizacion($db, (int)$db->lastInsertId(), $id); // anticipo: forma de pago (UPD-623)
+                // Devolución al saldo a favor: lo pagado con saldo regresa como reintegro ligado a su
+                // depósito de origen; solo el resto es depósito nuevo (anticipos esquema A, UPD-626).
+                sfRegistrarDevolucion($db, $cot['cliente_id'], $montoDevuelto, 'Rechazo ' . $cot['folio'], 'Rechazo por calidad: ' . mb_substr($motivo, 0, 150), $id, $user['nombre']);
             }
 
             $db->commit();

@@ -109,6 +109,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
     // Anticipos (esquema A): se avisa desde aquí cómo va a quedar la factura.
     $avisoAnt = null;
     $antO = _facturapiAnticiposDeOrden($pdo, $orden['folio']);
+    $avisosExtra = [];
+    if ($antO['referido'] > 0.004) {
+        $avisosExtra[] = 'Incluye $' . number_format($antO['referido'], 2) . ' de bono de referido: va como descuento dentro de la factura (el total del CFDI baja en ese monto).';
+    }
+    if ($antO['anterior'] > 0.004) {
+        $avisosExtra[] = 'Incluye $' . number_format($antO['anterior'], 2) . ' de saldo a favor anterior al 01/10/2026 (nunca se facturó como anticipo): la factura va normal, con la forma de pago con la que el cliente pagó originalmente ese dinero. Confírmalo con el contador.';
+    }
+    if ($antO['aplicado'] > 0.004) {
+        $avisosExtra[] = 'Con saldo a favor aplicado se factura en PUE cuando la orden esté liquidada.';
+    }
     if ($antO['sin_facturar']) {
         $avisoAnt = 'Se pagó con saldo a favor de un depósito cuyo anticipo todavía no se factura: primero factúralo en "Anticipos por facturar".';
     } elseif ($antO['anticipos']) {
@@ -117,6 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
             . _facturapiFormaEsperadaConAnticipo($pdo, $orden['folio'], $antO['total_anticipos'])
             . ' (la del monto mayor) y al timbrarla se emite sola la nota de crédito.';
     }
+
+    if ($avisosExtra) $avisoAnt = trim(($avisoAnt ?? '') . ' ' . implode(' ', $avisosExtra));
 
     jsonResponse(['ok'=>true, 'orden'=>$orden, 'cliente'=>$cliente, 'conceptos'=>$conceptos,
                   'cobro'=>$cobro, 'aviso_mes'=>$avisoMes, 'aviso_anticipo'=>$avisoAnt]);
@@ -660,8 +672,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     // anticipo, con la forma de pago del monto mayor (30 si es el anticipo) y en PUE; al
     // timbrarla se emite sola la nota de crédito por lo aplicado.
     $antOrden = null;
+    $descReferido = 0.0;   // Fase 4: bono de referido aplicado = descuento dentro de esta factura
     if (!empty($fac['orden_folio']) && empty($fac['saldo_favor_id'])) {
         $antOrden = _facturapiAnticiposDeOrden($pdo, $fac['orden_folio']);
+        // Cualquier saldo a favor aplicado (anticipo, referido o saldo anterior) obliga a
+        // facturar en PUE con la orden liquidada: con PPD, esos "pagos" generarían
+        // complementos de un dinero que no se cobró en ese momento (Fase 4, 30-sep-2026).
+        if ($antOrden['aplicado'] > 0.004 && $fac['metodo_pago'] !== 'PUE') {
+            $abortar('La orden '.$fac['orden_folio'].' se pagó en parte con saldo a favor ($'.number_format($antOrden['aplicado'], 2)
+                .'): se factura en PUE cuando esté liquidada, no en parcialidades.');
+        }
+        $descReferido = $antOrden['referido'];
         if ($antOrden['sin_facturar']) {
             $pz = $antOrden['sin_facturar'][0];
             $abortar('La orden '.$fac['orden_folio'].' se pagó con saldo a favor de un depósito del '.date('d/m/Y', strtotime($pz['fecha']))
@@ -713,6 +734,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
             ],
         ];
         $items[] = $item;
+    }
+
+    // Bono de referido aplicado (Fase 4 del esquema de anticipos, 30-sep-2026): no es un
+    // pago ni un anticipo — no entró dinero —, es una bonificación sobre esta venta. Va
+    // como DESCUENTO en los conceptos (campo 'discount' de FacturAPI, antes de IVA),
+    // repartido en proporción al importe de cada concepto gravado. El total del CFDI queda
+    // por lo que el cliente realmente pagó en dinero.
+    if ($descReferido > 0.004) {
+        $idx = [];
+        foreach ($conceptos as $i => $c) { if (!empty($c['iva']) && empty($c['iva_incluido'])) $idx[] = $i; }
+        $conIva = (bool)$idx;
+        if (!$idx) $idx = array_keys($conceptos);
+        $desc = $conIva ? round($descReferido / 1.16, 2) : round($descReferido, 2);
+        $imps = []; $totImp = 0.0;
+        foreach ($idx as $i) { $imps[$i] = round((float)$conceptos[$i]['cant'] * (float)$conceptos[$i]['precio'], 2); $totImp += $imps[$i]; }
+        // Dividir entre 1.16 y redondear puede dejar el total un centavo arriba o abajo de
+        // (total - bono). Se prueba el descuento vecino que deje el total exacto.
+        if ($conIva) {
+            $objetivo = round((float)$fac['total'] - $descReferido, 2);
+            $resto = round((float)$fac['total'] - round($totImp * 1.16, 2), 2);   // conceptos fuera del reparto
+            $mejor = $desc; $dif = null;
+            foreach ([0, -0.01, 0.01, -0.02, 0.02] as $k) {
+                $dd = round($desc + $k, 2); $base = round($totImp - $dd, 2);
+                $t = round($base + round($base * 0.16, 2) + $resto, 2);
+                if ($dif === null || abs($t - $objetivo) < $dif - 0.0001) { $dif = abs($t - $objetivo); $mejor = $dd; }
+            }
+            $desc = $mejor;
+        }
+        if ($totImp <= 0 || $desc > $totImp) {
+            $abortar('El bono de referido aplicado ($'.number_format($descReferido, 2).') es mayor que los conceptos de la factura.');
+        }
+        $repartido = 0.0; $ultimo = end($idx);
+        foreach ($idx as $i) {
+            $d = ($i === $ultimo) ? round($desc - $repartido, 2) : round($desc * $imps[$i] / $totImp, 2);
+            $repartido = round($repartido + $d, 2);
+            if ($d > 0) $items[$i]['discount'] = $d;
+        }
     }
 
     // Tipo CFDI: IG se manda como I a FacturAPI

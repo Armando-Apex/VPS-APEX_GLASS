@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/saldo_favor_lib.php';
 // Funciones compartidas de Facturación (CFDI, complementos de pago, resguardo).
 // Extraídas de api/facturapi.php el 29-sep-2026 para que Cobranza (api/finanzas.php)
 // pueda emitir complementos de pago automáticos sin duplicar código.
@@ -207,27 +208,7 @@ function _facturapiConceptoAnticipo($monto) {
 // de los depósitos más antiguos que tengan saldo, en orden de fecha e id. Regresa, por
 // cada fila de consumo, los pedazos de depósito que la pagaron.
 function _facturapiAsignacionPeps($pdo, $clienteId) {
-    $stmt = $pdo->prepare("SELECT id, tipo, monto, fecha FROM clientes_saldo_favor WHERE cliente_id = ? ORDER BY fecha, id");
-    $stmt->execute([(int)$clienteId]);
-    $cola = []; $asig = [];
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $m = round((float)$r['monto'], 2);
-        if ($m > 0) { $r['resto'] = $m; $cola[] = $r; continue; }
-        if ($m == 0) continue;
-        $falta = -$m; $piezas = [];
-        foreach ($cola as &$d) {
-            if ($falta <= 0.004) break;
-            if ($d['resto'] <= 0.004) continue;
-            $toma = round(min($d['resto'], $falta), 2);
-            $d['resto'] = round($d['resto'] - $toma, 2);
-            $falta = round($falta - $toma, 2);
-            $piezas[] = ['deposito_id'=>(int)$d['id'], 'tipo'=>$d['tipo'], 'fecha'=>$d['fecha'], 'monto'=>$toma];
-        }
-        unset($d);
-        if ($falta > 0.004) $piezas[] = ['deposito_id'=>null, 'tipo'=>'sin_origen', 'fecha'=>null, 'monto'=>$falta];
-        $asig[(int)$r['id']] = $piezas;
-    }
-    return $asig;
+    return sfAsignacionPeps($pdo, $clienteId);   // helpers/saldo_favor_lib.php (reintegros heredan su origen)
 }
 
 // Cómo se pagó con saldo a favor una orden, clasificado para el esquema A:
@@ -243,17 +224,15 @@ function _facturapiAnticiposDeOrden($pdo, $ordenFolio) {
     $stmt->execute([$ordenFolio]);
     $cot = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$cot || !$cot['cliente_id']) return $vacio;
-    $stmt = $pdo->prepare("SELECT id FROM clientes_saldo_favor WHERE cotizacion_id = ? AND tipo = 'aplicacion' AND monto < 0");
-    $stmt->execute([(int)$cot['id']]);
-    $apls = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    if (!$apls) return $vacio;
-
-    $asig = _facturapiAsignacionPeps($pdo, $cot['cliente_id']);
+    // Lo aplicado HOY: pedazos de sus aplicaciones menos lo ya reintegrado (p. ej. una
+    // corrección que bajó el total después de pagar con saldo a favor).
+    $piezas = sfPiezasNetasCotizacion($pdo, $cot['id'], $cot['cliente_id']);
+    if (!$piezas) return $vacio;
     $stAnt = $pdo->prepare("SELECT id, folio_interno, uuid FROM facturas
         WHERE saldo_favor_id = ? AND modo = ? AND estatus = 'timbrada' AND (pac_cancel_status IS NULL OR pac_cancel_status <> 'pending') ORDER BY id LIMIT 1");
     $r = $vacio; $porAnt = [];
-    foreach ($apls as $aid) {
-        foreach (($asig[(int)$aid] ?? []) as $pz) {
+    foreach ([$piezas] as $lista) {
+        foreach ($lista as $pz) {
             $r['aplicado'] = round($r['aplicado'] + $pz['monto'], 2);
             if ($pz['tipo'] === 'referido') { $r['referido'] = round($r['referido'] + $pz['monto'], 2); continue; }
             if ($pz['tipo'] !== 'deposito' || $pz['fecha'] < ANTICIPOS_DESDE) { $r['anterior'] = round($r['anterior'] + $pz['monto'], 2); continue; }

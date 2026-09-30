@@ -341,6 +341,17 @@ if ($method === 'POST') {
             // el saldo de la factura, así que CUALQUIER excedente (también < $10) requiere
             // decisión explícita antes de registrar nada.
             $facVig = _facturapiFacturaVigenteDeCotizacion($db, $cot_id);
+            // Anticipos esquema A (Fase 4, 30-sep-2026): una factura PPD ya declaró el total
+            // "por cobrar" y cada abono lleva su complemento; un pago con saldo a favor no es
+            // un cobro de ese momento (el dinero entró antes, como anticipo) y no tiene un
+            // complemento correcto. Se bloquea en vez de emitir algo dudoso.
+            if ($facVig && $facVig['metodo_pago'] === 'PPD' && $forma === 'saldo_favor') {
+                $db->rollBack();
+                jsonResponse(['ok'=>false,
+                    'error'=>'Esta orden ya tiene la factura '.$facVig['folio_interno'].' en parcialidades (PPD): no se le puede aplicar saldo a favor. '
+                        .'Registra el pago con la forma real, o consulta con el contador cómo aplicar el anticipo.']);
+                exit;
+            }
             if ($facVig && $facVig['metodo_pago'] === 'PPD' && $forma === 'tarjeta' && !$tarjetaTipo) {
                 $db->rollBack();
                 jsonResponse(['ok'=>false, 'requiere'=>'tipo_tarjeta',

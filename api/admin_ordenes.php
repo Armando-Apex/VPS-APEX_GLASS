@@ -124,15 +124,9 @@ if ($method === 'POST') {
 
                 $monto = (float)$cot['saldo_pagado'];
                 if ($monto > 0 && $cot['cliente_id']) {
-                    $db->prepare("INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
-                                  VALUES (?, 'deposito', ?, CURDATE(), ?, ?, ?, ?)")
-                       ->execute([
-                           $cot['cliente_id'], $monto,
-                           'Cancelación ' . $folio,
-                           'Saldo cobrado movido a favor por cancelación de orden',
-                           $cot['id'], $user['nombre']
-                       ]);
-                    sfMarcarFormaDesdeCotizacion($db, (int)$db->lastInsertId(), $cot['id']); // anticipo: forma de pago (UPD-623)
+                    // Devolución al saldo a favor: lo pagado con saldo regresa como reintegro ligado a su
+                    // depósito de origen; solo el resto es depósito nuevo (anticipos esquema A, UPD-626).
+                    sfRegistrarDevolucion($db, $cot['cliente_id'], $monto, 'Cancelación ' . $folio, 'Saldo cobrado movido a favor por cancelación de orden', $cot['id'], $user['nombre']);
                     $db->prepare("UPDATE cotizaciones SET saldo_pagado=0, saldo_pendiente=0, estatus_pago='pendiente', updated_at=NOW() WHERE id=?")
                        ->execute([$cot['id']]);
                 }

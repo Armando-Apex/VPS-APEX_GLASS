@@ -487,15 +487,9 @@ if ($method === 'POST') {
             // cancelar/rechazar en cotizaciones.php.
             $excedente = round($saldo_pagado - $nuevo_total, 2);
             if ($excedente > 0.01 && $cot['cliente_id']) {
-                $db->prepare("INSERT INTO clientes_saldo_favor (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
-                              VALUES (?, 'deposito', ?, CURDATE(), ?, ?, ?, ?)")
-                   ->execute([
-                       $cot['cliente_id'], $excedente,
-                       'Corrección ' . $folio,
-                       'Excedente por corrección que redujo el total por debajo de lo ya cobrado',
-                       $cot_id, $usuario
-                   ]);
-                sfMarcarFormaDesdeCotizacion($db, (int)$db->lastInsertId(), $cot_id); // anticipo: forma de pago (UPD-623)
+                // Devolución al saldo a favor: lo pagado con saldo regresa como reintegro ligado a su
+                // depósito de origen; solo el resto es depósito nuevo (anticipos esquema A, UPD-626).
+                sfRegistrarDevolucion($db, $cot['cliente_id'], $excedente, 'Corrección ' . $folio, 'Excedente por corrección que redujo el total por debajo de lo ya cobrado', $cot_id, $usuario);
                 $nuevo_saldo_pagado = $nuevo_total;
 
                 $db->prepare("
