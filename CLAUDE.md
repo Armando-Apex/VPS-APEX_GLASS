@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 30 septiembre 2026 | Próximo UPD disponible: UPD-631
+# Última actualización: 30 septiembre 2026 | Próximo UPD disponible: UPD-632
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar.
 
@@ -485,7 +485,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-631**
+Próximo UPD disponible: **UPD-632**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -692,4 +692,6 @@ Archivo completo: `docs/HISTORIAL_UPD_581_604.md` (12-sep-2026 → 26-sep-2026)
 
 | UPD-630 | 30-sep-2026 | Armando | **Cierre de sesión 29/30-sep — estados que no quedaron en los UPD de origen (solo documentación).** (1) **Campañas enviadas** (UPD-620 y 621 decían "no se ha enviado" o "falta crear la campaña"): #60 "Promo Saltillo Sep - Coahuila (reenvío 29-sep)" → 246 enviados, 213 entregados, 95 leídos; 18 fallidos, todos por límites de Meta a mensajes de marketing (131049/130472/131050) y **ninguno 131026**, así que el filtro `sin_whatsapp` de UPD-602 funcionó. #61 "Promo Fin de Septiembre MTY" (plantilla `fin_de_sep_2026`, creada por Armando en el módulo) → 300 enviados, 276 entregados, 162 leídos; 15 fallidos por las mismas causas de Meta. Los códigos `SALT_SEP2026` y `MTY_SEP2026` vencen el 30-sep 23:59 (VoBo hasta el 05-oct). (2) **COT-2047 (MANUEL OLIVARES, insulados Claro 6mm):** Armando subió el precio de Claro 6mm de $678.03 a **$785.16/m² sin IVA** para que la cotización subiera un 12% real (total $35,794.82 → $40,090.04). El vidrio tenía que subir 15.8% porque el separador ($7,422.58) no cambia. Cambio hecho por Armando desde el módulo, verificado en BD. (3) **Manifiesto de FacturAPI firmado** (checklist punto 1); FacturAPI ya reportaba `is_production_ready: true`. (4) Actualizados en la sección 12: la fila de Depósito a Cuenta/Saldo a Favor (resuelta en su parte fiscal por el esquema A), el punto (4) del checklist de Facturación (el 50% de una orden pactada es parcialidad/PPD, no anticipo) y el punto (5) (notas de crédito de anticipo ya existen). Pendientes nuevos de esta sesión, todos en la sección 12: revisión de Lina de los 45 depósitos anteriores al 01-oct; folios de Apex vs. CONTPAQi; proyecto de buzón de facturas de proveedores → OC. |
 
-**Próximo UPD disponible: UPD-631**
+| UPD-631 | 30-sep-2026 | Armando | **Manual de uso de Facturación (documento, sin cambios de código ni BD).** PDF de 13 páginas `Manual_Facturacion_Apex.pdf` en Archivos de Video → carpeta **Salidas** (`herramientas/video-marketing/media/Salidas/`, dueño apexglass2025, 640), descargable desde el módulo. Cubre: permisos y pestañas, series A/P/N, datos fiscales/CSF y Guardar en CRM, facturar una orden paso a paso, reglas PUE/PPD, Público en General, Complementos de Pago (automáticos y manuales), anticipos esquema A (depósito, factura de anticipo, relación 07 + nota N, referido como descuento, anticipos anteriores al 1-oct, reintegros), cancelación (motivos, 72h/$1,000, candados), refacturar (04), descargas/resguardo, timbrados en verificación, errores frecuentes, hoja rápida y glosario. Refleja el estado al 30-sep (modo prueba, correo apagado); **actualizarlo si cambian reglas al pasar a live o por indicación del contador.** Fuente HTML generada con Chromium headless (no guardada en el repo). |
+
+**Próximo UPD disponible: UPD-632**
