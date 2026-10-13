@@ -471,6 +471,9 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       </button>
       <?php endif; ?>
       <?php if (tienePermiso($_rol, 'ver_contabilidad')): ?>
+      <button class="sidebar-link" data-modulo="bancos" onclick="cargarModulo('bancos')">
+        <span class="sidebar-icon"><?= icono('credit-card') ?></span>Bancos
+      </button>
       <button class="sidebar-link" data-modulo="contabilidad" onclick="cargarModulo('contabilidad')">
         <span class="sidebar-icon"><?= icono('layers') ?></span>Contabilidad<?php if ($_rol === 'desarrollo'): ?> <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px">WIP</span><?php endif; ?>
       </button>
@@ -540,6 +543,7 @@ const MODULOS = {
   finanzas_cobranza:'modulos/finanzas_cobranza.php',
   facturacion:'modulos/facturacion.php',
   contabilidad:'modulos/contabilidad.php',
+  bancos:'modulos/bancos.php',
   bono_corte:'modulos/bono_corte.php',
   comisiones:'modulos/comisiones.php',
   logistica_rutas:'modulos/logistica_rutas.php', chofer_ruta:'modulos/chofer_ruta.php',

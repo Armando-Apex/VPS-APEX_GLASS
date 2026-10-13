@@ -41,6 +41,7 @@ function apexArchivosSoloConsulta() {
         'app/modulos/contabilidad_balance.php',
         'app/modulos/caja_chica.php',
         'app/modulos/gastos_fijos.php',
+        'app/modulos/bancos.php',
         // APIs que usan esas pantallas (sus GET solo leen; revisado 01-oct-2026)
         'api/logout.php',
         'api/finanzas.php',
@@ -55,6 +56,7 @@ function apexArchivosSoloConsulta() {
         'api/contabilidad_balance.php',
         'api/caja_chica.php',
         'api/gastos_fijos.php',
+        'api/bancos.php',
     ];
     if (CONTADOR_VE_NOMINA) {
         $lista[] = 'app/modulos/nomina.php';
