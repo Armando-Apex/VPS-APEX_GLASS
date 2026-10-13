@@ -57,12 +57,18 @@ $puedeAprobar = tienePermiso($user['rol'], 'gestionar_contabilidad');
 .bc-det-panel .folio { font-weight:700; color:#2563eb; }
 .bc-det-panel .sin-piezas { color:var(--c-muted); font-style:italic; }
 
+.bc-det-panel tr.excl td { color:#94a3b8; text-decoration:line-through; }
+.bc-det-panel tr.excl td.motivo { text-decoration:none; }
+.bc-tag-excl { font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:99px; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; white-space:nowrap; }
+.bc-control { padding:8px 18px; border-top:1px solid #e2e8f0; font-size:12px; color:#64748b; background:#fff; }
+.bc-control b { color:#b91c1c; }
+
 .bc-empty { text-align:center; padding:60px 20px; color:var(--c-muted); }
 </style>
 
 <div class="bc-wrap">
   <div class="bc-title">Bono de Corte — Pedacería</div>
-  <div class="bc-sub">Calcula el bono semanal por m&sup2; de pedacer&iacute;a aprovechados. Excluye autom&aacute;ticamente sobrantes declarados grandes (tope silencioso, no visible para el operador).</div>
+  <div class="bc-sub">Calcula el bono semanal por m&sup2; de pedacer&iacute;a aprovechados. Excluye autom&aacute;ticamente sobrantes declarados grandes (tope silencioso, no visible para el operador). Desde el 08-oct-2026 tampoco cuentan las piezas que se vuelven a cortar ni los cortes reportados como rotos en corte.</div>
 
   <div class="bc-nav">
     <button onclick="BonoCorte.prevSemana()">&lsaquo;</button>
@@ -182,27 +188,38 @@ var BonoCorte = (function() {
           var fecha = new Date(s.created_at.replace(' ', 'T'));
           var fechaTxt = fecha.toLocaleString('es-MX', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
           var tamano = Number(s.m2_disponible).toFixed(2) + ' m²';
+          var MOTIVOS = { recorte: 'Recorte — ya se había cortado', rota: 'Reportada rota en corte' };
           var vidrio = esc(s.tipo) + ' ' + s.espesor_mm + 'mm';
           if (!s.piezas || !s.piezas.length) {
             detRows += '<tr><td>' + fechaTxt + '</td><td>' + vidrio + '</td><td>' + tamano + '</td>'
-              + '<td colspan="3" class="sin-piezas">Sin piezas asociadas</td></tr>';
+              + '<td colspan="4" class="sin-piezas">Sin piezas asociadas</td></tr>';
           } else {
             s.piezas.forEach(function(p, idx) {
               var medida = p.ancho_mm + '×' + p.alto_mm + 'mm';
-              detRows += '<tr>'
+              var motivo = p.motivo_excl ? '<span class="bc-tag-excl">No cuenta: ' + esc(MOTIVOS[p.motivo_excl] || p.motivo_excl) + '</span>' : '';
+              detRows += '<tr' + (p.motivo_excl ? ' class="excl"' : '') + '>'
                 + '<td>' + (idx === 0 ? fechaTxt : '') + '</td>'
                 + '<td>' + (idx === 0 ? vidrio : '') + '</td>'
                 + '<td>' + (idx === 0 ? tamano : '') + '</td>'
                 + '<td class="folio">' + esc(p.folio) + '</td>'
                 + '<td>P' + p.partida + ' · ' + p.pieza_num + '/' + p.pieza_total + '</td>'
                 + '<td>' + medida + '</td>'
+                + '<td class="motivo">' + motivo + '</td>'
                 + '</tr>';
             });
           }
         });
         detHtml = '<button class="bc-det-toggle" onclick="BonoCorte.toggleDet(' + op.operador_id + ')">'
           + '<span>Detalle de ' + op.sesiones_detalle.length + ' sesión(es) elegible(s)</span> <span class="n">orden · partida · pieza</span></button>'
-          + '<div class="bc-det-panel" id="bc-det-' + op.operador_id + '"><table><thead><tr><th>Fecha</th><th>Vidrio</th><th>Tamaño sobrante</th><th>Orden</th><th>Partida/Pieza</th><th>Medida</th></tr></thead><tbody>' + detRows + '</tbody></table></div>';
+          + '<div class="bc-det-panel" id="bc-det-' + op.operador_id + '"><table><thead><tr><th>Fecha</th><th>Vidrio</th><th>Tamaño sobrante</th><th>Orden</th><th>Partida/Pieza</th><th>Medida</th><th></th></tr></thead><tbody>' + detRows + '</tbody></table></div>';
+      }
+      // Control anti-abuso (UPD-679): piezas rotas en corte y lo que no contó por candado
+      var ctl = op.control || {};
+      var ctlHtml = '';
+      if (ctl.rotas_en_corte || ctl.excl_recorte || ctl.excl_rota) {
+        ctlHtml = '<div class="bc-control">Control de la semana: <b>' + (ctl.rotas_en_corte || 0) + '</b> pieza(s) reportada(s) rota(s) en corte'
+          + ' · ' + (ctl.excl_recorte || 0) + ' recorte(s) y ' + (ctl.excl_rota || 0) + ' corte(s) roto(s) de pedacería sin contar'
+          + ' (' + Number(ctl.m2_excluido || 0).toFixed(2) + ' m² excluidos)</div>';
       }
       html += '<div class="bc-op-card">'
         + '<div class="bc-op-head">'
@@ -216,6 +233,7 @@ var BonoCorte = (function() {
         +   '<span class="bc-pill ' + pillCls + '">' + pillTxt + '</span>'
         +   btnHtml
         + '</div>'
+        + ctlHtml
         + detHtml
         + exclHtml
         + '</div>';

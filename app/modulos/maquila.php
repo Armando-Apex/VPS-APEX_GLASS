@@ -405,7 +405,8 @@ async function cargarCatalogos() {
         resaques: parseInt(p.resaques, 10) || 0,
         templado: parseInt(p.templado, 10) || 0,
         filo_muerto: parseInt(p.filo_muerto, 10) || 0,
-        cpb_fm: p.cpb_fm || 'No'
+        cpb_fm: p.cpb_fm || 'No',
+        esmerilado: parseInt(p.esmerilado, 10) || 0
       };
     });
     render();
@@ -451,7 +452,7 @@ function seleccionarCliente(id, nombre) {
 }
 
 function agregarPartida() {
-  partidas.push({ ancho:0, alto:0, cantidad:1, espesor_mm:6, cristal_tipo_id:0, corte:0, canteado:0, cpb:'No', taladros_pasados:0, taladros_avellanados:0, resaques:0, templado:0, filo_muerto:0, cpb_fm:'No' });
+  partidas.push({ ancho:0, alto:0, cantidad:1, espesor_mm:6, cristal_tipo_id:0, corte:0, canteado:0, cpb:'No', taladros_pasados:0, taladros_avellanados:0, resaques:0, templado:0, filo_muerto:0, cpb_fm:'No', esmerilado:0 });
   render();
 }
 
@@ -516,6 +517,11 @@ function subtotalPartida(p) {
     var pf = precioDe('filo_muerto', p.espesor_mm);
     if (pf) total += mlCanteado(p.cpb_fm, p.ancho, p.alto) * pf * p.cantidad;
   }
+  // Esmerilado (UPD-653): por m² de la pieza, igual que el horno.
+  if (p.esmerilado) {
+    var pe = precioDe('esmerilado', p.espesor_mm);
+    if (pe) total += m2 * pe * p.cantidad;
+  }
   return total;
 }
 
@@ -558,6 +564,7 @@ function render() {
     }
     html += '</select>';
     html += '<label class="chk"><input type="checkbox" ' + (p.templado ? 'checked' : '') + ' onchange="ModMaquilaNueva._campo(' + i + ",'templado',this.checked?1:0)\"> Templado</label>";
+    html += '<label class="chk"><input type="checkbox" ' + (p.esmerilado ? 'checked' : '') + ' onchange="ModMaquilaNueva._campo(' + i + ",'esmerilado',this.checked?1:0)\"> Esmerilado</label>";
     html += '</div>';
 
     html += '<div class="mn-taladros">';
@@ -754,6 +761,7 @@ function render() {
     if ((parseInt(p.resaques)||0) > 0) servicios.push('Resaques (' + p.resaques + ')');
     if (p.templado == 1) servicios.push('Templado');
     if (p.filo_muerto == 1) servicios.push('Filo Muerto ' + esc(p.cpb_fm) + ' (' + parseFloat(p.ml_filo_muerto).toFixed(2) + 'ml)');
+    if (p.esmerilado == 1) servicios.push('Esmerilado (' + (parseFloat(p.m2) * (parseInt(p.cantidad)||1)).toFixed(2) + ' m\u00b2)');
     html += '<tr>';
     html += '<td>' + (i+1) + '</td>';
     html += '<td>' + p.ancho + 'x' + p.alto + ' mm &times;' + p.cantidad + '</td>';

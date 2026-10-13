@@ -301,6 +301,7 @@ body { font-family: 'Inter', Arial, sans-serif; font-size: 11px; color: #000; ba
       if ((int)$p['taladros_pasados'] + (int)$p['taladros_avellanados'] > 0) $servicios[] = 'Taladro (' . $p['taladros_pasados'] . 'p/' . $p['taladros_avellanados'] . 'a)';
       if ((int)($p['resaques'] ?? 0) > 0) $servicios[] = 'Resaque (' . $p['resaques'] . ')';
       if ($p['templado'])  $servicios[] = 'Templado';
+      if (!empty($p['esmerilado'])) $servicios[] = 'Esmerilado (' . number_format((float)$p['m2'] * (int)$p['cantidad'], 2) . ' m²)';
     ?>
       <tr>
         <td style="font-weight:700;color:#1d4ed8"><?= $p['num_partida'] ?></td>

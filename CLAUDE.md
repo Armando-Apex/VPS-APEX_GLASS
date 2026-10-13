@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 01 octubre 2026 | Próximo UPD disponible: UPD-633
+# Última actualización: 13 octubre 2026 | Próximo UPD disponible: UPD-697
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar. Los archivos de `docs/` que este archivo enlaza (historiales archivados, `PENDIENTES_DETALLE.md`, `PENDIENTES_CERRADOS.md`) son parte de esta misma memoria; mover una entrada ahí no es borrarla.
 
@@ -296,6 +296,7 @@ Sin templado (requiere_templado=0): salta en_horno.
 | dir_admin | todo |
 | administracion | inventario + finanzas (VoBo) |
 | dueno | producción + comercial + reportes + finanzas + inventario |
+| contador | **solo consulta** (UPD-652): Cobranza, Facturación y Contabilidad. **Sin Nómina** (decisión de Armando, 01-oct-2026; `CONTADOR_VE_NOMINA=false`). Candado de servidor en `api/helpers/rol_restringido.php`: solo GET + lista cerrada de archivos. Usuario `contador` (id 25) |
 
 Variables PHP sidebar:
 ```php
@@ -418,7 +419,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | ALTA | Mando | GPS ProTrack365 en Logística Rutas (UPD-327/328/338/339) — funcionando (cron `scripts/gps_tracker.php` cada minuto, histórico en `gps_posiciones`). Falta pedir al distribuidor la Open API oficial (hoy depende de un fallback web no documentado). [D-44] | Mayormente HECHO — falta Open API oficial del distribuidor |
 | MEDIA | Mando | Radio de "llegada GPS" (250m, ver UPD-338/339) — con la primera prueba real el camión quedó a 268m sin disparar. Evaluar subir a 300-350m con más pruebas | Pendiente |
 | MEDIA | Mando | Trazabilidad de rutas (UPD-339/340) — falta prueba con un chofer real completando el flujo físico completo (escaneo QR salida → manejar → llegar) para confirmar que las 4 columnas de la tabla en Productividad se llenan solas | Pendiente |
-| MEDIA | Ambos | Rutas de Entrega — activar avisos WA (UPD-355): redactar y aprobar en Meta las plantillas `ruta_iniciada_eta_cliente` (ETA a la 1ra parada) y `ruta_en_curso_cliente` (aviso genérico "en camino, llega hoy" al resto); confirmar si se sigue reusando `siguiente_entrega_cliente` para el aviso "eres el siguiente" tras cada entrega confirmada; una vez listas, cambiar `RUTA_WA_AVISOS_ACTIVO` a `true` en `api/rutas_lib.php` | Pendiente |
+| MEDIA | Ambos | Rutas de Entrega — activar avisos WA (UPD-355): redactar y aprobar en Meta las plantillas `ruta_iniciada_eta_cliente` (ETA a la 1ra parada) y `ruta_en_curso_cliente` (aviso genérico "en camino, llega hoy" al resto); confirmar si se sigue reusando `siguiente_entrega_cliente` para el aviso "eres el siguiente" tras cada entrega confirmada; una vez listas, cambiar `RUTA_WA_AVISOS_ACTIVO` a `true` en `api/rutas_lib.php`. **07-oct (UPD-675):** esas 2 plantillas NO existen en Meta; `chofer_en_ruta_cliente` ya se usa al arrancar la ruta; `siguiente_entrega_cliente` está aprobada y sin uso (pide 3 datos y `avisarSiguienteParada` manda 2 — corregir antes de encender). Mando decidió dejar apagado el aviso de "siguiente" | Pendiente |
 | MEDIA | Ambos | Rutas de Entrega — probar con un chofer real el nuevo significado del QR de hoja de ruta (ahora escanea al ENTREGAR, no al salir) y confirmar que el mapa avanza solo a la siguiente parada | Pendiente |
 | MEDIA | Mando | Contabilidad — Fases 0-5 HECHAS (Catálogo, Mapeo Compras, Nómina, Gastos Fijos, Caja Chica, P&L); partida doble Fases 6.0-6.3 construida (ver bloque 398-499). Falta probar captura real y comparar el P&L contra el Excel de Armando de 1-2 meses cerrados. Ojo: el costo de ventas por consumo real solo es confiable desde jul-2026. [D-50] | Falta probar captura real y validar contra Excel |
 | MEDIA | Ambos | Contabilidad — probar en navegador todos los módulos con datos reales (lógica de ingresos/costo en `api/helpers/pnl_datos.php`) y validar el P&L contra el Excel. Las 8 tablas de Contabilidad están aisladas: borrar filas de prueba en ellas no afecta a ningún otro módulo. [D-51] | Pendiente — probar todos los módulos y validar contra el Excel |
@@ -454,19 +455,28 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | **ALTA** | **Ambos** | **⭐ FACTURACIÓN — CHECKLIST PARA LIVE (índice maestro) ⭐** Hechos: (1) manifiesto firmado, (3) prueba borrada. **Bloqueante:** (2) `FACTURAPI_KEY_LIVE` + `FACTURAPI_MODE=live` vía AdminBolt, solo después de 4-6. **Contador:** (4) confirmar trato de anticipos/saldo a favor (el 50% de una orden pactada = parcialidad/PPD, no anticipo); (5) notas de crédito manuales por devolución/descuento (relación 01) siguen bloqueadas; (6) catálogo de claves SAT por producto. **Mando:** (7) respaldar `archivos_facturas/` a Drive (hoy solo viven en el VPS, fuera de git); (8) reporte facturado vs. sin facturar; (9) reactivar correo probando con un correo interno. **Continuo:** (10) CSF de clientes (15 de ~396 completos; validar con `scripts/validar_datos_fiscales.php`). Arranque 01-oct-2026; candado de fecha propuesto sin aplicar. [D-83] | Pendiente — falta 2 (live); contador 4-6; Mando 7-9; continuo 10 |
 | ALTA | Ambos | Facturación — plan por sprints (UPD-604). Sprints 1-2 cerrados; Sprint 3 al 60% (falta catálogo de claves SAT). Sprint 4: reporte facturado vs. ventas, serie definitiva, alerts/emojis, paginación (tope 200), columnas folio de orden/correo. Sprint 5: complementos HECHOS (UPD-615), notas de anticipo (UPD-625). Decisión: todo se prueba en sandbox antes de live. [D-85] | Sprints 1-2 cerrados; 3 al 60%; 4 pendiente |
 | BAJA | Mando | `api/clientes.php` — rarezas de gates por rol (dueno puede `guardar_fiscal` pero no `editar_contacto`/`editar_nombre`; comercial sí puede `guardar_fiscal`). Decisión de producto, no agujero. [D-86] | Pendiente — sin urgencia, no es un agujero |
-| ALTA | Ambos | Envío de CFDI por correo APAGADO: `FACTURACION_ENVIO_CORREO_ACTIVO` en `api/facturapi.php` + `FAC_CORREO_ACTIVO` en `app/modulos/facturacion.php` (cambiar LOS DOS). Además no envía si el modo no es live. Probar con un correo interno: en sandbox le llegó un CFDI de prueba a un cliente real (CRISTAL Y ALGO MAS). [D-87] | Pendiente — reactivar al final |
+| — | — | ~~Envío de CFDI por correo APAGADO~~ — **REACTIVADO 01-oct-2026 (UPD-634).** Los 2 interruptores (`FACTURACION_ENVIO_CORREO_ACTIVO` en `api/helpers/facturapi_lib.php` + `FAC_CORREO_ACTIVO` en `app/modulos/facturacion.php`) en `true`; para apagarlo hay que cambiar LOS DOS. Probado con un envío real a Mando: el SMTP acepta y el correo llega. [D-87] | HECHO UPD-634 |
+| MEDIA | Armando | **Correo del sistema sale por HostGator (cancelado) y con remitente inconsistente (hallado 01-oct, UPD-634).** `SMTP_HOST=mail.apex.glass` → gator4138.hostgator.com; sigue vivo y autentica como `compras@apex.glass`, con SPF y DKIM publicados y sin DMARC. Pero: el pie del correo de factura dice `facturacion@apex.glass` (escrito a mano en `api/mailer.php` L154) cuando el remitente real es `compras@apex.glass`, y el correo de factura **no lleva Reply-To**, así que las dudas del cliente caen en un buzón de un hosting cancelado que quizá nadie lee. Decidir a qué dirección (idealmente de `tnglass.com.mx`, que sí está en Workspace) deben llegar las respuestas. Mando lo dejó así a propósito por ahora. | Pendiente — decisión de Armando |
 | ALTA | Armando | Anticipos esquema A (UPD-623 a 629) — Fases 1-4 HECHAS. Falta prueba en navegador (depósito con forma, Anticipos por facturar, factura con anticipo + nota N, cancelación de orden pagada con saldo) y validación del contador (PEPS, referido como descuento, saldos previos al 01-oct). [D-89] | Fases 1-4 HECHAS — falta prueba en navegador y validación del contador |
 | ALTA | Lina | **Revisar los 45 depósitos de saldo a favor anteriores al 01-oct ($195,164.69) en Cobranza → Saldo a Favor → "Anticipos anteriores al 1-oct"** y marcar de cada uno si se facturó como anticipo en CONTPAQi (si sí: folio + UUID). Mientras no se revise, no se puede timbrar la factura de una orden que use ese saldo (UPD-629) | Pendiente — Lina, 30-sep-2026 |
-| ALTA | Armando | **Folios de Apex vs. CONTPAQi:** hoy se factura en CONTPAQi con folios numéricos (ej. 8754); Apex arranca las series A (facturas), P (complementos) y N (notas de crédito) en 1. El SAT no exige consecutivos (serie y folio son de control interno). Recomendación dada: si CONTPAQi deja de usarse, continuar la numeración de facturas (A-8755…); P y N desde 1. Falta que Armando confirme el último folio de CONTPAQi y si se seguirá usando en paralelo; después, agregar un folio inicial configurable por serie | Pendiente — decisión de Armando |
 | MEDIA | Armando | PROYECTO buzón de facturas de proveedores → OC "por revisar" (30-sep, nada construido). `proveedores` no tiene RFC; el MX de apex.glass está roto (usar `facturas@tnglass.com.mx`). Fase 1 sugerida: RFC en proveedores + subir XML a mano. Decisiones: (a) ¿la OC existe antes o nace con la factura?, (b) estado "por revisar", (c) crear la cuenta de correo. [D-92] | Pendiente — definir (a)(b)(c) y armar plan por fases |
-| MEDIA | Armando | Descuentos/campañas Claro 9mm/6mm — EN PAUSA (24-sep), solo análisis: descuento real ~18-22%, merma neta 7.9%/15.4%; precios propuestos campaña $835/$585 y mayoreo $800/$550 con IVA; revisar COT-1752 (99.9% de descuento). [D-93] | En pausa — retomar cuando Armando lo pida |
+| MEDIA | Armando | Descuentos/campañas Claro 9mm/6mm — **tabla de niveles acordada 05-oct (UPD-667)**, falta aplicarla en sistema. Antes (24-sep), solo análisis: descuento real ~18-22%, merma neta 7.9%/15.4%; precios propuestos campaña $835/$585 y mayoreo $800/$550 con IVA; revisar COT-1752 (99.9% de descuento). [D-93] | En pausa — retomar cuando Armando lo pida |
+| MEDIA | Armando | Usuario del contador (UPD-652): falta correr `bash /home/apexglass2025/herramientas/activar_usuario_contador.sh` (pone contraseña y activa), probar entrando como `contador` y definir alcances (Nómina: decidido NO mostrarla, 01-oct-2026) (hoy los botones de acción se ven pero el servidor responde "solo consulta"; esconderlos es fase 2) | Pendiente — Armando |
+| — | — | ~~**Primer anticipo real (03-oct)**~~ — **RESUELTO 05-oct (UPD-673): era para COT-2118/T-011, se pasó a pago directo.** CTN-403 ANA KAREN ALONSO SANTOS depositó $5,290.00 (transferencia 02-oct, `clientes_saldo_favor` id 265, "ANTICIPO"), sin datos fiscales → sería a Público en General por "Anticipos por facturar". Antes confirmar si es para COT-2118 ($5,290.09, mismo día): en ese caso convertir y aplicar el pago directo (factura normal, sin anticipo). | En pausa — Armando |
+| ALTA | Armando | **T-005 / saldo a favor facturado en CONTPAQi como PPD (02-oct, en espera):** T-005 = $2,424.69 transferencia + $835.91 de saldo a favor del depósito 224 (28-sep). Armando quiere facturar en Apex solo el dinero y hacer el complemento de lo aplicado en CONTPAQi. Propuesta sin aplicar: 3ª opción en "Anticipos anteriores al 1-oct" (`previo_facturado=2`, "se aplica con complemento en CONTPAQi") que excluye ese saldo de la factura de Apex. T-005 resuelta: A-018 timbrada por $2,424.69 y ligada a la orden (UPD-662/663). La opción general sigue en espera para casos futuros. | En espera — Armando |
+| ALTA | Armando | **S-912 (transición con saldo a favor, UPD-660):** $16,000 pagados el 23-sep (CONTPAQi) + $366.70 de saldo a favor + $379.50 el 02-oct. El sistema la bloquea para no facturar dos veces. Armando aclaró (02-oct) que la orden se facturó COMPLETA en CONTPAQi: NO lleva factura nueva en Apex; Confirmado PPD → emitir en CONTPAQi el complemento de $379.50 (02-oct, forma 03, saldo ant. $379.50 → insoluto $0, antes del 05-nov), previa revisión de Lina de los complementos de $16,000 (23-sep) y $366.70 de saldo a favor. | Pendiente — Lina/CONTPAQi |
+| ALTA | Armando | **Regla fiscal (01-oct-2026, UPD-657): lo facturado debe ser EXACTAMENTE lo depositado** — Armando lo exige por la declaración ante Hacienda. Cualquier cambio futuro a Facturación, Cobranza o totales debe respetarlo (ver `_facturapiConceptosFactura`). Pendiente: complementos de PPD cuando los abonos no suman exacto el total (Cobranza tolera < $1) | Regla vigente — vigilar |
+| BAJA | Armando | `cotizaciones.saldo_pendiente` guardado nunca se actualiza al registrar pagos (se llena con el 50% del anticipo al crear y se queda así): 911 cotizaciones pagadas con residuo (ej. COT-2071/S-987: $535.09). Sin efecto hoy — todas las pantallas, Cobranza, VoBo y Facturación recalculan con los pagos reales; las 4 con `entrega_bloqueada=1` ya están entregadas. Fix: actualizar el campo en `api/finanzas.php` al registrar pago + UPDATE único (pedir autorización). UPD-635 | Pendiente — baja prioridad |
+| MEDIA | Mando | **Respaldo offsite (UPD-633/683):** la Raspberry no jalaba desde el 01-oct porque su cron de la 1 am nunca quedó guardado (`no crontab for mando`). 08-oct: jalón manual al día (122/122, 0 fallos) y cron instalado en la Pi. Falta confirmar que corrió SOLA: revisar `copia_externa=OK` en `_backups/backup.log` del 09-oct y `ultimo_jalon.txt` | Casi HECHO — verificar 09-oct |
+| ALTA | Armando | **T-025 — factura por la diferencia (09-oct):** COT-1958, cliente id 408 GERARDO ALFREDO OSEGUERA SALGADO. Total $36,439.81 = $34,500 saldo a favor (depósito 235 del 29-sep, anticipo facturado en CONTPAQi) + $1,939.81 tarjeta débito 09-oct (pago 1589). Plan: borrador A sin ligar (como A-018/T-005) por $1,939.81, PUE, forma 28, clave 30171706, conceptos proporcionales con "Orden T-025". Esperando que suban la CSF del cliente (hoy sin RFC) y, si se puede, folio/UUID del anticipo de CONTPAQi para marcar el depósito 235 | Pendiente — esperando constancia |
+| MEDIA | Mando | **Crontab de root con 2 tareas de AdminBolt rotas (hallado 08-oct, UPD-680):** `'bolt-cli refresh-hosting-accounts-stats'` (*/5) y `'bolt-cli check-for-updates'` (*/35) van entre comillas → `command not found`, nunca han corrido. **UPD-682:** el uso de CPU ya está resuelto (correo de cron apagado con `CRONDARGS="-m off"` y cola de root vaciada). Queda solo quitar las comillas (vigilar que AdminBolt no las reescriba) o reportarlo a AdminBolt; ya no genera carga | PARCIAL UPD-682 — faltan las comillas |
 
 ---
 
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-633**
+Próximo UPD disponible: **UPD-697**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -655,7 +665,6 @@ Archivo completo: `docs/HISTORIAL_UPD_605_631.md` (26-sep-2026 → 30-sep-2026)
 - UPD-629 (30-sep-2026, Armando) — Anticipos anteriores al 01-oct: revisión de lo que se facturó en CONTPAQi + uso en la facturación
 - UPD-630 (30-sep-2026, Armando) — Cierre de sesión 29/30-sep — estados que no quedaron en los UPD de origen (solo documentación)
 - UPD-631 (30-sep-2026, Armando) — Manual de uso de Facturación (documento, sin cambios de código ni BD)
-
 ---
 
 ### Bloque actual: UPD-632 en adelante
@@ -663,5 +672,109 @@ Archivo completo: `docs/HISTORIAL_UPD_605_631.md` (26-sep-2026 → 30-sep-2026)
 **Formato obligatorio (desde UPD-632):** aquí va UNA línea por UPD (código, fecha, responsable y una frase de máx. ~200 caracteres). El detalle completo va en `docs/HISTORIAL_UPD_632_actual.md` con el mismo código. Nunca escribir párrafos largos en este archivo.
 
 - UPD-632 (01-oct-2026, Armando) — Reorganización de CLAUDE.md por exceder el límite de 150k caracteres: historial 605-631 archivado, pendientes cerrados y detalle largo movidos a `docs/`. Sin cambios de código ni BD.
+- UPD-633 (01-oct-2026, Mando) — Respaldo externo (offsite) FUNCIONANDO: se descubrió que el respaldo a Google Drive nunca corrió (código muerto, sin credenciales, log que decía `BD=OK` sin mencionarlo) — no había NINGUNA copia fuera del VPS. La Raspberry de casa jala BD + comprobantes cifrados con su llave pública a un disco de 916 GB; el servidor no puede descifrar lo que cifra.
+- UPD-634 (01-oct-2026, Mando) — **FACTURACIÓN EN LIVE.** Reactivado el envío de CFDI por correo (2 interruptores) y probado con un envío real; Mando metió `FACTURAPI_KEY_LIVE` y `FACTURAPI_MODE=live`. Verificado sin timbrar nada: llave válida, series arrancan en A-001/P-001/N-001, textos de prueba apagados, resguardo y respaldo listos.
 
-**Próximo UPD disponible: UPD-633**
+- UPD-635 (01-oct-2026, Armando) — Consulta (sin código ni BD): cómo quedaría S-987 facturada a Público en General ($1,070.18, PUE, forma 03, falta clave SAT) + hallazgo de `saldo_pendiente` desactualizado en 911 cotizaciones, anotado como pendiente BAJA.
+- UPD-636 (01-oct-2026, Armando) — Facturación: la descripción de cada concepto ligado a orden ahora agrega piezas y medidas ("Espejo Plata 6mm - 1 pza de 587 x 2440 mm"); la cantidad sigue en m² (MTK). Sin trabajos, por decisión de Armando.
+- UPD-637 (01-oct-2026, Armando) — Facturación: el PDF de toda factura ligada a orden imprime "Cliente: NOMBRE (CTN-xxx)" y "Orden: S-xxx" vía `pdf_custom_section` (solo PDF, no XML); en Público en General muestra al cliente que lo solicitó. Probado con la vista previa de FacturAPI, sin timbrar.
+- UPD-638 (01-oct-2026, Armando) — **Primera factura real A-001** (S-987, Público en General, $1,070.18). Su PDF/XML no se resguardaron: la carpeta `archivos_facturas/2026-10` la creó `mando` en la prueba de UPD-633 con permisos 755. Permiso corregido (2775) y A-001 resguardada con autorización.
+- UPD-639 (01-oct-2026, Armando) — Clientes: el cuadro de la constancia (CSF) ahora guarda también la razón social exacta (antes la leía y la tiraba), así comercial y administración dejan al cliente listo para facturar. RFC/CP/régimen y correo ya estaban abiertos a esos roles.
+- UPD-640 (01-oct-2026, Armando) — Facturación: en Público en General el correo ya no se borra, se llena con el del cliente que la pidió (editable) y le llega al timbrar; "Enviar por correo" propone el correo del cliente si la factura no tiene uno.
+- UPD-641 (01-oct-2026, Armando) — Uso CFDI por defecto en el perfil del cliente (columna nueva `clientes.uso_cfdi`, editable en Clientes → Datos Fiscales y al subir la CSF); Facturación lo prellena al elegir cliente u orden, editable por factura.
+- UPD-642 (01-oct-2026, Armando) — Facturación, Público en General: la Información Global ahora siempre arranca en Diaria + mes y año en curso (antes el mes se quedaba en "01 – Enero" porque el select no tiene opción vacía). Sigue editable; los borradores respetan lo guardado.
+- UPD-643 (01-oct-2026, Armando) — **Público en General: una factura por cada pago** (criterio de Armando: se factura cada pago que entra al banco). Columna nueva `facturas.pago_id`; conceptos en proporción al pago, cuadrados al centavo; PDF con "Pago completo / parcial / final del X%". Órdenes con saldo a favor siguen con factura única.
+- UPD-644 (01-oct-2026, Armando) — Datos: borrador **A-002** (id 46) de S-988 a Público en General por el pago de $1,850.00 (pago 1487, "Pago parcial del 50.1%"), creado a pedido de Armando con la lógica de UPD-643. Sin timbrar.
+- UPD-645 (01-oct-2026, Armando) — Factura por pago (UPD-643): la leyenda del PDF ya no lleva porcentaje: "Pago completo", "Anticipo" (primer pago), "Abono" (intermedios) o "Pago final" (el que liquida). A-002 (S-988) sale como "Anticipo".
+- UPD-646 (01-oct-2026, Armando) — Factura por pago: si el último pago deja la orden a menos de $5 de liquidarse, Facturación pregunta si se considera "Pago final" (casilla editable; columna nueva `facturas.pago_final_forzado`). Solo cambia la leyenda, no el monto.
+- UPD-647 (01-oct-2026, Armando) — Datos: borrador A-002 (id 46, S-988, pago 1487) eliminado a pedido de Armando; nunca se timbró. El pago de S-988 queda libre y el próximo folio vuelve a ser A-002.
+- UPD-648 (01-oct-2026, Armando) — Correo de facturas con cuenta propia: `api/mailer.php` lee `FAC_SMTP_*` del `.env` (si `FAC_SMTP_USER` está vacío usa la de compras). Las órdenes de compra siguen con `SMTP_*` (compras@apex.glass). Ahora lleva Reply-To y el pie muestra el remitente real.
+- UPD-649 (01-oct-2026, Armando) — Script `herramientas/configurar_correo_facturas.sh` (fuera del webroot): pide cuenta y contraseña (oculta), la prueba contra el SMTP sin enviar nada, respalda el `.env` y escribe `FAC_SMTP_*` con dueño/permisos correctos. Probado sobre una copia.
+- UPD-650 (01-oct-2026, Armando) — Correo de facturas ya sale de facturacion@apex.glass (Armando corrió el script de UPD-649 y confirmó que llegó). Nuevo `FAC_SMTP_REPLY_TO=administracion@apex.glass` en `.env`: las respuestas de los clientes van a administración.
+- UPD-651 (01-oct-2026, Armando) — Decisión: la numeración de facturas de Apex es independiente de CONTPAQi ("es una nueva forma de administrar la facturación"): series A, P y N arrancan en 1 y siguen solas (A-999 → A-1000). Pendiente de folios cerrado.
+
+- UPD-652 (01-oct-2026, Armando) — **Rol nuevo `contador` (solo consulta)**: ve Cobranza, Facturación y Contabilidad; candado en el servidor (solo GET + lista cerrada) en los 4 puntos de sesión. Usuario `contador` creado DESACTIVADO; se activa con `herramientas/activar_usuario_contador.sh`.
+
+- UPD-653 (01-oct-2026, Armando) — Maquila: nuevo servicio **Esmerilado**, cobrado por m² de la pieza (igual que el horno). Catálogo de precios, Nueva Maquila, cálculo, impresión de cotización/orden y descripción de factura. Falta que Armando capture los precios por espesor.
+
+- UPD-654 (01-oct-2026, Armando) — Fix: el lector de la constancia armaba el nombre de personas físicas con apellidos primero; desde UPD-639 eso se guardaba y el SAT rechazaba con CFDI40145. Ahora es nombre + apellidos. Corregidos CTN-209 y el borrador A-009 (S-993).
+
+- UPD-655 (01-oct-2026, Armando) — **Validación contra el SAT al guardar datos fiscales** (alta de cliente en FacturAPI, modo real, sin timbrar): si el SAT rechaza no se guarda; en persona física prueba el nombre reacomodado. Marca `clientes.fiscal_validado_at`. Los 21 clientes con RFC validados. Arregla "Guardar en CRM" (dependía de la llave de pruebas).
+
+- UPD-656 (01-oct-2026, Armando) — Facturación da una orden por pagada con la misma tolerancia que Cobranza (falta < $1). Antes exigía el centavo exacto: S-998 ($0.01 de diferencia, ya "Pagada" en Cobranza) mandaba a PPD el borrador A-011.
+
+- UPD-657 (01-oct-2026, Armando) — **La factura de una orden = exactamente lo cobrado** (regla de Armando por la declaración): PUE pagada → suma exacta de los pagos; PPD → total de Apex sin el centavo de redondeo del PAC; factura por pago → monto exacto del pago. Probado en 250 órdenes + 40 maquilas; A-011 (S-998) corregida a $3,419.35.
+
+- UPD-658 (02-oct-2026, Armando) — Datos: S-994 (orden 1268, COT-2084, CRISTAL Y ALGO MAS) CPB vacío → `Perimetral` en las 12 partidas y 18 piezas (todas en pendiente). Precio sin cambio ($16,304.82); ahora pasan por Canteado.
+
+- UPD-659 (02-oct-2026, Armando) — Cotización: aviso cuando una partida que se templa no cabe en el horno (máx. 2400 x 3500 mm en cualquier orientación): letrero bajo la partida + confirmación al guardar y al convertir. Solo aviso, no bloquea. Caso que lo motivó: S-929 partida 6 (2600 x 2917).
+
+- UPD-660 (02-oct-2026, Armando) — **Facturación de transición CONTPAQi→Apex:** órdenes con pagos anteriores al 01-oct (ya facturados en CONTPAQi) se facturan como orden por el proporcional de lo pagado desde octubre (PUE, liquidada); PPD bloqueado; todo-previo bloqueado; pagos previos no seleccionables en Público en General. 7 órdenes hoy; S-912 bloqueada (mixta con saldo a favor).
+
+- UPD-661 (02-oct-2026, Armando) — Fix factura por pago (Público en General): el total de la orden ahora es el de Cobranza y "liquida" con tolerancia < $1. T-006 ($2,498.93) salía "Anticipo" y preguntaba "faltan $0.01" por redondeo por partida ($2,498.94). Montos sin cambio.
+
+- UPD-662 (02-oct-2026, Armando) — Datos: borrador **A-018** (id 67) para T-005, SIN ligar a la orden, solo por la transferencia de $2,424.69 (conceptos proporcionales + "Orden T-005", clave 30171706, PUE, 03, G03). Los $835.91 de saldo a favor van con complemento en CONTPAQi. No volver a facturar T-005 desde la orden.
+
+- UPD-663 (02-oct-2026, Armando) — Datos: A-018 timbrada ($2,424.69, UUID 8637F4D8…) ligada a T-005 (`facturas.orden_folio`, id 67). Armando registró pago de $0.02 en efectivo (pago 1519) para cuadrar la orden; no se facturó. No usar "Refacturar" en A-018 (saldría por $3,260.62).
+
+- UPD-664 (02-oct-2026, Armando) — Datos: CTN-193 FERNANDO DAVID GUTIERREZ SANCHEZ (id 49): RFC GUSF890706SG8, uso G03, régimen 612, CP 66357 — validados contra el SAT (alta de cliente en FacturAPI, sin timbrar). Falta su correo.
+
+- UPD-665 (03-oct-2026, Armando) — Datos: COT-2135 (maquila, id 2079) esmerilado ajustado a $529.9016/m² solo en esta cotización para total exacto $3,670.41 (antes $2,866.19). Catálogo sin cambio ($413.7931). Si se edita desde pantalla, vuelve al precio de catálogo.
+
+- UPD-666 (03-oct-2026, Armando) — Datos: recibo de Bono de Corte de Angel (pago id 10, semana 28-sep a 04-oct) actualizado de $450 (68.11 m²) a $600 (72.02 m²) por cortes hechos después de marcarlo pagado. Armando pidió dejarlo fijo en $600.
+
+- UPD-667 (05-oct-2026, Armando) — Precios Claro por nivel acordados (análisis, sin código): Lista $1,111.11/$786.51; Express hasta 4 pzas $1,050/$745; Normal ≤5 días $945/$670; Volumen >50 m² (−21.7%) $870/$615 (9mm/6mm, con IVA). Falta definir cómo aplicarla en el sistema.
+
+- UPD-668 (05-oct-2026, Armando) — Código **RAZA_OCT2026** por niveles: el sistema pone Volumen (≥50 m² 6mm+9mm) $870/$615, Express (≤4 pzas + casilla) $1,050/$745 o Normal $945/$670. Aplica hasta 12-oct 6 pm, VoBo hasta 17-oct. Columna nueva `cotizaciones.promo_express`; leyenda de códigos de sept. retirada.
+
+- UPD-669 (05-oct-2026, Armando) — Cotización: retirados los campos "Código de Promoción" (CTN-###PROMO) y "Código de Encuesta" (ENC-) por estar inactivos; las cotizaciones que ya los tienen siguen mostrando el descuento aplicado. Sin cambios de backend ni BD.
+
+- UPD-670 (05-oct-2026, Armando) — Cotización: leyenda de RAZA_OCT2026 cambiada por un icono "i" con tooltip al pasar el mouse, para ahorrar espacio.
+
+- UPD-671 (05-oct-2026, Armando) — Cotización: la leyenda del Código de Referido también pasa a icono "i" con tooltip (helper `iconoAyuda()` compartido).
+
+- UPD-672 (05-oct-2026, Armando) — Datos: campaña WA #63 pausada (kill del worker) para excluir a CTN-555 Juan Pablo Barajas; su envío marcado fallido "excluido manualmente" y la campaña en `cancelada` para reanudar (183 pendientes).
+
+- UPD-673 (05-oct-2026, Armando) — Datos: T-011 (CTN-403) pago 1524 pasa de saldo a favor a transferencia 02-oct (depósito #265/#268 eliminados, neteaban 0) para facturar $5,290.00 por pago con "Pago final"; los $2.24 los registra Armando después, sin facturar.
+- UPD-674 (07-oct-2026, Mando) — Croquis: nueva forma de resaque **Media luna** (bisagra hidráulica, reportes 21/22 de Bethy): semicírculo exacto, solo diámetro, siempre pegado al borde más cercano. Editor + hoja impresa; sin BD. Falta prueba en navegador.
+- UPD-675 (07-oct-2026, Mando) — Rutas (reporte 16 de Bethy): la salida a domicilio ya no manda WA al registrarla; al arrancar la ruta el cliente recibe "ya está en ruta" (`chofer_en_ruta_cliente`; interruptor `RUTA_WA_AVISO_SALIDA_AL_ARRANCAR` en `api/rutas_lib.php`). Recolección igual. Sin BD. Falta ver la primera ruta real.
+- UPD-676 (07-oct-2026, Armando) — Admin Órdenes → Corrección de Estatus a "terminado" ahora manda el WA `orden_lista` al cliente (antes solo el escaneo). Envío movido a `waEnviarOrdenLista()` en `api/wa_helper.php`; una vez por orden. Sin BD. Falta probar con orden real.
+- UPD-677 (07-oct-2026, Armando) — RH → Vacaciones: solo se muestran los periodos vigentes por ley (LFT art. 76/81/516: exigible hasta 18 meses después del aniversario); lo prescrito no se muestra ni admite registros. Sin BD. Lina capturará lo ya gozado.
+
+- UPD-678 (08-oct-2026, Armando) — Datos: +1 lámina Claro 9mm al stock (movimiento #617 = -1) porque el consumo #615 (sesión de corte #1534, 07-oct 14:49, T-008) fue un error: la pieza salió de pedacería. Sin borrar registros, por indicación de Armando.
+
+- UPD-679 (08-oct-2026, Armando) — Bono de Corte, candados desde 08-oct: no cuentan piezas que se vuelven a cortar ni cortes de pedacería reportados "Roto en corte"; la pantalla del bono marca lo excluido y muestra el control semanal de roturas. Sesión #1534 marcada como error.
+
+- UPD-680 (08-oct-2026, Armando) — Consulta (sin código ni BD): proceso `sendmail -FCronDaemon` = cron mandando errores a root; 2 tareas de AdminBolt en el crontab de root rotas por comillas y 38,966 correos encolados. Pendiente para Mando.
+
+- UPD-681 (08-oct-2026, Armando) — Facturación: el bono de referido ya no bloquea la factura por pago a Público en General (antes T-029 solo ofrecía la factura única por $7,771.04). El bono no lleva factura pero cuenta para el "Pago final". Anticipos sin cambio.
+
+- UPD-682 (08-oct-2026, Mando) — Servidor (sin código ni BD): resuelto el CPU alto de `sendmail -FCronDaemon` (UPD-680). Correo de cron apagado (`CRONDARGS="-m off"` en `/etc/sysconfig/crond`) y cola `/root/.esmtp_queue/` vaciada. Faltan las comillas del crontab de root.
+
+- UPD-683 (08-oct-2026, Mando) — Respaldo offsite: la Raspberry no jalaba desde el 01-oct (su cron nunca quedó guardado). Jalón manual al día y cron de la 1 am instalado en la Pi. Sin código ni BD. Falta ver que corra sola el 09-oct.
+
+- UPD-684 (09-oct-2026, Armando) — Datos: MA-T-050 (COT-2211, maquila, id 2155) canteado ajustado a $25.8872/ml solo en esta cotización para total exacto $356.75 (antes $332.66). Catálogo sin cambio ($24.14). Si se edita desde pantalla, vuelve al precio de catálogo.
+
+- UPD-685 (09-oct-2026, Armando) — Datos: COT-2239 (id 2183, Reflecta Plata 6mm) ajustada a $326.51 con precio $2,405.7265/m² solo en esta cotización ($326.50 exacto es inalcanzable por redondeo; antes $211.79). Catálogo sin cambio.
+- UPD-686 (09-oct-2026, Armando) — Facturación: el PDF de la factura única PUE de una orden muestra las fechas de los pagos junto a la orden ("Orden: T-021 - Pagos: 05/10/2026 y 09/10/2026") para conciliar contra el banco. Solo PDF; A-057 ya timbrada no cambia.
+- UPD-687 (10-oct-2026, Armando) — Reporte Dirección → Comercial, gráfica de ventas acumuladas: nueva línea punteada amarilla tenue (solo mes actual) = venta VoBo + anticipos netos (depósitos/excedentes/reintegros − saldo aplicado; sin bono de referido) para no duplicar ventas pagadas con saldo.
+
+- UPD-688 (12-oct-2026, Armando) — Datos: T-038 (orden 1311, SERVICIOS INDUSTRIALES TANYISA) piezas 8020 (en_horno) y 8021 (pendiente) pasadas a terminado SIN WA: `wa_lista_enviado=1` puesto a mano. Historial 36894/36895.
+
+- UPD-689 (12-oct-2026, Armando) — Cotización: servicio **Flete** de monto libre (antes de IVA, capturado por cotización, sin descuento). Columna nueva `servicios_catalogo.precio_libre`; renglón propio en la impresión, fuera de etiquetas; en factura sale con clave 78101800 / E48.
+
+- UPD-690 (12-oct-2026, Armando) — Flete (UPD-689): en el catálogo de servicios la unidad ya no aparece como "por pieza" editable sino fija "por servicio"; en la lista de servicios y en el renglón guardado también dice "por servicio". Solo pantalla, sin BD.
+
+- UPD-691 (12-oct-2026, Armando) — Datos: Flete $431.03 + IVA = $500.00 agregado a S-976 (COT-2042, CTN-224) por SQL (servicio id 2210); total $7,105.02→$7,605.02. La orden ya se facturó completa en CONTPAQi: la factura del flete va aparte a Público en General, sin ligar, al registrar el pago.
+
+- UPD-692 (12-oct-2026, Armando) — Datos: borrador **A-066** (facturas.id 125) Público en General solo por el flete de S-976: "Servicio de flete - Orden S-976", 78101800/E48, $431.03 + IVA $68.97 = $500.00, PUE, forma 03, global diaria 10/2026, SIN ligar a la orden. Pago 1620 ($4,500, transf. 08-oct) cubre $4,000 de CONTPAQi + flete.
+
+- UPD-693 (12-oct-2026, Armando) — Datos: A-066 salía en $499.99 ($431.03 + IVA redondeado; ningún precio de 2 decimales da $500.00). Concepto cambiado a precio $500 con `iva_incluido` (tax_included, mismo mecanismo que anticipos). Timbrar desde el menú, NO abrir con Editar/guardar.
+
+- UPD-694 (13-oct-2026, Armando) — Datos: T-086 (COT-2258) pago 1638 corregido de $1,500 a $1,200 (transferencia real); `saldo_pagado` 2482→2182. Sin facturas ligadas; sigue cubriendo el 50%.
+
+- UPD-695 (13-oct-2026, Armando) — Datos: +2 láminas Claro 9mm 3600x2600 (lámina id 1) por conteo físico; movimiento #642 = -2. Stock en sistema 0 → 2. Sin borrar registros.
+
+- UPD-696 (13-oct-2026, Armando) — Servidor (sin código ni BD): instalado `tmux` 3.2a (dnf) para que las sesiones de Claude Code sobrevivan cortes de internet: `tmux new -s apex` / `tmux attach -t apex`.
+
+**Próximo UPD disponible: UPD-697**

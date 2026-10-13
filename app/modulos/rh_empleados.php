@@ -604,10 +604,13 @@ async function borrarDocumento(id) {
 // ── Vacaciones ──────────────────────────────────────────────────────────────
 function renderVacaciones(periodos) {
   if (!periodos.length) {
-    document.getElementById('listaVacaciones').innerHTML = '<div class="empty" style="padding:20px">Aún no cumple su primer año de antigüedad</div>';
+    var msgVac = (empleadoActual && !empleadoActual.fecha_ingreso)
+      ? 'Sin fecha de ingreso capturada — captúrala en Expediente para calcular sus vacaciones'
+      : 'Aún no cumple su primer año de antigüedad';
+    document.getElementById('listaVacaciones').innerHTML = '<div class="empty" style="padding:20px">' + msgVac + '</div>';
     return;
   }
-  var html = '';
+  var html = '<div class="info" style="font-size:12px;color:#64748b;margin-bottom:10px">Solo periodos vigentes por ley (LFT art. 76, 81 y 516): cada año se puede gozar hasta 18 meses después del aniversario; los anteriores ya prescribieron.</div>';
   for (var i = 0; i < periodos.length; i++) {
     var p = periodos[i];
     var saldo = p.dias_derecho - p.dias_tomados - p.dias_pagados_sin_ausencia;
@@ -615,7 +618,7 @@ function renderVacaciones(periodos) {
     html += '<div class="periodo-card" onclick="ModRH._abrirModalVac(' + p.id + ',' + saldo + ',' + i + ')" data-periodos-idx="' + i + '">';
     html += '<div class="top"><span>Año ' + p.anio_antiguedad + ' de antigüedad</span><span>' + saldo + ' de ' + p.dias_derecho + ' días disponibles</span></div>';
     html += '<div class="bar"><div class="bar-fill" style="width:' + usado + '%"></div></div>';
-    html += '<div class="info">' + esc(p.fecha_inicio_periodo) + ' a ' + esc(p.fecha_fin_periodo) + ' · Tomados: ' + p.dias_tomados + ' · Pagados sin ausencia: ' + p.dias_pagados_sin_ausencia + '</div>';
+    html += '<div class="info">Ganado el ' + esc(p.fecha_derecho) + ' · Vence el ' + esc(p.fecha_vence) + ' · Tomados: ' + p.dias_tomados + ' · Pagados sin ausencia: ' + p.dias_pagados_sin_ausencia + '</div>';
     html += '</div>';
   }
   document.getElementById('listaVacaciones').innerHTML = html;

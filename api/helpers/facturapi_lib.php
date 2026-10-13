@@ -18,6 +18,20 @@ function _correosValidos($raw) {
     return $out;
 }
 
+// Complemento de la descripción del concepto: número de piezas y medidas (UPD-636).
+// La cantidad del CFDI son los m² (MTK), así que las piezas solo caben en la descripción.
+// Los trabajos (canteado, taladros, templado) se dejan fuera a propósito para no alargar
+// el concepto (decisión de Armando, 01-oct-2026).
+function _facturapiDescPiezas($cantidad, $ancho, $alto) {
+    $n = (int)$cantidad;
+    if ($n <= 0) return '';
+    $txt = ' - ' . $n . ($n === 1 ? ' pza' : ' pzas');
+    if ((float)$ancho > 0 && (float)$alto > 0) {
+        $txt .= ' de ' . (0 + (float)$ancho) . ' x ' . (0 + (float)$alto) . ' mm';
+    }
+    return $txt;
+}
+
 // LN-1: conceptos (desc/cant/precio) reconstruidos en SERVIDOR a partir del folio de
 // orden — nunca confiar en lo que mande el cliente cuando hay una orden real detrás.
 // Usada tanto para prellenar el formulario (buscar_orden) como para validar lo que
@@ -56,7 +70,9 @@ function _facturapiConceptosDesdeOrden($pdo, $ordenFolio) {
             if ($p['canteado']) $servicios[] = 'Canteado';
             if ($p['taladros_pasados'] + $p['taladros_avellanados'] > 0) $servicios[] = 'Taladro';
             if ($p['templado'])  $servicios[] = 'Templado';
+            if (!empty($p['esmerilado'])) $servicios[] = 'Esmerilado';
             $desc = trim(($p['tipo_vidrio_nombre'] ?: 'Vidrio') . ' ' . $p['espesor_mm'] . 'mm');
+            $desc .= _facturapiDescPiezas($p['cantidad'], $p['ancho'], $p['alto']);
             if ($servicios) $desc .= ' - Maquila: ' . implode('/', $servicios);
             $conceptos[] = [
                 'desc'   => $desc,
@@ -69,7 +85,7 @@ function _facturapiConceptosDesdeOrden($pdo, $ordenFolio) {
         }
     } else {
         $stmt = $pdo->prepare("
-            SELECT cristal_nombre, m2, cantidad, precio_m2_usado, promo_precio
+            SELECT cristal_nombre, m2, cantidad, ancho, alto, precio_m2_usado, promo_precio
             FROM cotizaciones_partidas
             WHERE cotizacion_id = ?
             ORDER BY num_partida ASC
@@ -82,7 +98,7 @@ function _facturapiConceptosDesdeOrden($pdo, $ordenFolio) {
                 ? round((float)$p['precio_m2_usado'] * (1 - $descuento / 100), 6)
                 : (float)$p['precio_m2_usado'];
             $conceptos[] = [
-                'desc'   => $p['cristal_nombre'] ?: 'Vidrio',
+                'desc'   => ($p['cristal_nombre'] ?: 'Vidrio') . _facturapiDescPiezas($p['cantidad'], $p['ancho'], $p['alto']),
                 'clave'  => '',
                 'unidad' => 'MTK',
                 'cant'   => round((float)$p['m2'] * (int)$p['cantidad'], 6),
@@ -94,15 +110,20 @@ function _facturapiConceptosDesdeOrden($pdo, $ordenFolio) {
         // parte de la base gravable canónica (helpers/totales.php: base = subtotal+servicios)
         // pero antes no se incluían aquí — el CFDI quedaba sub-facturado en cotizaciones con servicios.
         $stmtSrv = $pdo->prepare("
-            SELECT descripcion, precio_unitario, unidades_por_pieza, cantidad_piezas, subtotal
-            FROM cotizacion_partida_servicios WHERE cotizacion_id = ?
+            SELECT cps.descripcion, cps.precio_unitario, cps.unidades_por_pieza, cps.cantidad_piezas, cps.subtotal,
+                   COALESCE(sc.precio_libre, 0) AS precio_libre
+            FROM cotizacion_partida_servicios cps
+            LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id
+            WHERE cps.cotizacion_id = ?
         ");
         $stmtSrv->execute([$cotId]);
         foreach ($stmtSrv->fetchAll(PDO::FETCH_ASSOC) as $s) {
+            // UPD-689: Flete (servicio de precio libre) con su clave SAT de transporte ya puesta
+            $esFlete = (int)$s['precio_libre'] === 1;
             $conceptos[] = [
-                'desc'   => $s['descripcion'] ?: 'Servicio',
-                'clave'  => '',
-                'unidad' => 'ACT',
+                'desc'   => $esFlete ? 'Servicio de flete' : ($s['descripcion'] ?: 'Servicio'),
+                'clave'  => $esFlete ? '78101800' : '',
+                'unidad' => $esFlete ? 'E48' : 'ACT',
                 'cant'   => 1,
                 'precio' => (float)$s['subtotal'],
                 'iva'    => true,
@@ -110,6 +131,295 @@ function _facturapiConceptosDesdeOrden($pdo, $ordenFolio) {
         }
     }
     return $conceptos;
+}
+
+// ── Público en General: una factura por cada pago (UPD-643) ──────────────────
+// Criterio de Armando (01-oct-2026): se factura cada pago que entra al banco. En
+// Público en General no hay PPD ni complementos, así que cada pago lleva su propia
+// factura global (PUE, forma real de ese pago, periodo = fecha del pago), con los
+// mismos conceptos de la orden en proporción al pago. El total de la orden se reparte
+// entre sus pagos en orden de fecha: el último toma la diferencia exacta, así la suma
+// de las facturas es el total de la orden aunque haya pagos de más.
+// Los pagos con saldo a favor no entran: ese dinero ya se facturó como anticipo
+// (esquema A), así que esas órdenes siguen con la factura única al liquidar.
+// Excepción (UPD-681, Armando 08-oct-2026): si TODO el saldo a favor aplicado es bono de
+// referido, la orden sí va por pago. El bono no es dinero que entró ni se facturó nunca:
+// no lleva factura propia, pero cuenta para saber qué pago liquida la orden (T-029).
+
+// Total canónico de la orden tal como lo timbraría la factura completa (mismo cálculo
+// que accion=guardar: importe por línea a 2 decimales, IVA sobre la base redondeada).
+function _facturapiTotalesConceptos($conceptos) {
+    $sub = 0; $grav = 0;
+    foreach ($conceptos as $c) {
+        $imp = round((float)$c['cant'] * (float)$c['precio'], 2);
+        $sub += $imp;
+        if (!empty($c['iva'])) $grav += $imp;
+    }
+    $sub = round($sub, 2);
+    $iva = round($grav * 0.16, 2);
+    return ['subtotal'=>$sub, 'iva'=>$iva, 'total'=>round($sub + $iva, 2)];
+}
+
+// ── Transición CONTPAQi → Apex (UPD-660, 02-oct-2026) ──────────────────────────
+// Hasta el 30-sep la facturación se hacía en CONTPAQi: los pagos de una orden anteriores
+// al arranque ya se facturaron allá (PUE, "venta de vidrio", amarrados a la orden por
+// comentario). Armando: la factura sigue siendo DE LA ORDEN, pero en estas órdenes de
+// transición solo ampara el proporcional de lo pagado desde el arranque. No aplica a
+// pagos con saldo a favor (esos van por el esquema de anticipos, UPD-629). Se apaga solo:
+// una orden cuyos pagos son todos desde octubre no tiene nada "previo".
+if (!defined('FACTURACION_DESDE')) define('FACTURACION_DESDE', '2026-10-01');
+
+// ['previo'=>$ pagado antes del arranque, 'desde'=>$ pagado desde el arranque,
+//  'transicion'=>bool] — solo pagos en dinero; órdenes con saldo a favor no aplican.
+function _facturapiPagosTransicion($pdo, $ordenFolio) {
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(SUM(CASE WHEN p.forma_pago <> 'saldo_favor' AND p.fecha_pago <  ? THEN p.monto ELSE 0 END), 0) AS previo,
+               COALESCE(SUM(CASE WHEN p.forma_pago <> 'saldo_favor' AND p.fecha_pago >= ? THEN p.monto ELSE 0 END), 0) AS desde,
+               COALESCE(SUM(p.forma_pago = 'saldo_favor'), 0) AS con_sf
+        FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id
+        JOIN cotizacion_pagos p ON p.cotizacion_id = c.id
+        WHERE o.folio = ?
+    ");
+    $stmt->execute([FACTURACION_DESDE, FACTURACION_DESDE, $ordenFolio]);
+    $r = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['previo'=>0, 'desde'=>0, 'con_sf'=>0];
+    $previo = round((float)$r['previo'], 2);
+    $desde  = round((float)$r['desde'], 2);
+    // Con saldo a favor manda el esquema de anticipos (UPD-623 a 629), no esta regla.
+    // 'mixta': pagos en dinero antes Y después del arranque más saldo a favor (caso S-912).
+    // Ni esta regla ni la de anticipos la resuelven sin duplicar: se bloquea (manual).
+    return ['previo'=>$previo, 'desde'=>$desde, 'transicion'=>$previo > 0.004 && (int)$r['con_sf'] === 0,
+            'mixta'=>$previo > 0.004 && $desde > 0.004 && (int)$r['con_sf'] > 0];
+}
+
+function _facturapiFechaArranqueTxt() {
+    return date('d/m/Y', strtotime(FACTURACION_DESDE));
+}
+
+// Pagos de la orden con lo que le toca a cada uno del total y su factura (si tiene).
+// Regresa ['total'=>T, 'con_saldo_favor'=>bool, 'pagos'=>[...]] o null si no hay orden.
+function _facturapiPagosOrden($pdo, $ordenFolio) {
+    $conceptos = _facturapiConceptosDesdeOrden($pdo, $ordenFolio);
+    if ($conceptos === null) return null;
+    // UPD-661: el total de la orden es el de Cobranza (cotizaciones.total). Sumar los
+    // conceptos redondeando cada partida a centavos podía dar 1 centavo más (T-006:
+    // $2,498.94 vs $2,498.93 cobrados) y el pago que liquida salía como "Anticipo" con la
+    // pregunta "faltan $0.01". El monto de cada factura por pago no depende de esto.
+    $so = _facturapiSaldoOrden($pdo, $ordenFolio);
+    $T  = $so ? $so['total'] : _facturapiTotalesConceptos($conceptos)['total'];
+
+    $stmt = $pdo->prepare("
+        SELECT p.id, p.fecha_pago, p.hora_pago, p.monto, p.forma_pago, p.tarjeta_tipo
+        FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id
+        JOIN cotizacion_pagos p ON p.cotizacion_id = c.id
+        WHERE o.folio = ?
+        ORDER BY p.fecha_pago, p.hora_pago, p.id
+    ");
+    $stmt->execute([$ordenFolio]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $stFac = $pdo->prepare("SELECT id, folio_interno, estatus FROM facturas
+        WHERE pago_id = ? AND modo = ? AND estatus IN ('borrador','timbrando','timbrada')
+        ORDER BY id LIMIT 1");
+    // Factura vigente por el total (sin pago ligado, p. ej. A-001): cubre todos los pagos.
+    $stTot = $pdo->prepare("SELECT id, folio_interno, estatus FROM facturas
+        WHERE orden_folio = ? AND tipo_cfdi = 'I' AND pago_id IS NULL AND saldo_favor_id IS NULL
+          AND modo = ? AND estatus IN ('timbrada','timbrando') ORDER BY id LIMIT 1");
+    $stTot->execute([$ordenFolio, FACTURAPI_MODE]);
+    $facTotal = $stTot->fetch(PDO::FETCH_ASSOC) ?: null;
+    // UPD-681: ¿el saldo a favor aplicado es solo bono de referido?
+    $antO = _facturapiAnticiposDeOrden($pdo, $ordenFolio);
+    $soloBono = $antO['aplicado'] > 0.004 && abs($antO['aplicado'] - $antO['referido']) < 0.005;
+    $conSaldoFavor = false;
+    $acum = 0.0;
+    $pagos = [];
+    $nConMonto = 0;
+    foreach ($rows as $p) {
+        $esBono = $p['forma_pago'] === 'saldo_favor' && $soloBono;
+        if ($p['forma_pago'] === 'saldo_favor' && !$esBono) $conSaldoFavor = true;
+        $monto    = round((float)$p['monto'], 2);
+        // UPD-657: cada factura es EXACTAMENTE lo que entró al banco con ese pago (antes el
+        // último solo tomaba lo que faltaba de la orden y un pago de más quedaba sin facturar).
+        // El bono de referido no se factura, pero sí abona a la orden (UPD-681).
+        $asignado = $esBono ? 0.0 : $monto;
+        $acum     = round($acum + $monto, 2);
+        if ($asignado > 0.004) $nConMonto++;
+        $stFac->execute([(int)$p['id'], FACTURAPI_MODE]);
+        $fac = $stFac->fetch(PDO::FETCH_ASSOC) ?: $facTotal;
+        $pagos[] = [
+            'id'          => (int)$p['id'],
+            'fecha'       => $p['fecha_pago'],
+            'monto'       => $monto,
+            'forma'       => $p['forma_pago'],
+            'tarjeta_tipo'=> $p['tarjeta_tipo'],
+            'forma_sat'   => _facturapiFormaSugerida($p['forma_pago'], $p['tarjeta_tipo']),
+            'asignado'    => $asignado,
+            // Misma tolerancia que Cobranza y _facturapiOrdenLiquidada (falta < $1 = pagada, UPD-656)
+            'liquida'     => $asignado > 0.004 && $acum >= $T - 0.99,
+            'primero'     => $asignado > 0.004 && $nConMonto === 1,
+            'faltante'    => round(max(0, $T - $acum), 2),
+            'factura'     => $fac,
+            'previo'      => $p['fecha_pago'] < FACTURACION_DESDE,   // UPD-660: ya facturado en CONTPAQi
+            'bono'        => $esBono,                                // UPD-681: bono de referido, no se factura
+        ];
+    }
+    // Casi liquida (UPD-646): el último pago con monto deja la orden a menos de $5 de
+    // liquidarse. Facturación le pregunta a quien factura si lo considera "Pago final".
+    $ultimo = null;
+    foreach ($pagos as $i => $p) { if ($p['asignado'] > 0.004) $ultimo = $i; }
+    foreach ($pagos as $i => &$p) {
+        $p['casi_liquida'] = ($i === $ultimo) && !$p['liquida'] && $p['faltante'] > 0.004 && $p['faltante'] < 5;
+    }
+    unset($p);
+    return ['total'=>$T, 'con_saldo_favor'=>$conSaldoFavor, 'pagos'=>$pagos];
+}
+
+// Leyenda del PDF, sin porcentaje (UPD-645, Armando): "Pago completo" (un solo pago cubre
+// todo), "Anticipo" (primer pago), "Abono" (intermedios) o "Pago final" (el que liquida, o
+// el que deja menos de $5 por cobrar si quien factura así lo decidió — UPD-646).
+function _facturapiLeyendaPago($asignado, $total, $liquida, $primero, $finalForzado = false) {
+    if ($total <= 0) return '';
+    if (abs($asignado - $total) < 0.005 || ($primero && $liquida)) return 'Pago completo';
+    if ($liquida || $finalForzado) return 'Pago final';
+    return $primero ? 'Anticipo' : 'Abono';
+}
+
+// Reparte el monto A (con IVA) entre los conceptos, en proporción a su importe.
+// Se calcula como el PAC: el importe de cada concepto lleva 6 decimales y el subtotal y
+// el IVA se redondean a centavos sobre la suma (confirmado con la vista previa de
+// FacturAPI: IVA por concepto con 6 decimales). Con la base redondeada a centavos hay
+// montos imposibles (p. ej. $535.09 → 461.28+73.80 o 461.29+73.81), por eso la base es
+// A/1.16 sin redondear: subtotal + IVA redondeados dan A salvo en el medio centavo exacto.
+// Regresa ['ok'=>true, conceptos, totales] con totales = lo que va a timbrar el PAC.
+function _facturapiRepartirConceptos($conceptos, $A) {
+    foreach ($conceptos as $c) {
+        if (empty($c['iva']) || (float)$c['cant'] <= 0) {
+            return ['ok'=>false, 'error'=>'La orden tiene conceptos sin IVA o sin cantidad; no se puede repartir por pago.'];
+        }
+    }
+    $A = round((float)$A, 2);
+    $pesos = [];
+    $sumPeso = 0.0;
+    foreach ($conceptos as $i => $c) { $pesos[$i] = (float)$c['cant'] * (float)$c['precio']; $sumPeso += $pesos[$i]; }
+    if ($sumPeso <= 0) return ['ok'=>false, 'error'=>'La orden no tiene importe para repartir.'];
+
+    $B0 = $A / 1.16;
+    foreach ([0, 1, -1, 2, -2, 3, -3] as $k) {
+        $B = $B0 + $k * 0.00002;   // empujón mínimo solo si cae en el medio centavo
+        $out = $conceptos;
+        foreach ($out as $i => &$c) {
+            $c['precio'] = round(($B * $pesos[$i] / $sumPeso) / (float)$c['cant'], 6);
+        }
+        unset($c);
+        $tot = _facturapiTotalesPac($out);
+        if (abs($tot['total'] - $A) < 0.001) return ['ok'=>true, 'conceptos'=>$out, 'totales'=>$tot];
+    }
+    return ['ok'=>false, 'error'=>'No se pudo cuadrar al centavo el pago de $'.number_format($A, 2).'.'];
+}
+
+// Totales como los calcula el PAC: importe e IVA por concepto con 6 decimales, subtotal
+// e IVA total redondeados a centavos sobre la suma.
+function _facturapiTotalesPac($conceptos) {
+    $sub = 0.0; $iva = 0.0;
+    foreach ($conceptos as $c) {
+        $imp = round((float)$c['cant'] * (float)$c['precio'], 6);
+        $sub += $imp;
+        if (!empty($c['iva'])) $iva += round($imp * 0.16, 6);
+    }
+    $sub = round($sub, 2); $iva = round($iva, 2);
+    return ['subtotal'=>$sub, 'iva'=>$iva, 'total'=>round($sub + $iva, 2)];
+}
+
+// Conceptos de la factura de UN pago: los de la orden con el importe en proporción, de
+// modo que subtotal + IVA dé exactamente lo asignado al pago. La cantidad (m²) y la
+// descripción no cambian; se ajusta el precio unitario (6 decimales). Se escoge la base
+// a centavos cuyo IVA redondeado cuadre al centavo y que no caiga en medio centavo (ahí
+// el redondeo del PAC podría ir para cualquier lado).
+// Regresa ['ok'=>true, conceptos, subtotal, iva, total, leyenda, pago] o ['ok'=>false,'error'].
+function _facturapiConceptosDePago($pdo, $ordenFolio, $pagoId, $finalForzado = false) {
+    $info = _facturapiPagosOrden($pdo, $ordenFolio);
+    if (!$info) return ['ok'=>false, 'error'=>'No se encontró la orden '.$ordenFolio.'.'];
+    if ($info['con_saldo_favor']) {
+        return ['ok'=>false, 'error'=>'La orden '.$ordenFolio.' se pagó en parte con saldo a favor: se factura completa en una sola factura cuando esté liquidada.'];
+    }
+    $pago = null;
+    foreach ($info['pagos'] as $p) { if ($p['id'] === (int)$pagoId) { $pago = $p; break; } }
+    if (!$pago) return ['ok'=>false, 'error'=>'Ese pago no pertenece a la orden '.$ordenFolio.'.'];
+    if (!empty($pago['previo'])) {
+        return ['ok'=>false, 'error'=>'Ese pago es del '.date('d/m/Y', strtotime($pago['fecha'])).', anterior al '
+            ._facturapiFechaArranqueTxt().': se facturó en el sistema anterior (CONTPAQi).'];
+    }
+    if (!empty($pago['bono'])) {
+        return ['ok'=>false, 'error'=>'Ese pago es el bono de referido: no es dinero que entró al banco, no lleva factura.'];
+    }
+    if ($pago['asignado'] <= 0.004) {
+        return ['ok'=>false, 'error'=>'Ese pago no tiene monto por facturar: los pagos anteriores ya cubren el total de la orden.'];
+    }
+
+    $conceptos = _facturapiConceptosDesdeOrden($pdo, $ordenFolio);
+    $T = $info['total'];
+    $A = $pago['asignado'];
+    $rep = _facturapiRepartirConceptos($conceptos, $A);
+    if (!$rep['ok']) return $rep;
+    $conceptos = $rep['conceptos'];
+    $tot = $rep['totales'];
+    return [
+        'ok'        => true,
+        'conceptos' => $conceptos,
+        'subtotal'  => $tot['subtotal'],
+        'iva'       => $tot['iva'],
+        'total'     => $tot['total'],
+        'leyenda'   => _facturapiLeyendaPago($A, $T, $pago['liquida'], $pago['primero'], $finalForzado && $pago['casi_liquida']),
+        'pago'      => $pago,
+    ];
+}
+
+// ── Factura de una orden = exactamente lo cobrado (UPD-657) ──────────────────
+// Armando (01-oct-2026): "lo facturado debe ser exacto a lo que se depositó" — por la
+// declaración ante Hacienda. Dos fuentes de centavos de diferencia que esto elimina:
+//  1) Apex redondea cada partida a centavos antes del IVA; el PAC calcula el IVA con los
+//     importes a 6 decimales → el CFDI podía salir 1 centavo distinto del total de Apex.
+//  2) Cobranza da por pagada una orden con < $1 de diferencia (y un pago de más < $10 se
+//     queda registrado completo) → lo cobrado no siempre es el total de la orden.
+// Regla: PUE de una orden liquidada y sin saldo a favor → total = suma exacta de los pagos.
+// En los demás casos (PPD, o con saldo a favor por el esquema de anticipos) → total de la
+// orden. Siempre se arma con _facturapiRepartirConceptos para que el PAC calcule
+// exactamente ese total (mismas cantidades y descripciones; ajusta el precio unitario).
+// Regresa ['conceptos','subtotal','iva','total','objetivo','origen'=>'pagos'|'orden'] o null.
+function _facturapiConceptosFactura($pdo, $ordenFolio, $metodoPago) {
+    $base = _facturapiConceptosDesdeOrden($pdo, $ordenFolio);
+    if ($base === null) return null;
+    $T = _facturapiTotalesConceptos($base)['total'];
+
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(SUM(p.monto), 0) AS pagado, COALESCE(SUM(p.forma_pago = 'saldo_favor'), 0) AS con_sf
+        FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id
+        JOIN cotizacion_pagos p ON p.cotizacion_id = c.id
+        WHERE o.folio = ?
+    ");
+    $stmt->execute([$ordenFolio]);
+    $pg = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['pagado'=>0, 'con_sf'=>0];
+
+    $origen = 'orden';
+    $A = $T;
+    $tr = _facturapiPagosTransicion($pdo, $ordenFolio);
+    if ($metodoPago === 'PUE' && (int)$pg['con_sf'] === 0 && _facturapiOrdenLiquidada($pdo, $ordenFolio)) {
+        $A = round((float)$pg['pagado'], 2);
+        $origen = 'pagos';
+        if ($tr['transicion'] && $tr['desde'] > 0.004) {
+            // UPD-660: solo lo pagado desde el arranque (lo previo ya se facturó en CONTPAQi)
+            $A = $tr['desde'];
+            $origen = 'transicion';
+        }
+    }
+    $rep = _facturapiRepartirConceptos($base, $A);
+    if (empty($rep['ok'])) {
+        // Conceptos sin IVA o sin cantidad: no se puede repartir; se factura tal cual.
+        $t = _facturapiTotalesConceptos($base);
+        return ['conceptos'=>$base, 'subtotal'=>$t['subtotal'], 'iva'=>$t['iva'], 'total'=>$t['total'], 'objetivo'=>$T, 'origen'=>'orden'];
+    }
+    return ['conceptos'=>$rep['conceptos'], 'subtotal'=>$rep['totales']['subtotal'], 'iva'=>$rep['totales']['iva'],
+            'total'=>$rep['totales']['total'], 'objetivo'=>$A, 'origen'=>$origen,
+            'previo'=>$tr['previo'], 'desde'=>$tr['desde']];
 }
 
 // Candado de contexto de negocio: ¿esta orden se puede facturar?
@@ -149,7 +459,28 @@ function _facturapiOrdenNoFacturable($pdo, $ordenFolio) {
     if (in_array((string)$o['cot_estatus'], ['cancelada', 'rechazada'], true)) {
         return 'La cotización de origen de la orden ' . $ordenFolio . ' está ' . $o['cot_estatus'] . ', no se puede facturar.';
     }
+    // Transición (UPD-660): si todo lo cobrado es anterior al arranque, ya se facturó en
+    // CONTPAQi. En cuanto entre un pago desde octubre, se factura el proporcional de ese pago.
+    $tr = _facturapiPagosTransicion($pdo, $ordenFolio);
+    if ($tr['mixta']) {
+        return 'La orden ' . $ordenFolio . ' tiene pagos anteriores al ' . _facturapiFechaArranqueTxt() . ' ($' . number_format($tr['previo'], 2)
+             . ', facturados en el sistema anterior), pagos desde octubre ($' . number_format($tr['desde'], 2) . ') y saldo a favor aplicado. '
+             . 'El sistema no puede repartirla sin facturar dos veces: hay que resolverla a mano con el contador.';
+    }
+    if ($tr['transicion'] && $tr['desde'] <= 0.004) {
+        return 'Los pagos de la orden ' . $ordenFolio . ' ($' . number_format($tr['previo'], 2) . ') son anteriores al '
+             . _facturapiFechaArranqueTxt() . ' y ya se facturaron en el sistema anterior (CONTPAQi). '
+             . 'Cuando pague el resto, aquí se factura solo lo que pague desde octubre.';
+    }
     return null;
+}
+
+// Transición (UPD-660): una orden con pagos facturados en CONTPAQi no puede ir en PPD,
+// porque la factura saldría por el total de la orden y duplicaría lo ya facturado.
+function _facturapiMsgTransicionPpd($ordenFolio, $tr) {
+    return 'La orden ' . $ordenFolio . ' tiene $' . number_format($tr['previo'], 2) . ' pagados antes del '
+         . _facturapiFechaArranqueTxt() . ' que ya se facturaron en el sistema anterior: no puede ir en PPD (saldría por el total). '
+         . 'Se factura en PUE cuando esté liquidada, solo por lo pagado desde octubre.';
 }
 
 // ── Complementos de Pago (CFDI tipo P, 29-sep-2026) ─────────────────────────
@@ -520,7 +851,10 @@ function _facturapiOrdenLiquidada($pdo, $ordenFolio) {
     $stmt->execute([$ordenFolio]);
     $r = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$r || (float)$r['total'] <= 0) return false;
-    return (float)$r['pagado'] >= (float)$r['total'] - 0.005;
+    // UPD-656: mismo criterio que Cobranza (api/finanzas.php): la orden se da por pagada si
+    // falta menos de $1 (ej. S-998, $0.01 de diferencia). Antes Facturación exigía el
+    // centavo exacto y mandaba a PPD una orden que Cobranza ya marcaba como Pagada.
+    return (float)$r['pagado'] >= (float)$r['total'] - 0.99;
 }
 
 // Descarga un archivo (PDF/XML) de FacturAPI autenticado; regresa el binario o null si falla
@@ -533,14 +867,17 @@ function _descargarArchivoFacturapi($url) {
     return $bin;
 }
 
-// ENVIO DE CFDI POR CORREO — APAGADO A PROPOSITO (Armando, 26-sep-2026).
-// Se baja la feature completa hasta el final del proyecto de facturacion. Motivo: al
-// probar el modulo en vivo se descubrio que el correo del receptor viene pre-llenado del
-// CRM, asi que timbrar en sandbox le mando a un cliente REAL un CFDI de pruebas adjunto.
-// Mismo patron que RUTA_WA_AVISOS_ACTIVO en rutas_lib.php: para reactivarlo basta poner
-// esta constante en true (y entonces sigue vigente el segundo candado de abajo, que
-// impide enviar mientras FACTURAPI_MODE no sea 'live').
-define('FACTURACION_ENVIO_CORREO_ACTIVO', false);
+// ENVIO DE CFDI POR CORREO — REACTIVADO el 01-oct-2026 (Mando lo pidio al arrancar
+// la operacion real). Estuvo apagado desde el 26-sep: al probar el modulo en vivo se
+// descubrio que el correo del receptor viene pre-llenado del CRM, asi que timbrar en
+// sandbox le mando a un cliente REAL un CFDI de pruebas adjunto (paso con A-001 y A-003).
+//
+// SIGUE VIGENTE EL SEGUNDO CANDADO, que es el que de verdad protege de ese escenario:
+// mientras FACTURAPI_MODE no sea 'live' no se envia nada, aunque esta constante este en
+// true. O sea que prender esta sola no manda correos: hacen falta las dos cosas.
+// Para apagarlo de nuevo: esta constante en false Y 'FAC_CORREO_ACTIVO' en
+// app/modulos/facturacion.php — son espejos, hay que cambiar LAS DOS.
+define('FACTURACION_ENVIO_CORREO_ACTIVO', true);
 
 // S2-a: resguardo propio del comprobante. Los CFDI viven en FacturAPI, pero el SAT
 // obliga a conservar el XML 5 años y la caída de suscripción del 24-sep-2026 dejó claro
@@ -1136,38 +1473,72 @@ function _facturapiSaldoOrden($pdo, $ordenFolio) {
     return ['total'=>$total, 'pagado'=>$pagado, 'saldo'=>round(max(0, $total - $pagado), 2)];
 }
 
-// Valida RFC + nombre + CP + régimen contra el padrón del SAT usando SIEMPRE el
-// sandbox de FacturAPI (llave de pruebas), aunque el sistema esté en live: emite una
-// factura de prueba de $1 y la cancela enseguida (mismo método que
-// scripts/validar_datos_fiscales.php). Regresa ['ok'=>true] o ['ok'=>false,'error'].
+// Valida RFC + nombre + CP + régimen contra el padrón del SAT (UPD-655). Usa el alta de
+// cliente de FacturAPI (POST /v2/customers), que valida esos 4 datos contra el SAT y
+// funciona en modo real SIN emitir ningún comprobante. Antes se emitía una factura de $1
+// en el sandbox, que dejó de funcionar al quitar la llave de pruebas (UPD-634).
+// El cliente queda en el directorio de FacturAPI, igual que pasa al facturarle.
+// Regresa ['ok'=>true] | ['ok'=>false,'error'=>...,'red'=>bool] — 'red' = no se pudo
+// consultar (caída, timeout, llave), distinto de "el SAT rechazó los datos".
 function _facturapiValidarReceptorSat($rfc, $nombre, $cp, $regimen) {
-    if (!defined('FACTURAPI_KEY_TEST') || FACTURAPI_KEY_TEST === '') {
-        return ['ok'=>false, 'error'=>'No hay llave de pruebas de FacturAPI para validar contra el SAT.'];
+    if (!defined('FACTURAPI_KEY') || FACTURAPI_KEY === '') {
+        return ['ok'=>false, 'red'=>true, 'error'=>'No hay llave de FacturAPI para validar contra el SAT.'];
     }
-    $llamar = function($url, $method, $body = null) {
-        $ch = curl_init($url);
-        $o = [CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>30,
-              CURLOPT_HTTPHEADER=>['Authorization: Bearer '.FACTURAPI_KEY_TEST, 'Content-Type: application/json']];
-        if ($method === 'POST')   { $o[CURLOPT_POST] = true; $o[CURLOPT_POSTFIELDS] = json_encode($body); }
-        if ($method === 'DELETE') { $o[CURLOPT_CUSTOMREQUEST] = 'DELETE'; }
-        curl_setopt_array($ch, $o);
-        $r = curl_exec($ch); $c = curl_getinfo($ch, CURLINFO_HTTP_CODE); $e = curl_error($ch);
+    // Hasta 3 intentos: el servicio del SAT a veces no contesta o FacturAPI limita la
+    // velocidad; solo un 400 con mensaje cuenta como "el SAT rechazó los datos".
+    $code = 0; $err = ''; $res = null;
+    for ($intento = 1; $intento <= 3; $intento++) {
+        $ch = curl_init('https://www.facturapi.io/v2/customers');
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20,
+            CURLOPT_HTTPHEADER => ['Authorization: Bearer '.FACTURAPI_KEY, 'Content-Type: application/json'],
+            CURLOPT_POSTFIELDS => json_encode([
+                'legal_name' => $nombre, 'tax_id' => $rfc, 'tax_system' => $regimen, 'address' => ['zip' => $cp],
+            ]),
+        ]);
+        $r = curl_exec($ch); $code = curl_getinfo($ch, CURLINFO_HTTP_CODE); $err = curl_error($ch);
         unset($ch);
-        return [$c, json_decode((string)$r, true), $e];
-    };
-    list($code, $res, $err) = $llamar('https://www.facturapi.io/v2/invoices', 'POST', [
-        'type'=>'I', 'use'=>'G03', 'payment_form'=>'01', 'payment_method'=>'PUE',
-        'series'=>'VAL', 'folio_number'=>(int)(90000 + (int)date('His')), 'currency'=>'MXN',
-        'customer'=>['legal_name'=>$nombre, 'tax_id'=>$rfc, 'tax_system'=>$regimen, 'address'=>['zip'=>$cp]],
-        'items'=>[['quantity'=>1, 'product'=>['description'=>'Validacion de datos fiscales', 'product_key'=>'30171706',
-            'unit_key'=>'MTK', 'price'=>1, 'tax_included'=>false, 'taxes'=>[['type'=>'IVA','rate'=>0.16,'factor'=>'Tasa']]]]],
-    ]);
-    if ($err) return ['ok'=>false, 'error'=>'No se pudo consultar el padrón del SAT: '.$err];
-    if ($code === 200) {
-        if (!empty($res['id'])) $llamar('https://www.facturapi.io/v2/invoices/'.$res['id'].'?motive=02', 'DELETE');
-        return ['ok'=>true];
+        $res = json_decode((string)$r, true);
+        if ($code === 200) return ['ok'=>true];
+        if ($code === 400 && !empty($res['message'])) {
+            return ['ok'=>false, 'red'=>false, 'error'=>'El SAT rechazó los datos: '.trim(preg_replace('/\s+/', ' ', $res['message']))];
+        }
+        if ($intento < 3) sleep(2 * $intento);
     }
-    $msg = $res['message'] ?? 'Error desconocido';
-    if (!empty($res['errors'][0]['path'])) $msg = $res['errors'][0]['path'].': '.($res['errors'][0]['message'] ?? $msg);
-    return ['ok'=>false, 'error'=>'El SAT rechazó los datos: '.trim(preg_replace('/\s+/', ' ', $msg))];
+    error_log('APEX validar SAT: sin respuesta util tras 3 intentos (HTTP '.$code.') '.$err.' '.substr(json_encode($res), 0, 300));
+    return ['ok'=>false, 'red'=>true, 'error'=>'No se pudo consultar al SAT en este momento (HTTP '.$code.').'];
+}
+
+// Persona física (RFC de 13): el SAT registra Nombre(s) + Primer Apellido + Segundo
+// Apellido. Si el nombre llegó en otro orden (constancia escaneada, captura a mano), se
+// prueban los reacomodos más probables: pasar al final los 2 primeros tokens (apellidos
+// primero, el caso de UPD-654) o el primero (un solo apellido). Máximo 3 variantes.
+function _facturapiVariantesNombreFisica($nombre) {
+    $t = preg_split('/\s+/u', trim($nombre));
+    $n = count($t);
+    if ($n < 2) return [];
+    $orden = $n >= 3 ? [2, 1, $n - 2] : [1];
+    $out = [];
+    foreach ($orden as $k) {
+        if ($k < 1 || $k >= $n) continue;
+        $v = implode(' ', array_merge(array_slice($t, $k), array_slice($t, 0, $k)));
+        if ($v !== $nombre && !in_array($v, $out, true)) $out[] = $v;
+        if (count($out) >= 3) break;
+    }
+    return $out;
+}
+
+// Valida y, si es persona física y el SAT rechaza el nombre, prueba los reacomodos.
+// Regresa ['ok'=>true,'nombre'=>el aceptado,'corregido'=>bool] o el error de la validación
+// original (con 'red' si no se pudo consultar).
+function _facturapiValidarConCorreccion($rfc, $nombre, $cp, $regimen) {
+    $v = _facturapiValidarReceptorSat($rfc, $nombre, $cp, $regimen);
+    if (!empty($v['ok'])) return ['ok'=>true, 'nombre'=>$nombre, 'corregido'=>false];
+    if (!empty($v['red']) || strlen($rfc) !== 13) return $v;
+    foreach (_facturapiVariantesNombreFisica($nombre) as $alt) {
+        $va = _facturapiValidarReceptorSat($rfc, $alt, $cp, $regimen);
+        if (!empty($va['ok'])) return ['ok'=>true, 'nombre'=>$alt, 'corregido'=>true];
+        if (!empty($va['red'])) break;
+    }
+    return $v;
 }

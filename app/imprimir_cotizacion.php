@@ -20,6 +20,8 @@ if (!$c) { echo "Cotización no encontrada"; exit; }
 $esMaquila = ($c['tipo'] ?? 'suministro') === 'maquila';
 
 $servicios_por_partida = [];
+$servicios_libres = [];
+$flete_subtotal = 0.0;
 if ($esMaquila) {
     $stmt2 = $db->prepare("
         SELECT mp.*, tv.nombre AS tipo_vidrio_nombre
@@ -35,10 +37,12 @@ if ($esMaquila) {
     $partidas = $stmt2->fetchAll(PDO::FETCH_ASSOC);
 
     // Servicios adicionales por partida
-    $stmtSrv = $db->prepare("SELECT cps.*, sc.nombre as servicio_nombre, sc.unidad as servicio_unidad FROM cotizacion_partida_servicios cps LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id WHERE cps.cotizacion_id = ? ORDER BY cps.partida_id, cps.id");
+    $stmtSrv = $db->prepare("SELECT cps.*, sc.nombre as servicio_nombre, sc.unidad as servicio_unidad, COALESCE(sc.precio_libre,0) as servicio_precio_libre FROM cotizacion_partida_servicios cps LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id WHERE cps.cotizacion_id = ? ORDER BY cps.partida_id, cps.id");
     $stmtSrv->execute([$id]);
     $servicios_raw = $stmtSrv->fetchAll(PDO::FETCH_ASSOC);
     foreach ($servicios_raw as $srv) {
+        // UPD-689: el Flete (precio libre) es de toda la cotización — renglón propio al final
+        if ((int)$srv['servicio_precio_libre'] === 1) { $servicios_libres[] = $srv; $flete_subtotal += (float)$srv['subtotal']; continue; }
         $servicios_por_partida[$srv['partida_id']][] = $srv;
     }
 }
@@ -126,6 +130,11 @@ if ($c['fecha']) {
     $meses = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     $fecha_formateada = $d->format('d') . ' de ' . $meses[(int)$d->format('m')] . ' de ' . $d->format('Y');
 }
+// UPD-668: código por niveles (RAZA_OCT2026) — qué tipo de entrega/precio le tocó.
+require_once __DIR__ . '/../api/helpers/promo_precio_lib.php';
+$promo_nivel = !empty($c['promo_precio_codigo'])
+    ? promoPrecioNivel($c['promo_precio_codigo'], $partidas, (int)($c['promo_express'] ?? 0)) : null;
+
 $fecha_entrega_fmt = '';
 if ($c['fecha_entrega']) {
     $d2 = new DateTime($c['fecha_entrega']);
@@ -376,6 +385,9 @@ function waEnviar() {
       <?php if (!empty($c['ciudad_destino'])): ?>
       <div class="row"><span class="key">Ciudad</span><span class="val"><?= htmlspecialchars($c['ciudad_destino']) ?></span></div>
       <?php endif; ?>
+      <?php if ($promo_nivel): ?>
+      <div class="row"><span class="key">Tipo de precio</span><span class="val"><?= htmlspecialchars(PROMO_PRECIO_NIVEL_TEXTO[$promo_nivel]) ?></span></div>
+      <?php endif; ?>
       <?php if ($fecha_entrega_fmt): ?>
       <div class="row"><span class="key">Fecha compromiso</span><span class="val"><?= $fecha_entrega_fmt ?></span></div>
       <?php endif; ?>
@@ -467,6 +479,13 @@ function waEnviar() {
       </tr>
       <?php endforeach; ?>
     <?php endforeach; ?>
+    <?php foreach ($servicios_libres as $srv): ?>
+      <tr style="background:#f0fdf4;">
+        <td class="center" style="color:#16a34a;font-size:9px;font-weight:700;">+SRV</td>
+        <td colspan="5" style="color:#15803d;font-size:10px;padding-left:14px;"><?= htmlspecialchars($srv['descripcion']) ?></td>
+        <td class="right" style="color:#15803d;font-weight:700;">$<?= number_format((float)$srv['subtotal'],2) ?></td>
+      </tr>
+    <?php endforeach; ?>
     </tbody>
   </table>
   <?php else: ?>
@@ -528,6 +547,14 @@ function waEnviar() {
                 'nombre'   => 'Templado',
                 'detalle'  => fmtM2Exacto($m2_total_p) . ' m² &times; $' . number_format((float)$p['precio_horno_usado'], 2) . '/m²',
                 'subtotal' => (float)$p['subtotal_horno'],
+            ];
+        }
+        if (!empty($p['esmerilado'])) {   // UPD-653: por m², igual que el templado
+            $m2_total_e = round((float)$p['m2'] * $cantidad_p, 4);
+            $servicios_det[] = [
+                'nombre'   => 'Esmerilado',
+                'detalle'  => fmtM2Exacto($m2_total_e) . ' m² &times; $' . number_format((float)$p['precio_esmerilado_usado'], 2) . '/m²',
+                'subtotal' => (float)$p['subtotal_esmerilado'],
             ];
         }
     ?>
@@ -638,10 +665,16 @@ function waEnviar() {
         <span class="val">-$<?= number_format($subtotal_desc_base * $descuento_encuesta / 100, 2) ?></span>
       </div>
       <?php endif; ?>
-      <?php if ($servicios_subtotal > 0): ?>
+      <?php if (round($servicios_subtotal - $flete_subtotal, 2) > 0): ?>
       <div class="totales-row" style="color:#15803d;">
         <span class="label">Servicios adicionales</span>
-        <span class="val">$<?= number_format($servicios_subtotal, 2) ?></span>
+        <span class="val">$<?= number_format($servicios_subtotal - $flete_subtotal, 2) ?></span>
+      </div>
+      <?php endif; ?>
+      <?php if ($flete_subtotal > 0): ?>
+      <div class="totales-row" style="color:#15803d;">
+        <span class="label">Flete</span>
+        <span class="val">$<?= number_format($flete_subtotal, 2) ?></span>
       </div>
       <?php endif; ?>
       <?php if ($iva > 0): ?>

@@ -113,7 +113,9 @@ var ModContabilidad = (function(){
     <div class="contab-grupo contab-grupo-captura">
       <div class="contab-grupo-titulo"><span class="dot"></span>Captura mensual</div>
       <div class="contab-pill-row">
+        <?php if (!apexEsSoloConsulta($user['rol']) || CONTADOR_VE_NOMINA): ?>
         <button class="contab-tab-btn" data-tab="nomina" onclick="ModContabilidad.cargarTab('nomina', this)">Nómina</button>
+        <?php endif; ?>
         <button class="contab-tab-btn" data-tab="gastos_fijos" onclick="ModContabilidad.cargarTab('gastos_fijos', this)">Gastos Fijos</button>
         <button class="contab-tab-btn" data-tab="caja_chica" onclick="ModContabilidad.cargarTab('caja_chica', this)">Caja Chica</button>
         <button class="contab-tab-btn" data-tab="contabilidad_polizas" onclick="ModContabilidad.cargarTab('contabilidad_polizas', this)">Pólizas</button>

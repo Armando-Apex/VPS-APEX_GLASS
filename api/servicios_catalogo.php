@@ -22,7 +22,7 @@ $es_admin = in_array($rol, ['dir_admin', 'desarrollo']);
 if ($method === 'GET') {
     $todos = isset($_GET['todos']) && $_GET['todos'] === '1';
     $where = $todos ? '' : 'WHERE activo = 1';
-    $stmt  = $db->query("SELECT id, nombre, precio_default, unidad, activo FROM servicios_catalogo $where ORDER BY nombre ASC");
+    $stmt  = $db->query("SELECT id, nombre, precio_default, unidad, precio_libre, activo FROM servicios_catalogo $where ORDER BY nombre ASC");
     jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
 }
 
@@ -55,7 +55,13 @@ if ($method === 'PUT') {
     $precio = (float)($body['precio_default'] ?? 0);
     $unidad = in_array($body['unidad'] ?? '', ['ml', 'm2'], true) ? $body['unidad'] : 'pieza'; // UPD-613: + m2
 
-    if (!$id || !$nombre || $precio <= 0) {
+    // UPD-689: los servicios de precio libre (Flete) no tienen precio de catálogo — el
+    // monto se captura en cada cotización — así que pueden quedarse en $0.
+    $stL = $db->prepare("SELECT precio_libre FROM servicios_catalogo WHERE id = ?");
+    $stL->execute([$id]);
+    $esLibre = (int)$stL->fetchColumn() === 1;
+
+    if (!$id || !$nombre || ($precio <= 0 && !$esLibre) || $precio < 0) {
         jsonResponse(['error' => 'Datos incompletos']);
     }
 

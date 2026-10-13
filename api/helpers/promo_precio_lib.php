@@ -29,7 +29,51 @@ const PROMO_PRECIO_CODIGOS = [
         'fin'         => '2026-09-30 23:59:59',
         'vobo_limite' => '2026-10-05 23:59:59',
     ],
+    // UPD-668 (05-oct-2026): código por NIVELES — el sistema decide el precio según
+    // los m² y piezas de Claro 6mm/9mm de la cotización (ver promoPrecioNivel):
+    //   volumen  (>= 50 m² sumando 6mm+9mm)                 → $615 / $870 con IVA
+    //   express  (hasta 4 piezas y casilla "Entrega Express") → $745 / $1,050
+    //   normal   (todo lo demás, entrega en 5 días)           → $670 / $945
+    'RAZA_OCT2026' => [
+        'niveles'     => [
+            'express' => [1 => 642.2414, 2 => 905.1724],
+            'normal'  => [1 => 577.5862, 2 => 814.6552],
+            'volumen' => [1 => 530.1724, 2 => 750.0000],
+        ],
+        'volumen_m2'  => 50,
+        'express_max_piezas' => 4,
+        'fin'         => '2026-10-12 18:00:00',
+        'vobo_limite' => '2026-10-17 23:59:59',
+    ],
 ];
+
+const PROMO_PRECIO_NIVEL_TEXTO = [
+    'express' => 'Entrega Express',
+    'normal'  => 'Entrega en 5 días hábiles',
+    'volumen' => 'Precio por volumen (50 m² o más)',
+];
+
+// Nivel que le toca a una cotización con un código por niveles, o null si el código
+// es de precio plano. $partidas = arreglo crudo del body (cristal_id/cantidad/ancho/
+// alto/lamina_id). Solo cuentan las partidas de los cristales que entran en la promo.
+function promoPrecioNivel($codigo, array $partidas, $express) {
+    if (!$codigo || empty(PROMO_PRECIO_CODIGOS[$codigo]['niveles'])) return null;
+    $cfg = PROMO_PRECIO_CODIGOS[$codigo];
+    $ids = array_keys($cfg['niveles']['normal']);
+    $m2 = 0; $piezas = 0;
+    foreach ($partidas as $p) {
+        $cid = (int)($p['cristal_id'] ?? 0);
+        $an  = (int)($p['ancho'] ?? 0);
+        $al  = (int)($p['alto'] ?? 0);
+        if (!in_array($cid, $ids, true) || $an <= 0 || $al <= 0 || (int)($p['lamina_id'] ?? 0)) continue;
+        $cant = max(1, (int)($p['cantidad'] ?? 1));
+        $m2     += ($an / 1000) * ($al / 1000) * $cant;
+        $piezas += $cant;
+    }
+    if ($m2 >= $cfg['volumen_m2'] - 0.000001) return 'volumen';
+    if ($express && $piezas > 0 && $piezas <= $cfg['express_max_piezas']) return 'express';
+    return 'normal';
+}
 
 // Normaliza y valida el código. Devuelve ['error'=>?string, 'codigo'=>?string].
 function promoPrecioValidar($codigo) {
@@ -65,9 +109,11 @@ function promoPrecioMsgVoboVencida($codigo) {
 }
 
 // Precio promo para un cristal, o null si el cristal no entra en la promo.
-function promoPrecioDe($codigo, $cristal_id) {
+function promoPrecioDe($codigo, $cristal_id, $nivel = null) {
     if (!$codigo || !isset(PROMO_PRECIO_CODIGOS[$codigo])) return null;
-    return PROMO_PRECIO_CODIGOS[$codigo]['precios'][(int)$cristal_id] ?? null;
+    $cfg = PROMO_PRECIO_CODIGOS[$codigo];
+    if (!empty($cfg['niveles'])) return $cfg['niveles'][$nivel ?: 'normal'][(int)$cristal_id] ?? null;
+    return $cfg['precios'][(int)$cristal_id] ?? null;
 }
 
 // Quita la promo de una cotización/orden ya guardada: partidas en promo regresan

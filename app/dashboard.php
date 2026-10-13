@@ -15,6 +15,9 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno','desarroll
 $esLogistica  = in_array($_rol, ['dir_admin','administracion','dueno','chofer','desarrollo','comercial']);
 $esJefe       = in_array($_rol, ['jefe_piso','dir_admin','dueno','director','desarrollo']);
 $esArchivos   = in_array($_rol, ['dir_admin','administracion','comercial','desarrollo']);
+// UPD-652: contador = solo consulta de Cobranza, Facturación y Contabilidad.
+$esContador   = apexEsSoloConsulta($_rol);
+$moduloInicio = $esContador ? 'finanzas_cobranza' : 'resumen';
 
 $ROL_LABELS = [
     'dir_admin'      => 'Director Admin',
@@ -26,6 +29,7 @@ $ROL_LABELS = [
     'chofer'         => 'Chofer',
     'director'       => 'Director',
     'desarrollo'     => 'Dev',
+    'contador'       => 'Contador (solo consulta)',
 ];
 $_rolLabel = $ROL_LABELS[$_rol] ?? ucfirst(str_replace('_', ' ', $_rol));
 
@@ -277,12 +281,14 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
 
 <div class="topbar">
   <button class="topbar-hamburger" onclick="toggleSidebar()" aria-label="Menú"><?= icono('menu', 20) ?></button>
-  <div class="topbar-logo" onclick="cargarModulo('resumen')">APEX GLASS</div>
+  <div class="topbar-logo" onclick="cargarModulo('<?= $moduloInicio ?>')">APEX GLASS</div>
   <div class="topbar-sep"></div>
   <div class="topbar-sub">Producci&oacute;n</div>
   <div class="topbar-right">
     <span id="reloj"></span>
+    <?php if (!$esContador): ?>
     <button class="rep-btn" onclick="repAbrirModal()" title="Reportar bug o mejora"><?= icono('flag', 18) ?></button>
+    <?php endif; ?>
     <?php if ($esAdmin || $esComercial): ?>
     <div class="notif-wrap" id="notifWrap">
       <button class="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones" aria-label="Notificaciones">
@@ -334,6 +340,7 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
 <div class="layout">
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="cerrarSidebar()"></div>
   <nav class="sidebar" id="sidebarNav">
+    <?php if (!$esContador): ?>
     <div class="sidebar-section">
       <div class="sidebar-label">Producci&oacute;n</div>
       <button class="sidebar-link" data-modulo="resumen" onclick="cargarModulo('resumen')">
@@ -355,6 +362,7 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       </button>
       <?php endif; ?>
     </div>
+    <?php endif; ?>
     <?php if ($esComercial): ?>
     <div class="sidebar-section">
       <div class="sidebar-label">Comercial</div>
@@ -391,7 +399,7 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       </button>
     </div>
     <?php endif; ?>
-    <?php if ($esAdmin || tienePermiso($_rol, 'ver_contabilidad')): ?>
+    <?php if (!$esContador && ($esAdmin || tienePermiso($_rol, 'ver_contabilidad'))): ?>
     <div class="sidebar-section">
       <div class="sidebar-label">Administraci&oacute;n</div>
       <?php if ($esAdmin): ?>
@@ -446,16 +454,18 @@ body.rep-pick-mode #rep-pick-banner{display:flex;}
       <?php endif; ?>
     </div>
     <?php endif; ?>
-    <?php if ($esFinanzas): ?>
+    <?php if ($esFinanzas || $esContador): ?>
     <div class="sidebar-section">
       <div class="sidebar-label">Finanzas</div>
+      <?php if (!$esContador): ?>
       <button class="sidebar-link" data-modulo="finanzas_vobo" onclick="cargarModulo('finanzas_vobo')">
         <span class="sidebar-icon"><?= icono('check-square') ?></span>VoBo &Oacute;rdenes
       </button>
+      <?php endif; ?>
       <button class="sidebar-link" data-modulo="finanzas_cobranza" onclick="cargarModulo('finanzas_cobranza')">
         <span class="sidebar-icon"><?= icono('credit-card') ?></span>Cobranza
       </button>
-      <?php if (tienePermiso($_rol, 'facturar')): ?>
+      <?php if (tienePermiso($_rol, 'facturar') || tienePermiso($_rol, 'ver_facturacion')): ?>
       <button class="sidebar-link" data-modulo="facturacion" onclick="cargarModulo('facturacion')">
         <span class="sidebar-icon"><?= icono('file-text') ?></span>Facturación<?php if (FACTURAPI_MODE !== 'live'): ?> <span style="font-size:10px;background:#f59e0b;color:#000;padding:1px 5px;border-radius:99px;margin-left:4px" title="FacturAPI en modo prueba: los CFDI no tienen validez fiscal">PRUEBA</span><?php endif; ?>
       </button>
@@ -646,7 +656,7 @@ window.actualizarBadge = function(venc) {
 };
 
 const _up = new URLSearchParams(location.search);
-const _m  = (_up.get('m') || 'resumen').split('?')[0];
+const _m  = (_up.get('m') || '<?= $moduloInicio ?>').split('?')[0];
 const _p  = {}; _up.forEach((v,k) => { if (k !== 'm') _p[k] = v; });
 cargarModulo(_m, _p);
 
@@ -1065,6 +1075,7 @@ window.cargarModulo = function(nombre, params) {
   return _cargarModuloOrig(nombre, params);
 };
 
+<?php if (!$esContador): /* UPD-652: el contador no consulta avisos de otros módulos */ ?>
 // ── Badge autorizaciones pendientes (ámbar) ───────────────────
 (function() {
   function actualizarBadgeAuth() {
@@ -1160,6 +1171,12 @@ window.actualizarBadgeCompras = function() {};
   _siOrig.call(window, actualizarBadgeReportes, 10000);
   window.actualizarBadgeReportes = actualizarBadgeReportes;
 })();
+<?php else: ?>
+window.actualizarBadgeAuth = function() {};
+window.actualizarBadgeCompras = function() {};
+window.actualizarBadgeWA = function() {};
+window.actualizarBadgeReportes = function() {};
+<?php endif; ?>
 
 // ── Reportar bug / mejora ─────────────────────────────────────────────────────
 (function() {

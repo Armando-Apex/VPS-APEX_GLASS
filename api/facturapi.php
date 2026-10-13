@@ -8,7 +8,15 @@ header('Content-Type: application/json');
 
 // S2-c/S2-d: permiso propio en vez de 'ver_wip' (cajon de sastre de modulos WIP) —
 // asi administracion (Lina, que lleva cobranza) puede facturar sin heredar todo lo WIP.
-$user = requirePermisoApi('facturar');
+// UPD-652: 'ver_facturacion' (contador) solo puede consultar; el candado de
+// helpers/rol_restringido.php ya rechaza cualquier método que no sea GET.
+$user = requireSessionApi();
+$_puedeFacturar = tienePermiso($user['rol'], 'facturar');
+if (!$_puedeFacturar && !(tienePermiso($user['rol'], 'ver_facturacion') && $_SERVER['REQUEST_METHOD'] === 'GET')) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Sin permiso para esta accion']);
+    exit;
+}
 $pdo  = getDB();
 
 $accion = $_GET['accion'] ?? '';
@@ -20,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_clientes') {
     $like = '%' . $q . '%';
     $stmt = $pdo->prepare("
         SELECT id, codigo, razon_social, nombre, email,
-               rfc, cp_fiscal, regimen_fiscal
+               rfc, cp_fiscal, regimen_fiscal, uso_cfdi
         FROM clientes
         WHERE activo = 1
           AND (razon_social LIKE ? OR nombre LIKE ? OR codigo LIKE ?)
@@ -37,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_clientes') {
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'lista_clientes') {
     $rows = $pdo->query("
         SELECT id, codigo, razon_social, nombre, email,
-               rfc, cp_fiscal, regimen_fiscal
+               rfc, cp_fiscal, regimen_fiscal, uso_cfdi
         FROM clientes
         WHERE activo = 1
         ORDER BY COALESCE(NULLIF(razon_social, ''), nombre) ASC
@@ -82,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
     $cliente = null;
     if ($orden['cliente_id']) {
         $stmt = $pdo->prepare("
-            SELECT id, codigo, razon_social, nombre, email, rfc, cp_fiscal, regimen_fiscal
+            SELECT id, codigo, razon_social, nombre, email, rfc, cp_fiscal, regimen_fiscal, uso_cfdi
             FROM clientes WHERE id = ?
         ");
         $stmt->execute([$orden['cliente_id']]);
@@ -90,7 +98,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
     }
 
     // Relacionar con la cotización de origen vía cotizaciones.orden_id (se llena siempre al convertir, api/cotizaciones.php)
-    $conceptos = _facturapiConceptosDesdeOrden($pdo, $orden['folio']) ?? [];
+    // UPD-657: los conceptos ya salen cuadrados a lo que se va a timbrar (PUE de una orden
+    // pagada = suma exacta de los pagos; si no, el total de la orden).
+    $metodoSug = _facturapiOrdenLiquidada($pdo, $orden['folio']) ? 'PUE' : 'PPD';
+    $cf = _facturapiConceptosFactura($pdo, $orden['folio'], $metodoSug);
+    $conceptos = $cf ? $cf['conceptos'] : [];
 
     // Estado de cobro (29-sep-2026): define PUE/PPD y si Público en General ya se puede
     // timbrar. Y aviso de venta de un mes anterior: facturarla ahora afecta un mes que el
@@ -118,6 +130,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
     }
     if ($antO['aplicado'] > 0.004) {
         $avisosExtra[] = 'Con saldo a favor aplicado se factura en PUE cuando la orden esté liquidada.';
+        // UPD-681: si todo es bono de referido, a Público en General sí va un CFDI por cada pago en dinero.
+        if (abs($antO['aplicado'] - $antO['referido']) < 0.005) {
+            $avisosExtra[] = 'A Público en General se factura cada pago en dinero el día que entra; el bono de referido no lleva factura.';
+        }
     }
     if ($antO['previo_sin_revisar']) {
         $avisoAnt = 'Se pagó con saldo a favor de un depósito anterior al 01/10/2026 que todavía no se revisa (¿se facturó en CONTPAQi?): márcalo en Cobranza → Saldo a Favor → "Anticipos anteriores al 1-oct" antes de timbrar.';
@@ -130,10 +146,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'buscar_orden') {
             . ' (la del pago en dinero de mayor importe; 30 solo si el anticipo cubrió todo) y al timbrarla se emite sola la nota de crédito con forma 30.';
     }
 
+    // Transición CONTPAQi (UPD-660): pagos anteriores al arranque ya facturados allá.
+    $trO = _facturapiPagosTransicion($pdo, $orden['folio']);
+    if ($trO['transicion']) {
+        $avisosExtra[] = 'Esta orden tiene $' . number_format($trO['previo'], 2) . ' pagados antes del ' . _facturapiFechaArranqueTxt()
+            . ' (facturados en el sistema anterior): esta factura ampara solo los $' . number_format($trO['desde'], 2)
+            . ' pagados desde octubre, en PUE y con la orden liquidada.';
+    }
+
     if ($avisosExtra) $avisoAnt = trim(($avisoAnt ?? '') . ' ' . implode(' ', $avisosExtra));
 
+    // Pagos de la orden para facturar a Público en General uno por uno (UPD-643).
+    $infoPagos = _facturapiPagosOrden($pdo, $orden['folio']);
+    $pagosPg = null;
+    if ($infoPagos && !$infoPagos['con_saldo_favor']) {
+        $pagosPg = [];
+        foreach ($infoPagos['pagos'] as $p) {
+            $pagosPg[] = [
+                'id'=>$p['id'], 'fecha'=>$p['fecha'], 'monto'=>$p['monto'], 'forma'=>$p['forma'],
+                'forma_sat'=>$p['forma_sat'], 'asignado'=>$p['asignado'],
+                'leyenda'=>_facturapiLeyendaPago($p['asignado'], $infoPagos['total'], $p['liquida'], $p['primero']),
+                'casi_liquida'=>$p['casi_liquida'], 'faltante'=>$p['faltante'], 'previo'=>$p['previo'], 'bono'=>$p['bono'],
+                'factura'=>$p['factura'] ? $p['factura']['folio_interno'] : null,
+                'factura_id'=>$p['factura'] ? (int)$p['factura']['id'] : null,
+            ];
+        }
+    }
+
     jsonResponse(['ok'=>true, 'orden'=>$orden, 'cliente'=>$cliente, 'conceptos'=>$conceptos,
-                  'cobro'=>$cobro, 'aviso_mes'=>$avisoMes, 'aviso_anticipo'=>$avisoAnt]);
+                  'cobro'=>$cobro, 'aviso_mes'=>$avisoMes, 'aviso_anticipo'=>$avisoAnt,
+                  'pagos_pg'=>$pagosPg]);
+    exit;
+}
+
+// ── GET conceptos_pago (Público en General, una factura por pago — UPD-643) ─────
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'conceptos_pago') {
+    $folio  = trim($_GET['folio'] ?? '');
+    $pagoId = (int)($_GET['pago_id'] ?? 0);
+    if ($folio === '' || !$pagoId) { jsonResponse(['ok'=>false,'error'=>'Falta la orden o el pago']); exit; }
+    $r = _facturapiConceptosDePago($pdo, $folio, $pagoId);
+    if (!$r['ok']) { jsonResponse($r); exit; }
+    jsonResponse(['ok'=>true, 'conceptos'=>$r['conceptos'], 'subtotal'=>$r['subtotal'], 'iva'=>$r['iva'],
+                  'total'=>$r['total'], 'leyenda'=>$r['leyenda'], 'fecha'=>$r['pago']['fecha'],
+                  'casi_liquida'=>$r['pago']['casi_liquida'], 'faltante'=>$r['pago']['faltante'],
+                  'forma'=>$r['pago']['forma'], 'forma_sat'=>$r['pago']['forma_sat']]);
     exit;
 }
 
@@ -142,8 +198,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'lista') {
     $rows = $pdo->query("
         SELECT f.id, f.folio_interno, f.serie, f.folio_numero, f.orden_folio, f.saldo_favor_id, f.tipo_cfdi, f.fecha,
                f.receptor_nombre, f.receptor_rfc, f.receptor_cp, f.receptor_regimen,
-               f.receptor_uso_cfdi, f.receptor_email, f.cliente_solicito_id,
+               f.receptor_uso_cfdi, f.receptor_email, f.cliente_solicito_id, f.pago_id, f.pago_final_forzado,
                COALESCE(NULLIF(cs.razon_social,''), cs.nombre) AS cliente_solicito_nombre,
+               cs.email AS cliente_solicito_email,
+               (SELECT co.email FROM ordenes o JOIN clientes co ON co.id = o.cliente_id
+                 WHERE o.folio = f.orden_folio LIMIT 1) AS cliente_orden_email,
                f.forma_pago, f.metodo_pago,
                f.conceptos, f.subtotal, f.iva, f.total,
                f.estatus, f.uuid, f.modo, f.pdf_url, f.motivo_cancel, f.sustituye_uuid, f.pac_cancel_status, f.created_at,
@@ -345,6 +404,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
     if ($ordenFolio && ($motivoNo = _facturapiOrdenNoFacturable($pdo, $ordenFolio))) {
         jsonResponse(['ok'=>false,'error'=>$motivoNo]); exit;
     }
+    if ($ordenFolio && $d['metodo_pago'] === 'PPD') {
+        $trG = _facturapiPagosTransicion($pdo, $ordenFolio);
+        if ($trG['transicion']) { jsonResponse(['ok'=>false,'error'=>_facturapiMsgTransicionPpd($ordenFolio, $trG)]); exit; }
+    }
+
+    // Público en General por pago (UPD-643): cada pago de la orden lleva su propia factura.
+    // Obligatorio salvo en órdenes pagadas en parte con saldo a favor (esas siguen con la
+    // factura única al liquidar, por el esquema de anticipos).
+    $pagoId  = (int)($d['pago_id'] ?? 0);
+    $esPgReq = strtoupper(trim($d['receptor_rfc'])) === 'XAXX010101000';
+    $repPago = null;
+    $pagoFinalForzado = 0;
+    if ($pagoId && (!$esPgReq || !$ordenFolio)) {
+        jsonResponse(['ok'=>false,'error'=>'La factura por pago solo aplica a Público en General ligada a una orden.']); exit;
+    }
+    if ($esPgReq && $ordenFolio) {
+        $infoPagos = _facturapiPagosOrden($pdo, $ordenFolio);
+        if ($infoPagos && !$infoPagos['con_saldo_favor'] && !$pagoId) {
+            jsonResponse(['ok'=>false,'error'=>'Escoge el pago que vas a facturar: a Público en General se emite una factura por cada pago de la orden.']); exit;
+        }
+        if ($pagoId) {
+            $repPago = _facturapiConceptosDePago($pdo, $ordenFolio, $pagoId);
+            if (!$repPago['ok']) { jsonResponse(['ok'=>false,'error'=>$repPago['error']]); exit; }
+            // "Pago final" a criterio de quien factura, solo si faltan menos de $5 (UPD-646).
+            $pagoFinalForzado = (!empty($d['pago_final']) && $repPago['pago']['casi_liquida']) ? 1 : 0;
+            $idEdit = isset($d['id']) ? (int)$d['id'] : 0;
+            $facDelPago = $repPago['pago']['factura'];
+            if ($facDelPago && (int)$facDelPago['id'] !== $idEdit) {
+                jsonResponse(['ok'=>false,'error'=>'Ese pago ya tiene la factura '.$facDelPago['folio_interno'].' ('.$facDelPago['estatus'].').']); exit;
+            }
+            $stmt = $pdo->prepare("SELECT folio_interno FROM facturas WHERE orden_folio = ? AND tipo_cfdi = 'I' AND pago_id IS NULL
+                AND saldo_favor_id IS NULL AND estatus IN ('timbrada','timbrando') LIMIT 1");
+            $stmt->execute([$ordenFolio]);
+            if ($fc = $stmt->fetchColumn()) {
+                jsonResponse(['ok'=>false,'error'=>'La orden '.$ordenFolio.' ya tiene la factura '.$fc.' por el total: no se le pueden hacer facturas por pago.']); exit;
+            }
+            // Forma de pago y periodo salen del pago. Tarjeta sin tipo: 04 o 28 a elección;
+            // pago sin forma capturada: se exige una forma real.
+            $fp = $repPago['pago']['forma_sat'];
+            $fBody = (string)$d['forma_pago'];
+            if ($repPago['pago']['forma'] === 'tarjeta' && empty($repPago['pago']['tarjeta_tipo'])) {
+                $fp = in_array($fBody, ['04','28'], true) ? $fBody : '04';
+            } elseif ($fp === '') {
+                if (!in_array($fBody, ['01','02','03','04','28'], true)) {
+                    jsonResponse(['ok'=>false,'error'=>'Ese pago no tiene forma capturada en Cobranza: indica con qué se pagó (01, 02, 03, 04 o 28).']); exit;
+                }
+                $fp = $fBody;
+            }
+            $d['forma_pago']  = $fp;
+            $d['metodo_pago'] = 'PUE';
+            $globalPer  = 'day';
+            $globalMes  = substr($repPago['pago']['fecha'], 5, 2);
+            $globalAnio = (int)substr($repPago['pago']['fecha'], 0, 4);
+        }
+    }
 
     // El receptor NO tiene por qué ser siempre el cliente de la orden (pasa que un cliente
     // pide que se facture a su empresa, o a Público en General), así que esto NO bloquea:
@@ -383,21 +497,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
     // ($conceptosServidor/$totalSrv) — el total del body solo se usa para el mensaje
     // de error si no coincide (para que el usuario sepa que su edición se descartó).
     $conceptosParaGuardar = $d['conceptos'];
-    if ($ordenFolio) {
-        $conceptosServidor = _facturapiConceptosDesdeOrden($pdo, $ordenFolio);
-        if ($conceptosServidor === null) {
+    if ($ordenFolio && $repPago) {
+        // Conceptos y totales del servidor (UPD-643), con la clave SAT/unidad que escogió
+        // el usuario (mismo criterio F-1 de abajo).
+        $conceptosServidor = $repPago['conceptos'];
+        $conceptosBody = is_array($d['conceptos']) ? array_values($d['conceptos']) : [];
+        if (count($conceptosServidor) === count($conceptosBody)) {
+            foreach ($conceptosServidor as $i => $_cs) {
+                $claveUsuario  = strtoupper(trim((string)($conceptosBody[$i]['clave']  ?? '')));
+                $unidadUsuario = strtoupper(trim((string)($conceptosBody[$i]['unidad'] ?? '')));
+                if (preg_match('/^[0-9]{8}$/', $claveUsuario))   $conceptosServidor[$i]['clave']  = $claveUsuario;
+                if (preg_match('/^[A-Z0-9]{1,3}$/', $unidadUsuario)) $conceptosServidor[$i]['unidad'] = $unidadUsuario;
+            }
+        }
+        $conceptosParaGuardar = $conceptosServidor;
+        $sub   = $repPago['subtotal'];
+        $iva   = $repPago['iva'];
+        $total = $repPago['total'];
+    } elseif ($ordenFolio) {
+        // UPD-657: conceptos y totales del servidor cuadrados a lo cobrado (PUE pagada) o al
+        // total de la orden (PPD / saldo a favor), calculados como los calcula el PAC.
+        $cfSrv = _facturapiConceptosFactura($pdo, $ordenFolio, $d['metodo_pago']);
+        if ($cfSrv === null) {
             jsonResponse(['ok'=>false,'error'=>'No se encontró la orden/cotización de origen para el folio '.$ordenFolio.'. Vuelve a buscar la orden antes de guardar.']); exit;
         }
-        $subSrv = 0; $subGravSrv = 0;
-        foreach ($conceptosServidor as $c) {
-            $imp = round((float)$c['cant'] * (float)$c['precio'], 2);
-            $subSrv += $imp;
-            if (!empty($c['iva'])) $subGravSrv += $imp;
-        }
-        $subSrv    = round($subSrv, 2);
-        $ivaSrv    = round($subGravSrv * 0.16, 2);
-        $totalSrv  = round($subSrv + $ivaSrv, 2);
-        if (abs($totalSrv - $total) > 0.01) {
+        $conceptosServidor = $cfSrv['conceptos'];
+        $subSrv   = $cfSrv['subtotal'];
+        $ivaSrv   = $cfSrv['iva'];
+        $totalSrv = $cfSrv['total'];
+        // Lo que mandó la pantalla se compara con el mismo cálculo del PAC (6 decimales):
+        // con el reparto exacto, el redondeo por renglón podía diferir 1 centavo sin que
+        // nadie hubiera editado nada.
+        $totalBodyPac = _facturapiTotalesPac($d['conceptos'])['total'];
+        if (abs($totalSrv - $totalBodyPac) > 0.015) {
+            $total = $totalBodyPac;
             jsonResponse(['ok'=>false,'error'=>'Los conceptos no coinciden con la cotización de la orden '.$ordenFolio
                 .' (esperado $'.number_format($totalSrv,2).', recibido $'.number_format($total,2)
                 .'). Vuelve a cargar la orden con "Buscar" antes de guardar.']); exit;
@@ -465,7 +598,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
 
         $stmt = $pdo->prepare("
             UPDATE facturas SET
-                tipo_cfdi=?, fecha=?, orden_folio=?, receptor_nombre=?, receptor_rfc=?,
+                tipo_cfdi=?, fecha=?, orden_folio=?, pago_id=?, pago_final_forzado=?, receptor_nombre=?, receptor_rfc=?,
                 receptor_cp=?, receptor_regimen=?, receptor_uso_cfdi=?,
                 receptor_email=?, cliente_solicito_id=?, forma_pago=?, metodo_pago=?,
                 global_periodicidad=?, global_meses=?, global_anio=?,
@@ -474,7 +607,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
             WHERE id=? AND estatus='borrador'
         ");
         $stmt->execute([
-            $d['tipo_cfdi'] ?? 'I', $d['fecha'] ?? date('Y-m-d'), $ordenFolio,
+            $d['tipo_cfdi'] ?? 'I', $d['fecha'] ?? date('Y-m-d'), $ordenFolio, ($pagoId ?: null), $pagoFinalForzado,
             $d['receptor_nombre'], $d['receptor_rfc'], $d['receptor_cp'],
             $d['receptor_regimen'], $d['receptor_uso_cfdi'],
             $d['receptor_email'] ?? null, $clienteSolicitoId, $d['forma_pago'], $d['metodo_pago'],
@@ -502,16 +635,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'guardar') {
             try {
                 $stmt = $pdo->prepare("
                     INSERT INTO facturas
-                        (folio_interno, serie, folio_numero, orden_folio, tipo_cfdi, fecha,
+                        (folio_interno, serie, folio_numero, orden_folio, pago_id, pago_final_forzado, tipo_cfdi, fecha,
                          receptor_nombre, receptor_rfc, receptor_cp, receptor_regimen,
                          receptor_uso_cfdi, receptor_email, cliente_solicito_id, forma_pago, metodo_pago,
                          global_periodicidad, global_meses, global_anio,
                          relacion_tipo, relacion_uuid,
                          conceptos, subtotal, iva, total, estatus, modo, creado_por)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'borrador',?,?)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'borrador',?,?)
                 ");
                 $stmt->execute([
-                    $folioInterno, $serie, $folioNum, $ordenFolio,
+                    $folioInterno, $serie, $folioNum, $ordenFolio, ($pagoId ?: null), $pagoFinalForzado,
                     $d['tipo_cfdi'] ?? 'I', $d['fecha'] ?? date('Y-m-d'),
                     $d['receptor_nombre'], $d['receptor_rfc'], $d['receptor_cp'],
                     $d['receptor_regimen'], $d['receptor_uso_cfdi'],
@@ -579,6 +712,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
         ");
         $stmt->execute([$fac['orden_folio'], $id]);
         $otras = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Público en General por pago (UPD-643): varias facturas por orden, una por pago.
+        // Conviven solo entre ellas (cada una de un pago distinto); con una factura por el
+        // total, en cualquier sentido, se duplicaría la venta ante el SAT.
+        $otrasPorPago = array_values(array_filter($otras, function($o) { return !empty($o['pago_id']); }));
+        $otrasTotal   = array_values(array_filter($otras, function($o) { return empty($o['pago_id']); }));
+        if (!empty($fac['pago_id'])) {
+            if ($otrasTotal) {
+                $abortar('La orden '.$fac['orden_folio'].' ya tiene la factura '.$otrasTotal[0]['folio_interno'].' por el total: no se le pueden hacer facturas por pago.');
+            }
+            foreach ($otrasPorPago as $o) {
+                if ((int)$o['pago_id'] === (int)$fac['pago_id']) {
+                    $abortar('Ese pago ya tiene la factura '.$o['folio_interno'].'.');
+                }
+            }
+            $otras = [];
+        } elseif ($otrasPorPago) {
+            $folios = implode(', ', array_column($otrasPorPago, 'folio_interno'));
+            $abortar('La orden '.$fac['orden_folio'].' ya se facturó por pagos a Público en General ('.$folios.'). '
+                .'Para facturarla de otra forma, cancela primero esas facturas.');
+        }
         if ($otras) {
             $o = $otras[0];
             $esSustitucion = count($otras) === 1 && $fac['relacion_tipo'] === '04'
@@ -615,6 +768,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     if (!empty($fac['orden_folio']) && ($motivoNo = _facturapiOrdenNoFacturable($pdo, $fac['orden_folio']))) {
         $abortar($motivoNo);
     }
+    if (!empty($fac['orden_folio']) && $fac['metodo_pago'] === 'PPD' && $fac['tipo_cfdi'] === 'I') {
+        $trT = _facturapiPagosTransicion($pdo, $fac['orden_folio']);
+        if ($trT['transicion']) $abortar(_facturapiMsgTransicionPpd($fac['orden_folio'], $trT));
+    }
 
     // PPD solo aplica si al emitir todavía hay saldo por cobrar. Si la orden ya está pagada
     // completa, el SAT exige PUE — timbrar en PPD obligaría a emitir complementos de pagos
@@ -636,7 +793,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
         if ($fac['metodo_pago'] !== 'PUE' || (string)$fac['forma_pago'] === '99') {
             $abortar('Una factura a Público en General debe ser PUE con la forma de pago real (no 99). Edita la factura y vuelve a timbrar.');
         }
-        if (!empty($fac['orden_folio']) && !_facturapiOrdenLiquidada($pdo, $fac['orden_folio'])) {
+        if (!empty($fac['pago_id'])) {
+            // Factura de un pago (UPD-643): no exige la orden liquidada, pero el reparto debe
+            // seguir igual que cuando se guardó (la orden o sus pagos pudieron cambiar).
+            $repPagoTim = _facturapiConceptosDePago($pdo, $fac['orden_folio'], (int)$fac['pago_id'], !empty($fac['pago_final_forzado']));
+            if (!$repPagoTim['ok']) $abortar($repPagoTim['error']);
+            if (abs((float)$repPagoTim['total'] - (float)$fac['total']) > 0.005) {
+                $abortar('La orden o sus pagos cambiaron desde que se guardó este borrador (ahora le toca $'
+                    .number_format($repPagoTim['total'], 2).'). Ábrelo con Editar y vuelve a guardarlo.');
+            }
+            $leyendaPago = $repPagoTim['leyenda'];
+        } elseif (!empty($fac['orden_folio']) && !_facturapiOrdenLiquidada($pdo, $fac['orden_folio'])) {
             $so = _facturapiSaldoOrden($pdo, $fac['orden_folio']);
             $abortar('La orden '.$fac['orden_folio'].' todavía tiene saldo pendiente'
                 .($so ? ' de $'.number_format($so['saldo'], 2) : '').'. A Público en General solo se factura cuando está pagada al 100%.');
@@ -675,7 +842,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
     // timbrarla se emite sola la nota de crédito por lo aplicado.
     $antOrden = null;
     $descReferido = 0.0;   // Fase 4: bono de referido aplicado = descuento dentro de esta factura
-    if (!empty($fac['orden_folio']) && empty($fac['saldo_favor_id'])) {
+    if (!empty($fac['orden_folio']) && empty($fac['saldo_favor_id']) && empty($fac['pago_id'])) {
         $antOrden = _facturapiAnticiposDeOrden($pdo, $fac['orden_folio']);
         // Cualquier saldo a favor aplicado (anticipo, referido o saldo anterior) obliga a
         // facturar en PUE con la orden liquidada: con PPD, esos "pagos" generarían
@@ -712,6 +879,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
             }
         } else {
             $antOrden = null;
+        }
+    }
+
+    // UPD-657: la factura de una orden debe ser exactamente lo cobrado (PUE pagada) o el
+    // total de la orden (PPD). Si los pagos cambiaron desde que se guardó el borrador, el
+    // monto guardado ya no es el bueno: se pide volver a guardarlo en vez de timbrarlo.
+    if (!empty($fac['orden_folio']) && empty($fac['pago_id']) && empty($fac['saldo_favor_id']) && $fac['tipo_cfdi'] === 'I') {
+        $cfTim = _facturapiConceptosFactura($pdo, $fac['orden_folio'], $fac['metodo_pago']);
+        if ($cfTim && abs((float)$cfTim['total'] - (float)$fac['total']) > 0.005) {
+            $abortar('Los pagos de la orden '.$fac['orden_folio'].' cambiaron desde que se guardó este borrador: ahora la factura debe ser por $'
+                .number_format($cfTim['total'], 2).' ('.($cfTim['origen'] === 'orden' ? 'total de la orden' : 'lo cobrado').'). Ábrelo con Editar, vuelve a buscar la orden y guárdalo.');
+        }
+        if ($cfTim && $cfTim['origen'] === 'transicion') {
+            // UPD-660: el PDF dice qué parte ya se facturó en el sistema anterior
+            $leyendaPago = 'Pagos anteriores al '._facturapiFechaArranqueTxt().' por $'.number_format($cfTim['previo'], 2)
+                .' facturados en el sistema anterior; esta factura ampara $'.number_format($cfTim['desde'], 2).' pagados desde esa fecha';
         }
     }
 
@@ -865,6 +1048,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'timbrar') {
             'months'      => $fac['global_meses'],
             'year'        => (int)$fac['global_anio'],
         ];
+    }
+
+    // Cliente y orden impresos en el PDF (UPD-637). pdf_custom_section solo va al PDF, no al
+    // XML, así que en Público en General el receptor fiscal sigue siendo "PUBLICO EN GENERAL"
+    // y aquí se muestra quién lo pidió. FacturAPI solo acepta etiquetas simples, sin atributos.
+    if (!empty($fac['orden_folio'])) {
+        $stCli = $pdo->prepare("
+            SELECT COALESCE(cs.nombre, co.nombre, o.cliente_nombre) AS nombre,
+                   COALESCE(cs.codigo, co.codigo) AS codigo
+            FROM ordenes o
+            LEFT JOIN clientes co ON co.id = o.cliente_id
+            LEFT JOIN clientes cs ON cs.id = ?
+            WHERE o.folio = ? LIMIT 1
+        ");
+        $stCli->execute([$fac['cliente_solicito_id'] ?: null, $fac['orden_folio']]);
+        $cli = $stCli->fetch(PDO::FETCH_ASSOC);
+        $h = function($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); };
+        $seccion = '';
+        if ($cli && trim((string)$cli['nombre']) !== '') {
+            $seccion .= '<p>Cliente: ' . $h(trim($cli['nombre'])) . ($cli['codigo'] ? ' (' . $h($cli['codigo']) . ')' : '') . '</p>';
+        }
+        // Fechas de los pagos junto a la orden (UPD-686), solo en la factura única PUE de una
+        // orden: así se concilia contra el estado de cuenta cuando el cliente pagó en varias
+        // transferencias. Pagos en dinero desde el arranque (el saldo a favor no es un depósito
+        // nuevo). La factura por pago y la de transición ya llevan su propia leyenda; en PPD las
+        // fechas van en cada complemento.
+        if (empty($leyendaPago) && $fac['metodo_pago'] === 'PUE' && $fac['tipo_cfdi'] === 'I'
+            && empty($fac['pago_id']) && empty($fac['saldo_favor_id'])) {
+            $stFp = $pdo->prepare("
+                SELECT DISTINCT p.fecha_pago
+                FROM ordenes o
+                JOIN cotizaciones c ON c.orden_id = o.id
+                JOIN cotizacion_pagos p ON p.cotizacion_id = c.id
+                WHERE o.folio = ? AND p.monto > 0 AND p.forma_pago <> 'saldo_favor' AND p.fecha_pago >= ?
+                ORDER BY p.fecha_pago
+            ");
+            $stFp->execute([$fac['orden_folio'], FACTURACION_DESDE]);
+            $fechasPago = array_map(function($f) { return date('d/m/Y', strtotime($f)); }, $stFp->fetchAll(PDO::FETCH_COLUMN));
+            if (count($fechasPago) === 1) {
+                $leyendaPago = 'Pago: ' . $fechasPago[0];
+            } elseif (count($fechasPago) > 1) {
+                $ultima = array_pop($fechasPago);
+                $leyendaPago = 'Pagos: ' . implode(', ', $fechasPago) . ' y ' . $ultima;
+            }
+        }
+        $seccion .= '<p>Orden: ' . $h($fac['orden_folio'])
+            . (!empty($leyendaPago) ? ' - ' . $h($leyendaPago) : '') . '</p>';
+        $payload['pdf_custom_section'] = $seccion;
     }
 
     // Llamada a FacturAPI. external_id identifica la factura en FacturAPI para
@@ -1306,10 +1537,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'crear_cliente_fiscal')
         jsonResponse(['ok'=>true, 'existente'=>true, 'id'=>(int)$ex['id'], 'codigo'=>$ex['codigo'], 'nombre'=>$ex['nombre']]); exit;
     }
 
-    $v = _facturapiValidarReceptorSat($rfc, $razon, $cp, $regimen);
+    // UPD-655: validación real contra el SAT (alta de cliente en FacturAPI, sin emitir nada);
+    // en persona física prueba también el nombre reacomodado (nombre(s) + apellidos).
+    $v = _facturapiValidarConCorreccion($rfc, $razon, $cp, $regimen);
     if (empty($v['ok'])) {
-        jsonResponse(['ok'=>false, 'error'=>$v['error'].' — revisa que la razón social sea idéntica a la de la Constancia (mayúsculas, sin régimen de capital como "SA DE CV").']); exit;
+        jsonResponse(['ok'=>false, 'error'=>$v['error'].(!empty($v['red'])
+            ? ' Intenta de nuevo en un momento.'
+            : ' — revisa que la razón social sea idéntica a la de la Constancia (mayúsculas, sin régimen de capital como "SA DE CV"; persona física: nombre(s) y después apellidos).')]); exit;
     }
+    $nombreCorregido = !empty($v['corregido']) ? $v['nombre'] : null;
+    $razon = $v['nombre'];
 
     $intentos = 0;
     while (true) {
@@ -1318,8 +1555,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'crear_cliente_fiscal')
         $codigo = 'CTN-' . (($row['max_num'] ?? 146) + 1);
         $pdo->beginTransaction();
         try {
-            $pdo->prepare("INSERT INTO clientes (codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email, localidad, ciudad, rfc, cp_fiscal, regimen_fiscal)
-                           VALUES (?,?,?,'','',NULL,?,'local','',?,?,?)")
+            $pdo->prepare("INSERT INTO clientes (codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email, localidad, ciudad, rfc, cp_fiscal, regimen_fiscal, fiscal_validado_at)
+                           VALUES (?,?,?,'','',NULL,?,'local','',?,?,?,NOW())")
                 ->execute([$codigo, $razon, $razon, $email, $rfc, $cp, $regimen]);
             $newId = (int)$pdo->lastInsertId();
             $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'CREACION', '', ?, ?, ?)")
@@ -1333,7 +1570,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'crear_cliente_fiscal')
             jsonResponse(['ok'=>false,'error'=>'No se pudo dar de alta al cliente.']); exit;
         }
     }
-    jsonResponse(['ok'=>true, 'existente'=>false, 'id'=>$newId, 'codigo'=>$codigo, 'nombre'=>$razon]);
+    jsonResponse(['ok'=>true, 'existente'=>false, 'id'=>$newId, 'codigo'=>$codigo, 'nombre'=>$razon, 'nombre_corregido'=>$nombreCorregido]);
     exit;
 }
 

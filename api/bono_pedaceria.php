@@ -15,7 +15,9 @@
 //    created_at dentro de la semana Y >= BONO_PEDACERIA_INICIO (sin
 //    retroactividad — el programa arranca desde esa fecha, no antes).
 //  - Monto elegible por sesión = m2_aprovechado (lo que sí se convirtió
-//    en piezas, no el sobrante completo declarado).
+//    en piezas, no el sobrante completo declarado), menos las piezas
+//    excluidas por los candados anti-abuso desde el 08-oct-2026 (UPD-679:
+//    recortes y cortes reportados "Roto en corte", ver BONO_CANDADOS_INICIO).
 //  - Fórmula por tramos de 18 m² = $150: 0–18 m² proporcional
 //    (rampa de arranque); de ahí en adelante $150 por cada tramo de
 //    18 m² YA COMPLETO — lo que sobra de un tramo a medias no paga nada
@@ -41,6 +43,46 @@ const BONO_TOPE_CAMBIO      = '2026-09-28 00:00:00';
 function bpTopeSql($col = 'created_at') {
     return "IF($col >= '" . BONO_TOPE_CAMBIO . "', " . BONO_TOPE_M2_NUEVO . ", " . BONO_TOPE_M2 . ")";
 }
+// Candados anti-abuso (UPD-679, pedido por Armando 08-oct-2026). Desde esta fecha,
+// por pieza dentro de cada sesión de pedacería:
+//  (1) una pieza solo cuenta UNA vez — si ya se había cortado antes (otra sesión
+//      anterior la incluye), el recorte no suma al bono;
+//  (2) el corte que salió mal no suma — si después de esta sesión se reportó la pieza
+//      como retrabajo "Roto en corte" (api/reproceso.php) antes de volver a cortarla,
+//      esta sesión no cuenta esa pieza.
+// Sesiones anteriores a la fecha no cambian (semanas ya pagadas quedan igual).
+// El reporte de "Roto en corte" sigue abierto al operador (decisión de Armando: no
+// frenar la operación); con (1)+(2) reportar una rotura nunca le suma, solo le resta.
+const BONO_CANDADOS_INICIO  = '2026-10-08 00:00:00';
+
+// Condiciones por pieza (solo constantes/alias, sin input del usuario).
+// $s = alias de sesiones_corte, $scp = alias de sesiones_corte_piezas
+function bpRecorteSql($s = 'sc', $scp = 'scp') {
+    return "EXISTS (SELECT 1 FROM sesiones_corte_piezas bx
+                    WHERE bx.pieza_id = $scp.pieza_id AND bx.incluida = 1
+                      AND bx.sesion_id < $s.id)";
+}
+function bpRotaSql($s = 'sc', $scp = 'scp') {
+    return "EXISTS (SELECT 1 FROM historial_estatus bh
+                    WHERE bh.pieza_id = $scp.pieza_id
+                      AND bh.notas LIKE 'Retrabajo: Roto en corte%'
+                      AND bh.created_at >= $s.created_at
+                      AND NOT EXISTS (SELECT 1 FROM sesiones_corte_piezas bx2
+                                      JOIN sesiones_corte bs2 ON bs2.id = bx2.sesion_id
+                                      WHERE bx2.pieza_id = $scp.pieza_id AND bx2.incluida = 1
+                                        AND bx2.sesion_id > $s.id
+                                        AND bs2.created_at <= bh.created_at))";
+}
+function bpExcluidaSql($s = 'sc', $scp = 'scp') {
+    return "($s.created_at >= '" . BONO_CANDADOS_INICIO . "' AND (" . bpRecorteSql($s, $scp) . " OR " . bpRotaSql($s, $scp) . "))";
+}
+// m² elegibles de UNA sesión = m2_aprovechado menos las piezas excluidas por candado
+function bpM2Sql($s = 'sc') {
+    return "GREATEST(0, $s.m2_aprovechado - (SELECT COALESCE(SUM(scp.m2_pieza), 0)
+                FROM sesiones_corte_piezas scp
+                WHERE scp.sesion_id = $s.id AND scp.incluida = 1 AND " . bpExcluidaSql($s, 'scp') . "))";
+}
+
 const BONO_TRAMO_M2         = 18.0;
 const BONO_TRAMO_MONTO      = 150.0;
 
@@ -88,13 +130,13 @@ if ($accion === 'mi_bono') {
     $desde = max($semanaInicio, BONO_PEDACERIA_INICIO);
 
     $stmt = $db->prepare("
-        SELECT COALESCE(SUM(m2_aprovechado), 0) AS m2_elegible
-        FROM sesiones_corte
-        WHERE operador_id = ?
-          AND es_pedaceria = 1
-          AND m2_disponible <= " . bpTopeSql() . "
-          AND created_at >= ?
-          AND created_at <= ?
+        SELECT COALESCE(SUM(" . bpM2Sql('sc') . "), 0) AS m2_elegible
+        FROM sesiones_corte sc
+        WHERE sc.operador_id = ?
+          AND sc.es_pedaceria = 1
+          AND sc.m2_disponible <= " . bpTopeSql('sc.created_at') . "
+          AND sc.created_at >= ?
+          AND sc.created_at <= ?
     ");
     $stmt->execute([$user['id'], $desde . ' 00:00:00', $semanaFin . ' 23:59:59']);
     $m2Elegible = round((float)$stmt->fetchColumn(), 4);
@@ -123,7 +165,7 @@ if ($accion === 'resumen_semana') {
     $stmt = $db->prepare("
         SELECT sc.operador_id, u.nombre AS operador_nombre,
                COUNT(*) AS sesiones,
-               COALESCE(SUM(sc.m2_aprovechado), 0) AS m2_elegible
+               COALESCE(SUM(" . bpM2Sql('sc') . "), 0) AS m2_elegible
         FROM sesiones_corte sc
         JOIN usuarios u ON u.id = sc.operador_id
         WHERE sc.es_pedaceria = 1
@@ -152,22 +194,41 @@ if ($accion === 'resumen_semana') {
     // para que Armando/Mando puedan ver qué se hizo con cada pedazo de sobrante,
     // no solo el total en m². Solo lectura, no cambia el cálculo del bono.
     $stmtSesiones = $db->prepare("
-        SELECT id, tipo, espesor_mm, m2_disponible, m2_aprovechado, created_at
-        FROM sesiones_corte
-        WHERE operador_id = ?
-          AND es_pedaceria = 1
-          AND m2_disponible <= " . bpTopeSql() . "
-          AND created_at >= ?
-          AND created_at <= ?
-        ORDER BY created_at
+        SELECT sc.id, sc.tipo, sc.espesor_mm, sc.m2_disponible, sc.m2_aprovechado, sc.created_at,
+               " . bpM2Sql('sc') . " AS m2_elegible
+        FROM sesiones_corte sc
+        WHERE sc.operador_id = ?
+          AND sc.es_pedaceria = 1
+          AND sc.m2_disponible <= " . bpTopeSql('sc.created_at') . "
+          AND sc.created_at >= ?
+          AND sc.created_at <= ?
+        ORDER BY sc.created_at
     ");
+    // motivo_excl: 'recorte' (ya se había cortado antes) / 'rota' (se reportó
+    // "Roto en corte" después de este corte) / null (cuenta). Solo aplica desde
+    // BONO_CANDADOS_INICIO.
     $stmtPiezas = $db->prepare("
-        SELECT p.partida, p.pieza_num, p.pieza_total, p.ancho_mm, p.alto_mm, o.folio
+        SELECT p.partida, p.pieza_num, p.pieza_total, p.ancho_mm, p.alto_mm, o.folio, scp.m2_pieza,
+               CASE WHEN sc.created_at < '" . BONO_CANDADOS_INICIO . "' THEN NULL
+                    WHEN " . bpRecorteSql('sc', 'scp') . " THEN 'recorte'
+                    WHEN " . bpRotaSql('sc', 'scp') . " THEN 'rota'
+                    ELSE NULL END AS motivo_excl
         FROM sesiones_corte_piezas scp
+        JOIN sesiones_corte sc ON sc.id = scp.sesion_id
         JOIN piezas p ON p.id = scp.pieza_id
         JOIN ordenes o ON o.id = p.orden_id
         WHERE scp.sesion_id = ? AND scp.incluida = 1
         ORDER BY o.folio, p.partida, p.pieza_num
+    ");
+    // Control semanal (punto 4): piezas que el operador cortó en la semana (de lámina o
+    // de pedacería) y luego se reportaron "Roto en corte" — informativo, para ver si
+    // alguien rompe demasiado. No cambia el cálculo.
+    $stmtRotas = $db->prepare("
+        SELECT COUNT(*) FROM sesiones_corte_piezas scp
+        JOIN sesiones_corte sc ON sc.id = scp.sesion_id
+        WHERE sc.operador_id = ? AND scp.incluida = 1
+          AND sc.created_at >= ? AND sc.created_at <= ?
+          AND " . bpRotaSql('sc', 'scp') . "
     ");
 
     $stmtPago = $db->prepare("SELECT id, estado, aprobado_por, aprobado_at FROM bono_pedaceria_pagos WHERE operador_id = ? AND semana_inicio = ?");
@@ -181,11 +242,24 @@ if ($accion === 'resumen_semana') {
 
         $stmtSesiones->execute([$op['operador_id'], $desde . ' 00:00:00', $semanaFin . ' 23:59:59']);
         $sesiones = $stmtSesiones->fetchAll(PDO::FETCH_ASSOC);
+        $piezasRecorte = 0; $piezasRotaPed = 0; $m2Excluido = 0.0;
         foreach ($sesiones as &$s) {
             $stmtPiezas->execute([$s['id']]);
             $s['piezas'] = $stmtPiezas->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($s['piezas'] as $pz) {
+                if ($pz['motivo_excl'] === 'recorte') $piezasRecorte++;
+                if ($pz['motivo_excl'] === 'rota')    $piezasRotaPed++;
+                if ($pz['motivo_excl'])               $m2Excluido += (float)$pz['m2_pieza'];
+            }
         }
         unset($s);
+        $stmtRotas->execute([$op['operador_id'], $semanaInicio . ' 00:00:00', $semanaFin . ' 23:59:59']);
+        $op['control'] = [
+            'rotas_en_corte'   => (int)$stmtRotas->fetchColumn(),
+            'excl_recorte'     => $piezasRecorte,
+            'excl_rota'        => $piezasRotaPed,
+            'm2_excluido'      => round($m2Excluido, 4),
+        ];
         // Ojo: NO usar la clave 'sesiones' aquí — ya existe como el COUNT(*) de la
         // query principal (número de sesiones elegibles), usado en la tarjeta resumen.
         $op['sesiones_detalle'] = $sesiones;
@@ -228,13 +302,13 @@ if ($accion === 'marcar_pagado') {
     $desde = max($semanaInicio, BONO_PEDACERIA_INICIO);
 
     $stmt = $db->prepare("
-        SELECT COALESCE(SUM(m2_aprovechado), 0) AS m2_elegible
-        FROM sesiones_corte
-        WHERE operador_id = ?
-          AND es_pedaceria = 1
-          AND m2_disponible <= " . bpTopeSql() . "
-          AND created_at >= ?
-          AND created_at <= ?
+        SELECT COALESCE(SUM(" . bpM2Sql('sc') . "), 0) AS m2_elegible
+        FROM sesiones_corte sc
+        WHERE sc.operador_id = ?
+          AND sc.es_pedaceria = 1
+          AND sc.m2_disponible <= " . bpTopeSql('sc.created_at') . "
+          AND sc.created_at >= ?
+          AND sc.created_at <= ?
     ");
     $stmt->execute([$operador_id, $desde . ' 00:00:00', $semanaFin . ' 23:59:59']);
     $m2Elegible = round((float)$stmt->fetchColumn(), 4);

@@ -373,15 +373,39 @@ foreach (glob(BACKUP_DIR . '/backup_*.sql.gz') as $f) {
     if (filemtime($f) < $limite) { unlink($f); $borradosLocal++; }
 }
 
+// ── ESTADO DE LA COPIA EXTERNA ───────────────────────────────────────────────
+// Por qué existe: hasta el 01-oct-2026 este log decía "BD=OK" todos los días SIN
+// mencionar nunca la copia externa, y eso nos tuvo meses creyendo que el respaldo
+// a Google Drive funcionaba — cuando en realidad sus funciones nunca se llamaban
+// desde el flujo y faltaba su archivo de credenciales. El silencio parecía éxito.
+// Ahora el log dice explícitamente cuántos días llevamos SIN copia fuera del VPS,
+// así que si la Raspberry deja de jalar, se ve en la misma línea de siempre.
+$offsiteEstado = 'copia_externa=SIN CONFIGURAR';
+$archJalon = '/home/mando/offsite/estado/ultimo_jalon.txt';
+$archDest  = '/home/mando/offsite/config/destinatario.txt';
+if (is_file($archDest) && trim((string)@file_get_contents($archDest)) !== '') {
+    if (!is_file($archJalon)) {
+        $offsiteEstado = 'copia_externa=NUNCA SE HA JALADO';
+    } else {
+        $ultimo = strtotime(trim((string)@file_get_contents($archJalon)));
+        $dias   = $ultimo ? (int)floor((time() - $ultimo) / 86400) : null;
+        if ($dias === null)   $offsiteEstado = 'copia_externa=FECHA ILEGIBLE';
+        elseif ($dias === 0)  $offsiteEstado = 'copia_externa=OK (hoy)';
+        elseif ($dias <= 2)   $offsiteEstado = 'copia_externa=OK (hace ' . $dias . 'd)';
+        else                  $offsiteEstado = 'copia_externa=ATENCION: ' . $dias . ' DIAS SIN COPIA EXTERNA';
+    }
+}
+
 // ── LOG ───────────────────────────────────────────────────────────────────────
 
 $logLinea = sprintf(
-    "[%s] BD=%s | método=%s | tamaño=%s KB | borrados_local=%d%s\n",
+    "[%s] BD=%s | método=%s | tamaño=%s KB | borrados_local=%d | %s%s\n",
     date('Y-m-d H:i:s'),
     $ok ? 'OK' : 'ERROR',
     $metodo,
     $ok ? round($tamano / 1024, 1) : '0',
     $borradosLocal,
+    $offsiteEstado,
     !empty($errores) ? ' | ERRORES: ' . implode(' | ', $errores) : ''
 );
 file_put_contents(BACKUP_DIR . '/backup.log', $logLinea, FILE_APPEND);

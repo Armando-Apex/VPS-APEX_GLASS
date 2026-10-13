@@ -53,6 +53,7 @@ $stmtSrv = $db->prepare("
     JOIN cotizaciones c ON c.id = cp.cotizacion_id
     LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id
     WHERE c.orden_id = ?
+      AND COALESCE(sc.precio_libre, 0) = 0  -- UPD-689: el Flete no va en la etiqueta del vidrio
     ORDER BY cp.num_partida, cps.id
 ");
 $stmtSrv->execute([$orden['id']]);

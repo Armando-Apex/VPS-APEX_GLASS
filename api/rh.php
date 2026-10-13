@@ -23,7 +23,14 @@ function rhDiasPorAntiguedad($anio) {
     return 22 + intdiv($anio - 6, 5) * 2;        // 6-10=22, 11-15=24, 16-20=26...
 }
 
-// Genera (si faltan) los periodos de vacaciones desde el año 1 hasta la antigüedad actual
+// Vigencia legal de un periodo (LFT art. 81 + art. 516): el derecho se gana al cumplir el año
+// (fecha_fin_periodo + 1 día), se otorga dentro de los 6 meses siguientes y prescribe 1 año
+// después de esos 6 meses → exigible hasta 18 meses después del aniversario. Los periodos
+// prescritos no se muestran ni admiten registros (decisión de Armando, 07-oct-2026).
+define('RH_VAC_MESES_VIGENCIA', 18);
+define('RH_VAC_SQL_VIGENTE', "DATE_ADD(DATE_ADD(fecha_fin_periodo, INTERVAL 1 DAY), INTERVAL " . RH_VAC_MESES_VIGENCIA . " MONTH) > CURDATE()");
+
+// Genera (si faltan) solo los periodos de vacaciones que siguen vigentes por ley a la fecha
 function rhAsegurarPeriodos($pdo, $empleado_id, $fecha_ingreso) {
     if (!$fecha_ingreso) return;
     $ingreso = new DateTime($fecha_ingreso);
@@ -34,6 +41,8 @@ function rhAsegurarPeriodos($pdo, $empleado_id, $fecha_ingreso) {
     for ($anio = 1; $anio <= $anios; $anio++) {
         $inicio = (clone $ingreso)->modify('+' . ($anio - 1) . ' years');
         $fin    = (clone $ingreso)->modify('+' . $anio . ' years')->modify('-1 day');
+        $vence  = (clone $fin)->modify('+1 day')->modify('+' . RH_VAC_MESES_VIGENCIA . ' months');
+        if ($vence <= $hoy) continue; // prescrito
         $dias   = rhDiasPorAntiguedad($anio);
 
         $pdo->prepare("
@@ -113,7 +122,13 @@ if ($method === 'GET') {
         $docs = $pdo->prepare("SELECT * FROM rh_documentos WHERE empleado_id = ? ORDER BY created_at DESC");
         $docs->execute([$id]);
 
-        $periodos = $pdo->prepare("SELECT * FROM rh_vacaciones_periodos WHERE empleado_id = ? ORDER BY anio_antiguedad DESC");
+        $periodos = $pdo->prepare("
+            SELECT *,
+                   DATE_ADD(fecha_fin_periodo, INTERVAL 1 DAY) AS fecha_derecho,
+                   DATE_SUB(DATE_ADD(DATE_ADD(fecha_fin_periodo, INTERVAL 1 DAY), INTERVAL " . RH_VAC_MESES_VIGENCIA . " MONTH), INTERVAL 1 DAY) AS fecha_vence
+            FROM rh_vacaciones_periodos
+            WHERE empleado_id = ? AND " . RH_VAC_SQL_VIGENTE . "
+            ORDER BY anio_antiguedad DESC");
         $periodos->execute([$id]);
 
         $incidencias = $pdo->prepare("SELECT * FROM rh_incidencias WHERE empleado_id = ? ORDER BY fecha_inicio DESC");
@@ -254,10 +269,10 @@ if ($method === 'POST' && $accion === 'vacaciones_registrar') {
         jsonResponse(['error' => 'Tipo inválido']); exit;
     }
 
-    $periodo = $pdo->prepare("SELECT * FROM rh_vacaciones_periodos WHERE id = ?");
+    $periodo = $pdo->prepare("SELECT * FROM rh_vacaciones_periodos WHERE id = ? AND " . RH_VAC_SQL_VIGENTE);
     $periodo->execute([$periodo_id]);
     $periodo = $periodo->fetch(PDO::FETCH_ASSOC);
-    if (!$periodo) { jsonResponse(['error' => 'Periodo no encontrado']); exit; }
+    if (!$periodo) { jsonResponse(['error' => 'Periodo no encontrado o ya prescrito por ley']); exit; }
 
     $saldo = $periodo['dias_derecho'] - $periodo['dias_tomados'] - $periodo['dias_pagados_sin_ausencia'];
     if ($dias > $saldo) {

@@ -126,7 +126,7 @@ if ($method === 'GET') {
             $pidIds = array_column($partidas, 'id');
             $inPh   = implode(',', array_fill(0, count($pidIds), '?'));
             $stmtSrv = $db->prepare("
-                SELECT cps.*, sc.nombre as servicio_nombre, sc.unidad as servicio_unidad
+                SELECT cps.*, sc.nombre as servicio_nombre, sc.unidad as servicio_unidad, COALESCE(sc.precio_libre,0) as servicio_precio_libre
                 FROM cotizacion_partida_servicios cps
                 LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id
                 WHERE cps.partida_id IN ($inPh)
@@ -432,10 +432,21 @@ if ($method === 'POST') {
             jsonResponse(['error' => 'Datos incompletos']); exit;
         }
 
-        $stmtS = $db->prepare("SELECT id, nombre, precio_default FROM servicios_catalogo WHERE id = ? AND activo = 1");
+        $stmtS = $db->prepare("SELECT id, nombre, precio_default, precio_libre FROM servicios_catalogo WHERE id = ? AND activo = 1");
         $stmtS->execute([$servicio_id]);
         $srv = $stmtS->fetch(PDO::FETCH_ASSOC);
         if (!$srv) { jsonResponse(['error' => 'Servicio no encontrado']); exit; }
+
+        // UPD-689: servicio de precio libre (Flete) — el asesor captura el monto antes de
+        // IVA ya determinado para esta cotización; va una sola vez (1 × 1), sin descuento.
+        if ((int)$srv['precio_libre'] === 1) {
+            $montoLibre = round((float)($body['monto'] ?? 0), 2);
+            if ($montoLibre <= 0) { jsonResponse(['error' => 'Captura el monto del ' . $srv['nombre'] . ' (antes de IVA)']); exit; }
+            if ($montoLibre > 1000000) { jsonResponse(['error' => 'Monto fuera de rango']); exit; }
+            $srv['precio_default'] = $montoLibre;
+            $und_x_pieza = 1;
+            $cant_piezas = 1;
+        }
 
         // Verificar que la partida pertenece a la cotización
         $stmtP = $db->prepare("SELECT id FROM cotizaciones_partidas WHERE id = ? AND cotizacion_id = ?");
@@ -633,6 +644,10 @@ if ($method === 'POST') {
         if ($valPP['error']) { jsonResponse(['error' => $valPP['error']]); exit; }
         $promo_precio_codigo = $valPP['codigo'];
     }
+    // UPD-668: código por niveles (RAZA_OCT2026) — el nivel sale de las partidas + casilla Express.
+    $promo_express = ($promo_precio_codigo && !empty($body['promo_express'])) ? 1 : 0;
+    $promo_nivel   = promoPrecioNivel($promo_precio_codigo, $partidas, $promo_express);
+    if ($promo_nivel !== 'express') $promo_express = 0;
 
     // Suma con el descuento manual (no cascada); el candado de autorización >10%
     // sigue evaluando solo $descuento (manual), no $descuento_efectivo.
@@ -673,7 +688,7 @@ if ($method === 'POST') {
         }
 
         $m2             = round(($ancho / 1000) * ($alto / 1000), 6);
-        $precio_promo   = $lamina_id_venta ? null : promoPrecioDe($promo_precio_codigo, $cristal_id);
+        $precio_promo   = $lamina_id_venta ? null : promoPrecioDe($promo_precio_codigo, $cristal_id, $promo_nivel);
         $precio_m2      = $precio_promo ?? (float)$cristal['precio_m2'];
         $desc_partida   = $precio_promo !== null ? 0 : $descuento_efectivo;
         $precio_unit    = round($m2 * $precio_m2 * (1 - $desc_partida / 100), 4);
@@ -747,14 +762,14 @@ if ($method === 'POST') {
 
         $db->prepare("INSERT INTO cotizaciones
             (folio, fecha, cliente_id, cliente_nombre, asesor_id, asesor_nombre,
-             proyecto, descuento, descuento_referido, descuento_encuesta, promocion_id, promo_precio_codigo, credito, condicion_pago, tipo_entrega,
+             proyecto, descuento, descuento_referido, descuento_encuesta, promocion_id, promo_precio_codigo, promo_express, credito, condicion_pago, tipo_entrega,
              localidad, ciudad_destino, factura_tipo, fecha_entrega, fecha_entrega_manual,
              alerta, subtotal, iva, total, saldo_pendiente, entrega_bloqueada, estatus, es_retrabajo, motivo_retrabajo)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ")->execute([
             $folio, $fecha_hoy, $cliente_id, $cliente_nombre,
             $usuario_id, $usuario_nombre,
-            $proyecto, $descuento, $descuento_referido, $descuento_encuesta, $promocion_id, $promo_precio_codigo, $credito, $condicion, $tipo_entrega,
+            $proyecto, $descuento, $descuento_referido, $descuento_encuesta, $promocion_id, $promo_precio_codigo, $promo_express, $credito, $condicion, $tipo_entrega,
             $localidad, $ciudad, $factura_tipo, $fecha_entrega, $es_manual,
             $alerta, $subtotal_neto, $iva_total, $total_final,
             $saldo,
@@ -917,6 +932,10 @@ if ($method === 'PUT') {
             if ($valPP['error']) { jsonResponse(['error' => $valPP['error']]); exit; }
             $promo_precio_codigo = $valPP['codigo'];
         }
+        // UPD-668: código por niveles — ver mismo bloque en 'crear'.
+        $promo_express = ($promo_precio_codigo && !empty($body['promo_express'])) ? 1 : 0;
+        $promo_nivel   = promoPrecioNivel($promo_precio_codigo, $partidas, $promo_express);
+        if ($promo_nivel !== 'express') $promo_express = 0;
         $descuento_efectivo = min(100, $descuento + $descuento_referido + $descuento_encuesta); // S1-04: tope 100%
 
         // Datos del cliente
@@ -985,7 +1004,7 @@ if ($method === 'PUT') {
             // si el renglón ya existía (misma posición y mismo cristal — protege precios
             // históricos cuando el catálogo sube); partida nueva o cristal distinto → catálogo.
             // Los cambios de precio solo se hacen vía api/correcciones.php (auditado, dir_admin).
-            $precio_promo = $lamina_id_venta ? null : promoPrecioDe($promo_precio_codigo, $cristal_id);
+            $precio_promo = $lamina_id_venta ? null : promoPrecioDe($promo_precio_codigo, $cristal_id, $promo_nivel);
             $precio_m2 = $precio_promo ?? ($preciosVigentes[(count($partidas_data) + 1) . '|' . $cristal_id]
                          ?? (float)$cristal['precio_m2']);
             $desc_partida = $precio_promo !== null ? 0 : $descuento_efectivo;
@@ -1077,14 +1096,14 @@ if ($method === 'PUT') {
             // columna, dejándola desfasada del total real guardado tras un cambio
             // de cliente — se corrige de paso al agregar la columna nueva.
             $db->prepare("UPDATE cotizaciones SET
-                cliente_id=?, cliente_nombre=?, proyecto=?, descuento=?, descuento_referido=?, descuento_encuesta=?, promocion_id=?, promo_precio_codigo=?,
+                cliente_id=?, cliente_nombre=?, proyecto=?, descuento=?, descuento_referido=?, descuento_encuesta=?, promocion_id=?, promo_precio_codigo=?, promo_express=?,
                 credito=?, condicion_pago=?, tipo_entrega=?, localidad=?,
                 ciudad_destino=?, factura_tipo=?, fecha_entrega=?, fecha_entrega_manual=?,
                 alerta=?, subtotal=?, iva=?, total=?, saldo_pendiente=?,
                 updated_at=NOW()
                 WHERE id=?
             ")->execute([
-                $cliente_id, $cliente_nombre, $proyecto, $descuento, $descuento_referido, $descuento_encuesta, $promocion_id, $promo_precio_codigo,
+                $cliente_id, $cliente_nombre, $proyecto, $descuento, $descuento_referido, $descuento_encuesta, $promocion_id, $promo_precio_codigo, $promo_express,
                 $credito, $condicion, $tipo_entrega, $localidad,
                 $ciudad, $factura_tipo, $fecha_entrega, $es_manual,
                 $alerta, $subtotal_neto, $iva_total, $total_final, $saldo,
@@ -1096,7 +1115,7 @@ if ($method === 'PUT') {
             // los servicios 'ml' contra las medidas NUEVAS de la partida (si no, un
             // espaciador queda cobrado con el perímetro viejo tras editar medidas).
             $stmtSrvBak = $db->prepare("
-                SELECT cps.*, cp.num_partida, cp.insulado_grupo, sc.unidad AS srv_unidad
+                SELECT cps.*, cp.num_partida, cp.insulado_grupo, sc.unidad AS srv_unidad, COALESCE(sc.precio_libre,0) AS srv_precio_libre
                 FROM cotizacion_partida_servicios cps
                 JOIN cotizaciones_partidas cp ON cp.id = cps.partida_id
                 LEFT JOIN servicios_catalogo sc ON sc.id = cps.servicio_id
@@ -1146,6 +1165,11 @@ if ($method === 'PUT') {
                     // desde el grupo, con el precio previo si el separador no cambió.
                     if ((int)$s['es_insulado'] === 1) continue;
                     $nuevoPartidaId = $nuevosIdsPorNumPartida[$s['num_partida']] ?? null;
+                    // UPD-689: el Flete (precio libre) es de toda la cotización, no de la
+                    // partida donde se colgó — si esa partida se eliminó, pasa a la partida 1.
+                    if (!$nuevoPartidaId && (int)$s['srv_precio_libre'] === 1) {
+                        $nuevoPartidaId = $nuevosIdsPorNumPartida[1] ?? null;
+                    }
                     if (!$nuevoPartidaId) continue;
 
                     $und_x_pieza = (float)$s['unidades_por_pieza'];

@@ -17,3 +17,8 @@ if (session_status() === PHP_SESSION_NONE) {
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
+// UPD-652: roles de solo consulta (contador) — lista cerrada de archivos y solo lectura.
+require_once __DIR__ . '/helpers/rol_restringido.php';
+if (!empty($_SESSION['user_id'])) {
+    apexCandadoSoloConsulta($_SESSION['user_rol'] ?? '');
+}

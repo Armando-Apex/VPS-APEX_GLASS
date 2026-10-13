@@ -60,7 +60,7 @@ if ($method === 'GET') {
     $pass_col = $ver_pass ? ', portal_password' : '';
     $stmt = $pdo->prepare("
         SELECT id, codigo, razon_social, nombre, contacto, telefono, telefono_alterno, email,
-               rfc, cp_fiscal, regimen_fiscal,
+               rfc, cp_fiscal, regimen_fiscal, uso_cfdi, fiscal_validado_at,
                localidad, ciudad, activo, created_at
         $pass_col, portal_activo
         FROM clientes c $where ORDER BY codigo ASC LIMIT 350
@@ -131,8 +131,11 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_nombre') {
     $nombreAnterior = $actual['razon_social'] ?: $actual['nombre'];
 
     $pdo->beginTransaction();
-    $pdo->prepare("UPDATE clientes SET nombre = ?, razon_social = ? WHERE id = ?")
-        ->execute([$nuevoNombre, $nuevoNombre, $id]);
+    // UPD-655: un nombre cambiado a mano ya no está validado con el SAT.
+    // (MariaDB evalúa el SET de izquierda a derecha: la comparación va antes de cambiar el nombre.)
+    $pdo->prepare("UPDATE clientes SET fiscal_validado_at = IF(razon_social <=> ?, fiscal_validado_at, NULL),
+                   nombre = ?, razon_social = ? WHERE id = ?")
+        ->execute([$nuevoNombre, $nuevoNombre, $nuevoNombre, $id]);
 
     $stmtOrd1 = $pdo->prepare("UPDATE ordenes SET cliente_nombre = ? WHERE cliente_id = ?");
     $stmtOrd1->execute([$nuevoNombre, $id]);
@@ -212,6 +215,37 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'editar_telefono') {
     jsonResponse(['ok' => true, 'campo' => $campo, 'valor' => $nuevoValor ?? '']); exit;
 }
 
+// Usos CFDI que se pueden dejar por defecto en el perfil del cliente (UPD-641). Mismo
+// catálogo que el selector de Facturación, sin los que no aplican a una venta
+// (G02 devoluciones, CP01 pagos, P01 ya no existe en CFDI 4.0).
+const CLIENTES_USOS_CFDI = ['G01','G03','I01','I02','I03','I04','I08','S01'];
+
+// ─── POST accion=guardar_uso_cfdi ─────────────────────────────────────────────
+// Cambia solo el Uso CFDI por defecto (no viene en la constancia, así que se edita aparte).
+if ($method === 'POST' && ($_GET['accion'] ?? '') === 'guardar_uso_cfdi') {
+    $id  = (int)($body['id'] ?? 0);
+    $uso = strtoupper(trim((string)($body['uso_cfdi'] ?? '')));
+    if (!$id) { jsonResponse(['ok'=>false,'error'=>'ID requerido']); exit; }
+    if ($uso !== '' && !in_array($uso, CLIENTES_USOS_CFDI, true)) {
+        jsonResponse(['ok'=>false,'error'=>'Uso CFDI no válido: '.$uso]); exit;
+    }
+    $uso = $uso !== '' ? $uso : null;
+
+    $stmt = $pdo->prepare("SELECT uso_cfdi FROM clientes WHERE id = ?");
+    $stmt->execute([$id]);
+    $actual = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$actual) { jsonResponse(['ok'=>false,'error'=>'Cliente no encontrado']); exit; }
+
+    if ((string)$actual['uso_cfdi'] !== (string)$uso) {
+        $pdo->beginTransaction();
+        $pdo->prepare("UPDATE clientes SET uso_cfdi=?, updated_at=NOW() WHERE id=?")->execute([$uso, $id]);
+        $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?, 'Uso CFDI', ?, ?, ?, ?)")
+            ->execute([$id, $actual['uso_cfdi'] ?? '', $uso ?? '', $usuario_id, $usuario_nombre]);
+        $pdo->commit();
+    }
+    jsonResponse(['ok'=>true, 'uso_cfdi'=>$uso]); exit;
+}
+
 // ─── POST accion=guardar_fiscal ───────────────────────────────────────────────
 // Guarda RFC, CP fiscal y régimen desde la Constancia de Situación Fiscal (CSF)
 if ($method === 'POST' && ($_GET['accion'] ?? '') === 'guardar_fiscal') {
@@ -219,22 +253,62 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'guardar_fiscal') {
     $rfc            = strtoupper(trim($body['rfc']            ?? '')) ?: null;
     $cp_fiscal      = trim($body['cp_fiscal']      ?? '') ?: null;
     $regimen_fiscal = trim($body['regimen_fiscal']  ?? '') ?: null;
+    // Razón social tal cual la constancia (UPD-638): el SAT rechaza el CFDI si no coincide
+    // exacto, así que quien sube la CSF la deja lista. Mayúsculas y espacios simples, igual
+    // que el fix de espacios dobles de UPD-611. Opcional: vacía = no se toca.
+    $razon_social   = trim(preg_replace('/\s+/u', ' ', mb_strtoupper((string)($body['razon_social'] ?? ''), 'UTF-8')));
+    // Uso CFDI por defecto del cliente (UPD-641). Opcional: vacío = no se toca.
+    $uso_cfdi       = strtoupper(trim((string)($body['uso_cfdi'] ?? '')));
+    if ($uso_cfdi !== '' && !in_array($uso_cfdi, CLIENTES_USOS_CFDI, true)) {
+        jsonResponse(['ok'=>false,'error'=>'Uso CFDI no válido: '.$uso_cfdi]); exit;
+    }
 
     if (!$id) { jsonResponse(['ok'=>false,'error'=>'ID requerido']); exit; }
 
-    $stmt = $pdo->prepare("SELECT rfc, cp_fiscal, regimen_fiscal FROM clientes WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT razon_social, rfc, cp_fiscal, regimen_fiscal, uso_cfdi FROM clientes WHERE id = ?");
     $stmt->execute([$id]);
     $actual = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$actual) { jsonResponse(['ok'=>false,'error'=>'Cliente no encontrado']); exit; }
 
+    // UPD-655: validación contra el SAT ANTES de guardar (nombre + RFC + CP + régimen), vía
+    // FacturAPI y sin emitir nada. Si es persona física y el nombre viene en otro orden, se
+    // guarda el que acepta el SAT. Si el SAT rechaza, no se guarda nada (así nunca se queda
+    // un cliente con datos que fallarían al timbrar). Si no se pudo consultar, se guarda sin
+    // la marca de validado y se avisa.
+    $nombreFiscal = $razon_social !== '' ? $razon_social : (string)$actual['razon_social'];
+    $validadoSat  = false; $nombreCorregido = null; $avisoSat = null;
+    if ($rfc && $cp_fiscal && $regimen_fiscal && $nombreFiscal !== '') {
+        require_once __DIR__ . '/helpers/facturapi_lib.php';
+        $vSat = _facturapiValidarConCorreccion($rfc, $nombreFiscal, $cp_fiscal, $regimen_fiscal);
+        if (!empty($vSat['ok'])) {
+            $validadoSat = true;
+            if (!empty($vSat['corregido'])) { $nombreCorregido = $vSat['nombre']; $razon_social = $vSat['nombre']; }
+        } elseif (!empty($vSat['red'])) {
+            $avisoSat = 'Se guardó, pero no se pudo validar con el SAT en este momento: revisa antes de facturar.';
+        } else {
+            jsonResponse(['ok'=>false, 'sat'=>true, 'error'=>$vSat['error']
+                .' Revisa en la constancia el nombre exacto (para personas físicas: nombre(s) y después apellidos), el CP y el régimen. No se guardó nada.']); exit;
+        }
+    }
+
     $pdo->beginTransaction();
-    $pdo->prepare("UPDATE clientes SET rfc=?, cp_fiscal=?, regimen_fiscal=?, updated_at=NOW() WHERE id=?")
-        ->execute([$rfc, $cp_fiscal, $regimen_fiscal, $id]);
+    $pdo->prepare("UPDATE clientes SET rfc=?, cp_fiscal=?, regimen_fiscal=?, fiscal_validado_at=?, updated_at=NOW() WHERE id=?")
+        ->execute([$rfc, $cp_fiscal, $regimen_fiscal, $validadoSat ? date('Y-m-d H:i:s') : null, $id]);
+    // nombre y razon_social van siempre juntos (mismo criterio que editar_nombre).
+    if ($razon_social !== '' && $razon_social !== (string)$actual['razon_social']) {
+        $pdo->prepare("UPDATE clientes SET razon_social=?, nombre=? WHERE id=?")
+            ->execute([$razon_social, $razon_social, $id]);
+    }
+    if ($uso_cfdi !== '') {
+        $pdo->prepare("UPDATE clientes SET uso_cfdi=? WHERE id=?")->execute([$uso_cfdi, $id]);
+    }
     $stmt_log = $pdo->prepare("INSERT INTO clientes_bitacora (cliente_id, campo, valor_anterior, valor_nuevo, usuario_id, usuario_nombre) VALUES (?,?,?,?,?,?)");
     $cambios = [
+        'Razón Social'   => ['razon_social',   $actual['razon_social'],   $razon_social !== '' ? $razon_social : $actual['razon_social']],
         'RFC'            => ['rfc',            $actual['rfc'],            $rfc],
         'CP Fiscal'      => ['cp_fiscal',      $actual['cp_fiscal'],      $cp_fiscal],
         'Régimen Fiscal' => ['regimen_fiscal',  $actual['regimen_fiscal'], $regimen_fiscal],
+        'Uso CFDI'       => ['uso_cfdi',        $actual['uso_cfdi'],       $uso_cfdi !== '' ? $uso_cfdi : $actual['uso_cfdi']],
     ];
     foreach ($cambios as $etiqueta => $vals) {
         if ((string)($vals[1] ?? '') !== (string)($vals[2] ?? '')) {
@@ -243,7 +317,8 @@ if ($method === 'POST' && ($_GET['accion'] ?? '') === 'guardar_fiscal') {
     }
     $pdo->commit();
 
-    jsonResponse(['ok'=>true, 'rfc'=>$rfc, 'cp_fiscal'=>$cp_fiscal, 'regimen_fiscal'=>$regimen_fiscal]);
+    jsonResponse(['ok'=>true, 'razon_social'=>($razon_social !== '' ? $razon_social : $actual['razon_social']), 'uso_cfdi'=>($uso_cfdi !== '' ? $uso_cfdi : $actual['uso_cfdi']), 'rfc'=>$rfc, 'cp_fiscal'=>$cp_fiscal, 'regimen_fiscal'=>$regimen_fiscal,
+        'fiscal_validado_at'=>$validadoSat ? date('Y-m-d H:i:s') : null, 'nombre_corregido'=>$nombreCorregido, 'aviso'=>$avisoSat]);
     exit;
 }
 
@@ -345,6 +420,11 @@ if ($method === 'PUT') {
     }
 
     $campos['nombre'] = $campos['razon_social'];
+    // UPD-655: si cambian nombre o datos fiscales por aquí (sin pasar por la constancia),
+    // la marca de "validado con el SAT" deja de ser cierta.
+    foreach (['razon_social','rfc','cp_fiscal','regimen_fiscal'] as $cf) {
+        if ((string)$campos[$cf] !== (string)($actual[$cf] ?? '')) { $campos['fiscal_validado_at'] = null; break; }
+    }
     $sets   = implode(', ', array_map(function($k) { return "$k = ?"; }, array_keys($campos)));
     $params = array_values($campos);
     $params[] = $id;

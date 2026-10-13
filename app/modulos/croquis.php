@@ -845,7 +845,7 @@ function _onMouseMove(event) {
     mm2.x = Math.max(0, Math.min(mm2.x, o2.ancho));
     mm2.y = Math.max(0, Math.min(mm2.y, o2.alto));
     var el = _elementos.find(function(e){ return e.id === _draggingElem; });
-    if (el) { el.x = mm2.x; el.y = mm2.y; _redraw(); _renderPlacedList(); }
+    if (el) { el.x = mm2.x; el.y = mm2.y; _rsPegarBorde(el, o2, true); _redraw(); _renderPlacedList(); }
     return;
   }
   if (_forma === 'poligono' && !_poligonoCerrado && _poligonoPuntos.length) {
@@ -876,6 +876,28 @@ function _onSvgMouseLeave() {
 }
 
 function _snap(mm) { return Math.round(mm / POL_SNAP) * POL_SNAP; }
+
+// Resaque media luna (bisagra hidraulica): siempre va pegado al borde del vidrio.
+// x/y = centro del semicirculo sobre el borde. recalcular=true busca el borde mas cercano
+// (al arrastrar o guardar); false conserva el borde ya guardado en rs_borde.
+function _rsPegarBorde(el, o, recalcular) {
+  if (!el || el.tipo !== 'rs' || el.rs_variant !== 'medialuna') return;
+  var bd = el.rs_borde;
+  if (recalcular || !bd) {
+    var dL = el.x, dR = o.ancho - el.x, dB = el.y, dT = o.alto - el.y;
+    var m  = Math.min(dL, dR, dB, dT);
+    bd = (m === dB) ? 'inf' : (m === dT) ? 'sup' : (m === dL) ? 'izq' : 'der';
+  }
+  var r = (+el.rs_d || 60) / 2;
+  if (bd === 'inf' || bd === 'sup') {
+    el.y = (bd === 'inf') ? 0 : o.alto;
+    el.x = Math.max(Math.min(r, o.ancho/2), Math.min(el.x, Math.max(o.ancho - r, o.ancho/2)));
+  } else {
+    el.x = (bd === 'izq') ? 0 : o.ancho;
+    el.y = Math.max(Math.min(r, o.alto/2), Math.min(el.y, Math.max(o.alto - r, o.alto/2)));
+  }
+  el.rs_borde = bd;
+}
 
 function _onSvgClick(event) {
   if (_forma !== 'poligono' || _poligonoCerrado || _justDraggedVert) return;
@@ -981,10 +1003,11 @@ function _mResaqueFields(w, h, variant, d) {
   html += '<select class="cq-fi" id="ced-rs-forma" onchange="window.cqRsFormaChange(this.value)">';
   html += '<option value="rect"'+(v==='rect'?' selected':'')+'>Rectangular</option>';
   html += '<option value="cerradura"'+(v==='cerradura'?' selected':'')+'>Cerradura (rect + circulo)</option>';
+  html += '<option value="medialuna"'+(v==='medialuna'?' selected':'')+'>Media luna (bisagra hidraulica)</option>';
   html += '</select></div>';
-  html += '<div class="cq-field-row" style="margin-bottom:8px"><span class="cq-field-label" style="min-width:80px;font-size:11px">Ancho (mm)</span><input class="cq-fi" type="number" id="ced-w" value="'+w+'"'+disabled+'></div>';
-  html += '<div class="cq-field-row" style="margin-bottom:8px"><span class="cq-field-label" style="min-width:80px;font-size:11px">Alto (mm)</span><input class="cq-fi" type="number" id="ced-h" value="'+h+'"'+disabled+'></div>';
-  html += '<div class="cq-field-row" style="margin-bottom:8px" id="cq-rs-diam-row"><span class="cq-field-label" style="min-width:80px;font-size:11px">Diám. círculo (mm)</span><input class="cq-fi" type="number" id="ced-rs-d" value="'+(d||Math.round(h*1.6))+'"></div>';
+  html += '<div class="cq-field-row" style="margin-bottom:8px" id="cq-rs-w-row"><span class="cq-field-label" style="min-width:80px;font-size:11px">Ancho (mm)</span><input class="cq-fi" type="number" id="ced-w" value="'+w+'"'+disabled+'></div>';
+  html += '<div class="cq-field-row" style="margin-bottom:8px" id="cq-rs-h-row"><span class="cq-field-label" style="min-width:80px;font-size:11px">Alto (mm)</span><input class="cq-fi" type="number" id="ced-h" value="'+h+'"'+disabled+'></div>';
+  html += '<div class="cq-field-row" style="margin-bottom:8px" id="cq-rs-diam-row"><span class="cq-field-label" style="min-width:80px;font-size:11px" id="cq-rs-diam-lbl">Diám. círculo (mm)</span><input class="cq-fi" type="number" id="ced-rs-d" value="'+(d||Math.round(h*1.6))+'"></div>';
   return html;
 }
 
@@ -1010,7 +1033,14 @@ window.cqBiRefSel = function(v) {
 
 window.cqRsFormaChange = function(v) {
   var row = document.getElementById('cq-rs-diam-row');
-  if (row) row.style.display = (v==='cerradura') ? '' : 'none';
+  if (row) row.style.display = (v==='cerradura' || v==='medialuna') ? '' : 'none';
+  // media luna = semicirculo exacto: solo se captura el diametro
+  var lbl = document.getElementById('cq-rs-diam-lbl');
+  if (lbl) lbl.textContent = (v==='medialuna') ? 'Diámetro (mm)' : 'Diám. círculo (mm)';
+  ['cq-rs-w-row','cq-rs-h-row'].forEach(function(id) {
+    var r = document.getElementById(id);
+    if (r) r.style.display = (v==='medialuna') ? 'none' : '';
+  });
 };
 
 window.cqRsTipoChange = function(idx) {
@@ -1049,9 +1079,13 @@ function _saveEditing() {
     el.rs_variant = formaSel ? formaSel.value : 'rect';
     if (el.rs_variant === 'cerradura') {
       el.rs_d = +document.getElementById('ced-rs-d').value || Math.round(el.h*1.6);
+    } else if (el.rs_variant === 'medialuna') {
+      el.rs_d = Math.abs(+document.getElementById('ced-rs-d').value) || 60;
     } else {
       delete el.rs_d;
     }
+    if (el.rs_variant === 'medialuna') _rsPegarBorde(el, _getOrigin(), true);
+    else delete el.rs_borde;
   }
   if (el.tipo==='bi') {
     el.w = +document.getElementById('ced-w').value || 58;
@@ -1078,6 +1112,7 @@ function _renderPlacedList() {
     var tc = e.tipo==='tp'?'cq-tag-tp':e.tipo==='ta'?'cq-tag-ta':e.tipo==='bi'?'cq-tag-bi':'cq-tag-rs';
     var label = e.tipo==='tp' ? 'X:'+e.x+' Y:'+e.y+' Ø'+e.d
               : e.tipo==='ta' ? 'X:'+e.x+' Y:'+e.y+' Ø'+e.de+'/'+e.di
+              : (e.tipo==='rs' && e.rs_variant==='medialuna') ? 'X:'+e.x+' Y:'+e.y+' media luna Ø'+(e.rs_d||60)
               : 'X:'+e.x+' Y:'+e.y+' '+e.w+'×'+e.h;
     return '<div class="cq-placed-item"><span class="cq-tag '+tc+'" style="margin-right:4px">'+e.tipo.toUpperCase()+'</span><span style="flex:1;margin:0 4px">'+label+'</span><button class="cq-del-btn" onclick="CroquisMod._removeElem('+e.id+')">×</button></div>';
   }).join('');
@@ -1433,6 +1468,7 @@ function _redraw() {
 
   // ── Elementos ─────────────────────────────────────────────────
   _elementos.forEach(function(e, idxEl) {
+    _rsPegarBorde(e, o, false);
     var ep  = toPX(e.x, e.y);
     var ex  = ep.x, ey = ep.y;
     var cur = _draggingElem===e.id ? 'grabbing' : 'grab';
@@ -1465,7 +1501,7 @@ function _redraw() {
       out += '<text x="'+nbCxTA+'" y="'+(nbCyTA+3.5)+'" text-anchor="middle" font-size="7" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }
-    if (e.tipo==='rs' && e.rs_variant!=='cerradura') {
+    if (e.tipo==='rs' && e.rs_variant!=='cerradura' && e.rs_variant!=='medialuna') {
       var rw=Math.max(8,e.h*sc), rh=Math.max(4,e.w*sc);
       var exD = Math.min(ex, ox+gw-rw);
       var rySVG = Math.max(ey - rh, oy);
@@ -1475,6 +1511,25 @@ function _redraw() {
       var nbCxRS = Math.min(exD+rw-7, ox+gw-6); var nbCyRS = Math.max(rySVG+6, oy+6);
       out += '<circle cx="'+nbCxRS+'" cy="'+nbCyRS+'" r="5" fill="#854d0e"/>';
       out += '<text x="'+nbCxRS+'" y="'+(nbCyRS+3.5)+'" text-anchor="middle" font-size="6" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
+      out += '</g>';
+    }
+    if (e.tipo==='rs' && e.rs_variant==='medialuna') {
+      // Resaque media luna (bisagra hidraulica): semicirculo exacto pegado al borde, que abre
+      // hacia afuera del vidrio. ex/ey = centro del semicirculo sobre el borde — reportes 21/22
+      // de Bethy, 07-oct-2026.
+      var mlR = Math.max(4, (+e.rs_d||60)/2*sc);
+      var mlD, mlIx = 0, mlIy = 0; // mlIx/mlIy = direccion hacia adentro del vidrio
+      if (e.rs_borde==='sup')      { mlD = 'M '+(ex-mlR)+' '+ey+' A '+mlR+' '+mlR+' 0 0 0 '+(ex+mlR)+' '+ey; mlIy = 1; }
+      else if (e.rs_borde==='izq') { mlD = 'M '+ex+' '+(ey-mlR)+' A '+mlR+' '+mlR+' 0 0 1 '+ex+' '+(ey+mlR); mlIx = 1; }
+      else if (e.rs_borde==='der') { mlD = 'M '+ex+' '+(ey-mlR)+' A '+mlR+' '+mlR+' 0 0 0 '+ex+' '+(ey+mlR); mlIx = -1; }
+      else                         { mlD = 'M '+(ex-mlR)+' '+ey+' A '+mlR+' '+mlR+' 0 0 1 '+(ex+mlR)+' '+ey; mlIy = -1; }
+      out += '<g style="cursor:'+cur+'"'+evts+'>';
+      out += '<circle cx="'+ex+'" cy="'+ey+'" r="'+(mlR+3)+'" fill="transparent"/>';
+      out += '<path d="'+mlD+' Z" fill="#fef9c3" fill-opacity="0.85" stroke="none"/>';
+      out += '<path d="'+mlD+'" fill="none" stroke="#854d0e" stroke-width="1.2" stroke-dasharray="3,2"/>';
+      var nbCxML = ex + mlIx*(mlR+7), nbCyML = ey + mlIy*(mlR+7);
+      out += '<circle cx="'+nbCxML+'" cy="'+nbCyML+'" r="5" fill="#854d0e"/>';
+      out += '<text x="'+nbCxML+'" y="'+(nbCyML+3.5)+'" text-anchor="middle" font-size="6" font-weight="700" fill="white" font-family="monospace">'+numLabel+'</text>';
       out += '</g>';
     }
     if (e.tipo==='rs' && e.rs_variant==='cerradura') {
@@ -1557,6 +1612,7 @@ function _redraw() {
       if (el.tipo==='tp') det = 'Ø'+el.d+'mm';
       if (el.tipo==='ta') det = 'Ø'+el.de+'/'+el.di;
       if (el.tipo==='rs') det = el.w+'×'+el.h+'mm'+(el.rs_variant==='cerradura'?' Ø'+(el.rs_d||Math.round(el.h*1.6))+'mm':'');
+      if (el.tipo==='rs' && el.rs_variant==='medialuna') det = 'M.luna Ø'+(el.rs_d||60)+'mm';
       if (el.tipo==='bi') det = el.w+'×'+el.h+'mm'+(el.bi_ref&&el.bi_ref!=='inicio'?' ['+el.bi_ref+']':'');
       out += '<text x="'+(tblX+tblW-2)+'" y="'+(ry+10)+'" text-anchor="end" font-size="7" fill="'+ec+'" font-family="monospace">'+det+'</text>';
       var dH = el.x <= ancho/2 ? el.x : (ancho - el.x);

@@ -8,6 +8,7 @@
 // ============================================================
 require_once 'config.php';
 require_once 'permisos.php';
+require_once 'wa_helper.php'; // WA orden_lista al corregir a terminado
 require_once __DIR__ . '/helpers/saldo_favor_lib.php';
 require_once __DIR__ . '/helpers/totales.php'; // A-03: barrera de cobro en corregir_estatus
 require_once __DIR__ . '/helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
@@ -292,6 +293,11 @@ if ($method === 'POST') {
             }
 
             $db->commit();
+            // Igual que el escaneo pieza por pieza: si toda la orden quedó en terminado,
+            // avisar al cliente por WA (orden_lista, una sola vez por orden).
+            if ($estatus === 'terminado') {
+                waEnviarOrdenLista($db, $ordenId);
+            }
             jsonResponse(['ok' => true, 'piezas_actualizadas' => $count]);
 
         } catch (Exception $e) {

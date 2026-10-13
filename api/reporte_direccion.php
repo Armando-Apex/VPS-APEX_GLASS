@@ -464,6 +464,24 @@ if ($accion === 'ventas_diarias_comercial') {
     }
     $hoyStr = $hoyD->format('Y-m-d');
 
+    // Línea de tendencia "Venta + anticipos" (solo mes actual, 10-oct-2026):
+    // anticipo neto del día = dinero que entra a saldo a favor (depósitos,
+    // excedentes de pago y reintegros) − saldo aplicado a órdenes. Así, cuando
+    // un cliente usa su saldo, la venta sube en la línea de VoBo pero esta
+    // línea no la cuenta dos veces. El bono de referido no es dinero → fuera.
+    $stmtAnt = $pdo->prepare("
+        SELECT fecha, SUM(monto) AS neto
+        FROM clientes_saldo_favor
+        WHERE tipo IN ('deposito','reintegro','aplicacion')
+          AND fecha BETWEEN ? AND ?
+        GROUP BY fecha
+    ");
+    $stmtAnt->execute([sprintf('%04d-%02d-01', $mActual['anio'], $mActual['mes']), $hoyStr]);
+    $anticiposPorDia = [];
+    foreach ($stmtAnt->fetchAll(PDO::FETCH_ASSOC) as $a) {
+        $anticiposPorDia[$a['fecha']] = round((float)$a['neto'], 2);
+    }
+
     function rdSerieMesVentas(array $info, array $ventasPorDia, string $hoyStr, bool $esActual): array {
         $serie = [];
         $acumulado = 0.0;
@@ -477,6 +495,15 @@ if ($accion === 'ventas_diarias_comercial') {
         return $serie;
     }
 
+    $serieActual = rdSerieMesVentas($mActual, $ventasPorDia, $hoyStr, true);
+    $acumAnt = 0.0;
+    foreach ($serieActual as &$pAct) {
+        $acumAnt = round($acumAnt + ($anticiposPorDia[$pAct['fecha']] ?? 0.0), 2);
+        $pAct['anticipo_neto_acum']   = $acumAnt;
+        $pAct['acumulado_con_antic']  = round($pAct['acumulado'] + $acumAnt, 2);
+    }
+    unset($pAct);
+
     $mesesEsVD = [1=>'Enero',2=>'Febrero',3=>'Marzo',4=>'Abril',5=>'Mayo',6=>'Junio',
                   7=>'Julio',8=>'Agosto',9=>'Septiembre',10=>'Octubre',11=>'Noviembre',12=>'Diciembre'];
 
@@ -487,7 +514,7 @@ if ($accion === 'ventas_diarias_comercial') {
                 'label'     => $mesesEsVD[$mActual['mes']] . ' ' . $mActual['anio'],
                 'dias_mes'  => $mActual['dias_mes'],
                 'es_actual' => true,
-                'serie'     => rdSerieMesVentas($mActual, $ventasPorDia, $hoyStr, true),
+                'serie'     => $serieActual,
             ],
             [
                 'key'       => 'anterior',

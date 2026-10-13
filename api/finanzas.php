@@ -21,7 +21,7 @@ $usuario_nombre = $user['nombre'];
 $method         = $_SERVER['REQUEST_METHOD'];
 $db             = getDB();
 
-$es_finanzas = in_array($rol, ['administracion', 'dir_admin', 'dueno', 'desarrollo']);
+$es_finanzas = in_array($rol, ['administracion', 'dir_admin', 'dueno', 'desarrollo', 'contador']);  // contador: solo GET (UPD-652)
 if (!$es_finanzas) {
     jsonResponse(['error' => 'Sin permiso'], 403);
 }

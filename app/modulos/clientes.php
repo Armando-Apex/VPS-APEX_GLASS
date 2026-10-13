@@ -668,11 +668,49 @@ const REGIMENES = {
   '626':'626 – Régimen Simplificado de Confianza (Resico)',
 };
 
+// Uso CFDI por defecto del cliente (UPD-641): Facturación lo toma de aquí, editable por factura.
+const USOS_CFDI = {
+  'G01': 'G01 – Adquisición de mercancías',
+  'G03': 'G03 – Gastos en general',
+  'I01': 'I01 – Construcciones',
+  'I02': 'I02 – Mobiliario y equipo de oficina',
+  'I03': 'I03 – Equipo de transporte',
+  'I04': 'I04 – Equipo de cómputo y accesorios',
+  'I08': 'I08 – Otra maquinaria y equipo',
+  'S01': 'S01 – Sin efectos fiscales'
+};
+
+function cliUsoOptions(sel) {
+  return Object.entries(USOS_CFDI).map(([k,v]) =>
+    `<option value="${k}"${k === sel ? ' selected' : ''}>${v}</option>`
+  ).join('');
+}
+
+window.cliGuardarUso = async function(id, uso) {
+  try {
+    const r = await fetch('../api/clientes.php?accion=guardar_uso_cfdi', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-SPA-Request': '1' },
+      body: JSON.stringify({ id, uso_cfdi: uso })
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error desconocido');
+    const idx = _cliData.findIndex(x => x.id == id);
+    if (idx >= 0) _cliData[idx].uso_cfdi = d.uso_cfdi;
+  } catch(e) {
+    alert('No se pudo guardar el Uso CFDI: ' + e.message);
+    cliAbrirPanel(id);
+  }
+};
+
 function cliFiscalSeccionHtml(c) {
   const tieneRfc = !!(c.rfc);
-  const badge = tieneRfc
-    ? '<span class="cli-fiscal-badge ok">&#10003; RFC registrado</span>'
-    : '<span class="cli-fiscal-badge no">Sin datos fiscales</span>';
+  // UPD-655: marca de validación con el SAT (se pone al guardar desde la constancia).
+  const fv = c.fiscal_validado_at ? String(c.fiscal_validado_at).slice(0, 10).split('-').reverse().join('/') : '';
+  const badge = !tieneRfc
+    ? '<span class="cli-fiscal-badge no">Sin datos fiscales</span>'
+    : (fv ? '<span class="cli-fiscal-badge ok" title="Nombre, RFC, CP y régimen coinciden con el SAT">&#10003; Validado con el SAT ' + fv + '</span>'
+          : '<span class="cli-fiscal-badge no" title="Vuelve a subir la constancia para validarlo">RFC sin validar con el SAT</span>');
 
   let datosHtml = '';
   if (tieneRfc) {
@@ -689,6 +727,15 @@ function cliFiscalSeccionHtml(c) {
         <div style="grid-column:1/-1">
           <div style="font-size:10px;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em">Régimen Fiscal</div>
           <div style="font-size:12px;color:#1e293b">${c.regimen_fiscal ? (REGIMENES[c.regimen_fiscal] || c.regimen_fiscal) : '—'}</div>
+        </div>
+        <div style="grid-column:1/-1">
+          <div style="font-size:10px;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.04em">Uso CFDI (por defecto al facturar)</div>
+          ${PUEDE_EDITAR_FISCAL
+            ? `<select id="cli-uso-${c.id}" style="font-size:12px;margin-top:2px;max-width:100%" onchange="cliGuardarUso(${c.id}, this.value)">
+                 <option value=""${c.uso_cfdi ? '' : ' selected'}>— Sin definir —</option>
+                 ${cliUsoOptions(c.uso_cfdi || '')}
+               </select>`
+            : `<div style="font-size:12px;color:#1e293b">${c.uso_cfdi ? (USOS_CFDI[c.uso_cfdi] || c.uso_cfdi) : '—'}</div>`}
         </div>
       </div>`;
   } else {
@@ -726,7 +773,7 @@ window.cliFiscalAbrirWidget = function(id) {
       </div>
       <div>
         <strong style="display:block;font-size:12px;color:#1e293b">Subir Constancia de Situación Fiscal</strong>
-        <span style="font-size:11px;color:#64748b">PDF del SAT — extrae RFC, CP y régimen automáticamente</span>
+        <span style="font-size:11px;color:#64748b">PDF del SAT — extrae razón social, RFC, CP y régimen automáticamente</span>
       </div>
     </label>
     <div class="cli-fiscal-loading" id="cli-fis-loading-${id}">
@@ -735,6 +782,11 @@ window.cliFiscalAbrirWidget = function(id) {
     <div class="cli-fiscal-error" id="cli-fis-error-${id}"></div>
     <div class="cli-fiscal-preview" id="cli-fis-preview-${id}">
       <h5>&#10003; Datos encontrados — revisa y guarda</h5>
+      <div class="cli-fiscal-field">
+        <label>Razón social (exacta, como en la constancia)</label>
+        <input type="text" id="cli-fis-rs-${id}" maxlength="200" style="text-transform:uppercase"
+          oninput="this.value=this.value.toUpperCase()">
+      </div>
       <div class="cli-fiscal-field">
         <label>RFC</label>
         <input type="text" id="cli-fis-rfc-${id}" maxlength="13" style="text-transform:uppercase"
@@ -749,6 +801,12 @@ window.cliFiscalAbrirWidget = function(id) {
         <select id="cli-fis-reg-${id}">
           <option value="">— Selecciona —</option>
           ${regimenOptions}
+        </select>
+      </div>
+      <div class="cli-fiscal-field">
+        <label>Uso CFDI (por defecto al facturar)</label>
+        <select id="cli-fis-uso-${id}">
+          ${cliUsoOptions((_cliData.find(x => x.id == id) || {}).uso_cfdi || 'G03')}
         </select>
       </div>
       <div class="cli-fiscal-actions">
@@ -802,8 +860,10 @@ window.cliFiscalSubir = async function(file, id) {
     if (!res.ok) { cliFiscalError(id, res.error || 'No se pudo leer la constancia'); return; }
 
     const d = res.datos;
+    const rsEl  = document.getElementById('cli-fis-rs-'  + id);
     const rfcEl = document.getElementById('cli-fis-rfc-' + id);
     const cpEl  = document.getElementById('cli-fis-cp-'  + id);
+    if (rsEl)  rsEl.value  = (d.nombre || '').toUpperCase().replace(/\s+/g, ' ').trim();
     const regEl = document.getElementById('cli-fis-reg-' + id);
     if (rfcEl) rfcEl.value = (d.rfc || '').toUpperCase();
     if (cpEl)  cpEl.value  = d.cp  || '';
@@ -828,28 +888,44 @@ window.cliFiscalGuardar = async function(id) {
   const rfc = (document.getElementById('cli-fis-rfc-' + id)?.value || '').trim().toUpperCase();
   const cp  = (document.getElementById('cli-fis-cp-'  + id)?.value || '').trim();
   const reg = (document.getElementById('cli-fis-reg-' + id)?.value || '').trim();
+  const rs  = (document.getElementById('cli-fis-rs-'  + id)?.value || '').toUpperCase().replace(/\s+/g, ' ').trim();
+  const uso = (document.getElementById('cli-fis-uso-' + id)?.value || '').trim();
 
+  if (!rs)  { cliFiscalError(id, 'La razón social es obligatoria (cópiala tal cual de la constancia)'); return; }
   if (!rfc) { cliFiscalError(id, 'El RFC es obligatorio'); return; }
 
+  // UPD-655: el servidor valida con el SAT antes de guardar (tarda unos segundos).
+  const btnG = document.querySelector('#panel-fiscal-widget .cli-fiscal-save');
+  if (btnG) { btnG.disabled = true; btnG.textContent = 'Validando con el SAT…'; }
+  cliFiscalError(id, '');
   try {
     const r = await fetch('../api/clientes.php?accion=guardar_fiscal', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-SPA-Request': '1' },
-      body: JSON.stringify({ id, rfc, cp_fiscal: cp, regimen_fiscal: reg })
+      body: JSON.stringify({ id, razon_social: rs, rfc, cp_fiscal: cp, regimen_fiscal: reg, uso_cfdi: uso })
     });
     const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Error desconocido');
+    if (btnG) { btnG.disabled = false; btnG.textContent = 'Guardar en cliente'; }
+    if (!d.ok) { cliFiscalError(id, d.error || 'Error desconocido'); return; }
 
     // Actualizar en memoria y refrescar panel
     const idx = _cliData.findIndex(x => x.id == id);
     if (idx >= 0) {
+      if (d.razon_social) { _cliData[idx].razon_social = d.razon_social; _cliData[idx].nombre = d.razon_social; }
+      if (d.uso_cfdi) _cliData[idx].uso_cfdi = d.uso_cfdi;
       _cliData[idx].rfc            = rfc;
       _cliData[idx].cp_fiscal      = cp;
       _cliData[idx].regimen_fiscal = reg;
+      _cliData[idx].fiscal_validado_at = d.fiscal_validado_at || null;
     }
     renderTabla();
     cliAbrirPanel(id);
-  } catch(e) { cliFiscalError(id, 'Error al guardar: ' + e.message); }
+    if (d.nombre_corregido) alert('Guardado y validado con el SAT.\n\nEl SAT tiene el nombre como:\n' + d.nombre_corregido + '\n\nSe guardó así (en personas físicas va primero el nombre y después los apellidos).');
+    else if (d.aviso) alert(d.aviso);
+  } catch(e) {
+    if (btnG) { btnG.disabled = false; btnG.textContent = 'Guardar en cliente'; }
+    cliFiscalError(id, 'Error al guardar: ' + e.message);
+  }
 };
 
 cliCargar();

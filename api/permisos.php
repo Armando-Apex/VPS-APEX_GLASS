@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/helpers/rol_restringido.php';
 // ============================================================
 //  APEX GLASS - Permisos por rol
 //  Archivo: api/permisos.php
@@ -94,6 +95,14 @@ define('PERMISOS', [
         'gestionar_rh',
         'facturar',
     ],
+    // Solo consulta (UPD-652): Cobranza, Facturación y Contabilidad, sin modificar nada.
+    // El candado real está en helpers/rol_restringido.php (lista cerrada + solo GET).
+    'contador' => [
+        'ver_dashboard',
+        'ver_ordenes',          // lo exige la pantalla de Cobranza
+        'ver_contabilidad',
+        'ver_facturacion',
+    ],
     'desarrollo' => [
         'ver_dashboard',
         'ver_ordenes',
@@ -126,6 +135,7 @@ define('REDIRECCION_LOGIN', [
     'administracion' => 'dashboard.php',
     'dueno'          => 'dashboard.php',
     'desarrollo'     => 'dashboard.php',
+    'contador'       => 'dashboard.php',
 ]);
 
 // Verificar si el rol tiene un permiso especifico
@@ -152,6 +162,7 @@ function requireSession() {
         header('Location: login.php');
         exit;
     }
+    apexCandadoSoloConsulta($_SESSION['user_rol'] ?? '');
     return [
         'id'      => $_SESSION['user_id'],
         'nombre'  => $_SESSION['user_name'],
@@ -206,6 +217,7 @@ function requireSessionApi() {
         echo json_encode(['error' => 'Sesion requerida']);
         exit;
     }
+    apexCandadoSoloConsulta($_SESSION['user_rol'] ?? '');
     // S2-11: synchronizer token — Origin/Referer se conserva como primera
     // barrera, pero ya no es la única (un cliente sin ambos headers pasaba
     // antes). Sin token válido de sesión no hay mutación. Va DESPUÉS de

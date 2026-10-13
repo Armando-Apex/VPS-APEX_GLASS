@@ -545,9 +545,8 @@ function renderFormulario(data) {
   // primera cotización de un cliente nuevo. En ediciones el 5% ya quedó fijo
   // en el servidor (descuento_referido), no se vuelve a pedir el código.
   if (esNuevo) {
-    html += '<div class="field"><label>C&oacute;digo de Referido (CTN)</label>';
-    html += '<input type="text" id="fReferidoCtn" placeholder="Ej: CTN-259" maxlength="20" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
-    html += '<small style="color:var(--c-muted);">Opcional, 5% de descuento autom&aacute;tico (vigente hasta el 31-oct-2026).</small></div>';
+    html += '<div class="field"><label>C&oacute;digo de Referido (CTN) ' + iconoAyuda('Opcional, 5% de descuento automático (vigente hasta el 31-oct-2026).') + '</label>';
+    html += '<input type="text" id="fReferidoCtn" placeholder="Ej: CTN-259" maxlength="20" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()"></div>';
   } else if (data && parseFloat(data.descuento_referido || 0) > 0) {
     html += '<div class="field"><label>Descuento por Referido</label>';
     html += '<input type="text" readonly value="' + parseFloat(data.descuento_referido) + '% (ya aplicado)"></div>';
@@ -558,11 +557,9 @@ function renderFormulario(data) {
   // total de piezas de la cotización, y REEMPLAZA el campo Descuento manual
   // (así el candado de autorización >10% se sigue disparando igual). Igual
   // que Referidos: solo se pide al crear, en edición ya quedó fijo (promocion_id).
-  if (esNuevo) {
-    html += '<div class="field"><label>C&oacute;digo de Promoci&oacute;n</label>';
-    html += '<input type="text" id="fPromoWaCodigo" placeholder="Ej: CTN-259PROMO" maxlength="20" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
-    html += '<small style="color:var(--c-muted);">Opcional, descuento por volumen de piezas.</small></div>';
-  } else if (data && data.promocion_id) {
+  // UPD-669 (05-oct-2026): campo de captura retirado (promo inactiva); solo se
+  // muestra la promo ya aplicada en cotizaciones existentes.
+  if (data && data.promocion_id) {
     html += '<div class="field"><label>Promoci&oacute;n aplicada</label>';
     html += '<input type="text" readonly value="' + parseFloat(data.descuento || 0) + '% por volumen (ya aplicado)"></div>';
   }
@@ -572,13 +569,11 @@ function renderFormulario(data) {
   // A diferencia de Referido/Promoción, aplica igual al crear que al editar
   // (el código puede llegarle al cliente en cualquier momento, no solo en su
   // primera cotización) — se muestra el campo mientras no se haya aplicado ya.
+  // UPD-669 (05-oct-2026): campo de captura retirado (encuesta inactiva); solo se
+  // muestra el descuento ya aplicado en cotizaciones existentes.
   if (data && parseFloat(data.descuento_encuesta || 0) > 0) {
     html += '<div class="field"><label>Descuento por Encuesta</label>';
     html += '<input type="text" readonly value="' + parseFloat(data.descuento_encuesta) + '% (ya aplicado)"></div>';
-  } else {
-    html += '<div class="field"><label>C&oacute;digo de Encuesta</label>';
-    html += '<input type="text" id="fEncuestaCodigo" placeholder="Ej: ENC-A1B2C3" maxlength="20" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
-    html += '<small style="color:var(--c-muted);">Opcional, 5% adicional — c&oacute;digo de un solo uso, v&aacute;lido 24h.</small></div>';
   }
 
   // Promo de precio fijo por código (SALT_SEP2026, 23-sep-2026 — ver
@@ -587,12 +582,22 @@ function renderFormulario(data) {
   // guardado; dejarlo vacío = quitar la promo (precio regresa a catálogo).
   var ppCod = data ? (data.promo_precio_codigo || '') : '';
   if (editable) {
-    html += '<div class="field"><label>C&oacute;digo Precio Especial</label>';
-    html += '<input type="text" id="fPromoPrecioCodigo" value="' + escHtml(ppCod) + '" placeholder="Ej: SALT_SEP2026" maxlength="30" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
-    html += '<small style="color:var(--c-muted);">Opcional. SALT_SEP2026: Claro 6mm $585 / 9mm $835 por m&sup2;. MTY_SEP2026: Claro 6mm $600 / 9mm $835 por m&sup2;. Con IVA, hasta 30-sep.</small></div>';
+    // UPD-670: la leyenda va en un tooltip (icono "i") para ahorrar espacio.
+    var ppAyuda = 'RAZA_OCT2026 — Claro 9mm / 6mm con IVA:&#10;'
+      + '• Express (hasta 4 piezas, marcar la casilla): $1,050 / $745&#10;'
+      + '• Normal, entrega en 5 días: $945 / $670&#10;'
+      + '• Volumen (50 m² o más): $870 / $615&#10;'
+      + 'El sistema elige el nivel solo. Vigente hasta el 12-oct a las 6:00 pm.';
+    html += '<div class="field"><label>C&oacute;digo Precio Especial ' + iconoAyuda(ppAyuda) + '</label>';
+    html += '<input type="text" id="fPromoPrecioCodigo" value="' + escHtml(ppCod) + '" placeholder="Ej: RAZA_OCT2026" maxlength="30" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();ModCotizacion._recalcular()">';
+    // UPD-668: casilla Express (solo cuenta con código por niveles y hasta 4 piezas)
+    html += '<label style="display:flex;align-items:center;gap:6px;font-weight:400;margin-top:6px;"><input type="checkbox" id="fPromoExpress"' + (data && parseInt(data.promo_express || 0) ? ' checked' : '') + ' onchange="ModCotizacion._recalcular()"> Entrega Express (hasta 4 piezas)</label>';
+    html += '<div id="ppNivelInfo" style="font-size:12px;font-weight:600;color:var(--c-accent,#ea580c);margin-top:4px;"></div></div>';
   } else if (ppCod) {
+    var ppNivTxt = { express: 'Entrega Express', normal: 'Entrega en 5 días', volumen: 'Precio por volumen' };
+    var ppNiv = PROMO_PRECIO_PREVIEW[ppCod] && PROMO_PRECIO_PREVIEW[ppCod].niveles ? (parseInt(data.promo_express || 0) ? 'express' : '') : '';
     html += '<div class="field"><label>Precio Especial</label>';
-    html += '<input type="text" readonly value="' + escHtml(ppCod) + ' (ya aplicado)"></div>';
+    html += '<input type="text" readonly value="' + escHtml(ppCod) + ' (ya aplicado' + (ppNiv ? ' — ' + ppNivTxt[ppNiv] : '') + ')"></div>';
   }
 
   // Alerta
@@ -853,7 +858,7 @@ function renderPartidas(editable) {
     // Templado
     var templVal = lamMarcada ? 0 : ((p.requiere_templado === 0 || p.requiere_templado === '0') ? 0 : 1);
     if (editable) {
-      html += '<select id="p_templ_' + i + '" style="font-size:12px;padding:6px 4px;border:1.5px solid var(--c-border);border-radius:6px;width:100%"' + (lamMarcada?' disabled':'') + '>'
+      html += '<select id="p_templ_' + i + '" style="font-size:12px;padding:6px 4px;border:1.5px solid var(--c-border);border-radius:6px;width:100%"' + (lamMarcada?' disabled':'') + ' onchange="ModCotizacion._recalcular()">'
         + '<option value="1"' + (templVal===1?' selected':'') + '>S&#237;</option>'
         + '<option value="0"' + (templVal===0?' selected':'') + '>No</option>'
         + '</select>';
@@ -871,6 +876,7 @@ function renderPartidas(editable) {
       html += '<span></span>';
     }
     html += '</div>';
+    html += '<div class="horno-warn" id="horno-warn-' + i + '" style="display:none;margin:2px 10px 6px 42px;padding:6px 10px;border-radius:6px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:600"></div>';
 
     // Venta anticipada de lámina completa (UPD-554): marca esta partida como
     // "vender la lámina X completa (sin cortar)" — descuenta/reserva stock al VoBo.
@@ -892,6 +898,7 @@ function renderPartidas(editable) {
   }
   cont.innerHTML = html;
   recalcularResumenesInsulado();
+  revisarHorno();
 }
 
 // Servicios de una partida — extraído de renderPartidas para reusarlo en el
@@ -910,8 +917,13 @@ function renderSrvWrap(i, p) {
         var srvEsMl = (srv.servicio_unidad === 'ml' || srv.servicio_unidad === 'm2');
         var srvUniTxt = (srv.servicio_unidad === 'm2') ? 'm\u00b2' : 'm.l.';
         var srvUniLbl = srvEsMl ? (parseFloat(srv.unidades_por_pieza).toFixed(3).replace(/\.?0+$/, '') + ' ' + srvUniTxt) : (srv.unidades_por_pieza + ' und');
-        html += '<span class="srv-qty">' + srvUniLbl + ' &times; ' + srv.cantidad_piezas + ' pzs</span>';
-        html += '<span class="srv-precio">$' + parseFloat(srv.precio_unitario).toFixed(2) + (srvEsMl ? '/' + srvUniTxt : '/und') + '</span>';
+        if (parseInt(srv.servicio_precio_libre || 0)) {
+          html += '<span class="srv-qty">por servicio (antes de IVA)</span>';
+          html += '<span class="srv-precio"></span>';
+        } else {
+          html += '<span class="srv-qty">' + srvUniLbl + ' &times; ' + srv.cantidad_piezas + ' pzs</span>';
+          html += '<span class="srv-precio">$' + parseFloat(srv.precio_unitario).toFixed(2) + (srvEsMl ? '/' + srvUniTxt : '/und') + '</span>';
+        }
         html += '<span class="srv-sub">= $' + parseFloat(srv.subtotal).toFixed(2) + '</span>';
         if (_canAddSrv) {
           html += '<button class="srv-del-btn" onclick="window.cotEliminarServicio(' + srv.id + ', ' + _dataCot.id + ', ' + i + ')">&#215;</button>';
@@ -925,12 +937,14 @@ function renderSrvWrap(i, p) {
         html += '<option value="">-- Seleccionar servicio --</option>';
         for (var k = 0; k < _srvCatalogo.length; k++) {
           var sc = _srvCatalogo[k];
-          html += '<option value="' + sc.id + '" data-precio="' + sc.precio_default + '" data-unidad="' + (sc.unidad || 'pieza') + '">' + escHtml(sc.nombre) + ' ($' + parseFloat(sc.precio_default).toFixed(2) + ')</option>';
+          html += '<option value="' + sc.id + '" data-precio="' + sc.precio_default + '" data-unidad="' + (sc.unidad || 'pieza') + '" data-libre="' + (parseInt(sc.precio_libre || 0) ? 1 : 0) + '">' + escHtml(sc.nombre) + (parseInt(sc.precio_libre || 0) ? ' (por servicio, monto libre)' : ' ($' + parseFloat(sc.precio_default).toFixed(2) + ')') + '</option>';
         }
         html += '</select>';
         html += '<div class="srv-form-fields">';
-        html += '<label><span id="srv-undlbl-' + i + '">Und/pieza</span><input type="number" id="srv-und-' + i + '" value="1" min="0" step="any" onchange="window.cotSrvCalc(' + i + ', ' + (p.cantidad || 1) + ')"></label>';
-        html += '<label>Piezas<input type="number" id="srv-pzs-' + i + '" value="' + (p.cantidad || 1) + '" min="1" onchange="window.cotSrvCalc(' + i + ', ' + (p.cantidad || 1) + ')"></label>';
+        // UPD-689: servicio de precio libre (Flete) — un solo monto antes de IVA
+        html += '<label id="srv-montowrap-' + i + '" style="display:none">Monto antes de IVA $<input type="number" id="srv-monto-' + i + '" value="" min="0" step="0.01" oninput="window.cotSrvCalc(' + i + ', ' + (p.cantidad || 1) + ')"></label>';
+        html += '<label id="srv-undwrap-' + i + '"><span id="srv-undlbl-' + i + '">Und/pieza</span><input type="number" id="srv-und-' + i + '" value="1" min="0" step="any" onchange="window.cotSrvCalc(' + i + ', ' + (p.cantidad || 1) + ')"></label>';
+        html += '<label id="srv-pzswrap-' + i + '">Piezas<input type="number" id="srv-pzs-' + i + '" value="' + (p.cantidad || 1) + '" min="1" onchange="window.cotSrvCalc(' + i + ', ' + (p.cantidad || 1) + ')"></label>';
         html += '<span class="srv-total-preview">= <strong id="srv-total-' + i + '">$0.00</strong></span>';
         html += '</div>';
         html += '<div class="srv-form-btns">';
@@ -1175,11 +1189,12 @@ function renderInsulado(i, j, n, editable) {
   }
   html += insCampo('CPB', ch + '</select>');
   var templVal = (p.requiere_templado === 0 || p.requiere_templado === '0') ? 0 : 1;
-  html += insCampo('Templado', '<select id="p_templ_' + i + '"' + dis + '>'
+  html += insCampo('Templado', '<select id="p_templ_' + i + '"' + dis + ' onchange="ModCotizacion._recalcular()">'
     + '<option value="1"' + (templVal === 1 ? ' selected' : '') + '>S&#237;</option>'
     + '<option value="0"' + (templVal === 0 ? ' selected' : '') + '>No</option></select>');
   html += insCampo('Comentarios', '<input type="text" id="p_com_' + i + '" value="' + escHtml(p.comentarios_etiqueta || '') + '" placeholder="Etiqueta..."' + ro + '>');
   html += '</div>';
+  html += '<div class="horno-warn" id="horno-warn-' + i + '" style="display:none;margin:2px 10px 6px 42px;padding:6px 10px;border-radius:6px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:600"></div>';
   html += '<div class="ins-resumen" id="ins_res_' + i + '"></div>';
   html += renderSrvWrap(i, p);
   html += '</div>';
@@ -1262,6 +1277,7 @@ window.cotToggleVentaLamina = function(idx) {
       if (el === templEl) el.value = '0';
     }
   });
+  revisarHorno();
 };
 
 window.cotLaminaChange = function(idx) {
@@ -1275,9 +1291,98 @@ window.cotLaminaChange = function(idx) {
   ModCotizacion._recalcular();
 };
 
+// ── Medida máxima del horno de templado (UPD-659) ────────────────────────────
+// 2400 × 3500 mm en cualquier orientación. Es solo AVISO (no bloquea): una pieza
+// más grande se puede vender, pero se tiene que mandar a templar a otra empresa.
+var HORNO_MAX_CORTO = 2400, HORNO_MAX_LARGO = 3500;
+function excedeHorno(ancho, alto) {
+  ancho = parseInt(ancho) || 0; alto = parseInt(alto) || 0;
+  if (!ancho || !alto) return false;
+  return Math.max(ancho, alto) > HORNO_MAX_LARGO || Math.min(ancho, alto) > HORNO_MAX_CORTO;
+}
+function partidaSeTempla(i) {
+  var el = pEl('templ', i);
+  if (el) return !el.disabled && el.value === '1';
+  var p = partidas[i] || {};
+  if (p.lamina_id) return false;
+  return !(p.requiere_templado === 0 || p.requiere_templado === '0');
+}
+function partidaMedidas(i) {
+  var p = partidas[i] || {};
+  var a = pEl('ancho', i), h = pEl('alto', i);
+  return { ancho: parseInt(a ? a.value : p.ancho) || 0, alto: parseInt(h ? h.value : p.alto) || 0 };
+}
+// Lista de partidas que se templan y no caben en el horno (una por insulado)
+function partidasFueraDeHorno() {
+  var out = [];
+  for (var i = 0; i < partidas.length; i++) {
+    var p = partidas[i];
+    if (p.insulado_rol === 'int' && insExtIdx(p.insulado_grupo) >= 0) continue;
+    var m = partidaMedidas(i);
+    if (partidaSeTempla(i) && excedeHorno(m.ancho, m.alto)) out.push({ num: i + 1, ancho: m.ancho, alto: m.alto });
+  }
+  return out;
+}
+function textoFueraDeHorno(lista) {
+  var det = lista.map(function(x) { return 'partida ' + x.num + ' (' + x.ancho + ' x ' + x.alto + ' mm)'; }).join(', ');
+  return 'Excede la medida máxima del horno (' + HORNO_MAX_CORTO + ' x ' + HORNO_MAX_LARGO + ' mm) y se tiene que mandar a templar fuera: ' + det + '.';
+}
+function revisarHorno() {
+  for (var i = 0; i < partidas.length; i++) {
+    var el = document.getElementById('horno-warn-' + i);
+    if (!el) continue;
+    var m = partidaMedidas(i);
+    var excede = partidaSeTempla(i) && excedeHorno(m.ancho, m.alto);
+    el.style.display = excede ? 'block' : 'none';
+    el.textContent = excede
+      ? 'No cabe en el horno (máx. ' + HORNO_MAX_CORTO + ' x ' + HORNO_MAX_LARGO + ' mm): esta pieza se tiene que mandar a templar fuera.'
+      : '';
+  }
+}
+
+// UPD-670/671: icono "i" con la leyenda de un campo en tooltip (title) — ahorra espacio.
+// El texto es fijo del código (no de usuario); puede llevar saltos con &#10;.
+function iconoAyuda(texto) {
+  return '<span title="' + texto + '" style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--c-muted,#888);color:var(--c-muted,#888);font-size:10px;font-weight:700;font-style:italic;font-family:Georgia,serif;cursor:help;vertical-align:middle;margin-left:4px;">i</span>';
+}
+
 // Precios de promo por código — SOLO para la vista previa; el servidor es la fuente
 // de verdad (api/helpers/promo_precio_lib.php, mantener ambos en sync).
-var PROMO_PRECIO_PREVIEW = { 'SALT_SEP2026': { 1: 504.3103, 2: 719.8275 }, 'MTY_SEP2026': { 1: 517.2414, 2: 719.8276 } };
+var PROMO_PRECIO_PREVIEW = {
+  'SALT_SEP2026': { 1: 504.3103, 2: 719.8275 },
+  'MTY_SEP2026':  { 1: 517.2414, 2: 719.8276 },
+  // UPD-668: código por niveles — mismo criterio que promoPrecioNivel() en el servidor
+  'RAZA_OCT2026': { niveles: {
+      express: { 1: 642.2414, 2: 905.1724 },
+      normal:  { 1: 577.5862, 2: 814.6552 },
+      volumen: { 1: 530.1724, 2: 750.0000 } },
+    volumen_m2: 50, express_max_piezas: 4 }
+};
+var PROMO_NIVEL_TEXTO = {
+  express: 'Nivel aplicado: Express — $1,050 / $745 por m² con IVA',
+  normal:  'Nivel aplicado: Normal, entrega en 5 días — $945 / $670 por m² con IVA',
+  volumen: 'Nivel aplicado: Volumen (50 m² o más) — $870 / $615 por m² con IVA'
+};
+
+// Nivel de un código por niveles según las partidas en pantalla (null si es de precio plano).
+function promoNivelPreview(cfg) {
+  if (!cfg || !cfg.niveles) return null;
+  var m2 = 0, piezas = 0;
+  for (var i = 0; i < partidas.length; i++) {
+    var cid = parseInt(pEl('cristal', i)?.value || 0);
+    var cant = parseInt(pEl('cant', i)?.value || 0);
+    var an = parseInt(pEl('ancho', i)?.value || 0);
+    var al = parseInt(pEl('alto', i)?.value || 0);
+    var esLam = !!parseInt(document.getElementById('p_lamina_' + i)?.value || 0);
+    if (!cfg.niveles.normal[cid] || !cant || an <= 0 || al <= 0 || esLam) continue;
+    m2 += (an / 1000) * (al / 1000) * cant;
+    piezas += cant;
+  }
+  if (m2 >= cfg.volumen_m2 - 0.000001) return 'volumen';
+  var exEl = document.getElementById('fPromoExpress');
+  if (exEl && exEl.checked && piezas > 0 && piezas <= cfg.express_max_piezas) return 'express';
+  return 'normal';
+}
 
 // ── Recalcular totales ────────────────────────────────────────────────────────
 function recalcular() {
@@ -1285,7 +1390,11 @@ function recalcular() {
   var subtotalPromo = 0; // partidas con precio fijo de promo — no reciben descuento
   var ppEl   = document.getElementById('fPromoPrecioCodigo');
   var ppCod  = ppEl ? ppEl.value.trim() : (_dataCot ? (_dataCot.promo_precio_codigo || '') : '');
-  var ppMap  = PROMO_PRECIO_PREVIEW[ppCod] || null;
+  var ppCfg  = PROMO_PRECIO_PREVIEW[ppCod] || null;
+  var ppNivel = promoNivelPreview(ppCfg);
+  var ppMap  = ppCfg ? (ppCfg.niveles ? ppCfg.niveles[ppNivel] : ppCfg) : null;
+  var ppInfo = document.getElementById('ppNivelInfo');
+  if (ppInfo) ppInfo.textContent = ppNivel ? PROMO_NIVEL_TEXTO[ppNivel] : '';
   for (var i = 0; i < partidas.length; i++) {
     var cristalId = parseInt(pEl('cristal', i)?.value || 0);
     var cantidad  = parseInt(pEl('cant',    i)?.value || 0);
@@ -1322,6 +1431,7 @@ function recalcular() {
   var total     = base + iva;
 
   recalcularResumenesInsulado();
+  revisarHorno();
   function fmt(n) { return '$' + n.toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); }
   if (document.getElementById('tSubtotal'))  document.getElementById('tSubtotal').textContent  = fmt(subtotal);
   if (document.getElementById('tDescuento')) document.getElementById('tDescuento').textContent = '-' + fmt(descuento);
@@ -1571,6 +1681,9 @@ async function guardarCotizacion(btn) {
     payload.motivo_retrabajo = motivoRetrabajo;
   }
 
+  var fueraHorno = partidasFueraDeHorno();
+  if (fueraHorno.length && !await confirmar(textoFueraDeHorno(fueraHorno) + ' ¿Guardar de todos modos?', 'Pieza más grande que el horno', 'Guardar')) return;
+
   if (payload.descuento > 10 && !ES_DIR_ADMIN) {
     var motivo = await pedirMotivoDescuento(payload.descuento);
     if (motivo === null) return;
@@ -1601,6 +1714,9 @@ async function guardarCambios() {
 
   var payload = armarPayload(clienteId);
   if (!payload) return;
+
+  var fueraHorno = partidasFueraDeHorno();
+  if (fueraHorno.length && !await confirmar(textoFueraDeHorno(fueraHorno) + ' ¿Guardar de todos modos?', 'Pieza más grande que el horno', 'Guardar')) return;
 
   if (payload.descuento > 10 && !ES_DIR_ADMIN) {
     // Si ya tiene autorización aprobada con el mismo descuento, no volver a pedir motivo
@@ -1676,6 +1792,7 @@ function armarPayload(clienteId) {
     promo_wa_codigo: (document.getElementById('fPromoWaCodigo')?.value || '').trim(),
     encuesta_codigo: (document.getElementById('fEncuestaCodigo')?.value || '').trim(),
     promo_precio_codigo: (document.getElementById('fPromoPrecioCodigo')?.value || '').trim(),
+    promo_express:  (document.getElementById('fPromoExpress')?.checked ? 1 : 0),
     partidas:       partidasPayload,
   };
 }
@@ -1690,7 +1807,10 @@ async function convertirOrden() {
       return;
     }
   }
-  if (!await confirmar('¿Convertir esta cotización a Orden de Producción? No podrá editarse después.', 'Convertir a orden')) return;
+  var fueraHorno = partidasFueraDeHorno();
+  var msgConv = '¿Convertir esta cotización a Orden de Producción? No podrá editarse después.';
+  if (fueraHorno.length) msgConv = 'ATENCIÓN: ' + textoFueraDeHorno(fueraHorno) + ' ' + msgConv;
+  if (!await confirmar(msgConv, fueraHorno.length ? 'Pieza más grande que el horno' : 'Convertir a orden')) return;
   var res  = await fetch(API_COT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({accion:'convertir_orden', id: ID_COT}) });
   var data = await res.json();
   if (data.ok) { irA('cotizacion', {id: ID_COT}); } else { toast(data.error, 'error'); }
@@ -2106,7 +2226,19 @@ function cotSrvSel(idx, ancho, alto, cantidad) {
   if (catEl) {
     var opt    = catEl.options[catEl.selectedIndex];
     var unidad = opt ? (opt.getAttribute('data-unidad') || 'pieza') : 'pieza';
-    if (unidad === 'ml') {
+    var libre  = opt ? opt.getAttribute('data-libre') === '1' : false;
+    var mWrap  = document.getElementById('srv-montowrap-' + idx);
+    var uWrap  = document.getElementById('srv-undwrap-' + idx);
+    var pWrap  = document.getElementById('srv-pzswrap-' + idx);
+    if (mWrap) mWrap.style.display = libre ? '' : 'none';
+    if (uWrap) uWrap.style.display = libre ? 'none' : '';
+    if (pWrap) pWrap.style.display = libre ? 'none' : '';
+    if (libre) {
+      if (undEl) undEl.value = 1;
+      if (pzsEl) pzsEl.value = 1;
+      var mEl = document.getElementById('srv-monto-' + idx);
+      if (mEl) mEl.focus();
+    } else if (unidad === 'ml') {
       var perim = Math.round((2 * ((ancho || 0) + (alto || 0)) / 1000) * 1000) / 1000;
       if (undEl) undEl.value = perim;
       if (pzsEl) pzsEl.value = (cantidad || 1) / 2;
@@ -2136,6 +2268,10 @@ function cotSrvCalc(idx, defaultPzs) {
   var und    = parseFloat(undEl ? undEl.value : 1) || 0;
   var pzs    = parseInt(pzsEl ? pzsEl.value : defaultPzs) || 1;
   var total  = precio * und * pzs;
+  if (opt && opt.getAttribute('data-libre') === '1') {
+    var mEl = document.getElementById('srv-monto-' + idx);
+    total = parseFloat(mEl ? mEl.value : 0) || 0;
+  }
   totEl.textContent = '$' + total.toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
@@ -2145,6 +2281,11 @@ async function cotGuardarServicio(idx, partidaId, cotId) {
   var pzsEl = document.getElementById('srv-pzs-' + idx);
   if (!catEl || !catEl.value) { toast('Selecciona un servicio', 'error'); return; }
   if (!partidaId) { toast('Error: partida sin ID. Guarda la cotización primero.', 'error'); return; }
+  var optSel = catEl.options[catEl.selectedIndex];
+  var esLibre = optSel && optSel.getAttribute('data-libre') === '1';
+  var montoEl = document.getElementById('srv-monto-' + idx);
+  var monto   = esLibre ? (parseFloat(montoEl ? montoEl.value : 0) || 0) : 0;
+  if (esLibre && monto <= 0) { toast('Captura el monto antes de IVA', 'error'); return; }
   var btn = document.querySelector('#srv-form-' + idx + ' .btn-srv-guardar');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
   try {
@@ -2158,6 +2299,7 @@ async function cotGuardarServicio(idx, partidaId, cotId) {
         servicio_id:       parseInt(catEl.value),
         unidades_por_pieza: parseFloat(undEl ? undEl.value : 1) || 1,
         cantidad_piezas:    parseInt(pzsEl ? pzsEl.value : 1) || 1,
+        monto:              monto,
       }),
     });
     var data = await res.json();
@@ -2256,11 +2398,22 @@ async function _renderCatalogo() {
       var inactivo = s.activo == 0;
       html += '<div class="cat-item" style="' + (inactivo ? 'opacity:.45' : '') + '" id="cat-item-' + s.id + '">';
       html += '<input type="text" id="cat-nom-' + s.id + '" value="' + escHtml(s.nombre) + '" style="flex:1">';
-      html += '<input type="number" id="cat-pre-' + s.id + '" value="' + parseFloat(s.precio_default).toFixed(2) + '" class="cat-precio-input" min="0" step="0.01">';
-      html += '<select id="cat-uni-' + s.id + '" class="cat-precio-input" title="Unidad de cobro">' +
-              '<option value="pieza"' + ((s.unidad === 'ml' || s.unidad === 'm2') ? '' : ' selected') + '>por pieza</option>' +
-              '<option value="ml"' + ((s.unidad === 'ml') ? ' selected' : '') + '>por m.l.</option>' +
-              '<option value="m2"' + ((s.unidad === 'm2') ? ' selected' : '') + '>por m&sup2;</option></select>';
+      if (parseInt(s.precio_libre || 0)) {
+        // UPD-689: Flete — el monto se captura en cada cotización
+        html += '<input type="text" id="cat-pre-' + s.id + '" value="monto libre" data-libre="1" class="cat-precio-input" disabled title="El monto se captura en cada cotizaci&#243;n">';
+      } else {
+        html += '<input type="number" id="cat-pre-' + s.id + '" value="' + parseFloat(s.precio_default).toFixed(2) + '" class="cat-precio-input" min="0" step="0.01">';
+      }
+      if (parseInt(s.precio_libre || 0)) {
+        // UPD-690: el Flete se cobra una vez por cotización — unidad fija "por servicio"
+        html += '<select id="cat-uni-' + s.id + '" class="cat-precio-input" title="Se cobra una sola vez por cotizaci&#243;n" disabled>' +
+                '<option value="pieza" selected>por servicio</option></select>';
+      } else {
+        html += '<select id="cat-uni-' + s.id + '" class="cat-precio-input" title="Unidad de cobro">' +
+                '<option value="pieza"' + ((s.unidad === 'ml' || s.unidad === 'm2') ? '' : ' selected') + '>por pieza</option>' +
+                '<option value="ml"' + ((s.unidad === 'ml') ? ' selected' : '') + '>por m.l.</option>' +
+                '<option value="m2"' + ((s.unidad === 'm2') ? ' selected' : '') + '>por m&sup2;</option></select>';
+      }
       html += '<button class="btn-cat-save" onclick="window.cotEditarServicioCat(' + s.id + ')">&#10003;</button>';
       if (!inactivo) {
         html += '<button class="btn-cat-del" title="Desactivar" onclick="window.cotDesactivarServicioCat(' + s.id + ')">&#128465;</button>';
@@ -2296,9 +2449,11 @@ async function cotCrearServicioCat() {
 
 async function cotEditarServicioCat(id) {
   var nombre = (document.getElementById('cat-nom-' + id)?.value || '').trim();
-  var precio = parseFloat(document.getElementById('cat-pre-' + id)?.value || 0);
+  var preEl  = document.getElementById('cat-pre-' + id);
+  var libre  = preEl && preEl.getAttribute('data-libre') === '1';
+  var precio = libre ? 0 : parseFloat(preEl ? preEl.value : 0);
   var unidad = document.getElementById('cat-uni-' + id)?.value || 'pieza';
-  if (!nombre || precio <= 0) { toast('Nombre y precio son requeridos', 'error'); return; }
+  if (!nombre || (!libre && !(precio > 0))) { toast('Nombre y precio son requeridos', 'error'); return; }
   try {
     var res  = await fetch('../api/servicios_catalogo.php', {
       method: 'PUT',

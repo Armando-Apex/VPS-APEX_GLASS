@@ -1017,7 +1017,8 @@ function rcRender(data) {
     '</div>' +
     '<div style="font-size:11px;color:var(--muted-lt);margin-top:8px">' +
       'Suma acumulada del mes, d&#237;a por d&#237;a. Mismo criterio de venta que el resto del reporte (fecha de VoBo, sin retrabajo). ' +
-      'Domingos y d&#237;as festivos no agregan nada nuevo &#8212; el acumulado se mantiene igual al d&#237;a anterior.' +
+      'Domingos y d&#237;as festivos no agregan nada nuevo &#8212; el acumulado se mantiene igual al d&#237;a anterior. ' +
+      'L&#237;nea punteada amarilla (mes actual): venta con VoBo + anticipos netos del mes (dep&#243;sitos a saldo a favor menos el saldo que los clientes aplicaron a sus &#243;rdenes), para no contar dos veces la venta pagada con saldo.' +
     '</div>' +
   '</div>';
 
@@ -1168,6 +1169,7 @@ function rcEncuestaHoverOut() {
 
 /* ─── Gr&aacute;fica de ventas diarias acumuladas (3 meses) ─── */
 var RC_CHART_COLORS = { actual: '#2563eb', anterior: '#d97706', dos_atras: '#7c3aed' };
+var RC_CHART_ANTIC_COLOR = '#f2d36b'; // amarillo tenue, punteada: venta VoBo + anticipos netos (mes actual)
 
 function rcVentasChartCargar() {
   fetch('../api/reporte_direccion.php?accion=ventas_diarias_comercial')
@@ -1197,6 +1199,7 @@ function rcVentasChartRender(data) {
   meses.forEach(function(m) {
     (m.serie || []).forEach(function(p) {
       if (p.acumulado > maxVal) maxVal = p.acumulado;
+      if (p.acumulado_con_antic != null && p.acumulado_con_antic > maxVal) maxVal = p.acumulado_con_antic;
     });
   });
   var STEP = 250000;
@@ -1227,6 +1230,19 @@ function rcVentasChartRender(data) {
   meses.forEach(function(m) { porKey[m.key] = m; });
 
   var legendHtml = '';
+
+  // Tendencia "Venta + anticipos" del mes actual — se dibuja primero para quedar debajo de las l&#237;neas s&#243;lidas
+  var mAct = porKey['actual'];
+  if (mAct && mAct.serie && mAct.serie.length > 0 && mAct.serie[0].acumulado_con_antic != null) {
+    var dA = '';
+    mAct.serie.forEach(function(p, idx) {
+      dA += (idx === 0 ? 'M' : 'L') + xForDay(p.dia) + ',' + yForVal(p.acumulado_con_antic) + ' ';
+    });
+    svgEl += '<path d="' + dA + '" fill="none" stroke="' + RC_CHART_ANTIC_COLOR + '" stroke-width="2.5" stroke-dasharray="7,5" stroke-linejoin="round" stroke-linecap="round"/>';
+    var lastA = mAct.serie[mAct.serie.length - 1];
+    svgEl += '<circle cx="' + xForDay(lastA.dia) + '" cy="' + yForVal(lastA.acumulado_con_antic) + '" r="4" fill="' + RC_CHART_ANTIC_COLOR + '" stroke="var(--surface)" stroke-width="2"/>';
+  }
+
   orden.forEach(function(key) {
     var m = porKey[key];
     if (!m || !m.serie || m.serie.length === 0) return;
@@ -1247,6 +1263,11 @@ function rcVentasChartRender(data) {
     legendHtml += '<span class="rc-chart-legend-item"><span class="rc-chart-legend-swatch" style="background:' + color + '"></span>' +
       esc(m.label) + (key === 'actual' ? ' (actual)' : '') + '</span>';
   });
+
+  if (mAct && mAct.serie && mAct.serie.length > 0 && mAct.serie[0].acumulado_con_antic != null) {
+    legendHtml += '<span class="rc-chart-legend-item"><span class="rc-chart-legend-swatch" style="background:repeating-linear-gradient(90deg,' + RC_CHART_ANTIC_COLOR + ' 0 5px,transparent 5px 8px)"></span>' +
+      esc(mAct.label) + ' + anticipos</span>';
+  }
 
   svgEl += '<line id="rcChartCrosshair" x1="0" y1="' + padT + '" x2="0" y2="' + (H - padB) + '" stroke="var(--muted-lt)" stroke-width="1" stroke-dasharray="3,3" style="display:none"/>';
   svgEl += '<rect x="' + padL + '" y="' + padT + '" width="' + plotW + '" height="' + plotH + '" fill="transparent" id="rcChartHitArea" style="cursor:crosshair"/>';
@@ -1293,6 +1314,9 @@ function rcVentasChartHover(ev, svg, tooltipEl) {
     (m.serie || []).forEach(function(p) { if (p.dia === dia) punto = p; });
     var color = RC_CHART_COLORS[key];
     var valorTxt = punto ? fmtMXN(punto.acumulado) : '&#8212;';
+    if (key === 'actual' && punto && punto.acumulado_con_antic != null) {
+      rows += '<div class="rc-chart-tooltip-row"><span style="display:flex;align-items:center;gap:6px"><span class="rc-chart-tooltip-key" style="background:' + RC_CHART_ANTIC_COLOR + '"></span>' + esc(m.label) + ' + anticipos</span><strong>' + fmtMXN(punto.acumulado_con_antic) + '</strong></div>';
+    }
     rows += '<div class="rc-chart-tooltip-row"><span style="display:flex;align-items:center;gap:6px"><span class="rc-chart-tooltip-key" style="background:' + color + '"></span>' + esc(m.label) + '</span><strong>' + valorTxt + '</strong></div>';
   });
 

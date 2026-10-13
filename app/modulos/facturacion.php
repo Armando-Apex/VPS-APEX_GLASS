@@ -1,7 +1,13 @@
 <?php
 require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
-$user = requirePermiso('facturar');
+// UPD-652: el contador entra con 'ver_facturacion' (solo consulta); facturar sigue igual.
+$user = requireSession();
+if (!tienePermiso($user['rol'], 'facturar') && !tienePermiso($user['rol'], 'ver_facturacion')) {
+    http_response_code(403);
+    include __DIR__ . '/../403.php';
+    exit;
+}
 if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
     header('Location: ../dashboard.php?m=facturacion'); exit;
 }
@@ -407,9 +413,21 @@ $esModoLive = (FACTURAPI_MODE === 'live');
 
       <div class="fac-field" id="fac-solicito-wrap" style="display:none;margin-bottom:14px">
         <label>Cliente que lo solicitó <span style="font-weight:400;text-transform:none;font-size:10px;color:var(--c-muted)">(registro interno, no aparece en el CFDI)</span></label>
-        <select id="fac-solicito-cli">
+        <select id="fac-solicito-cli" onchange="ModFacturacion.solicitoChange()">
           <option value="">— Selecciona el cliente real —</option>
         </select>
+      </div>
+
+      <div class="fac-field" id="fac-pago-pg-wrap" style="display:none;margin-bottom:14px">
+        <label>Pago a facturar</label>
+        <select id="fac-pago-pg" onchange="ModFacturacion.pagoPgChange()">
+          <option value="">— Escoge el pago —</option>
+        </select>
+        <label id="fac-pago-final-wrap" style="display:none;margin-top:8px;font-weight:400;text-transform:none;font-size:12px">
+          <input type="checkbox" id="fac-pago-final" style="width:auto" onchange="ModFacturacion.pagoFinalChange()">
+          <span id="fac-pago-final-txt">Considerar este pago como Pago final</span>
+        </label>
+        <div class="fac-hint" id="fac-pago-pg-hint">A Público en General se emite una factura por cada pago que entra al banco, por el monto de ese pago.</div>
       </div>
 
       <!-- Informacion Global: el SAT la exige cuando el receptor es XAXX010101000 con
@@ -680,9 +698,10 @@ $esModoLive = (FACTURAPI_MODE === 'live');
 </div>
 
 <script>
-// Espejo del interruptor de api/facturapi.php: mientras el envío de correo esté
-// apagado, no se ofrece el botón de reenviar (evita ofrecer algo que responde error).
-var FAC_CORREO_ACTIVO = false;
+// Espejo del interruptor de api/helpers/facturapi_lib.php (FACTURACION_ENVIO_CORREO_ACTIVO):
+// si se apaga allá, hay que apagarlo aquí también o se ofrece un botón que responde error.
+// Reactivado el 01-oct-2026. El envío real sigue condicionado a FACTURAPI_MODE='live'.
+var FAC_CORREO_ACTIVO = true;
 
 // Modo real de FacturAPI, no escrito a mano: decide los textos de confirmacion y avisos.
 var ES_MODO_LIVE = <?= $esModoLive ? 'true' : 'false' ?>;
@@ -695,6 +714,7 @@ var ModFacturacion = (function() {
     {v:'01010101', l:'01010101 – No existe en catálogo (pruebas)'},
     {v:'30171706', l:'30171706 – Vidrio templado'},
     {v:'31241700', l:'31241700 – Espejos'},
+    {v:'78101800', l:'78101800 – Transporte de carga por carretera (flete)'},
   ];
 
   var UNIDADES_SAT = [
@@ -1037,6 +1057,10 @@ var ModFacturacion = (function() {
     document.getElementById('fac-solicito-wrap').style.display   = 'none';
     document.getElementById('fac-cli-normal-wrap').style.display = 'block';
     document.getElementById('fac-uso-cfdi').disabled = false;
+    _pagosPg = null; _conceptosOrden = null; _pagoAplicado = false; _ultimoPagoRes = null;
+    _mostrarPagoFinal(null, false);
+    var ppw = document.getElementById('fac-pago-pg-wrap'); if (ppw) ppw.style.display = 'none';
+    var pps = document.getElementById('fac-pago-pg'); if (pps) { pps.disabled = false; pps.innerHTML = '<option value="">— Escoge el pago —</option>'; }
     tipoChange();
     document.getElementById('fac-conceptos-body').innerHTML = _conceptoRow('', '', '', 1, '', true);
     recalc();
@@ -1156,6 +1180,31 @@ var ModFacturacion = (function() {
     };
     if (!_clienteslistaCargada) { _cargarListaClientes(setSolicito); } else { setSolicito(); }
 
+    // Factura de un pago (UPD-643): el pago queda fijo; para cambiarlo se elimina el borrador.
+    _pagosPg = null; _conceptosOrden = null; _pagoAplicado = false;
+    var ppwEd = document.getElementById('fac-pago-pg-wrap');
+    var ppsEd = document.getElementById('fac-pago-pg');
+    if (ppwEd && ppsEd) {
+      if (f.pago_id) {
+        ppsEd.innerHTML = '<option value="' + _esc(f.pago_id) + '" selected>Pago ligado a esta factura (para cambiarlo, elimina el borrador)</option>';
+        ppsEd.disabled = true;
+        ppwEd.style.display = 'block';
+        _ultimoPagoRes = null;
+        var pfW = document.getElementById('fac-pago-final-wrap');
+        var pfC = document.getElementById('fac-pago-final');
+        var pfT = document.getElementById('fac-pago-final-txt');
+        if (pfW && pfC) {
+          pfC.checked = String(f.pago_final_forzado) === '1';
+          pfW.style.display = pfC.checked ? 'block' : 'none';
+          if (pfT) pfT.textContent = 'Considerar este pago como Pago final (faltan menos de $5 para liquidar)';
+        }
+      } else {
+        ppsEd.innerHTML = '<option value="">— Escoge el pago —</option>';
+        ppsEd.disabled = false;
+        ppwEd.style.display = 'none';
+      }
+    }
+
     tipoChange();
     var tbody = document.getElementById('fac-conceptos-body');
     tbody.innerHTML = '';
@@ -1213,6 +1262,9 @@ var ModFacturacion = (function() {
       receptor_uso_cfdi:    document.getElementById('fac-uso-cfdi').value,
       receptor_email:       document.getElementById('fac-email').value.trim(),
       cliente_solicito_id:  esPublicoGeneral ? (document.getElementById('fac-solicito-cli').value || null) : null,
+      pago_id:              esPublicoGeneral ? (document.getElementById('fac-pago-pg').value || null) : null,
+      pago_final:           (esPublicoGeneral && document.getElementById('fac-pago-final-wrap').style.display !== 'none'
+                              && document.getElementById('fac-pago-final').checked) ? 1 : 0,
       forma_pago:           document.getElementById('fac-forma-pago').value,
       metodo_pago:          document.getElementById('fac-metodo-pago').value,
       relacion_tipo:        document.getElementById('fac-relacion-tipo').value || null,
@@ -1300,7 +1352,9 @@ var ModFacturacion = (function() {
     for (var i = 0; i < _facturas.length; i++) { if (String(_facturas[i].id) === String(id)) { f = _facturas[i]; break; } }
     if (!f) return;
 
-    var actual = f.receptor_email || '';
+    // Sin correo capturado en la factura (p. ej. Público en General), se propone el del
+    // cliente: el que la pidió, o el de la orden (UPD-640).
+    var actual = f.receptor_email || f.cliente_solicito_email || f.cliente_orden_email || '';
     var input = prompt('¿A qué correo(s) reenviar el PDF+XML? Separa varios con coma.', actual);
     if (input === null) return; // canceló
     input = input.trim();
@@ -1942,6 +1996,23 @@ var ModFacturacion = (function() {
   function _setSolicitoCliente(id) {
     var sel = document.getElementById('fac-solicito-cli');
     if (sel && id) sel.value = String(id);
+    solicitoChange();
+  }
+
+  // Público en General: el CFDI no lleva correo del receptor, pero se le manda al cliente
+  // que lo pidió (UPD-640). Se pone su correo del CRM; Lina puede cambiarlo o borrarlo.
+  function _correoCliente(id) {
+    for (var i = 0; i < _cliOpciones.length; i++) {
+      if (String(_cliOpciones[i].id) === String(id)) return _cliOpciones[i].email || '';
+    }
+    return '';
+  }
+  function solicitoChange() {
+    var chk = document.getElementById('fac-publico-general');
+    var sel = document.getElementById('fac-solicito-cli');
+    var em  = document.getElementById('fac-email');
+    if (!chk || !chk.checked || !sel || !em) return;
+    em.value = sel.value ? _correoCliente(sel.value) : '';
   }
 
   function _cargarListaClientes(cb) {
@@ -2004,6 +2075,9 @@ var ModFacturacion = (function() {
     setVal('fac-rfc',     c.rfc            || '');
     setVal('fac-cp',      c.cp_fiscal      || '');
     setVal('fac-regimen', c.regimen_fiscal || '');
+    // Uso CFDI por defecto del perfil del cliente (UPD-641); sigue editable en la factura.
+    // Sin uso guardado queda vacío para que Lina lo elija (no se arrastra el del cliente anterior).
+    setVal('fac-uso-cfdi', c.uso_cfdi || '');
 
     // Aviso según si tiene o no datos fiscales completos
     var tieneFiscal = !!(c.rfc && c.cp_fiscal && c.regimen_fiscal);
@@ -2039,6 +2113,134 @@ var ModFacturacion = (function() {
     _lockReceptor(false);
   }
 
+  // ── Público en General: una factura por cada pago (UPD-643) ─────────────────
+  var _pagosPg = null;          // pagos de la orden cargada (buscar_orden.pagos_pg)
+  var _conceptosOrden = null;   // conceptos completos de la orden, para regresar a ellos
+  var _pagoAplicado = false;    // la tabla muestra los conceptos de un pago
+
+  var _FORMAS_COBRANZA = {efectivo:'Efectivo', transferencia:'Transferencia', tarjeta:'Tarjeta', saldo_favor:'Saldo a favor'};
+
+  function _fechaCorta(f) {
+    if (!f) return '';
+    var p = String(f).split('-');
+    return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : f;
+  }
+
+  // Pinta conceptos conservando la clave SAT y la unidad que ya se escogieron por renglón.
+  function _pintarConceptos(lista) {
+    var tbody = document.getElementById('fac-conceptos-body');
+    var prev = _getConceptos();
+    tbody.innerHTML = '';
+    for (var i = 0; i < lista.length; i++) {
+      var c = lista[i];
+      var clave  = (prev[i] && prev[i].clave)  ? prev[i].clave  : c.clave;
+      var unidad = (prev[i] && prev[i].unidad) ? prev[i].unidad : c.unidad;
+      tbody.innerHTML += _conceptoRow(c.desc, clave, unidad, c.cant, c.precio, c.iva);
+    }
+    recalc();
+  }
+
+  function _renderPagosPg() {
+    var wrap = document.getElementById('fac-pago-pg-wrap');
+    var sel  = document.getElementById('fac-pago-pg');
+    var hint = document.getElementById('fac-pago-pg-hint');
+    if (!wrap || !sel) return;
+    var pg = document.getElementById('fac-publico-general').checked;
+    if (!pg || !_pagosPg) {
+      wrap.style.display = 'none';
+      sel.innerHTML = '<option value="">— Escoge el pago —</option>';
+      if (_pagoAplicado && _conceptosOrden) { _pintarConceptos(_conceptosOrden); }
+      _pagoAplicado = false;
+      _ultimoPagoRes = null;
+      _mostrarPagoFinal(null, false);
+      return;
+    }
+    wrap.style.display = 'block';
+    var editId = document.getElementById('fac-edit-id').value;
+    var html = '<option value="">— Escoge el pago —</option>';
+    var libres = [];
+    for (var i = 0; i < _pagosPg.length; i++) {
+      var p = _pagosPg[i];
+      var txt = _fechaCorta(p.fecha) + ' · ' + _fmt(p.monto) + ' · ' + (_FORMAS_COBRANZA[p.forma] || p.forma || 'sin forma');
+      var bloqueado = false;
+      if (p.previo) { txt += ' — facturado en sistema anterior'; bloqueado = true; }   // UPD-660
+      else if (p.bono) { txt += ' — bono de referido, no se factura'; bloqueado = true; }   // UPD-681
+      else if (p.asignado <= 0.004) { txt += ' — sin monto por facturar'; bloqueado = true; }
+      else if (p.factura && String(p.factura_id) !== String(editId)) { txt += ' — ya facturado (' + p.factura + ')'; bloqueado = true; }
+      else { txt += ' — ' + p.leyenda; libres.push(p.id); }
+      html += '<option value="' + p.id + '"' + (bloqueado ? ' disabled' : '') + '>' + _esc(txt) + '</option>';
+    }
+    sel.innerHTML = html;
+    if (hint) hint.textContent = _pagosPg.length
+      ? 'A Público en General se emite una factura por cada pago que entra al banco, por el monto de ese pago.'
+      : 'Esta orden todavía no tiene pagos registrados en Cobranza: no hay nada que facturar a Público en General.';
+    if (libres.length === 1) { sel.value = String(libres[0]); pagoPgChange(); }
+  }
+
+  var _ultimoPagoRes = null;   // última respuesta de conceptos_pago (para el texto de la leyenda)
+
+  function _hintPago() {
+    var hint = document.getElementById('fac-pago-pg-hint');
+    var res = _ultimoPagoRes;
+    if (!hint || !res) return;
+    var folio = (document.getElementById('fac-orden-folio').value || '').trim();
+    var chk = document.getElementById('fac-pago-final');
+    var leyenda = (res.casi_liquida && chk && chk.checked) ? 'Pago final' : res.leyenda;
+    hint.textContent = 'Total de esta factura ' + _fmt(res.total) + '. En el PDF dir\u00e1: Orden: ' + folio + ' - ' + leyenda
+      + '. Periodo: d\u00eda del pago (' + _fechaCorta(res.fecha) + ').';
+  }
+
+  // Faltan menos de $5 para liquidar (UPD-646): se pregunta si este pago cuenta como final.
+  function _mostrarPagoFinal(res, preguntar) {
+    var wrap = document.getElementById('fac-pago-final-wrap');
+    var chk  = document.getElementById('fac-pago-final');
+    var txt  = document.getElementById('fac-pago-final-txt');
+    if (!wrap || !chk) return;
+    if (!res || !res.casi_liquida) { wrap.style.display = 'none'; chk.checked = false; return; }
+    var folio = (document.getElementById('fac-orden-folio').value || '').trim();
+    if (txt) txt.textContent = 'Faltan ' + _fmt(res.faltante) + ' para liquidar la orden: considerar este pago como Pago final';
+    wrap.style.display = 'block';
+    if (preguntar) {
+      chk.checked = confirm('Faltan ' + _fmt(res.faltante) + ' para liquidar la orden ' + folio
+        + '.\n\n\u00bfConsiderar este pago como Pago final?\n\nAceptar = la factura dir\u00e1 "Pago final".\nCancelar = dir\u00e1 "Abono".');
+    }
+  }
+
+  function pagoFinalChange() { _hintPago(); }
+
+  function pagoPgChange() {
+    var sel  = document.getElementById('fac-pago-pg');
+    var hint = document.getElementById('fac-pago-pg-hint');
+    var val  = sel ? sel.value : '';
+    if (!val) {
+      if (_pagoAplicado && _conceptosOrden) _pintarConceptos(_conceptosOrden);
+      _pagoAplicado = false;
+      _ultimoPagoRes = null;
+      _mostrarPagoFinal(null, false);
+      return;
+    }
+    var folio = (document.getElementById('fac-orden-folio').value || '').trim();
+    _apiFetch('../api/facturapi.php?accion=conceptos_pago&folio=' + encodeURIComponent(folio) + '&pago_id=' + encodeURIComponent(val), {}, function(err, res) {
+      if (err || !res.ok) {
+        if (hint) hint.textContent = '\u26a0 ' + ((res && res.error) || err || 'No se pudo calcular el pago');
+        return;
+      }
+      _pintarConceptos(res.conceptos || []);
+      _pagoAplicado = true;
+      if (res.forma_sat) document.getElementById('fac-forma-pago').value = res.forma_sat;
+      document.getElementById('fac-metodo-pago').value = 'PUE';
+      var fp = String(res.fecha || '').split('-');
+      if (fp.length === 3) {
+        document.getElementById('fac-global-periodicidad').value = 'day';
+        document.getElementById('fac-global-meses').value = fp[1];
+        document.getElementById('fac-global-anio').value  = fp[0];
+      }
+      _ultimoPagoRes = res;
+      _mostrarPagoFinal(res, true);
+      _hintPago();
+    });
+  }
+
   function togglePublicoGeneral() {
     var chk = document.getElementById('fac-publico-general');
     var on  = chk && chk.checked;
@@ -2057,7 +2259,7 @@ var ModFacturacion = (function() {
       setVal('fac-rfc', 'XAXX010101000');
       setVal('fac-regimen', '616');
       setVal('fac-uso-cfdi', 'S01');
-      setVal('fac-email', '');
+      solicitoChange();
       // El SAT exige Informacion Global en este caso: se muestran los 3 campos y se
       // pre-llenan con el periodo de hoy (periodicidad diaria, el caso mas comun).
       var gw = document.getElementById('fac-global-wrap');
@@ -2066,12 +2268,17 @@ var ModFacturacion = (function() {
       var gp = document.getElementById('fac-global-periodicidad');
       var gm = document.getElementById('fac-global-meses');
       var ga = document.getElementById('fac-global-anio');
-      if (gp && !gp.value) gp.value = 'day';
-      if (gm && !gm.value) gm.value = ('0' + (hoy.getMonth() + 1)).slice(-2);
-      if (ga && !ga.value) ga.value = hoy.getFullYear();
+      // Siempre arranca en el periodo en curso (UPD-642): el select de mes no tiene opción
+      // vacía, así que el antiguo `if (!gm.value)` nunca entraba y se quedaba en "01 – Enero".
+      // Sigue siendo editable; al editar un borrador se respetan sus valores guardados.
+      if (gp) gp.value = 'day';
+      if (gm) gm.value = ('0' + (hoy.getMonth() + 1)).slice(-2);
+      if (ga) ga.value = hoy.getFullYear();
       _lockReceptor(true);
       var cpEl = document.getElementById('fac-cp');
       if (cpEl) { cpEl.removeAttribute('readonly'); cpEl.disabled = false; cpEl.style.background = ''; cpEl.style.color = ''; }
+      var emEl = document.getElementById('fac-email');
+      if (emEl) { emEl.removeAttribute('readonly'); emEl.disabled = false; emEl.style.background = ''; emEl.style.color = ''; }
       document.getElementById('fac-uso-cfdi').disabled = true;
       _syncPgMetodo();
     } else {
@@ -2094,6 +2301,7 @@ var ModFacturacion = (function() {
         setVal2('fac-uso-cfdi', '');
       }
     }
+    _renderPagosPg();
   }
 
   function limpiarCliente() {
@@ -2205,6 +2413,11 @@ var ModFacturacion = (function() {
         }
         recalc();
       }
+      _pagosPg = res.pagos_pg || null;
+      _conceptosOrden = res.conceptos || null;
+      _pagoAplicado = false;
+      var ppsB = document.getElementById('fac-pago-pg'); if (ppsB) ppsB.disabled = false;
+      _renderPagosPg();
 
       if (msgEl) {
         if (!res.cliente) {
@@ -2225,7 +2438,7 @@ var ModFacturacion = (function() {
             extra.push('Pagada al 100%: la factura va en PUE con la forma de pago real.');
           } else {
             extra.push('Saldo pendiente ' + _fmt(res.cobro.saldo) + ' de ' + _fmt(res.cobro.total) + ': '
-              + (pgOn ? 'a Público en General NO se puede timbrar hasta que est\u00e9 pagada al 100%.'
+              + (pgOn ? (res.pagos_pg ? 'a P\u00fablico en General se factura cada pago por separado: escoge el pago abajo.' : 'a P\u00fablico en General NO se puede timbrar hasta que est\u00e9 pagada al 100%.')
                       : 'la factura va en PPD (forma 99) y cada abono genera su complemento autom\u00e1tico al registrarlo en Cobranza.'));
             if (pgOn) msgEl.className = 'fac-cli-warn vis';
           }
@@ -2264,7 +2477,8 @@ var ModFacturacion = (function() {
       msg.style.color = '#166534';
       msg.textContent = res.existente
         ? 'Ese RFC ya existía en el CRM como ' + res.codigo + ' (' + res.nombre + '); quedó seleccionado.'
-        : 'Dado de alta en el CRM como ' + res.codigo + ' y seleccionado.';
+        : 'Dado de alta en el CRM como ' + res.codigo + ' y seleccionado (validado con el SAT).'
+          + (res.nombre_corregido ? ' El SAT tiene el nombre como "' + res.nombre_corregido + '"; se guard\u00f3 as\u00ed.' : '');
       _cargarListaClientes(function() { _seleccionarClientePorId(res.id); });
     });
   }
@@ -2492,16 +2706,18 @@ var ModFacturacion = (function() {
     var mMoral = texto.match(/(?:Denominaci[oó]n\s*(?:\/\s*)?Raz[oó]n\s*Social|Raz[oó]n\s*Social)\s*[:\s]+([A-ZÁÉÍÓÚÑÜ&][A-ZÁÉÍÓÚÑÜ&\s,\.\-]{2,80}?)(?:\s{3,}|\d{2}\/\d{2}\/\d{4}|RFC|Curp|CURP|Régimen)/i);
     if (mMoral) datos.nombre = mMoral[1].trim().replace(/\s+/g, ' ');
 
-    // Nombre persona física: Apellido Paterno + Materno + Nombre(s)
+    // Nombre persona física: el SAT lo registra como Nombre(s) + Primer Apellido + Segundo
+    // Apellido (UPD-654). Acepta las etiquetas viejas (Apellido Paterno/Materno) y las
+    // actuales de la constancia (Primer/Segundo Apellido).
     if (!datos.nombre) {
       var ap = '', am = '', nom = '';
-      var mAp  = texto.match(/Apellido\s+Paterno\s*[:\s]+([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,30}?)(?:\s{2,}|Apellido|Nombre|CURP)/i);
-      var mAm  = texto.match(/Apellido\s+Materno\s*[:\s]+([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,30}?)(?:\s{2,}|Nombre|RFC|CURP)/i);
+      var mAp  = texto.match(/(?:Apellido\s+Paterno|Primer\s+Apellido)\s*[:\s]+([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,30}?)(?:\s{2,}|Apellido|Nombre|CURP)/i);
+      var mAm  = texto.match(/(?:Apellido\s+Materno|Segundo\s+Apellido)\s*[:\s]+([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,30}?)(?:\s{2,}|Nombre|RFC|CURP)/i);
       var mNom = texto.match(/Nombre\s*\(?s?\)?\s*[:\s]+([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s]{1,50}?)(?:\s{2,}|Apellido|RFC|CURP|\d)/i);
       if (mAp)  ap  = mAp[1].trim();
       if (mAm)  am  = mAm[1].trim();
       if (mNom) nom = mNom[1].trim();
-      var pn = [ap, am, nom].filter(function(x){ return x.length > 1; });
+      var pn = [nom, ap, am].filter(function(x){ return x.length > 1; });
       if (pn.length) datos.nombre = pn.join(' ');
     }
 
@@ -2673,6 +2889,9 @@ var ModFacturacion = (function() {
     limpiarCliente:       limpiarCliente,
     desbloquearReceptor:  desbloquearReceptor,
     togglePublicoGeneral: togglePublicoGeneral,
+    solicitoChange: solicitoChange,
+    pagoPgChange: pagoPgChange,
+    pagoFinalChange: pagoFinalChange,
     buscarFacturas:       buscarFacturas,
     abrirVista:           abrirVista,
     cerrarVista:          cerrarVista,

@@ -3,7 +3,7 @@ require_once __DIR__ . '/../../api/config.php';
 require_once __DIR__ . '/../../api/permisos.php';
 $user = requirePermiso('ver_ordenes');
 $_rol = $user['rol'];
-$es_finanzas = in_array($_rol, ['administracion','dir_admin','dueno','desarrollo']);
+$es_finanzas = in_array($_rol, ['administracion','dir_admin','dueno','desarrollo','contador']);  // contador: solo consulta (UPD-652)
 // Sprint 3: entrada directa a Facturacion desde Cobranza, mismo permiso que exige ese modulo.
 $puedeFacturar = tienePermiso($_rol, 'facturar');
 if (!$es_finanzas) {

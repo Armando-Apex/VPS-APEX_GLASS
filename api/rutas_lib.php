@@ -13,6 +13,13 @@ require_once __DIR__ . '/gps_lib.php';
 // para activar los envíos reales.
 define('RUTA_WA_AVISOS_ACTIVO', false);
 
+// Aviso de entrega a domicilio: true = al ARRANCAR la ruta el cliente recibe "tu pedido ya está en
+// ruta" (plantilla chofer_en_ruta_cliente, ya aprobada en Meta) y NO se le avisa al registrar la
+// salida (reporte 16 de Bethy, 07-oct-2026). false = comportamiento anterior (salida_domicilio al
+// registrar la salida, ver accion=registrar_salida en api/salidas.php). Independiente de
+// RUTA_WA_AVISOS_ACTIVO.
+define('RUTA_WA_AVISO_SALIDA_AL_ARRANCAR', true);
+
 // ── Mapa cuenta de chofer (operador.php) → nombre guardado en rutas.chofer ──
 // rutas.chofer se llena con el selector de "Nueva Ruta" (ROBERTO GARCIA /
 // VICTOR BAUTISTA, ver UPD-406), pero la sesión de operador.php no guarda ese
@@ -169,6 +176,69 @@ function _rutaWaEnviarCliente($db, $parada, $tpl, $paramsTexto) {
     }
 }
 
+// ── Al arrancar una ruta: avisa a cada parada que su pedido ya va en camino (chofer_en_ruta_cliente:
+// nombre, folio, chofer), en lugar del aviso que antes salía al registrar la salida (reporte 16).
+// Solo a órdenes con una salida tipo 'chofer' todavía sin avisar
+// (orden_salidas.wa_enviado=0) — las salidas registradas antes de este cambio ya se avisaron y no
+// se repiten. Se llama desde enviarAvisosInicioRuta(), que ya garantiza una sola vez por ruta.
+function avisarSalidaDomicilioAlArrancar($db, $ruta_id) {
+    try {
+        $stmt = $db->prepare("
+            SELECT re.id as entrega_id, o.id as orden_id, o.folio, o.cliente_id,
+                   COALESCE(cl.nombre, o.cliente_nombre) AS cliente_nombre,
+                   cl.telefono, cl.telefono_alterno
+            FROM ruta_entregas re
+            JOIN ordenes o ON o.id = re.orden_id
+            LEFT JOIN clientes cl ON cl.id = o.cliente_id
+            WHERE re.ruta_id = ? AND re.estado = 'pendiente'
+            ORDER BY re.secuencia ASC
+        ");
+        $stmt->execute([$ruta_id]);
+        $paradas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $stCh = $db->prepare("SELECT chofer FROM rutas WHERE id = ?");
+        $stCh->execute([$ruta_id]);
+        $chofer = trim(strip_tags((string)$stCh->fetchColumn()));
+        $chofer = $chofer !== '' ? substr(mb_convert_case(mb_strtolower($chofer, 'UTF-8'), MB_CASE_TITLE, 'UTF-8'), 0, 60) : 'Apex Glass';
+
+        $stSal = $db->prepare("
+            SELECT id FROM orden_salidas
+            WHERE orden_id = ? AND tipo = 'chofer' AND wa_enviado = 0
+              AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            ORDER BY id ASC
+        ");
+        $yaAvisada = [];
+        foreach ($paradas as $p) {
+            if (isset($yaAvisada[$p['orden_id']])) continue;
+            $yaAvisada[$p['orden_id']] = true;
+
+            $stSal->execute([$p['orden_id']]);
+            $salidas = $stSal->fetchAll(PDO::FETCH_ASSOC);
+            if (!$salidas) continue;
+
+            // Claim por salida antes de mandar: si otra petición ya la tomó, no se repite
+            $ids = [];
+            foreach ($salidas as $s) {
+                $stC = $db->prepare("UPDATE orden_salidas SET wa_enviado=1 WHERE id=? AND wa_enviado=0");
+                $stC->execute([$s['id']]);
+                if ($stC->rowCount() !== 1) continue;
+                $ids[] = (int)$s['id'];
+            }
+            if (!$ids) continue;
+
+            $nombre = substr(strip_tags($p['cliente_nombre'] ?: 'Cliente'), 0, 60);
+            $folio  = substr(strip_tags($p['folio'] ?: ''), 0, 20);
+            $ok = _rutaWaEnviarCliente($db, $p, 'chofer_en_ruta_cliente', [$nombre, $folio, $chofer]);
+            if (!$ok) {
+                // Sin teléfono o Meta falló: se libera para que el dato refleje que no se avisó
+                $db->exec("UPDATE orden_salidas SET wa_enviado=0 WHERE id IN (" . implode(',', $ids) . ")");
+            }
+        }
+    } catch (Exception $e) {
+        error_log('APEX WA salida al arrancar ruta error: ruta_id=' . $ruta_id . ' ' . $e->getMessage());
+    }
+}
+
 // ── Al arrancar una ruta (todas las piezas cargadas, o botón "Iniciar Ruta"): avisa a TODOS los
 // clientes de la ruta de una sola vez. Primera parada = ETA en minutos (ruta_iniciada_eta_cliente,
 // aún sin redactar); resto = aviso genérico "va en camino, llega hoy" (ruta_en_curso_cliente).
@@ -184,6 +254,8 @@ function enviarAvisosInicioRuta($db, $ruta_id) {
     $stClaim = $db->prepare("UPDATE rutas SET avisos_inicio_enviados=1 WHERE id=? AND avisos_inicio_enviados=0");
     $stClaim->execute([$ruta_id]);
     if ($stClaim->rowCount() !== 1) return;
+
+    if (RUTA_WA_AVISO_SALIDA_AL_ARRANCAR) avisarSalidaDomicilioAlArrancar($db, $ruta_id);
 
     if (!RUTA_WA_AVISOS_ACTIVO) return;
 

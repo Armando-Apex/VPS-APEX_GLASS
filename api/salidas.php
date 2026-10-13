@@ -261,7 +261,13 @@ if ($metodo === 'POST' && $accion === 'registrar_salida') {
     $stmt->execute([$orden_id]);
     $dw = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if ($dw) {
+    // Reporte 16 (Bethy): la salida a domicilio ya no avisa al cliente aquí — al registrar/imprimir
+    // la salida la ruta todavía no está armada. En su lugar, al arrancar la ruta recibe
+    // "tu pedido ya está en ruta" (chofer_en_ruta_cliente), ver avisarSalidaDomicilioAlArrancar()
+    // en api/rutas_lib.php. La salida queda con wa_enviado=0 hasta entonces. Recolección no cambia.
+    $avisoAlArrancarRuta = ($tipo === 'chofer' && RUTA_WA_AVISO_SALIDA_AL_ARRANCAR);
+
+    if ($dw && !$avisoAlArrancarRuta) {
         $telRaw = preg_replace('/\D/', '', $dw['telefono_alterno'] ?: $dw['telefono'] ?? '');
         if ($telRaw && strlen($telRaw) >= 10) {
             if (strlen($telRaw) === 10) $telRaw = '52' . $telRaw;

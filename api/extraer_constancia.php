@@ -126,7 +126,11 @@ if (!$datos['nombre']) {
     if (preg_match('/(?:Apellido\s+Paterno|Primer\s+Apellido)\s*[:\n\r]+\s*([^\n\r]+)/ui', $texto, $m)) $ap = trim($m[1]);
     // Apellido materno: tanto "Apellido Materno" como "Segundo Apellido"
     if (preg_match('/(?:Apellido\s+Materno|Segundo\s+Apellido)\s*[:\n\r]+\s*([^\n\r]+)/ui', $texto, $m)) $am = trim($m[1]);
-    $partes = array_filter([$ap, $am, $nom]);
+    // UPD-654: el SAT registra a las personas físicas como Nombre(s) + Primer Apellido +
+    // Segundo Apellido (ej. "ERIKA ARACELI GUZMAN AVILA"). Antes se armaba apellidos
+    // primero y, desde que la razón social se guarda (UPD-639), el timbrado fallaba con
+    // CFDI40145 "El campo Nombre del receptor debe pertenecer al nombre asociado al RFC".
+    $partes = array_filter([$nom, $ap, $am]);
     if ($partes) $datos['nombre'] = implode(' ', $partes);
 }
 

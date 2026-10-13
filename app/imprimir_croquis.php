@@ -237,6 +237,15 @@ $svg .= '<text x="'.($ox-$fz).'" y="'.($oyBottom-$ejLen-$arwLen-3).'" font-size=
 
 // Elementos
 foreach ($elementos as $idxEl => $e) {
+    // Resaque media luna: siempre pegado al borde (rs_borde); x/y = centro del semicírculo sobre el borde
+    $esML = ($e['tipo'] === 'rs' && ($e['rs_variant'] ?? '') === 'medialuna');
+    if ($esML) {
+        $mlBorde = in_array($e['rs_borde'] ?? '', ['inf','sup','izq','der'], true) ? $e['rs_borde'] : 'inf';
+        if ($mlBorde === 'inf') $e['y'] = 0;
+        if ($mlBorde === 'sup') $e['y'] = $alto;
+        if ($mlBorde === 'izq') $e['x'] = 0;
+        if ($mlBorde === 'der') $e['x'] = $ancho;
+    }
     $ep = toPX((float)$e['x'], (float)$e['y'], $ox, $oyBottom, $sc);
     $ex = $ep['x']; $ey = $ep['y'];
 
@@ -247,13 +256,15 @@ foreach ($elementos as $idxEl => $e) {
     $bordHx   = $desdeIzq ? ($ox + 4) : ($ox + $gw - 4);
     $offH     = 12 + $idxEl * 16;
     $cotHy    = $ey + $offH;
-    $svg .= '<line x1="'.$ex.'" y1="'.$ey.'" x2="'.$ex.'" y2="'.$cotHy.'" stroke="#333333" stroke-width="0.6" stroke-dasharray="3,2" opacity="0.6"/>';
-    $svg .= '<line x1="'.$bordHx.'" y1="'.$cotHy.'" x2="'.$ex.'" y2="'.$cotHy.'" stroke="#333333" stroke-width="1.2"/>';
-    $svg .= '<line x1="'.$bordHx.'" y1="'.($cotHy-$tk/2).'" x2="'.$bordHx.'" y2="'.($cotHy+$tk/2).'" stroke="#333333" stroke-width="1.2"/>';
-    $svg .= '<line x1="'.$ex.'" y1="'.($cotHy-$tk/2).'" x2="'.$ex.'" y2="'.($cotHy+$tk/2).'" stroke="#333333" stroke-width="1.2"/>';
-    $lxMid = ($bordHx + $ex) / 2;
-    $svg .= '<rect x="'.($lxMid-30).'" y="'.($cotHy-7).'" width="60" height="14" fill="white"/>';
-    $svg .= '<text x="'.$lxMid.'" y="'.($cotHy+5).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#111111" font-family="monospace">'.$dimH.' mm</text>';
+    if (!($esML && $dimH == 0)) {
+        $svg .= '<line x1="'.$ex.'" y1="'.$ey.'" x2="'.$ex.'" y2="'.$cotHy.'" stroke="#333333" stroke-width="0.6" stroke-dasharray="3,2" opacity="0.6"/>';
+        $svg .= '<line x1="'.$bordHx.'" y1="'.$cotHy.'" x2="'.$ex.'" y2="'.$cotHy.'" stroke="#333333" stroke-width="1.2"/>';
+        $svg .= '<line x1="'.$bordHx.'" y1="'.($cotHy-$tk/2).'" x2="'.$bordHx.'" y2="'.($cotHy+$tk/2).'" stroke="#333333" stroke-width="1.2"/>';
+        $svg .= '<line x1="'.$ex.'" y1="'.($cotHy-$tk/2).'" x2="'.$ex.'" y2="'.($cotHy+$tk/2).'" stroke="#333333" stroke-width="1.2"/>';
+        $lxMid = ($bordHx + $ex) / 2;
+        $svg .= '<rect x="'.($lxMid-30).'" y="'.($cotHy-7).'" width="60" height="14" fill="white"/>';
+        $svg .= '<text x="'.$lxMid.'" y="'.($cotHy+5).'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#111111" font-family="monospace">'.$dimH.' mm</text>';
+    }
 
     // Cota vertical: desde el borde más cercano (inf o sup)
     $desdeInf = (float)$e['y'] <= $alto / 2;
@@ -263,13 +274,15 @@ foreach ($elementos as $idxEl => $e) {
     $offV     = 12 + $idxEl * 16;
     $cotVx    = $ex - $offV;
     $cotVx    = max($cotVx, $ox - 30);
-    $svg .= '<line x1="'.$ex.'" y1="'.$ey.'" x2="'.$cotVx.'" y2="'.$ey.'" stroke="#333333" stroke-width="0.6" stroke-dasharray="3,2" opacity="0.6"/>';
-    $svg .= '<line x1="'.$cotVx.'" y1="'.$bordVy.'" x2="'.$cotVx.'" y2="'.$ey.'" stroke="#333333" stroke-width="1.2"/>';
-    $svg .= '<line x1="'.($cotVx-$tk/2).'" y1="'.$bordVy.'" x2="'.($cotVx+$tk/2).'" y2="'.$bordVy.'" stroke="#333333" stroke-width="1.2"/>';
-    $svg .= '<line x1="'.($cotVx-$tk/2).'" y1="'.$ey.'" x2="'.($cotVx+$tk/2).'" y2="'.$ey.'" stroke="#333333" stroke-width="1.2"/>';
-    $lyMid = ($bordVy + $ey) / 2;
-    $svg .= '<rect x="'.($cotVx-7).'" y="'.($lyMid-30).'" width="14" height="60" fill="white"/>';
-    $svg .= '<text x="'.$cotVx.'" y="'.$lyMid.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#111111" font-family="monospace" transform="rotate(-90,'.$cotVx.','.$lyMid.')">'.$dimV.' mm</text>';
+    if (!($esML && $dimV == 0)) {
+        $svg .= '<line x1="'.$ex.'" y1="'.$ey.'" x2="'.$cotVx.'" y2="'.$ey.'" stroke="#333333" stroke-width="0.6" stroke-dasharray="3,2" opacity="0.6"/>';
+        $svg .= '<line x1="'.$cotVx.'" y1="'.$bordVy.'" x2="'.$cotVx.'" y2="'.$ey.'" stroke="#333333" stroke-width="1.2"/>';
+        $svg .= '<line x1="'.($cotVx-$tk/2).'" y1="'.$bordVy.'" x2="'.($cotVx+$tk/2).'" y2="'.$bordVy.'" stroke="#333333" stroke-width="1.2"/>';
+        $svg .= '<line x1="'.($cotVx-$tk/2).'" y1="'.$ey.'" x2="'.($cotVx+$tk/2).'" y2="'.$ey.'" stroke="#333333" stroke-width="1.2"/>';
+        $lyMid = ($bordVy + $ey) / 2;
+        $svg .= '<rect x="'.($cotVx-7).'" y="'.($lyMid-30).'" width="14" height="60" fill="white"/>';
+        $svg .= '<text x="'.$cotVx.'" y="'.$lyMid.'" text-anchor="middle" font-size="'.$fzSm.'" font-weight="700" fill="#111111" font-family="monospace" transform="rotate(-90,'.$cotVx.','.$lyMid.')">'.$dimV.' mm</text>';
+    }
 
     if ($e['tipo'] === 'tp') {
         $r = max(4, ((float)$e['d']/2) * $sc);
@@ -288,6 +301,27 @@ foreach ($elementos as $idxEl => $e) {
         $lx=$ex+$re+4; $ly=$ey-$re-4;
         $svg .= '<rect x="'.($lx-1).'" y="'.($ly-$fz).'" width="76" height="'.($fz+3).'" fill="white" rx="2"/>';
         $svg .= '<text x="'.$lx.'" y="'.$ly.'" font-size="'.$fzSm.'" font-weight="700" fill="#333333" font-family="monospace">TA  &#216;'.$e['de'].'/'.$e['di'].' mm</text>';
+    }
+    if ($esML) {
+        // Semicírculo exacto que abre hacia afuera del vidrio — reportes 21/22, 07-oct-2026
+        $mlDiam = abs((float)($e['rs_d'] ?? 0)); if ($mlDiam <= 0) $mlDiam = 60;
+        $mlR    = max(4, ($mlDiam/2) * $sc);
+        $colRS  = '#333333';
+        $mlIx = 0; $mlIy = 0; // dirección hacia adentro del vidrio
+        if ($mlBorde === 'sup')      { $mlD = 'M '.($ex-$mlR).' '.$ey.' A '.$mlR.' '.$mlR.' 0 0 0 '.($ex+$mlR).' '.$ey; $mlIy = 1; }
+        else if ($mlBorde === 'izq') { $mlD = 'M '.$ex.' '.($ey-$mlR).' A '.$mlR.' '.$mlR.' 0 0 1 '.$ex.' '.($ey+$mlR); $mlIx = 1; }
+        else if ($mlBorde === 'der') { $mlD = 'M '.$ex.' '.($ey-$mlR).' A '.$mlR.' '.$mlR.' 0 0 0 '.$ex.' '.($ey+$mlR); $mlIx = -1; }
+        else                         { $mlD = 'M '.($ex-$mlR).' '.$ey.' A '.$mlR.' '.$mlR.' 0 0 1 '.($ex+$mlR).' '.$ey; $mlIy = -1; }
+        $svg .= '<path d="'.$mlD.' Z" fill="#e8e8e8" fill-opacity="1" stroke="none"/>';
+        $svg .= '<path d="'.$mlD.'" fill="none" stroke="'.$colRS.'" stroke-width="1.2" stroke-dasharray="3,2"/>';
+        $mlTxt = 'RS media luna &#216;'.rtrim(rtrim(number_format($mlDiam, 1, '.', ''), '0'), '.').' mm';
+        $mlTw  = 150;
+        $mlAnc = $mlIx > 0 ? 'start' : ($mlIx < 0 ? 'end' : 'middle');
+        $mlTx  = $ex + $mlIx*($mlR+8);
+        $mlTy  = $mlIy > 0 ? ($ey + $mlR + 8 + $fzSm) : ($mlIy < 0 ? ($ey - $mlR - 8) : ($ey + $fzSm/3));
+        $mlRx  = $mlIx > 0 ? ($mlTx-2) : ($mlIx < 0 ? ($mlTx-$mlTw+2) : ($mlTx-$mlTw/2));
+        $svg .= '<rect x="'.$mlRx.'" y="'.($mlTy-$fz).'" width="'.$mlTw.'" height="'.($fz+3).'" fill="white" rx="2"/>';
+        $svg .= '<text x="'.$mlTx.'" y="'.$mlTy.'" text-anchor="'.$mlAnc.'" font-size="'.$fzSm.'" font-weight="700" fill="'.$colRS.'" font-family="monospace">'.$mlTxt.'</text>';
     }
     if ($e['tipo'] === 'rs' && ($e['rs_variant'] ?? '') === 'cerradura') {
         $rw = max(8, (float)$e['h']*$sc);
@@ -309,7 +343,7 @@ foreach ($elementos as $idxEl => $e) {
         $svg .= '<rect x="'.($lxRS-1).'" y="'.($lyRS2-$fz).'" width="90" height="'.($fz+3).'" fill="white" rx="2"/>';
         $svg .= '<text x="'.$lxRS.'" y="'.$lyRS2.'" font-size="'.$fzSm.'" font-weight="700" fill="'.$colRS.'" font-family="monospace">RS cerradura &#216;'.$rsD.' mm</text>';
     }
-    if ($e['tipo'] === 'rs' && ($e['rs_variant'] ?? '') !== 'cerradura') {
+    if ($e['tipo'] === 'rs' && !in_array($e['rs_variant'] ?? '', ['cerradura','medialuna'], true)) {
         $rw = max(8, (float)$e['h']*$sc);
         $rh = max(4, (float)$e['w']*$sc);
         $exD = min($ex, $ox+$gw-$rw);
@@ -385,6 +419,7 @@ if ($hasEl) {
         if ($el['tipo']==='tp') $det = '&#216;'.$el['d'].'mm';
         if ($el['tipo']==='ta') $det = '&#216;'.$el['de'].'/'.$el['di'];
         if ($el['tipo']==='rs') $det = $el['w'].'&#215;'.$el['h'].'mm'.((($el['rs_variant']??'')==='cerradura')?' &#216;'.($el['rs_d']??round((float)$el['h']*1.6)).'mm':'');
+        if ($el['tipo']==='rs' && ($el['rs_variant']??'')==='medialuna') $det = 'M.luna &#216;'.(float)($el['rs_d']??60).'mm';
         if ($el['tipo']==='bi') $det = $el['w'].'&#215;'.$el['h'].'mm'.((!empty($el['bi_ref'])&&$el['bi_ref']!=='inicio')?' ['.$el['bi_ref'].']':'');
         $svg .= '<text x="'.($tblX+$tblW-2).'" y="'.($ry+18).'" text-anchor="end" font-size="14" fill="'.$ec.'" font-family="monospace">'.$det.'</text>';
         $svg .= '<text x="'.($tblX+12).'" y="'.($ry+$cardH-6).'" font-size="12" fill="#333333" font-family="monospace">X: '.$el['x'].'  Y: '.$el['y'].'</text>';

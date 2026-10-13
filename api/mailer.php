@@ -105,19 +105,30 @@ function enviarCorreoFactura($fac, $destinatarios, $pdfBinario = null, $xmlBinar
     $destinatarios = array_values(array_filter($destinatarios));
     if (!$destinatarios) return ['ok' => false, 'error' => 'Sin destinatarios'];
 
+    // Cuenta propia para facturas (UPD-648): FAC_SMTP_* en .env. Las órdenes de compra
+    // siguen con SMTP_* (compras@apex.glass). Si FAC_SMTP_USER está vacío se usa la de
+    // compras completa, para que nada se rompa mientras no se configure.
+    $usaFac   = env('FAC_SMTP_USER', '') !== '';
+    $pfx      = $usaFac ? 'FAC_SMTP_' : 'SMTP_';
+    $remitente = env($pfx . 'FROM', '') ?: env($pfx . 'USER', '');
+
     $mail = new PHPMailer(true);
     try {
         $mail->isSMTP();
-        $mail->Host       = env('SMTP_HOST', 'mail.apex.glass');
+        $mail->Host       = env($pfx . 'HOST', '') ?: env('SMTP_HOST', 'mail.apex.glass');
         $mail->SMTPAuth   = true;
-        $mail->Username   = env('SMTP_USER', '');
-        $mail->Password   = env('SMTP_PASS', '');
+        $mail->Username   = env($pfx . 'USER', '');
+        $mail->Password   = env($pfx . 'PASS', '');
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-        $mail->Port       = (int)env('SMTP_PORT', 465);
+        $mail->Port       = (int)(env($pfx . 'PORT', '') ?: env('SMTP_PORT', 465));
         $mail->CharSet    = 'UTF-8';
         $mail->Timeout    = 15;
 
-        $mail->setFrom(env('SMTP_FROM', 'facturacion@apex.glass'), env('SMTP_FROM_NAME', 'APEX GLASS'));
+        $mail->setFrom($remitente, env($pfx . 'FROM_NAME', '') ?: env('SMTP_FROM_NAME', 'APEX GLASS'));
+        // A dónde llegan las respuestas del cliente: FAC_SMTP_REPLY_TO (UPD-650, Armando:
+        // administracion@apex.glass); si no está, a la misma cuenta que envía la factura.
+        $responderA = env('FAC_SMTP_REPLY_TO', '') ?: $remitente;
+        if ($responderA) $mail->addReplyTo($responderA);
         foreach ($destinatarios as $correo) {
             $mail->addAddress($correo);
         }
@@ -151,7 +162,7 @@ function enviarCorreoFactura($fac, $destinatarios, $pdfBinario = null, $xmlBinar
             . '<p style="margin:20px 0 0;font-size:12px;color:#6b7280">Se adjunta el PDF y XML del CFDI.</p>'
             . '</td></tr>'
             . '<tr><td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0">'
-            . '<p style="margin:0;font-size:11px;color:#9ca3af">Correo generado autom&aacute;ticamente &bull; APEX GLASS &bull; facturacion@apex.glass</p>'
+            . '<p style="margin:0;font-size:11px;color:#9ca3af">Correo generado autom&aacute;ticamente &bull; APEX GLASS &bull; ' . htmlspecialchars($remitente) . '</p>'
             . '</td></tr>'
             . '</table>'
             . '</td></tr></table>'
