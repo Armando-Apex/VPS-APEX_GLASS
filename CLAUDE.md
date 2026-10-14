@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 13 octubre 2026 | Próximo UPD disponible: UPD-698
+# Última actualización: 13 octubre 2026 | Próximo UPD disponible: UPD-699
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar. Los archivos de `docs/` que este archivo enlaza (historiales archivados, `PENDIENTES_DETALLE.md`, `PENDIENTES_CERRADOS.md`) son parte de esta misma memoria; mover una entrada ahí no es borrarla.
 
@@ -478,7 +478,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-698**
+Próximo UPD disponible: **UPD-699**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -781,4 +781,4 @@ Archivo completo: `docs/HISTORIAL_UPD_605_631.md` (26-sep-2026 → 30-sep-2026)
 
 - UPD-697 (13-oct-2026, Armando) — **Nuevo módulo Bancos, Fase 1** (Finanzas → Bancos): BBVA 0196573215 desde 01-oct (saldo inicial $343,821.19). Importa el PDF "Detalle de movimientos" las veces que sea sin duplicar y solo si encadena al centavo. Cargados 165 movs (01-12 oct), saldo $566,114.13.
 
-**Próximo UPD disponible: UPD-698**
+**Próximo UPD disponible: UPD-699**

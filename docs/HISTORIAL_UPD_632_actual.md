@@ -143,3 +143,10 @@
 - **Carga real:** importación #1 = "01 - 12 OCT.pdf" (usuario "Armando (carga inicial vía Claude)"): 165 movimientos, abonos $739,998.06, cargos $517,705.12, saldo final $566,114.13 = saldo de BBVA al 12-oct 5:04 pm.
 - **Rollback:** checkpoint git `657525d`; para deshacer: `DROP TABLE banco_movimientos, banco_importaciones, banco_cuentas;` + borrar los 4 archivos nuevos + revertir las líneas de `dashboard.php` y `rol_restringido.php`. No se tocó ninguna tabla existente.
 - **Pendiente:** Fase 2 conciliación y Fase 3 cierre mensual → [D-94].
+
+### UPD-698 (14-oct-2026, Armando) — Escaneo de Corte bloqueado por entrar con `www.apex.glass`
+- **Síntoma:** en Corte "no deja avanzar" piezas (ej. T-058 partida 1 pieza 6/6). La pieza se leía bien (`api/pieza.php` 200), pero `api/sesion_corte.php` (`guardar_sesion_abierta` / `confirmar_sesion`) respondía 403 con `{"error":"Origen no permitido"}` (31 bytes): 33 rechazos desde las 9:27 del 14-oct, todos del mismo celular.
+- **Causa:** el celular de Corte abrió `https://www.apex.glass/produccion/app/operador.php`. `requireSessionApi()` en `api/permisos.php` solo acepta Origin/Referer con host `apex.glass` para POST, y `www` no redirigía (cargaba el sitio completo, pero nada se podía guardar).
+- **Fix:** redirección 301 de `www.apex.glass` a `apex.glass`: `.htaccess` nuevo en `public_html/` (sitio público) y regla al inicio del bloque `mod_rewrite` de `produccion/.htaccess` (el `RewriteEngine On` del subdirectorio anula las reglas del padre, por eso va en los dos). Verificado con curl: www → 301 a la misma ruta conservando query string; apex.glass sigue en 200.
+- **Rollback:** borrar `public_html/.htaccess` y restaurar `/home/apexglass2025/htaccess_produccion.bak_20261014`.
+- Sin cambios de BD ni de PHP.
