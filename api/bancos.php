@@ -215,10 +215,14 @@ if ($accion === 'previsualizar') {
         jsonResponse(['error' => $e->getMessage()], 422);
     }
 
+    // requireSessionApi() ya cerró la sesión (session_write_close): hay que reabrirla
+    // para que el token de la vista previa sí se guarde.
+    session_start();
     $_SESSION['bancos_import'][$token] = [
         'cuenta_id' => (int)$cuenta['id'],
         'nombre'    => mb_substr(basename($file['name']), 0, 200),
     ];
+    session_write_close();
 
     $F = $parsed['filas'];
     jsonResponse([
@@ -268,7 +272,9 @@ if ($accion === 'confirmar') {
         $db->rollBack();
         jsonResponse(['error' => $e->getMessage()], 422);
     }
+    session_start();
     unset($_SESSION['bancos_import'][$token]);
+    session_write_close();
     jsonResponse(['ok' => true, 'nuevas' => count($plan['nuevas']), 'existentes' => $plan['existentes'], 'saldo_final' => $cadena['saldo']]);
 }
 
