@@ -158,3 +158,10 @@
 - **Se conservan:** `historial_estatus` 37654/37655 de la pieza 8187 (huérfanos, trazabilidad) y `sesiones_corte` #1683 con `m2_aprovechado` 3.0229 → el Bono de Corte de Angel no cambia (se calcula con los m² de la sesión). Solo deja de aparecer "T-078 P2" en el detalle del movimiento de inventario.
 - Sin facturas, salidas, rutas, servicios ni croquis ligados. Precio de la partida 1 sin cambio (RAZA_OCT2026 no aplica a 12mm).
 - **Respaldo:** `/root/T078_scp2918_respaldo.sql` (registro de corte); partida/pieza/cotización respaldadas en el scratchpad de la sesión (temporal) y en el respaldo nocturno.
+
+### UPD-700 (14-oct-2026, Armando) — Datos: T-099 (COT-2204) ajustada a total $11,412.82
+- **Orden:** T-099 (orden 1372, COT-2204 id 2148), CRISTAL Y ALGO MAS (cliente id 2). Pago 1649: $11,412.82 transferencia 14-oct.
+- **Antecedente:** a las 10:00 se corrigieron medidas de P4 (686x2325 → 1165x900) por Correcciones; el total bajó a $10,869.40 y el sistema movió el excedente de $543.42 a saldo a favor (depósito `clientes_saldo_favor` #305) con `saldo_pagado` 11412.82→10869.40.
+- **Cambio (a pedido de Armando, total = $11,412.82):** precio por m² +5% parejo SOLO en esta cotización: P1-P3 Plantilla Claro 9mm 1291.49→1356.0593, P4-P5 Claro 9mm 957.85→1005.7387 (también se recalculó `precio_unitario`/subtotal/iva/total por partida; P4 traía `precio_unitario` viejo de las medidas anteriores). Descuento 10.5% sin cambio. Cotización: subtotal 9838.64, IVA 1574.18, total 11412.82, `saldo_pagado` 11412.82, `saldo_pendiente` 0. 2 filas en `correcciones_log`. Catálogo sin cambio; si se edita desde pantalla, vuelve al precio de catálogo.
+- **No se tocó (Armando: "no ocupo que muevas nada de cobranza"):** pago 1649 ni depósito #305 ($543.42 sigue como saldo a favor del cliente). Ojo: con la orden pagada completa, ese saldo queda contado dos veces si no se revisa — avisado a Armando, queda a criterio de Cobranza/Lina.
+- **Respaldos:** `/root/T099_partidas_respaldo.sql`, `/root/T099_cot_respaldo.sql`, `/root/T099_sf305_respaldo.sql`. Sin facturas ligadas.
