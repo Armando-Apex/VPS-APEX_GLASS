@@ -111,7 +111,9 @@ function concCalificar($mov, $r, $pistas, $restante) {
 }
 
 function concMovimiento($db, $id, $bloquear = false) {
-    $s = $db->prepare("SELECT * FROM banco_movimientos WHERE id = ?" . ($bloquear ? ' FOR UPDATE' : ''));
+    // Solo movimientos de cuentas activas (mismo alcance que bancosCuenta()).
+    $s = $db->prepare("SELECT m.* FROM banco_movimientos m JOIN banco_cuentas c ON c.id = m.cuenta_id AND c.activo = 1
+                       WHERE m.id = ?" . ($bloquear ? ' FOR UPDATE' : ''));
     $s->execute([(int)$id]);
     return $s->fetch(PDO::FETCH_ASSOC) ?: null;
 }

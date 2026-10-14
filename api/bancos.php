@@ -283,9 +283,14 @@ if ($accion === 'ligar' || $accion === 'desligar' || $accion === 'auto_confirmar
             jsonResponse(['ok' => true, 'ligado' => $total]);
         }
         if ($accion === 'desligar') {
-            $st = $db->prepare("DELETE FROM banco_conciliacion WHERE id = ?");
+            $st = $db->prepare("SELECT bc.id FROM banco_conciliacion bc
+                                JOIN banco_movimientos m ON m.id = bc.movimiento_id
+                                JOIN banco_cuentas c ON c.id = m.cuenta_id AND c.activo = 1
+                                WHERE bc.id = ? FOR UPDATE");
             $st->execute([(int)($body['id'] ?? 0)]);
-            if (!$st->rowCount()) throw new Exception('La liga ya no existe');
+            $ligaId = $st->fetchColumn();
+            if ($ligaId === false) throw new Exception('La liga ya no existe');
+            $db->prepare("DELETE FROM banco_conciliacion WHERE id = ?")->execute([(int)$ligaId]);
             $db->commit();
             jsonResponse(['ok' => true]);
         }
