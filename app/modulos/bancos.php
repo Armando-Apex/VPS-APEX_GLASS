@@ -68,6 +68,20 @@ header('Content-Type: text/html; charset=utf-8');
 .bco-modal th { background: #f8fafc; text-align: left; color: #64748b; font-size: 11px; text-transform: uppercase; }
 .bco-modal td { border-top: 1px solid #f1f5f9; }
 .bco-modal td.num, .bco-modal th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bco .cc { white-space: nowrap; font-size: 12px; }
+.bco .cc-ok { color: #15803d; font-weight: 600; }
+.bco .cc-par { color: #b45309; font-weight: 600; }
+.bco .cc-btn { padding: 3px 10px; border-radius: 6px; border: 1.5px solid #cbd5e1; background: #fff; color: #334155; font-size: 12px; font-weight: 600; cursor: pointer; }
+.bco .cc-btn:hover { border-color: #2563eb; color: #2563eb; }
+.bco .cc-link { background: none; border: none; padding: 0; cursor: pointer; font: inherit; text-align: left; }
+.bco .cc-link:hover { text-decoration: underline; }
+.bco-modal .razon { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 99px; background: #dcfce7; color: #166534; margin: 1px 3px 1px 0; }
+.bco-modal .razon.mal { background: #fee2e2; color: #991b1b; }
+.bco-modal tr.sel td { background: #eff6ff; }
+.bco-modal .mini { font-size: 11px; color: #64748b; }
+.bco-modal input[type=search], .bco-modal input[type=number], .bco-modal input[type=text], .bco-modal select { padding: 7px 9px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; }
+.bco-sum { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; margin: 8px 0; }
+.bco-sum b { font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) { .bco { padding: 14px; } .bco-card-v { font-size: 18px; } }
 </style>
 
@@ -78,7 +92,13 @@ header('Content-Type: text/html; charset=utf-8');
       <div class="bco-sub" id="bcoCuentaTxt">Cargando cuenta…</div>
     </div>
     <?php if ($puedeImportar): ?>
-    <button class="bco-btn bco-btn-pri" onclick="ModBancos._abrirImportar()"><?= icono('upload', 14) ?> Importar PDF de BBVA</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="bco-btn bco-btn-ghost" onclick="ModBancos._sinBanco()">Apex sin banco</button>
+      <button class="bco-btn bco-btn-ghost" onclick="ModBancos._auto()">Conciliar automático</button>
+      <button class="bco-btn bco-btn-pri" onclick="ModBancos._abrirImportar()"><?= icono('upload', 14) ?> Importar PDF de BBVA</button>
+    </div>
+    <?php else: ?>
+    <button class="bco-btn bco-btn-ghost" onclick="ModBancos._sinBanco()">Apex sin banco</button>
     <?php endif; ?>
   </div>
 
@@ -87,6 +107,7 @@ header('Content-Type: text/html; charset=utf-8');
     <div class="bco-card"><div class="bco-card-l">Cuadre de saldos</div><div class="bco-card-v" id="kCadena">—</div><div class="bco-card-s" id="kCadenaS"></div></div>
     <div class="bco-card"><div class="bco-card-l">Abonos del rango</div><div class="bco-card-v bco-ok" id="kAbonos">—</div><div class="bco-card-s" id="kAbonosS"></div></div>
     <div class="bco-card"><div class="bco-card-l">Cargos del rango</div><div class="bco-card-v bco-bad" id="kCargos">—</div><div class="bco-card-s" id="kCargosS"></div></div>
+    <div class="bco-card"><div class="bco-card-l">Abonos conciliados</div><div class="bco-card-v" id="kConc">—</div><div class="bco-card-s" id="kConcS"></div></div>
   </div>
 
   <div class="bco-filtros">
@@ -109,14 +130,19 @@ header('Content-Type: text/html; charset=utf-8');
       <option value="comision_banco">Comisiones del banco</option>
       <option value="otro">Otros</option>
     </select>
+    <select id="bcoConc" aria-label="Conciliación">
+      <option value="">Conciliación: todos</option>
+      <option value="pendientes">Abonos sin conciliar</option>
+      <option value="conciliados">Abonos conciliados</option>
+    </select>
     <input type="search" id="bcoQ" class="bco-q" placeholder="Buscar concepto, referencia o monto…" aria-label="Buscar">
     <button class="bco-btn bco-btn-ghost" id="bcoOrdenBtn" onclick="ModBancos._toggleOrden()">Más recientes primero</button>
   </div>
 
   <div class="bco-tabla-wrap">
     <table>
-      <thead><tr><th>Fecha</th><th>Concepto / Referencia</th><th>Tipo</th><th class="num">Cargo</th><th class="num">Abono</th><th class="num">Saldo</th></tr></thead>
-      <tbody id="bcoTabla"><tr><td colspan="6" class="vacio">Cargando…</td></tr></tbody>
+      <thead><tr><th>Fecha</th><th>Concepto / Referencia</th><th>Tipo</th><th class="num">Cargo</th><th class="num">Abono</th><th class="num">Saldo</th><th>Ligado a</th></tr></thead>
+      <tbody id="bcoTabla"><tr><td colspan="7" class="vacio">Cargando…</td></tr></tbody>
     </table>
   </div>
 
@@ -154,6 +180,13 @@ header('Content-Type: text/html; charset=utf-8');
         <button class="bco-btn bco-btn-ok" id="bcoBtnConfirmar" onclick="ModBancos._confirmar()">Registrar</button>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="bco-modal-bg" id="bcoM2Bg">
+  <div class="bco-modal" role="dialog" aria-modal="true" aria-labelledby="bcoM2Tit">
+    <h2 id="bcoM2Tit"></h2>
+    <div id="bcoM2"></div>
   </div>
 </div>
 
@@ -229,14 +262,15 @@ async function cargarMovimientos() {
            '&desde=' + encodeURIComponent(el('bcoDesde').value || inicioMes()) +
            '&hasta=' + encodeURIComponent(el('bcoHasta').value || hoy()) +
            '&tipo=' + encodeURIComponent(el('bcoTipo').value) +
+           '&conc=' + encodeURIComponent(el('bcoConc').value) +
            '&q=' + encodeURIComponent(el('bcoQ').value.trim());
   try {
     var res = await fetch(API + '?' + qs);
     ultimoData = await res.json();
-    if (ultimoData.error) { el('bcoTabla').innerHTML = '<tr><td colspan="6" class="vacio">' + esc(ultimoData.error) + '</td></tr>'; return; }
+    if (ultimoData.error) { el('bcoTabla').innerHTML = '<tr><td colspan="7" class="vacio">' + esc(ultimoData.error) + '</td></tr>'; return; }
     render();
   } catch (e) {
-    el('bcoTabla').innerHTML = '<tr><td colspan="6" class="vacio bco-bad">Error al cargar</td></tr>';
+    el('bcoTabla').innerHTML = '<tr><td colspan="7" class="vacio bco-bad">Error al cargar</td></tr>';
   }
 }
 
@@ -250,12 +284,15 @@ function render() {
   el('kAbonosS').textContent = nA + ' movimientos';
   el('kCargos').textContent = fmt(d.total_cargos);
   el('kCargosS').textContent = nC + ' movimientos';
+  var cc = d.conciliacion || {abonos: 0, conciliados: 0, total: 0, ligado: 0};
+  el('kConc').innerHTML = '<span class="' + (cc.abonos && cc.conciliados === cc.abonos ? 'bco-ok' : 'bco-warn') + '">' + cc.conciliados + ' de ' + cc.abonos + '</span>';
+  el('kConcS').textContent = fmt(cc.ligado) + ' de ' + fmt(cc.total);
 
-  var filtrado = el('bcoTipo').value !== '' || el('bcoQ').value.trim() !== '';
-  var filaIni = '<tr class="bco-saldo-ini"><td>' + fFecha(d.desde) + '</td><td colspan="4">Saldo al iniciar el ' + fFecha(d.desde) + '</td><td class="num">' + fmt(d.saldo_inicial) + '</td></tr>';
+  var filtrado = el('bcoTipo').value !== '' || el('bcoQ').value.trim() !== '' || el('bcoConc').value !== '';
+  var filaIni = '<tr class="bco-saldo-ini"><td>' + fFecha(d.desde) + '</td><td colspan="4">Saldo al iniciar el ' + fFecha(d.desde) + '</td><td class="num">' + fmt(d.saldo_inicial) + '</td><td></td></tr>';
   var html = '';
   if (!ordenDesc) html += filaIni;
-  if (!filas.length) html += '<tr><td colspan="6" class="vacio">Sin movimientos en este rango</td></tr>';
+  if (!filas.length) html += '<tr><td colspan="7" class="vacio">Sin movimientos en este rango</td></tr>';
   for (var j = 0; j < filas.length; j++) {
     var f = filas[j];
     var c = parseFloat(f.cargo), a = parseFloat(f.abono);
@@ -265,13 +302,274 @@ function render() {
       '<td><span class="tipo">' + esc(TIPOS[f.tipo] || f.tipo) + '</span></td>' +
       '<td class="num cargo">' + (c > 0 ? fmt(c) : '') + '</td>' +
       '<td class="num abono">' + (a > 0 ? fmt(a) : '') + '</td>' +
-      '<td class="num">' + fmt(f.saldo) + '</td></tr>';
+      '<td class="num">' + fmt(f.saldo) + '</td>' +
+      '<td class="cc">' + celdaConc(f) + '</td></tr>';
   }
   if (ordenDesc) html += filaIni;
   html += '<tr class="bco-tot"><td colspan="3">' + (filtrado ? 'Total de lo filtrado' : 'Totales del rango') +
           '</td><td class="num cargo">' + fmt(d.total_cargos) + '</td><td class="num abono">' + fmt(d.total_abonos) +
-          '</td><td class="num">' + (filtrado ? '' : fmt(d.saldo_final)) + '</td></tr>';
+          '</td><td class="num">' + (filtrado ? '' : fmt(d.saldo_final)) + '</td><td></td></tr>';
   el('bcoTabla').innerHTML = html;
+}
+
+// ─── Conciliación (UPD-702) ───────────────────────────────────────────────────
+var movSel = null;      // movimiento abierto en el modal de ligar
+var selItems = {};      // 'origen:id' -> monto
+var autoPares = [];
+var timerSug = null;
+
+function celdaConc(f) {
+  var a = parseFloat(f.abono), l = parseFloat(f.ligado || 0);
+  if (!(a > 0)) return '';
+  var abrir = 'ModBancos._ligar(' + parseInt(f.id, 10) + ')';
+  if (l >= a - 0.005) return '<button class="cc-link cc-ok" onclick="' + abrir + '">' + esc(f.ligado_a || 'Conciliado') + '</button>';
+  if (l > 0) return '<button class="cc-link cc-par" onclick="' + abrir + '">Parcial · faltan ' + fmt(a - l) + '</button>';
+  return window._bcoPuedeImportar ? '<button class="cc-btn" onclick="' + abrir + '">Ligar</button>' : '<span class="det">Pendiente</span>';
+}
+
+function abrirM2(titulo, html) {
+  el('bcoM2Tit').textContent = titulo;
+  el('bcoM2').innerHTML = html;
+  el('bcoM2Bg').classList.add('open');
+}
+function cerrarM2() { el('bcoM2Bg').classList.remove('open'); movSel = null; }
+function descReg(r) {
+  var partes = [];
+  if (r.orden_folio) partes.push('<b>' + esc(r.orden_folio) + '</b>');
+  if (r.cot_folio) partes.push(esc(r.cot_folio));
+  if (r.origen === 'saldo_favor') partes.push('<span class="mini">Saldo a favor</span>');
+  var cli = (r.cliente_codigo ? esc(r.cliente_codigo) + ' ' : '') + esc(r.cliente || '');
+  return partes.join(' · ') + (cli ? '<div class="mini">' + cli + '</div>' : '') + (r.notas || r.r_notas ? '<div class="mini">' + esc(r.notas || r.r_notas) + '</div>' : '');
+}
+
+async function ligar(movId, q) {
+  try {
+    var res = await fetch(API + '?accion=conciliacion&movimiento_id=' + movId + '&q=' + encodeURIComponent(q || ''));
+    var d = await res.json();
+    if (d.error) { toast(d.error); return; }
+    if (!movSel || movSel.movimiento.id !== d.movimiento.id) selItems = {};
+    movSel = d;
+    pintarLigar(q || '');
+  } catch (e) { toast('Error de conexión'); }
+}
+
+function pintarLigar(q) {
+  var d = movSel, m = d.movimiento, puede = window._bcoPuedeImportar;
+  var h = '<p>' + fFecha(m.fecha) + ' · ' + esc(m.concepto) + (m.detalle ? ' · <b>' + esc(m.detalle) + '</b>' : '') + '</p>' +
+    '<div class="bco-sum"><span>Abono: <b class="bco-ok">' + fmt(m.abono) + '</b></span><span>Ligado: <b>' + fmt(d.ligado) + '</b></span>' +
+    '<span>Falta: <b class="' + (d.restante > 0.005 ? 'bco-warn' : 'bco-ok') + '">' + fmt(d.restante) + '</b></span></div>';
+  if (d.ligas.length) {
+    h += '<table style="margin-bottom:12px"><thead><tr><th>Ligado a</th><th>Fecha</th><th>Forma</th><th class="num">Monto</th><th></th></tr></thead><tbody>';
+    for (var i = 0; i < d.ligas.length; i++) {
+      var g = d.ligas[i];
+      var desc = g.origen === 'otro' ? '<b>' + esc(d.categorias[g.categoria] || g.categoria) + '</b><div class="mini">' + esc(g.nota) + '</div>' : descReg(g);
+      h += '<tr><td>' + desc + '<div class="mini">' + (parseInt(g.automatico, 10) ? 'Automático · ' : '') + esc(g.usuario) + ' · ' + fFechaHora(g.created_at) + '</div></td>' +
+        '<td style="white-space:nowrap">' + (g.r_fecha ? fFecha(g.r_fecha) : '') + '</td><td>' + esc(g.forma || '') + '</td>' +
+        '<td class="num">' + fmt(g.monto) + '</td>' +
+        '<td>' + (puede ? '<button class="cc-btn" onclick="ModBancos._desligar(' + parseInt(g.id, 10) + ')">Quitar</button>' : '') + '</td></tr>';
+    }
+    h += '</tbody></table>';
+  }
+  if (puede && d.restante > 0.005) {
+    h += '<div style="display:flex;gap:8px;align-items:center;margin:6px 0 8px"><input type="search" id="bcoSugQ" placeholder="Buscar por folio, cotización, cliente o monto…" style="flex:1" value="' + esc(q) + '">' +
+      '<span class="mini">' + (q ? 'Resultados de la búsqueda' : 'Sugerencias: pagos y depósitos sin ligar cercanos a la fecha') + '</span></div>';
+    if (!d.sugerencias.length) {
+      h += '<div class="bco-aviso" style="background:#f1f5f9;color:#334155">No hay registros de Apex sin ligar que coincidan.</div>';
+    } else {
+      h += '<div style="max-height:300px;overflow-y:auto;border:1px solid #f1f5f9;border-radius:8px"><table><thead><tr><th></th><th>Registro de Apex</th><th>Fecha</th><th>Forma</th><th class="num">Monto</th><th>Por qué</th></tr></thead><tbody>';
+      for (var j = 0; j < d.sugerencias.length; j++) {
+        var r = d.sugerencias[j], k = r.origen + ':' + r.origen_id;
+        var raz = '';
+        for (var z = 0; z < r.razones.length; z++) raz += '<span class="razon' + (r.razones[z].indexOf('Forma distinta') === 0 ? ' mal' : '') + '">' + esc(r.razones[z]) + '</span>';
+        h += '<tr class="' + (selItems[k] !== undefined ? 'sel' : '') + '"><td><input type="checkbox" data-k="' + esc(k) + '" data-m="' + esc(r.monto) + '"' + (selItems[k] !== undefined ? ' checked' : '') + ' aria-label="Elegir"></td>' +
+          '<td>' + descReg(r) + '</td><td style="white-space:nowrap">' + fFecha(r.fecha) + '</td><td>' + esc(r.forma || '') + (r.tarjeta_tipo ? ' ' + esc(r.tarjeta_tipo) : '') + '</td>' +
+          '<td class="num">' + fmt(r.monto) + '</td><td>' + raz + '</td></tr>';
+      }
+      h += '</tbody></table></div>';
+    }
+    h += '<details style="margin-top:10px;box-shadow:none;padding:0"><summary style="font-size:13px">No está en Apex (traspaso, préstamo, devolución…)</summary>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">' +
+      '<select id="bcoOtroCat" aria-label="Categoría"><option value="">Categoría…</option>';
+    for (var c in d.categorias) { if (Object.prototype.hasOwnProperty.call(d.categorias, c)) h += '<option value="' + esc(c) + '">' + esc(d.categorias[c]) + '</option>'; }
+    h += '</select><input type="number" id="bcoOtroMonto" step="0.01" min="0" placeholder="Monto" value="' + d.restante.toFixed(2) + '" style="width:120px" aria-label="Monto">' +
+      '<input type="text" id="bcoOtroNota" maxlength="300" placeholder="Nota: de dónde viene" style="flex:1;min-width:180px" aria-label="Nota"></div></details>';
+  }
+  h += '<div id="bcoLigErr"></div><div class="bco-modal-foot"><span id="bcoSelSum" class="mini" style="margin-right:auto;align-self:center"></span>' +
+    '<button class="bco-btn bco-btn-ghost" onclick="ModBancos._cerrarM2()">Cerrar</button>' +
+    (puede && d.restante > 0.005 ? '<button class="bco-btn bco-btn-ok" id="bcoBtnLigar" onclick="ModBancos._guardarLiga()">Ligar</button>' : '') + '</div>';
+  abrirM2('Ligar abono del banco', h);
+  var qi = el('bcoSugQ');
+  if (qi) {
+    qi.addEventListener('input', function() {
+      var v = this.value;
+      clearTimeout(timerSug);
+      timerSug = setTimeout(function() { ligar(movSel.movimiento.id, v.trim()).then(function() { var x = el('bcoSugQ'); if (x) { x.focus(); x.setSelectionRange(x.value.length, x.value.length); } }); }, 400);
+    });
+  }
+  var checks = el('bcoM2').querySelectorAll('input[type=checkbox][data-k]');
+  for (var w = 0; w < checks.length; w++) {
+    checks[w].addEventListener('change', function() {
+      if (this.checked) selItems[this.getAttribute('data-k')] = parseFloat(this.getAttribute('data-m'));
+      else delete selItems[this.getAttribute('data-k')];
+      this.closest('tr').className = this.checked ? 'sel' : '';
+      pintarSuma();
+    });
+  }
+  pintarSuma();
+}
+
+function pintarSuma() {
+  var s = el('bcoSelSum');
+  if (!s || !movSel) return;
+  var t = 0, n = 0;
+  for (var k in selItems) { if (Object.prototype.hasOwnProperty.call(selItems, k)) { t += selItems[k]; n++; } }
+  if (!n) { s.textContent = ''; return; }
+  var dif = Math.round((movSel.restante - t) * 100) / 100;
+  s.innerHTML = n + ' elegido(s): <b>' + fmt(t) + '</b> · ' + (Math.abs(dif) < 0.005 ? '<span class="bco-ok">cuadra exacto</span>' : (dif > 0 ? 'faltan ' + fmt(dif) : '<span class="bco-bad">se pasa por ' + fmt(-dif) + '</span>'));
+}
+
+async function guardarLiga() {
+  var items = [];
+  for (var k in selItems) {
+    if (Object.prototype.hasOwnProperty.call(selItems, k)) {
+      var p = k.split(':');
+      items.push({ origen: p[0], origen_id: parseInt(p[1], 10) });
+    }
+  }
+  var cat = el('bcoOtroCat') ? el('bcoOtroCat').value : '';
+  if (cat) items.push({ origen: 'otro', categoria: cat, monto: parseFloat(el('bcoOtroMonto').value || 0), nota: el('bcoOtroNota').value });
+  if (!items.length) { el('bcoLigErr').innerHTML = '<div class="bco-error">Elige al menos un registro, o llena "No está en Apex"</div>'; return; }
+  var btn = el('bcoBtnLigar');
+  btn.disabled = true;
+  try {
+    var res = await fetch(API + '?accion=ligar', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ movimiento_id: movSel.movimiento.id, items: items }) });
+    var d = await res.json();
+    if (!d.ok) { el('bcoLigErr').innerHTML = '<div class="bco-error">' + esc(d.error || 'No se pudo ligar') + '</div>'; btn.disabled = false; return; }
+    selItems = {};
+    toast('Ligado');
+    var id = movSel.movimiento.id;
+    await ligar(id, '');
+    cargarMovimientos();
+  } catch (e) {
+    el('bcoLigErr').innerHTML = '<div class="bco-error">Error de conexión</div>';
+    btn.disabled = false;
+  }
+}
+
+async function desligar(id) {
+  if (!(await confirmar('¿Quitar esta liga? El movimiento del banco y el registro de Apex no se borran, solo se deshace la relación.'))) return;
+  try {
+    var res = await fetch(API + '?accion=desligar', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: id }) });
+    var d = await res.json();
+    if (!d.ok) { toast(d.error || 'No se pudo quitar'); return; }
+    await ligar(movSel.movimiento.id, '');
+    cargarMovimientos();
+  } catch (e) { toast('Error de conexión'); }
+}
+
+function rango() {
+  return '&desde=' + encodeURIComponent(el('bcoDesde').value || inicioMes()) + '&hasta=' + encodeURIComponent(el('bcoHasta').value || hoy());
+}
+
+async function auto() {
+  if (!cuenta) return;
+  abrirM2('Conciliar automático', '<p>Buscando coincidencias…</p>');
+  try {
+    var res = await fetch(API + '?accion=auto_propuesta&cuenta_id=' + cuenta.id + rango());
+    var d = await res.json();
+    autoPares = d.pares || [];
+    var h = '<p>Abonos del ' + fFecha(el('bcoDesde').value) + ' al ' + fFecha(el('bcoHasta').value) + ' que tienen <b>un solo</b> pago o depósito en Apex con el mismo monto exacto, la misma forma de pago y fecha cercana (hasta 3 días antes). Revisa y quita la palomita a lo que no te convenza.</p>';
+    if (!autoPares.length) {
+      h += '<div class="bco-aviso" style="background:#f1f5f9;color:#334155">No hay coincidencias seguras pendientes en este rango.</div>' +
+        '<div class="bco-modal-foot"><button class="bco-btn bco-btn-ghost" onclick="ModBancos._cerrarM2()">Cerrar</button></div>';
+      abrirM2('Conciliar automático', h);
+      return;
+    }
+    h += '<div style="max-height:420px;overflow-y:auto;border:1px solid #f1f5f9;border-radius:8px"><table><thead><tr><th><input type="checkbox" id="bcoAutoTodos" checked aria-label="Todos"></th><th>Banco</th><th class="num">Abono</th><th>Apex</th><th>Fecha Apex</th></tr></thead><tbody>';
+    for (var i = 0; i < autoPares.length; i++) {
+      var p = autoPares[i];
+      h += '<tr><td><input type="checkbox" class="bcoAutoChk" data-i="' + i + '" checked aria-label="Elegir"></td>' +
+        '<td style="max-width:280px"><span style="white-space:nowrap">' + fFecha(p.fecha) + '</span> · ' + esc(TIPOS[p.tipo] || p.tipo) + (p.detalle ? '<div class="mini">' + esc(p.detalle) + '</div>' : '') + '</td>' +
+        '<td class="num">' + fmt(p.abono) + '</td><td>' + descReg(p) + '</td><td style="white-space:nowrap">' + fFecha(p.r_fecha) + ' · ' + esc(p.forma || '') + '</td></tr>';
+    }
+    h += '</tbody></table></div><div id="bcoAutoErr"></div><div class="bco-modal-foot"><button class="bco-btn bco-btn-ghost" onclick="ModBancos._cerrarM2()">Cancelar</button>' +
+      '<button class="bco-btn bco-btn-ok" id="bcoBtnAuto" onclick="ModBancos._autoConfirmar()">Ligar ' + autoPares.length + '</button></div>';
+    abrirM2('Conciliar automático', h);
+    var chks = el('bcoM2').querySelectorAll('.bcoAutoChk');
+    var contar = function() {
+      var n = el('bcoM2').querySelectorAll('.bcoAutoChk:checked').length;
+      el('bcoBtnAuto').textContent = 'Ligar ' + n;
+      el('bcoBtnAuto').disabled = n === 0;
+    };
+    for (var j = 0; j < chks.length; j++) chks[j].addEventListener('change', contar);
+    el('bcoAutoTodos').addEventListener('change', function() {
+      for (var k = 0; k < chks.length; k++) chks[k].checked = this.checked;
+      contar();
+    });
+  } catch (e) {
+    abrirM2('Conciliar automático', '<div class="bco-error">Error de conexión</div>');
+  }
+}
+
+async function autoConfirmar() {
+  var chks = el('bcoM2').querySelectorAll('.bcoAutoChk:checked');
+  var pares = [];
+  for (var i = 0; i < chks.length; i++) {
+    var p = autoPares[parseInt(chks[i].getAttribute('data-i'), 10)];
+    pares.push({ movimiento_id: p.movimiento_id, origen: p.origen, origen_id: p.origen_id });
+  }
+  if (!pares.length) return;
+  var btn = el('bcoBtnAuto');
+  btn.disabled = true;
+  btn.textContent = 'Ligando…';
+  try {
+    var res = await fetch(API + '?accion=auto_confirmar', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ pares: pares }) });
+    var d = await res.json();
+    if (!d.ok) { el('bcoAutoErr').innerHTML = '<div class="bco-error">' + esc(d.error || 'No se pudo ligar') + '</div>'; btn.disabled = false; btn.textContent = 'Reintentar'; return; }
+    cerrarM2();
+    toast(d.ligados + ' abonos ligados' + (d.omitidos ? ' · ' + d.omitidos + ' omitidos (cambiaron mientras tanto)' : ''));
+    cargarMovimientos();
+  } catch (e) {
+    el('bcoAutoErr').innerHTML = '<div class="bco-error">Error de conexión</div>';
+    btn.disabled = false;
+  }
+}
+
+async function sinBanco() {
+  if (!cuenta) return;
+  abrirM2('Cobrado en Apex y sin ligar al banco', '<p>Cargando…</p>');
+  try {
+    var res = await fetch(API + '?accion=apex_sin_banco&cuenta_id=' + cuenta.id + rango());
+    var d = await res.json();
+    var regs = d.registros || [];
+    var h = '<p>Pagos y depósitos a saldo a favor registrados en Apex del ' + fFecha(d.desde) + ' al ' + fFecha(d.hasta) + ' que todavía no están ligados a ningún abono del banco. ' +
+      'El efectivo suele aparecer días después, cuando se deposita; lo demás debería estar en el banco.</p>';
+    if (!regs.length) {
+      h += '<div class="bco-aviso" style="background:#dcfce7;color:#166534">Todo lo cobrado en Apex en este rango ya está ligado al banco.</div>';
+    } else {
+      var grupos = {}, orden = [];
+      for (var i = 0; i < regs.length; i++) {
+        var f = regs[i].forma || 'sin forma';
+        if (!grupos[f]) { grupos[f] = []; orden.push(f); }
+        grupos[f].push(regs[i]);
+      }
+      for (var g = 0; g < orden.length; g++) {
+        var lista = grupos[orden[g]], tot = 0;
+        for (var t = 0; t < lista.length; t++) tot += parseFloat(lista[t].monto);
+        h += '<details' + (g === 0 ? ' open' : '') + ' style="margin-bottom:8px;box-shadow:0 0 0 1px rgba(15,23,42,.08)"><summary>' + esc(orden[g].charAt(0).toUpperCase() + orden[g].slice(1)) + ' · ' + lista.length + ' · ' + fmt(tot) + '</summary>' +
+          '<table style="margin-top:8px"><thead><tr><th>Fecha</th><th>Registro de Apex</th><th class="num">Monto</th><th>Capturó</th></tr></thead><tbody>';
+        for (var r = 0; r < lista.length; r++) {
+          var x = lista[r];
+          h += '<tr><td style="white-space:nowrap">' + fFecha(x.fecha) + '</td><td>' + descReg(x) + '</td><td class="num">' + fmt(x.monto) + '</td><td class="mini">' + esc(x.registrado_por || '') + '</td></tr>';
+        }
+        h += '</tbody></table></details>';
+      }
+    }
+    h += '<div class="bco-modal-foot"><button class="bco-btn bco-btn-ghost" onclick="ModBancos._cerrarM2()">Cerrar</button></div>';
+    abrirM2('Cobrado en Apex y sin ligar al banco', h);
+  } catch (e) {
+    abrirM2('Cobrado en Apex y sin ligar al banco', '<div class="bco-error">Error de conexión</div>');
+  }
 }
 
 async function cargarImportaciones() {
@@ -403,6 +701,8 @@ async function init() {
   el('bcoDesde').addEventListener('change', cargarMovimientos);
   el('bcoHasta').addEventListener('change', cargarMovimientos);
   el('bcoTipo').addEventListener('change', cargarMovimientos);
+  el('bcoConc').addEventListener('change', cargarMovimientos);
+  el('bcoM2Bg').addEventListener('click', function(e) { if (e.target === this) cerrarM2(); });
   el('bcoQ').addEventListener('input', function() {
     clearTimeout(timerQ);
     timerQ = setTimeout(cargarMovimientos, 350);
@@ -421,7 +721,14 @@ return {
   _cerrarImportar: cerrarImportar,
   _revisar: revisar,
   _confirmar: confirmarImp,
-  _toggleOrden: toggleOrden
+  _toggleOrden: toggleOrden,
+  _ligar: function(id) { selItems = {}; movSel = null; ligar(id, ''); },
+  _desligar: desligar,
+  _guardarLiga: guardarLiga,
+  _cerrarM2: cerrarM2,
+  _auto: auto,
+  _autoConfirmar: autoConfirmar,
+  _sinBanco: sinBanco
 };
 })();
 </script>

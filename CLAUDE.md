@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 14 octubre 2026 | Próximo UPD disponible: UPD-702
+# Última actualización: 14 octubre 2026 | Próximo UPD disponible: UPD-703
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar. Los archivos de `docs/` que este archivo enlaza (historiales archivados, `PENDIENTES_DETALLE.md`, `PENDIENTES_CERRADOS.md`) son parte de esta misma memoria; mover una entrada ahí no es borrarla.
 
@@ -471,14 +471,14 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | MEDIA | Mando | **Respaldo offsite (UPD-633/683):** la Raspberry no jalaba desde el 01-oct porque su cron de la 1 am nunca quedó guardado (`no crontab for mando`). 08-oct: jalón manual al día (122/122, 0 fallos) y cron instalado en la Pi. Falta confirmar que corrió SOLA: revisar `copia_externa=OK` en `_backups/backup.log` del 09-oct y `ultimo_jalon.txt` | Casi HECHO — verificar 09-oct |
 | ALTA | Armando | **T-025 — factura por la diferencia (09-oct):** COT-1958, cliente id 408 GERARDO ALFREDO OSEGUERA SALGADO. Total $36,439.81 = $34,500 saldo a favor (depósito 235 del 29-sep, anticipo facturado en CONTPAQi) + $1,939.81 tarjeta débito 09-oct (pago 1589). Plan: borrador A sin ligar (como A-018/T-005) por $1,939.81, PUE, forma 28, clave 30171706, conceptos proporcionales con "Orden T-025". Esperando que suban la CSF del cliente (hoy sin RFC) y, si se puede, folio/UUID del anticipo de CONTPAQi para marcar el depósito 235 | Pendiente — esperando constancia |
 | MEDIA | Mando | **Crontab de root con 2 tareas de AdminBolt rotas (hallado 08-oct, UPD-680):** `'bolt-cli refresh-hosting-accounts-stats'` (*/5) y `'bolt-cli check-for-updates'` (*/35) van entre comillas → `command not found`, nunca han corrido. **UPD-682:** el uso de CPU ya está resuelto (correo de cron apagado con `CRONDARGS="-m off"` y cola de root vaciada). Queda solo quitar las comillas (vigilar que AdminBolt no las reescriba) o reportarlo a AdminBolt; ya no genera carga | PARCIAL UPD-682 — faltan las comillas |
-| ALTA | Armando | **Bancos Fase 2 — conciliación contra Apex (UPD-697):** ligar cada movimiento BBVA con cobros/depósitos/OC/nómina/gastos fijos (pistas en el PDF: folios en depósitos de efectivo, "Cot 2266", KUSPIT Sem = nómina, F-xxxx = proveedor, terminal venta − comisión/IVA → 6.12) y listas "en banco y no en Apex" / "en Apex y no en banco". Fase 3: cierre mensual. Antes: Armando confirma el saldo inicial $343,821.19 contra el saldo final del estado de cuenta oficial de septiembre y prueba subir en la pantalla el mismo PDF de oct (debe decir 0 nuevos). [D-94] | Fase 1 HECHA — Fase 2 pendiente |
+| ALTA | Armando | **Bancos Fase 2 — conciliación contra Apex (UPD-697):** ligar cada movimiento BBVA con cobros/depósitos/OC/nómina/gastos fijos (pistas en el PDF: folios en depósitos de efectivo, "Cot 2266", KUSPIT Sem = nómina, F-xxxx = proveedor, terminal venta − comisión/IVA → 6.12) y listas "en banco y no en Apex" / "en Apex y no en banco". Fase 3: cierre mensual. Antes: Armando confirma el saldo inicial $343,821.19 contra el saldo final del estado de cuenta oficial de septiembre y prueba subir en la pantalla el mismo PDF de oct (debe decir 0 nuevos). [D-94] | Fase 1 HECHA; Fase 2a (abonos) HECHA UPD-702 — falta prueba en navegador, cargos y cierre mensual |
 
 ---
 
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-702**
+Próximo UPD disponible: **UPD-703**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -789,4 +789,6 @@ Archivo completo: `docs/HISTORIAL_UPD_605_631.md` (26-sep-2026 → 30-sep-2026)
 
 - UPD-701 (14-oct-2026, Armando) — Datos: T-101 (COT-2312) a total $40,156.57 (= depósito del cliente): Claro 9mm 957.85→959.5679/m² en las 27 partidas, solo esta cotización. Verificado igual en Cobranza (×1.16 sin redondeo intermedio) e impresión. Sin tocar pagos.
 
-**Próximo UPD disponible: UPD-702**
+- UPD-702 (14-oct-2026, Armando) — **Bancos Fase 2a: conciliación de abonos.** Cada abono se liga a pagos/depósitos de saldo a favor de Apex (o "otro" con categoría y nota); sugerencias por monto, "Cot xxxx", folio y nombre; "Conciliar automático" (70 de 120) y "Apex sin banco". Tabla nueva `banco_conciliacion`. Rollback: `respaldos_upd/UPD-702/rollback.sh`.
+
+**Próximo UPD disponible: UPD-703**
