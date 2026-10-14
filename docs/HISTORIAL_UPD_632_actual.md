@@ -150,3 +150,11 @@
 - **Fix:** redirección 301 de `www.apex.glass` a `apex.glass`: `.htaccess` nuevo en `public_html/` (sitio público) y regla al inicio del bloque `mod_rewrite` de `produccion/.htaccess` (el `RewriteEngine On` del subdirectorio anula las reglas del padre, por eso va en los dos). Verificado con curl: www → 301 a la misma ruta conservando query string; apex.glass sigue en 200.
 - **Rollback:** borrar `public_html/.htaccess` y restaurar `/home/apexglass2025/htaccess_produccion.bak_20261014`.
 - Sin cambios de BD ni de PHP.
+
+### UPD-699 (14-oct-2026, Armando) — Datos: T-078 sin la partida 2 (espejo rechazado por el cliente)
+- **Orden:** T-078 (orden 1351, COT-2145 id 2089), JAVIER A. TORRES VILLANUEVA (CTN id 16), asesora Bethy. El cliente no ocupa el espejo (partida 2: Espejo Plata 6mm 1800x500, 0.90 m², $672.48 con IVA); no se le cobra.
+- **El espejo ya estaba cortado** (sesión de corte #1683, 14-oct 14:20). Se reutilizará en otra orden.
+- **Cambios (los corrió Armando con `!` en la sesión; el clasificador de Claude Code bloqueaba los DELETE):** borradas `cotizaciones_partidas` id 14014, `sesiones_corte_piezas` id 2918 (requerido por FK `fk_scp_pieza`) y `piezas` id 8187. COT-2145: subtotal 3809.62→3229.90, IVA 609.54→516.78, total 4419.16→**3746.68**, saldo_pendiente→1146.68. Pagado $2,600.00 (pago 1626) sin cambio. Queda 1 pieza (8186, Claro 12mm, terminado).
+- **Se conservan:** `historial_estatus` 37654/37655 de la pieza 8187 (huérfanos, trazabilidad) y `sesiones_corte` #1683 con `m2_aprovechado` 3.0229 → el Bono de Corte de Angel no cambia (se calcula con los m² de la sesión). Solo deja de aparecer "T-078 P2" en el detalle del movimiento de inventario.
+- Sin facturas, salidas, rutas, servicios ni croquis ligados. Precio de la partida 1 sin cambio (RAZA_OCT2026 no aplica a 12mm).
+- **Respaldo:** `/root/T078_scp2918_respaldo.sql` (registro de corte); partida/pieza/cotización respaldadas en el scratchpad de la sesión (temporal) y en el respaldo nocturno.
