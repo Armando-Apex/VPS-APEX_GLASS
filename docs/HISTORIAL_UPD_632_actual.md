@@ -182,3 +182,4 @@
 - **Permisos:** ver con `ver_contabilidad`; ligar/quitar con `gestionar_contabilidad` (el contador solo ve).
 - **Rollback:** `/home/apexglass2025/respaldos_upd/UPD-702/rollback.sh` (como root): respalda las ligas a .sql, restaura los 3 archivos de UPD-697, borra el lib nuevo y hace `DROP TABLE banco_conciliacion`. Tag git `pre-UPD-702`.
 - **Pendiente (Fase 2b/3):** cargos (proveedores/OC, nómina, gastos fijos, comisiones) con el mismo mecanismo; cierre mensual.
+- **Ajuste posterior (misma sesión, revisión automática de seguridad):** `ligar`/`auto_confirmar` solo aceptan movimientos de cuentas activas (`concMovimiento` hace JOIN con `banco_cuentas.activo = 1`) y `desligar` verifica la cuenta antes de borrar la liga, igual que la consulta. Pruebas en consola repetidas sin cambio.
