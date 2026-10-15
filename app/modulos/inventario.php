@@ -797,6 +797,9 @@ var tipoLabel = {
   bronce:'Bronce', timeless:'Timeless', bioclean:'BioClean', espejo_filtra:'Espejo Filtra',
   espejo_bronce:'Espejo Bronce'
 };
+// Espesor sin ceros de relleno: "9.00" -> "9", "5.50" -> "5.5"
+var espTxt = function(e){ var n = parseFloat(e); return isNaN(n) ? '' : String(n); };
+var tipoTxt = function(t){ return tipoLabel[t] || String(t||'').replace(/_/g,' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); }); };
 var fleteLabel = {
   incluido:'<span class="flete-incluido">&#10003; Incluido</span>',
   cobrado: '<span class="flete-cobrado">&#36; Cobrado</span>',
@@ -824,7 +827,7 @@ async function cargarStock() {
 
     if (alertas > 0) {
       var nombres = _laminas.filter(function(l){ return l.alerta_stock==1; })
-        .map(function(l){ return (tipoLabel[l.tipo]||l.tipo)+' '+l.espesor_mm+'mm'; }).join(', ');
+        .map(function(l){ return tipoTxt(l.tipo)+' '+espTxt(l.espesor_mm)+' mm'; }).join(', ');
       $('invAlertaBanner').style.display = 'flex';
       $('invAlertaTxt').textContent = 'Stock bajo en: '+nombres;
     } else {
@@ -851,8 +854,8 @@ async function cargarStock() {
         acciones += '<button class="btn-icon" title="Ajustar stock" aria-label="Ajustar stock" onclick="invAbrirAjusteStock('+l.id+')">'+iconoJS('refresh-cw')+'</button>';
       }
       return '<tr>'+
-        '<td><strong>'+(tipoLabel[l.tipo]||l.tipo)+'</strong></td>'+
-        '<td>'+l.espesor_mm+' mm</td>'+
+        '<td><strong>'+tipoTxt(l.tipo)+'</strong></td>'+
+        '<td>'+espTxt(l.espesor_mm)+' mm</td>'+
         '<td style="white-space:nowrap">'+((l.ancho_mm/10).toFixed(0))+' &#215; '+((l.alto_mm/10).toFixed(0))+' cm</td>'+
         '<td>'+fmt(l.m2,2)+' m&#178;</td>'+
         '<td><strong>'+stock+'</strong> l&#225;m.'+(l.reservado>0 ? '<div style="font-size:11px;color:var(--c-amber)">'+l.reservado+' reservada(s) &mdash; venta anticipada</div>' : '')+'</td>'+
@@ -881,7 +884,7 @@ async function cargarCompras() {
     $('invTbodyCompras').innerHTML = compras.map(function(c){
       return '<tr>'+
         '<td>'+fmtFecha(c.fecha_compra)+'</td>'+
-        '<td><strong>'+(tipoLabel[c.lamina_tipo]||c.lamina_tipo)+'</strong><div style="font-size:11px;color:var(--c-muted)">'+c.lamina_espesor+'mm &middot; '+((c.lamina_ancho/10).toFixed(0))+'&#215;'+((c.lamina_alto/10).toFixed(0))+'cm</div></td>'+
+        '<td><strong>'+tipoTxt(c.lamina_tipo)+'</strong><div style="font-size:11px;color:var(--c-muted)">'+espTxt(c.lamina_espesor)+' mm &middot; '+((c.lamina_ancho/10).toFixed(0))+'&#215;'+((c.lamina_alto/10).toFixed(0))+'cm</div></td>'+
         '<td>'+(c.proveedor_nombre||'&#8212;')+'</td>'+
         '<td><strong>'+c.cantidad_laminas+'</strong> l&#225;m.</td>'+
         '<td>'+fmtPeso(c.precio_unitario)+'</td>'+
@@ -997,7 +1000,7 @@ async function invAbrirModalCompra() {
   var rp = await fetch('../api/proveedores.php');
   var dp = await rp.json();
   $('compraLamina').innerHTML = (dl.laminas||[]).map(function(l){
-    return '<option value="'+l.id+'">'+(tipoLabel[l.tipo]||l.tipo)+' '+l.espesor_mm+'mm '+((l.ancho_mm/10).toFixed(0))+'x'+((l.alto_mm/10).toFixed(0))+'cm</option>';
+    return '<option value="'+l.id+'">'+tipoTxt(l.tipo)+' '+espTxt(l.espesor_mm)+' mm '+((l.ancho_mm/10).toFixed(0))+'x'+((l.alto_mm/10).toFixed(0))+'cm</option>';
   }).join('');
   $('compraProveedor').innerHTML = (dp.proveedores||[]).map(function(p){
     return '<option value="'+p.id+'">'+p.nombre+'</option>';
@@ -1327,7 +1330,7 @@ async function ocAbrirAgregarPartida(ocId) {
   var dl = await rl.json();
   var laminas = dl.laminas || [];
   var optsLam = laminas.map(function(l){
-    return '<option value="'+l.id+'" data-m2="'+l.m2+'" data-desc="'+(tipoLabel[l.tipo]||l.tipo)+' '+l.espesor_mm+'MM - '+Math.round(l.ancho_mm/10)+'x'+Math.round(l.alto_mm/10)+'">'+(tipoLabel[l.tipo]||l.tipo)+' '+l.espesor_mm+'mm '+Math.round(l.ancho_mm/10)+'&#215;'+Math.round(l.alto_mm/10)+'cm ('+parseFloat(l.m2).toFixed(2)+' m&#178;)</option>';
+    return '<option value="'+l.id+'" data-m2="'+l.m2+'" data-desc="'+tipoTxt(l.tipo)+' '+espTxt(l.espesor_mm)+'MM - '+Math.round(l.ancho_mm/10)+'x'+Math.round(l.alto_mm/10)+'">'+tipoTxt(l.tipo)+' '+espTxt(l.espesor_mm)+' mm '+Math.round(l.ancho_mm/10)+'&#215;'+Math.round(l.alto_mm/10)+'cm ('+parseFloat(l.m2).toFixed(2)+' m&#178;)</option>';
   }).join('');
   var html = '<div style="padding:4px 0 16px">'+
     '<div style="font-size:13px;font-weight:700;color:var(--c-text);margin-bottom:12px">Nueva partida</div>'+
@@ -1665,7 +1668,7 @@ async function cargarConsumo() {
     }
     tbody.innerHTML = movs.map(function(m) {
       var dim    = escAttr(m.lamina_ancho) + 'x' + escAttr(m.lamina_alto) + 'mm';
-      var nombre = escAttr(m.lamina_tipo) + ' ' + escAttr(m.lamina_espesor) + 'mm';
+      var nombre = escAttr(tipoTxt(m.lamina_tipo)) + ' ' + escAttr(espTxt(m.lamina_espesor)) + ' mm';
       // Si el movimiento viene de una sesión de corte, mostrar orden/partida/pieza
       // en vez de la nota genérica ("Consumo real registrado desde wizard de corte").
       var detalle = m.piezas_detalle ? escAttr(m.piezas_detalle) : (m.notas ? escAttr(m.notas) : '&#8212;');
@@ -1703,7 +1706,7 @@ function invAbrirModalConsumo() {
         lams.map(function(l){
           var stock = Math.floor(parseFloat(l.stock_laminas));
           return '<option value="' + l.id + '" data-stock="' + stock + '">' +
-            l.tipo + ' ' + l.espesor_mm + 'mm — ' + l.ancho_mm + 'x' + l.alto_mm + 'mm' +
+            tipoTxt(l.tipo) + ' ' + espTxt(l.espesor_mm) + ' mm — ' + (l.ancho_mm/10).toFixed(0) + '×' + (l.alto_mm/10).toFixed(0) + ' cm' +
             ' (Stock: ' + stock + ')' +
           '</option>';
         }).join('');
@@ -1769,7 +1772,7 @@ function invAbrirAjusteStock(id) {
   if (!l) return;
   document.getElementById('ajusteLaminaId').value = l.id;
   document.getElementById('ajusteLaminaInfo').textContent =
-    (tipoLabel[l.tipo]||l.tipo) + ' ' + l.espesor_mm + 'mm — ' + (l.ancho_mm/10).toFixed(0) + '×' + (l.alto_mm/10).toFixed(0) + 'cm';
+    tipoTxt(l.tipo) + ' ' + espTxt(l.espesor_mm) + ' mm — ' + (l.ancho_mm/10).toFixed(0) + '×' + (l.alto_mm/10).toFixed(0) + 'cm';
   _ajusteStockActual = parseInt(l.stock_laminas)||0;
   document.getElementById('ajusteStockActual').textContent = 'Stock actual en sistema: ' + _ajusteStockActual + ' lámina' + (_ajusteStockActual !== 1 ? 's' : '');
   document.getElementById('ajusteCantidad').value = '';

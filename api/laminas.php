@@ -65,7 +65,7 @@ if ($method === 'GET') {
                 SELECT NULL AS lamina_id, 0 AS m2_requeridos FROM dual WHERE 1=0
             ) req ON req.lamina_id = l.id
             WHERE l.activo = 1
-            ORDER BY l.tipo ASC, l.espesor_mm ASC, l.ancho_mm DESC
+            ORDER BY CAST(l.tipo AS CHAR) ASC, l.espesor_mm ASC, l.ancho_mm DESC
         ");
         $laminas = $s->fetchAll();
 

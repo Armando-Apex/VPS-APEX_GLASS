@@ -204,3 +204,9 @@
 - **Cambio:** partidas 1-26 `ancho` −50 mm (cotizaciones_partidas y piezas `ancho_mm`; alto 920 igual); partida 27 (10 pzas 1270×920) sin cambio. m² 43.102 → 41.906. `precio_m2_usado` 959.5679 → **986.9540** en las 27 partidas solo en esta cotización (986.9540/986.9541 son los únicos que dan $40,156.57 en impresión y en Cobranza). Recalculados precio_unitario/subtotal/iva/total por partida y m² de piezas. Cotización sin cambio: subtotal 34617.73, IVA 5538.84, total 40156.57. 1 fila en `correcciones_log`.
 - **Respaldos:** `/home/apexglass2025/respaldos_upd/UPD-705/` (partidas.sql, piezas.sql, cotizacion.sql).
 - **Pendiente:** pago 1670 está en $40,156.67 (el depósito real según UPD-701 es $40,156.57). Por UPD-657 la factura PUE sale por la suma de pagos → saldría $40,156.67. Armando autorizó corregirlo a $40,156.57 (+ `saldo_pagado`), pero el clasificador de permisos bloqueó el UPDATE; queda para que Armando lo corra con `!`.
+
+### UPD-706 (15-oct-2026, Armando) — Inventario: tipo de vidrio y espesor con formato decente
+- **Problema:** en Stock (y otros listados del módulo) el espesor salía con los decimales de la BD ("9.00 mm", "Claro 9.00mm"); en Consumo y en el select de consumo el tipo salía crudo (`claro_zafiro`) y la medida en mm; la tabla se ordenaba por el índice del ENUM (Claro, Claro Zafiro, Filtrasol, Espejo...) en vez de alfabético.
+- **Fix:** `app/modulos/inventario.php` — helpers `espTxt()` (quita ceros: 9.00→9, 5.50→5.5) y `tipoTxt()` (usa `tipoLabel`; si un tipo nuevo no está en el mapa, lo convierte a "Título Legible") aplicados en Stock, alerta de stock bajo, Compras, selects de compra/OC/ajuste y Consumo. `api/laminas.php` accion=stock ordena por `CAST(l.tipo AS CHAR)`, espesor, ancho desc.
+- **Efecto colateral menor:** `data-desc` del select de OC ahora genera "Claro 9MM - 366x244" en vez de "Claro 9.00MM - ...".
+- Sin BD. Tag git `pre-UPD-706`.
