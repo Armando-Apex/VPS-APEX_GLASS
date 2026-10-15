@@ -195,3 +195,4 @@
 - La Pi anterior dejó de consultar `api/checador.php` el 06-oct 22:16 (hora MTY); última checada recibida 06-oct 13:04. La nueva empezó a hacer polling de `pendientes` el 14-oct 18:24 (MTY) desde la IP pública 189.219.55.151, sin checadas todavía.
 - Pendiente: repuntar el ADMS del reloj a 192.168.15.75:8081, reservar la IP en el DHCP del router y confirmar que el reloj reenvíe las checadas del 07 al 14-oct.
 - Sin cambios de código ni BD.
+- **Actualización 14-oct 20:30 (MTY):** Armando entró por SSH (`areyna1976@192.168.15.75`); la Pi es la misma (servicio `checador-listener` activo en :8081), solo cambió de IP. El reloj quedó en **192.168.15.77** (ya no en .30). Se fijó la Pi en .75 y se repuntó el ADMS del reloj a 192.168.15.75:8081. Al instante entraron 204 checadas atrasadas (08-oct 08:15 a 14-oct 17:39). El 07-oct (miércoles) no tiene ninguna checada: sin explicar (¿reloj apagado ese día?).

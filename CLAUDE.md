@@ -793,6 +793,6 @@ Archivo completo: `docs/HISTORIAL_UPD_605_631.md` (26-sep-2026 → 30-sep-2026)
 
 - UPD-703 (14-oct-2026, Armando) — Fix Bancos: "Registrar" el PDF siempre decía "La vista previa expiró" porque el token se guardaba en la sesión después de `session_write_close()` (bug de UPD-697). `api/bancos.php` reabre la sesión para guardarlo. Sin BD.
 
-- UPD-704 (15-oct-2026, Armando) — Checador: Raspberry nueva en IP local **192.168.15.75** (la anterior era .171; reloj fijo en .30, ADMS puerto 8081). Conecta a Apex desde el 14-oct 18:24; sin checadas del 07 al 14-oct. Falta repuntar el reloj a .75. Sin código ni BD.
+- UPD-704 (15-oct-2026, Armando) — Checador: Raspberry nueva en IP local **192.168.15.75** (la anterior era .171; reloj fijo en .30, ADMS puerto 8081). Reloj en **.77** repuntado a .75:8081 (14-oct 20:30); entraron 204 checadas atrasadas (08 al 14-oct). El 07-oct no trae ninguna. Sin código ni BD.
 
 **Próximo UPD disponible: UPD-705**
