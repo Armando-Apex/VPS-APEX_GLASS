@@ -196,3 +196,4 @@
 - Pendiente: repuntar el ADMS del reloj a 192.168.15.75:8081, reservar la IP en el DHCP del router y confirmar que el reloj reenvíe las checadas del 07 al 14-oct.
 - Sin cambios de código ni BD.
 - **Actualización 14-oct 20:30 (MTY):** Armando entró por SSH (`areyna1976@192.168.15.75`); la Pi es la misma (servicio `checador-listener` activo en :8081), solo cambió de IP. El reloj quedó en **192.168.15.77** (ya no en .30). Se fijó la Pi en .75 y se repuntó el ADMS del reloj a 192.168.15.75:8081. Al instante entraron 204 checadas atrasadas (08-oct 08:15 a 14-oct 17:39). El 07-oct (miércoles) no tiene ninguna checada: sin explicar (¿reloj apagado ese día?).
+- **Corrección (15-oct):** Armando confirmó en el reloj que su IP es **192.168.15.30** (la fija de siempre), NO la .77. La .77 es otro equipo de la red, sin identificar.
