@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 15 octubre 2026 | Próximo UPD disponible: UPD-705
+# Última actualización: 15 octubre 2026 | Próximo UPD disponible: UPD-706
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar. Los archivos de `docs/` que este archivo enlaza (historiales archivados, `PENDIENTES_DETALLE.md`, `PENDIENTES_CERRADOS.md`) son parte de esta misma memoria; mover una entrada ahí no es borrarla.
 
@@ -478,7 +478,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-705**
+Próximo UPD disponible: **UPD-706**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -795,4 +795,6 @@ Archivo completo: `docs/HISTORIAL_UPD_605_631.md` (26-sep-2026 → 30-sep-2026)
 
 - UPD-704 (15-oct-2026, Armando) — Checador: Raspberry nueva en IP local **192.168.15.75** (la anterior era .171; reloj sigue fijo en **.30**, ADMS puerto 8081). Reloj repuntado a .75:8081 (14-oct 20:30); entraron 204 checadas atrasadas (08 al 14-oct). El 07-oct no trae ninguna. Guía para cambios de red: `docs/RED_CHECADOR.md`. Sin código ni BD.
 
-**Próximo UPD disponible: UPD-705**
+- UPD-705 (15-oct-2026, Armando) — Datos: T-101 (COT-2312) partidas 1-26 con ancho −50 mm (alto 920 igual; partida 27 sin cambio) en partidas y piezas; precio 959.5679→986.9540/m² para mantener $40,156.57. Pendiente: pago 1670 capturado $40,156.67 → corregir a $40,156.57 para que la factura salga exacta.
+
+**Próximo UPD disponible: UPD-706**
