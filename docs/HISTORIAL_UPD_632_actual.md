@@ -189,3 +189,9 @@
 - **Causa (bug de UPD-697):** `requireSessionApi()` (`api/permisos.php`) hace `session_write_close()` para no bloquear requests concurrentes; `previsualizar` guardaba el token en `$_SESSION['bancos_import']` DESPUÉS de eso, así que nunca se persistía. La carga inicial de UPD-697 se hizo desde consola y no lo destapó. Los PDFs sí quedaban en `archivos_bancos/pendientes/`.
 - **Fix:** `api/bancos.php` reabre la sesión (`session_start()` … `session_write_close()`) para guardar el token en `previsualizar` y para borrarlo en `confirmar`. Aplicado también a la copia de `respaldos_upd/UPD-702/api_bancos.php` para que el rollback de UPD-702 no regrese el bug.
 - **Verificado en consola (solo lectura)** con el PDF que subió Armando (impreso 13-oct 17:00): 185 movimientos, 165 ya registrados, 20 nuevos, saldo final $322,751.25. Falta que Armando lo registre desde la pantalla.
+
+### UPD-704 (15-oct-2026, Armando) — Checador: Raspberry Pi nueva, IP local 192.168.15.75
+- Se instaló una Raspberry nueva para el reloj MB20-VL. IP local **192.168.15.75** (la Pi anterior era 192.168.15.171 por DHCP; reloj con IP fija 192.168.15.30; listener ADMS en puerto 8081).
+- La Pi anterior dejó de consultar `api/checador.php` el 06-oct 22:16 (hora MTY); última checada recibida 06-oct 13:04. La nueva empezó a hacer polling de `pendientes` el 14-oct 18:24 (MTY) desde la IP pública 189.219.55.151, sin checadas todavía.
+- Pendiente: repuntar el ADMS del reloj a 192.168.15.75:8081, reservar la IP en el DHCP del router y confirmar que el reloj reenvíe las checadas del 07 al 14-oct.
+- Sin cambios de código ni BD.
