@@ -55,6 +55,14 @@ function rhAsegurarPeriodos($pdo, $empleado_id, $fecha_ingreso) {
 
 // ── Subida de archivo (foto o documento) — validación estricta ────────────────
 function rhGuardarArchivo($archivo) {
+    // UPD-712: decir claramente cuando el archivo es demasiado grande (antes salía el mensaje genérico)
+    $len = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if (empty($archivo) && $len > 0) {
+        return ['error' => 'El archivo pesa ' . round($len / 1048576, 1) . ' MB y supera el límite del servidor. El máximo es 10 MB'];
+    }
+    if (!empty($archivo) && in_array($archivo['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+        return ['error' => 'El archivo supera el límite del servidor. El máximo es 10 MB'];
+    }
     if (empty($archivo) || $archivo['error'] !== UPLOAD_ERR_OK) {
         return ['error' => 'No se recibió archivo o hubo un error en la subida'];
     }
@@ -188,6 +196,11 @@ if (!tienePermiso($rol, 'gestionar_rh')) {
 }
 
 // ── POST (multipart) — subir foto o documento ──────────────────────────────────
+// UPD-712: si el envío excede post_max_size, PHP vacía $_POST y $_FILES; avisar del tamaño antes de validar campos
+if ($method === 'POST' && in_array($accion, ['subir_foto', 'subir_documento'], true) && empty($_POST) && empty($_FILES)) {
+    jsonResponse(rhGuardarArchivo(null)); exit;
+}
+
 if ($method === 'POST' && $accion === 'subir_foto') {
     $empleado_id = (int)($_POST['empleado_id'] ?? 0);
     if (!$empleado_id) { jsonResponse(['error' => 'empleado_id requerido']); exit; }

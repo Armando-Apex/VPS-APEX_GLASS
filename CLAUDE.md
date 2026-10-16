@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 16 octubre 2026 | Próximo UPD disponible: UPD-712
+# Última actualización: 16 octubre 2026 | Próximo UPD disponible: UPD-713
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar. Los archivos de `docs/` que este archivo enlaza (historiales archivados, `PENDIENTES_DETALLE.md`, `PENDIENTES_CERRADOS.md`) son parte de esta misma memoria; mover una entrada ahí no es borrarla.
 
@@ -477,13 +477,14 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | MEDIA | Mando | **fail2ban puede volver a morir en silencio (UPD-709).** La causa de por qué su lector del journal dejó de avanzar NO se identificó; el servicio reportaba `active` todo el tiempo. Pedir al SOC una regla cruzada (Wazuh ve fuerza bruta y fail2ban no banea = alerta) y reverificar cada mes con `fail2ban-client status sshd` |
 | **ALTA** | Mando | **`ignoreip` de fail2ban es un parche frágil (UPD-709):** 189.153.98.28, 216.131.81.233, 200.68.181.183, 189.219.55.151, 200.68.181.191, 200.68.164.59. Las de Telmex son dinámicas y van a cambiar. Peor: **216.131.81.233 es el nodo de salida de la VPN de Mando** (confirmado por el SOC, 16-oct) — un nodo de VPN es compartido, así que esa línea le da pase libre contra fuerza bruta de SSH a cualquier otro cliente del proveedor. Existe solo porque SSH acepta contraseña: se resuelve de fondo con llaves SSH + `PasswordAuthentication no`, y entonces la lista entera sobra |
 | MEDIA | Mando | **Wazuh: el logcollector no ve el ERP (UPD-707).** Lee `/var/log/httpd/access_log`, pero los logs de APEX viven en `/var/log/httpd/users/apexglass2025/apex.glass/`. Agregar esa ruta **solo después** del arreglo del 403, o le llegan ~6,000 eventos basura diarios al manager |
+| ALTA | Armando | **Subir límites de subida de PHP (UPD-712):** en `/etc/opt/remi/php84/php.d/zzz-apex.glass.ini` (ambas secciones) `upload_max_filesize` 2M→12M y `post_max_size` 8M→16M + `systemctl reload php84-php-fpm`. Luego Lina vuelve a subir los documentos de Angel | Pendiente |
 
 ---
 
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-712**
+Próximo UPD disponible: **UPD-713**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -814,4 +815,6 @@ Archivo completo: `docs/HISTORIAL_UPD_605_631.md` (26-sep-2026 → 30-sep-2026)
 
 - UPD-711 (16-oct-2026, Mando) — Arreglo 3 del polling (UPD-708): los 6 badges de `dashboard.php` se detienen solos ante un 401 y muestran una franja roja "Tu sesión expiró. Recarga la página". Mata las pestañas zombi de noches y fines de semana. Sin BD. Falta prueba en navegador.
 
-**Próximo UPD disponible: UPD-712**
+- UPD-712 (16-oct-2026, Armando) — RH: Lina solo pudo subir 1 de 11 documentos de Angel porque PHP limita subidas a 2 MB (envío 8 MB) y RH promete 10 MB. `api/rh.php` ahora avisa "el archivo pesa X MB". Falta subir límites a 12M/16M en `zzz-apex.glass.ini` (Armando, a mano).
+
+**Próximo UPD disponible: UPD-713**
