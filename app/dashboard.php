@@ -570,6 +570,48 @@ window.setInterval = function(fn, ms) {
   return id;
 };
 
+// ── UPD-711: pollers globales que se detienen solos si muere la sesion ───────
+// Los 6 badges usan _siOrig a proposito (sobreviven a la navegacion entre modulos),
+// asi que no estan en _spaTimers. Aqui se registran aparte para poder pararlos.
+var _pollersGlobales = [];
+function pollerGlobal(fn, ms) {
+  var id = _siOrig.call(window, fn, ms);
+  _pollersGlobales.push(id);
+  return id;
+}
+function detenerPollersGlobales() {
+  _pollersGlobales.forEach(function(id) { clearInterval(id); });
+  _pollersGlobales = [];
+}
+function avisarSesionExpirada() {
+  if (document.getElementById('avisoSesion')) return;
+  var d = document.createElement('div');
+  d.id = 'avisoSesion';
+  d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b91c1c;color:#fff;'
+                  + 'padding:10px 16px;text-align:center;font-size:14px;font-weight:600;'
+                  + 'box-shadow:0 2px 8px rgba(0,0,0,.25)';
+  d.appendChild(document.createTextNode('Tu sesi\u00f3n expir\u00f3. Recarga la p\u00e1gina para seguir trabajando.'));
+  var b = document.createElement('button');
+  b.textContent = 'Recargar';
+  b.style.cssText = 'margin-left:12px;background:#fff;color:#b91c1c;border:0;border-radius:4px;'
+                  + 'padding:4px 14px;font-weight:700;cursor:pointer';
+  b.onclick = function() { location.reload(); };
+  d.appendChild(b);
+  document.body.appendChild(d);
+}
+// Un 401 aqui solo lo emite requireSessionApi() cuando de verdad no hay sesion;
+// un problema de red rechaza la promesa, no devuelve 401.
+function fetchPoller(url, opts) {
+  return fetch(url, opts).then(function(r) {
+    if (r.status === 401) {
+      detenerPollersGlobales();
+      avisarSesionExpirada();
+      throw new Error('sesion-expirada');
+    }
+    return r;
+  });
+}
+
 async function cargarModulo(nombre, params = {}) {
   const archivo = MODULOS[nombre];
   if (!archivo) return;
@@ -670,7 +712,7 @@ let _notifData = [];
 
 async function cargarNotificaciones() {
   try {
-    const r = await fetch('../api/notificaciones.php?accion=listar&t=' + Date.now());
+    const r = await fetchPoller('../api/notificaciones.php?accion=listar&t=' + Date.now());
     const d = await r.json();
     if (!d.ok) return;
     _notifData = d.notificaciones || [];
@@ -751,7 +793,7 @@ document.addEventListener('click', e => {
 });
 
 cargarNotificaciones();
-_siOrig.call(window, cargarNotificaciones, 30000);
+pollerGlobal(cargarNotificaciones, 30000);
 <?php endif; ?>
 
 <?php if ($esAdmin || $esComercial): ?>
@@ -783,7 +825,7 @@ function msgEscAttr(s) {
 
 async function cargarMsgBadge() {
   try {
-    var r = await fetch('../api/mensajes.php?accion=sin_leer&t=' + Date.now());
+    var r = await fetchPoller('../api/mensajes.php?accion=sin_leer&t=' + Date.now());
     var d = await r.json();
     if (!d.ok) return;
     var badge = document.getElementById('msgBadge');
@@ -1047,7 +1089,7 @@ document.addEventListener('paste', function(e) {
 });
 
 cargarMsgBadge();
-_siOrig.call(window, cargarMsgBadge, 30000);
+pollerGlobal(cargarMsgBadge, 30000);
 <?php endif; ?>
 // ── Sidebar drawer móvil ──────────────────────────────────────────────────────
 var _scrollY = 0;
@@ -1080,10 +1122,12 @@ window.cargarModulo = function(nombre, params) {
 };
 
 <?php if (!$esContador): /* UPD-652: el contador no consulta avisos de otros módulos */ ?>
+<?php if ($esAdmin): /* UPD-710: la API solo acepta dir_admin y desarrollo (api/autorizaciones.php:26).
+                        Antes este poller corria para TODOS los roles y recibia 403 cada 10 s. */ ?>
 // ── Badge autorizaciones pendientes (ámbar) ───────────────────
 (function() {
   function actualizarBadgeAuth() {
-    fetch('/produccion/api/autorizaciones.php?pendientes=1')
+    fetchPoller('/produccion/api/autorizaciones.php?pendientes=1')
       .then(function(r) { if (!r.ok) throw new Error(); return r.json(); })
       .then(function(data) {
         var badge = document.getElementById('authBadge');
@@ -1099,15 +1143,18 @@ window.cargarModulo = function(nombre, params) {
       .catch(function() {});
   }
   actualizarBadgeAuth();
-  _siOrig.call(window, actualizarBadgeAuth, 10000);
+  pollerGlobal(actualizarBadgeAuth, 10000);
   window.actualizarBadgeAuth = actualizarBadgeAuth;
 })();
+<?php else: ?>
+window.actualizarBadgeAuth = function() {};
+<?php endif; ?>
 
 // ── Badge OCs pendientes de envío (dir_admin) ─────────────────
 <?php if ($esAdmin): ?>
 (function() {
   function actualizarBadgeCompras() {
-    fetch('/produccion/api/ordenes_compra.php?accion=pendientes_envio')
+    fetchPoller('/produccion/api/ordenes_compra.php?accion=pendientes_envio')
       .then(function(r) { return r.json(); })
       .then(function(data) {
         var badge = document.getElementById('badge-compras-envio');
@@ -1123,7 +1170,7 @@ window.cargarModulo = function(nombre, params) {
       .catch(function() {});
   }
   actualizarBadgeCompras();
-  _siOrig.call(window, actualizarBadgeCompras, 60000);
+  pollerGlobal(actualizarBadgeCompras, 60000);
   window.actualizarBadgeCompras = actualizarBadgeCompras;
 })();
 <?php else: ?>
@@ -1133,7 +1180,7 @@ window.actualizarBadgeCompras = function() {};
 // ── Badge mensajes WA sin leer ────────────────────────────────
 (function() {
   function actualizarBadgeWA() {
-    fetch('/produccion/api/campanas.php?accion=sin_leer')
+    fetchPoller('/produccion/api/campanas.php?accion=sin_leer')
       .then(function(r) { return r.json(); })
       .then(function(data) {
         var badge = document.getElementById('waBadge');
@@ -1149,14 +1196,14 @@ window.actualizarBadgeCompras = function() {};
       .catch(function() {});
   }
   actualizarBadgeWA();
-  _siOrig.call(window, actualizarBadgeWA, 10000);
+  pollerGlobal(actualizarBadgeWA, 10000);
   window.actualizarBadgeWA = actualizarBadgeWA;
 })();
 
 // ── Badge reportes pendientes ─────────────────────────────────
 (function() {
   function actualizarBadgeReportes() {
-    fetch('/produccion/api/reportes.php?accion=sin_leer')
+    fetchPoller('/produccion/api/reportes.php?accion=sin_leer')
       .then(function(r) { return r.json(); })
       .then(function(data) {
         var badge = document.getElementById('reportesBadge');
@@ -1172,7 +1219,7 @@ window.actualizarBadgeCompras = function() {};
       .catch(function() {});
   }
   actualizarBadgeReportes();
-  _siOrig.call(window, actualizarBadgeReportes, 10000);
+  pollerGlobal(actualizarBadgeReportes, 10000);
   window.actualizarBadgeReportes = actualizarBadgeReportes;
 })();
 <?php else: ?>

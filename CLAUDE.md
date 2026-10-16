@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 15 octubre 2026 | Próximo UPD disponible: UPD-707
+# Última actualización: 16 octubre 2026 | Próximo UPD disponible: UPD-712
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar. Los archivos de `docs/` que este archivo enlaza (historiales archivados, `PENDIENTES_DETALLE.md`, `PENDIENTES_CERRADOS.md`) son parte de esta misma memoria; mover una entrada ahí no es borrarla.
 
@@ -442,7 +442,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | ALTA | Ambos | Auditoría externa 20-ago (`/home/mando/files_apexglass/auditoria_20_08_26/`) — P0/P1/P2 cerrados. Quedan sueltos: UX-7, UX-12, UX-4 (rebrand de paleta, requiere decisión), UX-13, UX-16, ~190 labels sin `for`/`id`, y medios/bajos de lógica de negocio / edge cases. [D-69] | P2 cerrado — sueltos sin fecha |
 | MEDIA | Armando | Certificado SSL de apex.glass vigente hasta **02-dic-2026** (se renovó solo el 03-sep, causa sin confirmar; no existe cron/timer de renovación). Revisar ANTES del 02-dic y confirmar el modo SSL de Cloudflare. [D-70] | Pendiente — revisar antes del 02-dic-2026 |
 | MEDIA | Mando | SSH puerto 2222 (UPD-562) se perdió tras el reinicio del 2-sep (la regla de firewall era solo runtime). Avisar a Armando que la prueba previa nunca fue válida; reponer la regla desde AdminBolt para que sobreviva reinicios. [D-71] | Pendiente |
-| MEDIA | Mando | Journal de systemd no persistente (P1-3): `mkdir -p /var/log/journal` + `systemd-tmpfiles --create` + reiniciar journald con `SystemMaxUse` acotado. [D-72] | Pendiente |
+| MEDIA | Mando | Journal de systemd no persistente (P1-3). **VERIFICADO HECHO 16-oct-2026 (UPD-707):** `/var/log/journal` existe y persiste desde el 02-sep (330 MB). Listo para mover a `PENDIENTES_CERRADOS.md`. [D-72] | HECHO — verificado |
 | MEDIA | Mando | Blindar contra AdminBolt (P1-4) los archivos con parches manuales que puede pisar: `php.d/zzz-apex.glass.ini` (sesión 8h, subidas), `sshd_config.d/01-custom.conf`, `vhosts.d/000-cloudflare-remoteip.conf`. Ideal: configurarlos desde el panel donde se pueda. [D-73] | Pendiente |
 | ALTA | Armando | Fase B Cloudflare (UPD-563), requiere el panel: (1) modo SSL Full strict; (2) MX/SPF de apex.glass siguen en HostGator → correo @apex.glass roto; (3) `panel.apex.glass` no debería ir proxeado; (4) Bot Fight Mode bloquea clientes no-browser (UPD-574); (5) cerrar el origen 443 solo a rangos de Cloudflare (P0-2). [D-74] | Pendiente — esperando que Armando tenga acceso al panel |
 | MEDIA | Ambos | WhatsApp BSUID (Meta) — username `@apex.glass` reservado. Webhook, `whatsapp_conversaciones`, `campana_envios` y el matching de clientes dependen del teléfono. Canario `[BSUID?]` en error_log (UPD-538): migrar cuando aparezca. [D-75] | En espera del canario |
@@ -472,13 +472,18 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | ALTA | Armando | **T-025 — factura por la diferencia (09-oct):** COT-1958, cliente id 408 GERARDO ALFREDO OSEGUERA SALGADO. Total $36,439.81 = $34,500 saldo a favor (depósito 235 del 29-sep, anticipo facturado en CONTPAQi) + $1,939.81 tarjeta débito 09-oct (pago 1589). Plan: borrador A sin ligar (como A-018/T-005) por $1,939.81, PUE, forma 28, clave 30171706, conceptos proporcionales con "Orden T-025". Esperando que suban la CSF del cliente (hoy sin RFC) y, si se puede, folio/UUID del anticipo de CONTPAQi para marcar el depósito 235 | Pendiente — esperando constancia |
 | MEDIA | Mando | **Crontab de root con 2 tareas de AdminBolt rotas (hallado 08-oct, UPD-680):** `'bolt-cli refresh-hosting-accounts-stats'` (*/5) y `'bolt-cli check-for-updates'` (*/35) van entre comillas → `command not found`, nunca han corrido. **UPD-682:** el uso de CPU ya está resuelto (correo de cron apagado con `CRONDARGS="-m off"` y cola de root vaciada). Queda solo quitar las comillas (vigilar que AdminBolt no las reescriba) o reportarlo a AdminBolt; ya no genera carga | PARCIAL UPD-682 — faltan las comillas |
 | ALTA | Armando | **Bancos Fase 2 — conciliación contra Apex (UPD-697):** ligar cada movimiento BBVA con cobros/depósitos/OC/nómina/gastos fijos (pistas en el PDF: folios en depósitos de efectivo, "Cot 2266", KUSPIT Sem = nómina, F-xxxx = proveedor, terminal venta − comisión/IVA → 6.12) y listas "en banco y no en Apex" / "en Apex y no en banco". Fase 3: cierre mensual. Antes: Armando confirma el saldo inicial $343,821.19 contra el saldo final del estado de cuenta oficial de septiembre y prueba subir en la pantalla el mismo PDF de oct (debe decir 0 nuevos). [D-94] | Fase 1 HECHA; Fase 2a (abonos) HECHA UPD-702 — falta prueba en navegador, cargos y cierre mensual |
+| ALTA | Mando | **Polling de badges del ERP (UPD-708).** HECHOS: arreglo 1 (badge de autorizaciones solo para `$esAdmin`, UPD-710) y arreglo 3 (los 6 pollers se detienen ante un 401 + aviso de sesión expirada, UPD-711) — **ambos faltan prueba en navegador**. FALTAN: (2) pausar con `document.visibilityState` — **preguntar al equipo antes**, deja de avisar de WhatsApp en segundo plano; (4) consolidar los 6 pollers en un solo endpoint (sesión dedicada). Medir el access_log para confirmar la caída de los 403 |
+| ALTA | Mando | **`whatsapp_webhook.php` con 1,522 respuestas 504** en 4 meses de access_log (UPD-708): Meta entrega y el servidor no contesta a tiempo. Riesgo de mensajes de clientes perdidos. Sin diagnosticar; hipótesis sin comprobar = saturación del pool de php-fpm |
+| MEDIA | Mando | **fail2ban puede volver a morir en silencio (UPD-709).** La causa de por qué su lector del journal dejó de avanzar NO se identificó; el servicio reportaba `active` todo el tiempo. Pedir al SOC una regla cruzada (Wazuh ve fuerza bruta y fail2ban no banea = alerta) y reverificar cada mes con `fail2ban-client status sshd` |
+| **ALTA** | Mando | **`ignoreip` de fail2ban es un parche frágil (UPD-709):** 189.153.98.28, 216.131.81.233, 200.68.181.183, 189.219.55.151, 200.68.181.191, 200.68.164.59. Las de Telmex son dinámicas y van a cambiar. Peor: **216.131.81.233 es el nodo de salida de la VPN de Mando** (confirmado por el SOC, 16-oct) — un nodo de VPN es compartido, así que esa línea le da pase libre contra fuerza bruta de SSH a cualquier otro cliente del proveedor. Existe solo porque SSH acepta contraseña: se resuelve de fondo con llaves SSH + `PasswordAuthentication no`, y entonces la lista entera sobra |
+| MEDIA | Mando | **Wazuh: el logcollector no ve el ERP (UPD-707).** Lee `/var/log/httpd/access_log`, pero los logs de APEX viven en `/var/log/httpd/users/apexglass2025/apex.glass/`. Agregar esa ruta **solo después** del arreglo del 403, o le llegan ~6,000 eventos basura diarios al manager |
 
 ---
 
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-707**
+Próximo UPD disponible: **UPD-712**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -799,4 +804,14 @@ Archivo completo: `docs/HISTORIAL_UPD_605_631.md` (26-sep-2026 → 30-sep-2026)
 
 - UPD-706 (15-oct-2026, Armando) — Inventario → Stock: el vidrio se muestra limpio ("Claro 9 mm" en vez de "9.00 mm"; nombres legibles también en Consumo y selects) y la tabla se ordena por tipo alfabético, espesor y tamaño. Sin BD.
 
-**Próximo UPD disponible: UPD-707**
+- UPD-707 (16-oct-2026, Mando) — Servidor (sin código ni BD): instalado el agente **Wazuh 4.14.8** (`erp-piloto`, ID 002) hacia el SOC propio 179.236.248.27. Respuesta activa apagada y confirmada por el propio demonio; topes de CPU/IO/memoria en systemd. Probado de punta a punta.
+
+- UPD-708 (16-oct-2026, Mando) — Hallazgo del SOC, **sin cambios aplicados**: los 6 pollers de badges de `dashboard.php` son ~73% del tráfico del sitio, y `autorizaciones.php?pendientes=1` devuelve 403 a todo rol que no sea dir_admin (762 mil en 4 meses).
+
+- UPD-709 (16-oct-2026, Mando) — Servidor (sin código ni BD): la jaula `sshd` de fail2ban llevaba semanas sin procesar el journal pese a fuerza bruta real. Reiniciada y corregida: `backend=systemd` explícito, `bantime` 24h→2h, `ignoreip` con las 6 IPs de la empresa.
+
+- UPD-710 (16-oct-2026, Mando) — Arreglo 1 del polling (UPD-708): el badge de autorizaciones en `dashboard.php` ahora solo corre para `$esAdmin` (dir_admin/desarrollo), idéntico a lo que acepta la API. Elimina ~6,100 respuestas 403 diarias. Sin BD. Falta prueba en navegador.
+
+- UPD-711 (16-oct-2026, Mando) — Arreglo 3 del polling (UPD-708): los 6 badges de `dashboard.php` se detienen solos ante un 401 y muestran una franja roja "Tu sesión expiró. Recarga la página". Mata las pestañas zombi de noches y fines de semana. Sin BD. Falta prueba en navegador.
+
+**Próximo UPD disponible: UPD-712**
