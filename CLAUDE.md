@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 16 octubre 2026 | Próximo UPD disponible: UPD-719
+# Última actualización: 16 octubre 2026 | Próximo UPD disponible: UPD-720
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar. Los archivos de `docs/` que este archivo enlaza (historiales archivados, `PENDIENTES_DETALLE.md`, `PENDIENTES_CERRADOS.md`) son parte de esta misma memoria; mover una entrada ahí no es borrarla.
 
@@ -485,7 +485,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-719**
+Próximo UPD disponible: **UPD-720**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -830,4 +830,6 @@ Archivo completo: `docs/HISTORIAL_UPD_605_631.md` (26-sep-2026 → 30-sep-2026)
 
 - UPD-718 (16-oct-2026, Armando) — Datos: borrado el pago 1683 ($2,788, transf. 16-oct) capturado por error en T-126 (COT-2355); `saldo_pagado` a $0 y póliza I-001774 anulada. Lina lo recaptura en la orden correcta. Respaldo en `respaldos_upd/UPD-718/`.
 
-**Próximo UPD disponible: UPD-719**
+- UPD-719 (16-oct-2026, Armando) — Red: router TP-Link ER605 dual WAN (Telmex 192.168.1.x / Izzi 192.168.2.x), LAN 192.168.15.x igual; la Pi sigue en línea. IP pública Telmex nueva 187.209.149.236 agregada a `ignoreip` de fail2ban. Falta checada de prueba.
+
+**Próximo UPD disponible: UPD-720**

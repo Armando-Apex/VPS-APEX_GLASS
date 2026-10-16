@@ -302,3 +302,9 @@
 - Pago 1683 ($2,788.00, transferencia 16-oct 13:28, registrado por Administracion) en T-126 (orden 1399, COT-2355 id 2299, JAIME PEREZ CRUZ, `pendiente_vobo`) era de otra orden. Sin facturas, complementos, conciliación bancaria ni saldo a favor ligados.
 - Hecho (autorizado por Armando): `DELETE` del pago 1683; `cotizaciones.saldo_pagado` 2788 → 0 (recalculado con la suma de pagos); póliza automática I-001774 ("Cobro — Orden T-126", `finanzas_pago`/1683) a `anulada` (no se borra, mismo criterio que `pl_anularPorOrigen`). Lina lo vuelve a capturar en la orden correcta.
 - Respaldo: `respaldos_upd/UPD-718/` (pago, cotización, póliza y sus líneas).
+
+### UPD-719 (16-oct-2026, Armando) — Red de la oficina con TP-Link ER605 (dual WAN) + IP nueva de Telmex en fail2ban
+- **Red nueva (configurada por Armando):** ER605 con WAN Telmex (módem 192.168.1.1, ER605 .2 estática) y WAN Izzi (módem 192.168.2.1, ER605 .2 estática); DHCP de los módems apagado. LAN de la oficina sin cambio: 192.168.15.1/24, DHCP .100-.199; reservas reloj checador .30, Raspberry .75, impresora; equipo .77 sin identificar. Sesiones de Apex no dependen de la IP, así que el balanceo no desconecta a nadie.
+- **Verificado:** la Pi cambió de salida pública entre 14:08 y 14:12 MTY (189.219.55.151 → **187.209.149.236**, Telmex según Armando) y siguió consultando Apex cada ~15 s sin cortes. Última checada antes del cambio: 14:04; **falta una checada de prueba después del cambio** para confirmar reloj → Pi.
+- **fail2ban:** 187.209.149.236 agregada a `ignoreip` en `/etc/fail2ban/jail.d/sshd.local` y en caliente (`fail2ban-client set sshd addignoreip`), sin reiniciar el servicio. Respaldo: `sshd.local.antes-UPD-719`. Se dejó 189.219.55.151 (IP anterior de Telmex). Falta la IP pública de Izzi si se usa balanceo. Ver pendiente ALTA de `ignoreip` frágil (UPD-709).
+- `docs/RED_CHECADOR.md` actualizado con la red nueva.

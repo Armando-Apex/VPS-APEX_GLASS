@@ -9,7 +9,7 @@ Parte de la memoria del proyecto (enlazado desde `CLAUDE.md`, UPD-704). Actualiz
 | Reloj ZKTeco MB20-VL (serie SPK7251000343) | **192.168.15.30** fija | Cable (al extender Tenda) | Manda checadas por ADMS a la Pi |
 | Raspberry Pi 4 | **192.168.15.75** (fijar si no quedó) | WiFi `Produccion_Apex` (`wlan0`); `eth0` sin cable | Usuario SSH `areyna1976`. Tiene Tailscale |
 | Listener en la Pi | puerto **8081** | servicio `checador-listener` | Recibe del reloj y reenvía a `https://apex.glass/produccion/api/checador.php` |
-| Router | 192.168.15.1 (verificar) | — | DHCP reparte desde .100 → usar IPs fijas < .100 |
+| Router TP-Link ER605 (desde 16-oct-2026) | 192.168.15.1 | — | DHCP .100-.199 → IPs fijas < .100. Dual WAN: Telmex (módem 192.168.1.1, ER605 .2) e Izzi (módem 192.168.2.1, ER605 .2), DHCP de los módems apagado |
 | Equipo desconocido | 192.168.15.77 | — | Responde ping, sin identificar |
 
 Cadena: **Reloj (.30) → Pi (.75:8081) → internet → apex.glass**. Todo lo inicia la Pi (Apex nunca se conecta a la Pi).
@@ -84,3 +84,4 @@ Ojo: la conexión la maneja netplan; si un cambio con `nmcli` no sobrevive un re
 - 07-sep-2026 (UPD-567): Pi en .171 (DHCP), reloj .30.
 - 06/07-oct-2026: la Pi deja de comunicarse; 07-oct sin ninguna checada.
 - 14-oct-2026 (UPD-704): Pi reaparece en .75; reloj repuntado a .75:8081; entran 204 checadas del 08 al 14-oct.
+- 16-oct-2026 (UPD-719): router nuevo TP-Link ER605 con dual WAN (Telmex + Izzi). LAN igual (192.168.15.x); reservas .30 reloj y .75 Pi. IP pública Telmex nueva 187.209.149.236.
