@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 16 octubre 2026 | Próximo UPD disponible: UPD-717
+# Última actualización: 16 octubre 2026 | Próximo UPD disponible: UPD-718
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar. Los archivos de `docs/` que este archivo enlaza (historiales archivados, `PENDIENTES_DETALLE.md`, `PENDIENTES_CERRADOS.md`) son parte de esta misma memoria; mover una entrada ahí no es borrarla.
 
@@ -485,7 +485,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-717**
+Próximo UPD disponible: **UPD-718**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -826,4 +826,6 @@ Archivo completo: `docs/HISTORIAL_UPD_605_631.md` (26-sep-2026 → 30-sep-2026)
 
 - UPD-716 (16-oct-2026, Armando) — `produccion/.playwright-mcp/` (capturas de Playwright dentro del webroot) vaciada (16 archivos) y bloqueada con `.htaccess` deny; origen da 403. `s1.png` quedó en caché de Cloudflare hasta ~16:15 MTY.
 
-**Próximo UPD disponible: UPD-717**
+- UPD-717 (16-oct-2026, Armando) — Datos: COT-2360 (id 2304, Claro 9mm 5.962 m²) a $1,235.00/m² con IVA: precio 957.85→1064.6552, total $6,624.48→$7,363.14. Solo esta cotización; respaldo en `respaldos_upd/UPD-717/`.
+
+**Próximo UPD disponible: UPD-718**

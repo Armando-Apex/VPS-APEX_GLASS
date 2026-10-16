@@ -292,3 +292,8 @@
 - **Hecho (con autorización de Armando):** borrados los 16 archivos (08-sep y 29-sep); nuevo `.playwright-mcp/.htaccess` con `Deny from all` / `Require all denied` (mismo patrón que `archivos_ordenes/`). Verificado: origen directo responde 403 para cualquier archivo de la carpeta.
 - **Ojo Cloudflare:** `s1.png` quedó en caché de Cloudflare (HIT, `max-age=14400`) porque se pidió por HTTP al hallarlo en UPD-715; sigue respondiendo 200 desde la caché hasta que expire (~16:15 hora MTY del 16-oct) o se purgue desde el panel de Cloudflare. El resto de archivos nunca se pidieron y ya dan 403.
 - **Regla para sesiones futuras:** no pedir por HTTP archivos sensibles para "probar" si están expuestos — basta con `--resolve apex.glass:443:82.29.197.33` (origen directo) para no dejarlos en la caché de Cloudflare.
+
+### UPD-717 (16-oct-2026, Armando) — Datos: COT-2360 a $1,235.00/m² con IVA
+- COT-2360 (id 2304, Público en General, proyecto "NODO CREATIVOS", asesora Bethy, estatus `cotizacion`, sin pagos ni orden). Partida 15406: Claro 9mm 2990×1994, 1 pza, 5.962060 m², templado, perimetral, 6 avellanados.
+- `precio_m2_usado` 957.85 → **1064.6552** (× 1.16 = $1,235.00); `precio_unitario` 6347.5382; partida y cotización: subtotal $6,347.54, IVA $1,015.61, **total $7,363.14** (= fórmula canónica y Cobranza; antes $6,624.48), `saldo_pendiente` = total. Solo esta cotización, catálogo sin cambio. Si se edita la partida desde pantalla puede volver al precio de catálogo (Armando ya avisó a Bethy).
+- Respaldo de las filas previas: `respaldos_upd/UPD-717/cotizaciones_2304.sql` y `partidas_2304.sql`.
