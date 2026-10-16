@@ -322,9 +322,16 @@ function celdaConc(f) {
   var a = parseFloat(f.abono), l = parseFloat(f.ligado || 0);
   if (!(a > 0)) return '';
   var abrir = 'ModBancos._ligar(' + parseInt(f.id, 10) + ')';
-  if (l >= a - 0.005) return '<button class="cc-link cc-ok" onclick="' + abrir + '">' + esc(f.ligado_a || 'Conciliado') + '</button>';
-  if (l > 0) return '<button class="cc-link cc-par" onclick="' + abrir + '">Parcial · faltan ' + fmt(a - l) + '</button>';
+  // UPD-714: con diferencia (parcial o Apex arriba por centavos) se muestra el folio en ámbar; el detalle va en el modal
+  var dif = Math.round((a - l) * 100) / 100;
+  if (l > 0 && Math.abs(dif) < 0.005) return '<button class="cc-link cc-ok" onclick="' + abrir + '">' + esc(f.ligado_a || 'Conciliado') + '</button>';
+  if (l > 0) return '<button class="cc-link cc-par" title="' + esc(leyendaDif(dif)) + '" onclick="' + abrir + '">' + esc(f.ligado_a || 'Parcial') + '</button>';
   return window._bcoPuedeImportar ? '<button class="cc-btn" onclick="' + abrir + '">Ligar</button>' : '<span class="det">Pendiente</span>';
+}
+
+// Leyenda de diferencia entre el abono del banco y lo ligado (dif = abono - ligado)
+function leyendaDif(dif) {
+  return dif > 0 ? 'Parcial · faltan ' + fmt(dif) : 'Diferencia · Apex arriba del banco por ' + fmt(-dif);
 }
 
 function abrirM2(titulo, html) {
@@ -356,6 +363,7 @@ async function ligar(movId, q) {
 function pintarLigar(q) {
   var d = movSel, m = d.movimiento, puede = window._bcoPuedeImportar;
   var h = '<p>' + fFecha(m.fecha) + ' · ' + esc(m.concepto) + (m.detalle ? ' · <b>' + esc(m.detalle) + '</b>' : '') + '</p>' +
+    (d.ligado > 0 && Math.abs(d.restante) >= 0.005 ? '<p class="bco-warn" style="margin-top:-4px;font-weight:600">' + esc(leyendaDif(d.restante)) + '</p>' : '') +
     '<div class="bco-sum"><span>Abono: <b class="bco-ok">' + fmt(m.abono) + '</b></span><span>Ligado: <b>' + fmt(d.ligado) + '</b></span>' +
     (d.restante < -0.005
       ? '<span>Diferencia: <b class="bco-warn">' + fmt(-d.restante) + '</b> (Apex arriba del banco)</span></div>'
