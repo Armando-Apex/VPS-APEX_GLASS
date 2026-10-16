@@ -477,7 +477,7 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | MEDIA | Mando | **fail2ban puede volver a morir en silencio (UPD-709).** La causa de por qué su lector del journal dejó de avanzar NO se identificó; el servicio reportaba `active` todo el tiempo. Pedir al SOC una regla cruzada (Wazuh ve fuerza bruta y fail2ban no banea = alerta) y reverificar cada mes con `fail2ban-client status sshd` |
 | **ALTA** | Mando | **`ignoreip` de fail2ban es un parche frágil (UPD-709):** 189.153.98.28, 216.131.81.233, 200.68.181.183, 189.219.55.151, 200.68.181.191, 200.68.164.59. Las de Telmex son dinámicas y van a cambiar. Peor: **216.131.81.233 es el nodo de salida de la VPN de Mando** (confirmado por el SOC, 16-oct) — un nodo de VPN es compartido, así que esa línea le da pase libre contra fuerza bruta de SSH a cualquier otro cliente del proveedor. Existe solo porque SSH acepta contraseña: se resuelve de fondo con llaves SSH + `PasswordAuthentication no`, y entonces la lista entera sobra |
 | MEDIA | Mando | **Wazuh: el logcollector no ve el ERP (UPD-707).** Lee `/var/log/httpd/access_log`, pero los logs de APEX viven en `/var/log/httpd/users/apexglass2025/apex.glass/`. Agregar esa ruta **solo después** del arreglo del 403, o le llegan ~6,000 eventos basura diarios al manager |
-| ALTA | Armando | **Subir límites de subida de PHP (UPD-712):** en `/etc/opt/remi/php84/php.d/zzz-apex.glass.ini` (ambas secciones) `upload_max_filesize` 2M→12M y `post_max_size` 8M→16M + `systemctl reload php84-php-fpm`. Luego Lina vuelve a subir los documentos de Angel | Pendiente |
+| ALTA | Armando | **Subir límites de subida de PHP (UPD-712):** en `/etc/opt/remi/php84/php.d/zzz-apex.glass.ini` (ambas secciones) `upload_max_filesize` 2M→12M y `post_max_size` 8M→16M + `systemctl reload php84-php-fpm`. **HECHO 16-oct por Armando** (respaldo `/root/zzz-apex.glass.ini.antes-UPD-712`). Falta que Lina vuelva a subir los documentos de Angel | HECHO — falta prueba de Lina |
 
 ---
 
@@ -815,6 +815,6 @@ Archivo completo: `docs/HISTORIAL_UPD_605_631.md` (26-sep-2026 → 30-sep-2026)
 
 - UPD-711 (16-oct-2026, Mando) — Arreglo 3 del polling (UPD-708): los 6 badges de `dashboard.php` se detienen solos ante un 401 y muestran una franja roja "Tu sesión expiró. Recarga la página". Mata las pestañas zombi de noches y fines de semana. Sin BD. Falta prueba en navegador.
 
-- UPD-712 (16-oct-2026, Armando) — RH: Lina solo pudo subir 1 de 11 documentos de Angel porque PHP limita subidas a 2 MB (envío 8 MB) y RH promete 10 MB. `api/rh.php` ahora avisa "el archivo pesa X MB". Falta subir límites a 12M/16M en `zzz-apex.glass.ini` (Armando, a mano).
+- UPD-712 (16-oct-2026, Armando) — RH: Lina solo pudo subir 1 de 11 documentos de Angel porque PHP limita subidas a 2 MB (envío 8 MB) y RH promete 10 MB. `api/rh.php` ahora avisa "el archivo pesa X MB". Límites subidos a 12M/16M en `zzz-apex.glass.ini` (Armando, a mano) y php-fpm recargado.
 
 **Próximo UPD disponible: UPD-713**
