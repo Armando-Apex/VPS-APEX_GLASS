@@ -297,3 +297,8 @@
 - COT-2360 (id 2304, Público en General, proyecto "NODO CREATIVOS", asesora Bethy, estatus `cotizacion`, sin pagos ni orden). Partida 15406: Claro 9mm 2990×1994, 1 pza, 5.962060 m², templado, perimetral, 6 avellanados.
 - `precio_m2_usado` 957.85 → **1064.6552** (× 1.16 = $1,235.00); `precio_unitario` 6347.5382; partida y cotización: subtotal $6,347.54, IVA $1,015.61, **total $7,363.14** (= fórmula canónica y Cobranza; antes $6,624.48), `saldo_pendiente` = total. Solo esta cotización, catálogo sin cambio. Si se edita la partida desde pantalla puede volver al precio de catálogo (Armando ya avisó a Bethy).
 - Respaldo de las filas previas: `respaldos_upd/UPD-717/cotizaciones_2304.sql` y `partidas_2304.sql`.
+
+### UPD-718 (16-oct-2026, Armando) — Datos: borrado pago mal capturado en T-126
+- Pago 1683 ($2,788.00, transferencia 16-oct 13:28, registrado por Administracion) en T-126 (orden 1399, COT-2355 id 2299, JAIME PEREZ CRUZ, `pendiente_vobo`) era de otra orden. Sin facturas, complementos, conciliación bancaria ni saldo a favor ligados.
+- Hecho (autorizado por Armando): `DELETE` del pago 1683; `cotizaciones.saldo_pagado` 2788 → 0 (recalculado con la suma de pagos); póliza automática I-001774 ("Cobro — Orden T-126", `finanzas_pago`/1683) a `anulada` (no se borra, mismo criterio que `pl_anularPorOrigen`). Lina lo vuelve a capturar en la orden correcta.
+- Respaldo: `respaldos_upd/UPD-718/` (pago, cotización, póliza y sus líneas).
