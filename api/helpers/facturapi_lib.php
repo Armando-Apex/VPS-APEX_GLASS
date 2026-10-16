@@ -1447,6 +1447,87 @@ function _facturapiEmitirPendientesAuto($pdo, $facturaId, $usuario) {
 }
 
 // Factura de ingreso vigente (timbrada o en verificación) de la orden de una cotización.
+// UPD-715: ¿qué tan facturada está cada orden de Cobranza? Agrega a cada fila:
+//   fac_count    = facturas de ingreso vigentes ligadas a la orden
+//   fac_completa = la orden está pagada (falta < $1) y TODO lo cobrado ya tiene CFDI:
+//     · factura por el total PUE → completa
+//     · factura por el total PPD → completa cuando los complementos cubren el total
+//     · facturas por pago → cada pago desde FACTURACION_DESDE (sin saldo a favor) tiene la suya
+// Las filas deben traer folio, saldo_pendiente y pagos (como las arma accion=cobranza).
+function _facturapiEstadoFacturacionOrdenes($pdo, &$ordenes) {
+    $folios = [];
+    foreach ($ordenes as $o) { if (!empty($o['folio'])) $folios[] = $o['folio']; }
+    if (!$folios) return;
+    $ph = implode(',', array_fill(0, count($folios), '?'));
+    $st = $pdo->prepare("SELECT id, orden_folio, pago_id, saldo_favor_id, metodo_pago, total FROM facturas
+        WHERE orden_folio IN ($ph) AND tipo_cfdi = 'I' AND modo = ? AND estatus IN ('timbrada','timbrando')");
+    $st->execute(array_merge($folios, [FACTURAPI_MODE]));
+    $porOrden = []; $idsPpd = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $f) {
+        $porOrden[$f['orden_folio']][] = $f;
+        if (!$f['pago_id'] && !$f['saldo_favor_id'] && $f['metodo_pago'] === 'PPD') $idsPpd[] = (int)$f['id'];
+    }
+    $comp = [];
+    if ($idsPpd) {
+        $ph2 = implode(',', array_fill(0, count($idsPpd), '?'));
+        $st = $pdo->prepare("SELECT fp.factura_id, SUM(fp.monto) AS s FROM facturas_pagos fp
+            JOIN facturas x ON x.id = fp.complemento_id
+            WHERE fp.factura_id IN ($ph2) AND x.estatus IN ('timbrada','timbrando') GROUP BY fp.factura_id");
+        $st->execute($idsPpd);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $comp[(int)$r['factura_id']] = (float)$r['s'];
+    }
+    foreach ($ordenes as &$o) {
+        $fs = $porOrden[$o['folio'] ?? ''] ?? [];
+        $o['fac_count'] = count($fs);
+        $o['fac_completa'] = false;
+        if (!$fs || (float)($o['saldo_pendiente'] ?? 0) >= 1) continue;
+        $tot = null; $porPago = [];
+        foreach ($fs as $f) {
+            if ($f['pago_id']) $porPago[(int)$f['pago_id']] = true;
+            elseif (!$f['saldo_favor_id']) $tot = $f;
+        }
+        if ($tot) {
+            $o['fac_completa'] = $tot['metodo_pago'] !== 'PPD' || ($comp[(int)$tot['id']] ?? 0) >= (float)$tot['total'] - 0.99;
+            continue;
+        }
+        $ok = true;
+        foreach (($o['pagos'] ?? []) as $p) {
+            if ((float)$p['monto'] <= 0.004 || $p['fecha_pago'] < FACTURACION_DESDE || $p['forma_pago'] === 'saldo_favor') continue;
+            if (empty($porPago[(int)$p['id']])) { $ok = false; break; }
+        }
+        $o['fac_completa'] = $ok;
+    }
+    unset($o);
+}
+
+// UPD-715: CFDI de una orden para la ventana "Ver facturas" de Cobranza: sus facturas de
+// ingreso (vigentes y canceladas), sus complementos de pago, notas de crédito y anticipos aplicados.
+function _facturapiFacturasDeOrden($pdo, $ordenFolio) {
+    $st = $pdo->prepare("SELECT id FROM facturas WHERE orden_folio = ? AND tipo_cfdi = 'I' AND modo = ?
+        AND estatus IN ('timbrada','timbrando','cancelada')");
+    $st->execute([$ordenFolio, FACTURAPI_MODE]);
+    $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+    if (!$ids) return [];
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $sql = "SELECT x.id, x.folio_interno, x.tipo_cfdi, x.metodo_pago, x.total, x.estatus,
+                   COALESCE(x.fecha_timbrado, x.fecha) AS fecha, x.saldo_favor_id, x.pago_id,
+                   CASE WHEN x.id IN ($ph) THEN 'factura'
+                        WHEN x.tipo_cfdi = 'P' THEN 'complemento'
+                        WHEN x.tipo_cfdi = 'E' THEN 'nota'
+                        ELSE 'anticipo' END AS rol,
+                   (SELECT fp.monto FROM facturas_pagos fp WHERE fp.complemento_id = x.id LIMIT 1) AS cp_monto
+            FROM facturas x
+            WHERE x.estatus IN ('timbrada','timbrando','cancelada') AND (
+                  x.id IN ($ph)
+               OR x.id IN (SELECT fp.complemento_id FROM facturas_pagos fp WHERE fp.factura_id IN ($ph))
+               OR x.id IN (SELECT fa.nota_credito_id FROM facturas_anticipos fa WHERE fa.factura_id IN ($ph))
+               OR x.id IN (SELECT fa.anticipo_id FROM facturas_anticipos fa WHERE fa.factura_id IN ($ph)))
+            ORDER BY FIELD(rol,'anticipo','factura','complemento','nota'), x.id";
+    $st = $pdo->prepare($sql);
+    $st->execute(array_merge($ids, $ids, $ids, $ids, $ids));
+    return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
 function _facturapiFacturaVigenteDeCotizacion($pdo, $cotId) {
     $stmt = $pdo->prepare("
         SELECT f.* FROM facturas f

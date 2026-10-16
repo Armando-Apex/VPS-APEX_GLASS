@@ -176,7 +176,16 @@ if ($method === 'GET') {
             $stmt2->execute([$ord['cot_id']]);
             $ord['pagos'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
         }
+        unset($ord);
+        _facturapiEstadoFacturacionOrdenes($db, $ordenes); // UPD-715: Facturar vs. Ver facturas
         jsonResponse($ordenes); exit;
+    }
+
+    // ── UPD-715: CFDI de una orden (ventana "Ver facturas" de Cobranza) ──
+    if ($accion === 'facturas_orden') {
+        $folio = preg_replace('/[^A-Za-z0-9\-]/', '', (string)($_GET['folio'] ?? ''));
+        if ($folio === '') { jsonResponse(['error' => 'Folio requerido']); exit; }
+        jsonResponse(['ok' => true, 'folio' => $folio, 'facturas' => _facturapiFacturasDeOrden($db, $folio)]); exit;
     }
 
     jsonResponse(['error' => 'Acción no reconocida']); exit;

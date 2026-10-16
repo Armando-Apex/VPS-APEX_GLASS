@@ -215,7 +215,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && $accion === 'lista') {
                   WHERE fa2.factura_id = f.id AND x.estatus IN ('timbrada','timbrando') LIMIT 1) AS nota_credito_folio,
                fp.parcialidad AS cp_parcialidad, fp.monto AS cp_monto, fp.saldo_anterior AS cp_saldo_anterior,
                fp.saldo_insoluto AS cp_saldo_insoluto, fp.fecha_pago AS cp_fecha_pago, fp.forma_pago AS cp_forma_pago,
-               fr.id AS cp_factura_id, fr.folio_interno AS cp_factura_folio, fr.orden_folio AS cp_orden_folio, fr.uuid AS cp_factura_uuid
+               fr.id AS cp_factura_id, fr.folio_interno AS cp_factura_folio, fr.orden_folio AS cp_orden_folio, fr.uuid AS cp_factura_uuid,
+               -- UPD-715: órdenes de un anticipo (donde se aplicó) o de una nota de crédito (su factura)
+               (SELECT GROUP_CONCAT(DISTINCT xo.orden_folio ORDER BY xo.orden_folio SEPARATOR ', ')
+                  FROM facturas_anticipos fa3 JOIN facturas xo ON xo.id = fa3.factura_id
+                 WHERE (fa3.anticipo_id = f.id OR fa3.nota_credito_id = f.id) AND xo.orden_folio IS NOT NULL) AS ordenes_rel
         FROM facturas f
         LEFT JOIN clientes cs ON cs.id = f.cliente_solicito_id
         LEFT JOIN facturas_pagos fp ON fp.complemento_id = f.id

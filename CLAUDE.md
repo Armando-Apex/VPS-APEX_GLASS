@@ -1,6 +1,6 @@
 # APEX GLASS — MEMORIA ÚNICA DEL PROYECTO
 # Sistema de Rastreo de Producción (Templadora Noreste, S.A. de C.V.)
-# Última actualización: 16 octubre 2026 | Próximo UPD disponible: UPD-715
+# Última actualización: 16 octubre 2026 | Próximo UPD disponible: UPD-716
 
 **REGLA DE ORO:** Este archivo es la ÚNICA memoria del proyecto — no memorias internas de Claude, no documentos sueltos. Todo conocimiento de features, historial de cambios y decisiones técnicas vive aquí. Claude lo lee al inicio de cada sesión y **debe actualizarlo automáticamente al terminar cualquier sesión con cambios, sin que se le pida** (nuevo UPD + refrescar "Próximo UPD disponible" en la cabecera y en la sección 13). Armando y Mando trabajan en el mismo archivo. NUNCA borrar entradas anteriores — solo agregar. Los archivos de `docs/` que este archivo enlaza (historiales archivados, `PENDIENTES_DETALLE.md`, `PENDIENTES_CERRADOS.md`) son parte de esta misma memoria; mover una entrada ahí no es borrarla.
 
@@ -478,13 +478,14 @@ $esFinanzas   = in_array($_rol, ['dir_admin','administracion','dueno']);
 | **ALTA** | Mando | **`ignoreip` de fail2ban es un parche frágil (UPD-709):** 189.153.98.28, 216.131.81.233, 200.68.181.183, 189.219.55.151, 200.68.181.191, 200.68.164.59. Las de Telmex son dinámicas y van a cambiar. Peor: **216.131.81.233 es el nodo de salida de la VPN de Mando** (confirmado por el SOC, 16-oct) — un nodo de VPN es compartido, así que esa línea le da pase libre contra fuerza bruta de SSH a cualquier otro cliente del proveedor. Existe solo porque SSH acepta contraseña: se resuelve de fondo con llaves SSH + `PasswordAuthentication no`, y entonces la lista entera sobra |
 | MEDIA | Mando | **Wazuh: el logcollector no ve el ERP (UPD-707).** Lee `/var/log/httpd/access_log`, pero los logs de APEX viven en `/var/log/httpd/users/apexglass2025/apex.glass/`. Agregar esa ruta **solo después** del arreglo del 403, o le llegan ~6,000 eventos basura diarios al manager |
 | ALTA | Armando | **Subir límites de subida de PHP (UPD-712):** en `/etc/opt/remi/php84/php.d/zzz-apex.glass.ini` (ambas secciones) `upload_max_filesize` 2M→12M y `post_max_size` 8M→16M + `systemctl reload php84-php-fpm`. **HECHO 16-oct por Armando** (respaldo `/root/zzz-apex.glass.ini.antes-UPD-712`). Falta que Lina vuelva a subir los documentos de Angel | HECHO — falta prueba de Lina |
+| ALTA | Armando | **`produccion/.playwright-mcp/` expuesto por HTTP (hallado UPD-715):** carpeta de capturas de Playwright dentro del webroot, responde 200; 16 archivos del 29-sep (`s1-s5.png`, `.yml`) con posibles datos de clientes. Decidir: borrarlos y bloquear la carpeta (`.htaccess` deny) o mover la salida de Playwright fuera del webroot | Pendiente — decisión de Armando |
 
 ---
 
 ## 13. HISTORIAL DE ACTUALIZACIONES
 
 REGLA: Cada cambio se agrega aquí. NUNCA se elimina. Código UPD secuencial e irrepetible.
-Próximo UPD disponible: **UPD-715**
+Próximo UPD disponible: **UPD-716**
 
 ### Bloque archivado: UPD-001 a UPD-100
 Archivo completo: `HISTORIAL_UPD_001_100.md` (30-may-2026 → 18-jun-2026)
@@ -821,4 +822,6 @@ Archivo completo: `docs/HISTORIAL_UPD_605_631.md` (26-sep-2026 → 30-sep-2026)
 
 - UPD-714 (16-oct-2026, Armando) — Bancos: la columna de conciliación muestra el folio ligado en ámbar cuando hay diferencia (antes "Parcial · faltan $x"); al dar clic, el desglose muestra la leyenda bajo la descripción. Sin BD.
 
-**Próximo UPD disponible: UPD-715**
+- UPD-715 (16-oct-2026, Armando) — Cobranza: "Ver facturas" solo si la orden está pagada y todo lo cobrado tiene CFDI (si falta el finiquito sigue "Facturar" con contador); Timbradas muestra la(s) orden(es); tabla de Cobranza rediseñada a 7 columnas. Sin BD.
+
+**Próximo UPD disponible: UPD-716**

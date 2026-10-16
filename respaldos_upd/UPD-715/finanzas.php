@@ -1,0 +1,807 @@
+<?php
+// ============================================================
+//  APEX GLASS - API: Finanzas (VoBo + Pagos)
+//  Archivo: api/finanzas.php
+// ============================================================
+require_once 'config.php';
+require_once 'permisos.php';
+require_once __DIR__ . '/helpers/totales.php';    // A-2
+require_once __DIR__ . '/helpers/referidos_lib.php'; // Esquema de Referidos (promo agosto 2026)
+require_once __DIR__ . '/helpers/polizas_lib.php'; // Fase 6.2 — pólizas automáticas (VoBo + pagos)
+require_once __DIR__ . '/helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
+require_once __DIR__ . '/helpers/promo_precio_lib.php'; // Promo precio fijo por código — SALT_SEP2026 (23-sep-2026)
+require_once __DIR__ . '/wa_helper.php';
+require_once __DIR__ . '/helpers/facturapi_lib.php'; // Complementos de pago automáticos (29-sep-2026)
+
+header('Content-Type: application/json; charset=utf-8');
+
+$user           = requireSessionApi();
+$rol            = $user['rol'];
+$usuario_nombre = $user['nombre'];
+$method         = $_SERVER['REQUEST_METHOD'];
+$db             = getDB();
+
+$es_finanzas = in_array($rol, ['administracion', 'dir_admin', 'dueno', 'desarrollo', 'contador']);  // contador: solo GET (UPD-652)
+if (!$es_finanzas) {
+    jsonResponse(['error' => 'Sin permiso'], 403);
+}
+
+// ─── Función: calcular fecha entrega desde fecha VoBo ────────────────────────
+function calcularFechaVobo($db, $localidad, $ciudad) {
+    $stmt = $db->query("SELECT fecha FROM festivos");
+    $festivos = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'fecha');
+
+    $fecha  = new DateTime(); // hoy = día del VoBo
+    $dias   = 0;
+    $target = 5;
+
+    // Para Saltillo necesitamos saber cuántos días hábiles hay hasta el próximo viernes
+    if (strtolower($localidad) === 'foraneo' && stripos($ciudad ?? '', 'saltillo') !== false) {
+        // Avanzar 4 días hábiles desde hoy para ver si llegamos al viernes
+        $test = clone $fecha;
+        $hab  = 0;
+        while ($hab < 4) {
+            $test->modify('+1 day');
+            $dow = (int)$test->format('N');
+            $f   = $test->format('Y-m-d');
+            if ($dow >= 6 || in_array($f, $festivos)) continue;
+            $hab++;
+        }
+        // Encontrar el próximo viernes desde hoy
+        $viernes = clone $fecha;
+        while ((int)$viernes->format('N') !== 5) {
+            $viernes->modify('+1 day');
+        }
+        // Si ese viernes es festivo, avanzar al siguiente viernes
+        while (in_array($viernes->format('Y-m-d'), $festivos)) {
+            $viernes->modify('+7 days');
+        }
+        // Si los 4 días hábiles nos llevan más allá del viernes → siguiente viernes
+        if ($test > $viernes) {
+            $viernes->modify('+7 days');
+            while (in_array($viernes->format('Y-m-d'), $festivos)) {
+                $viernes->modify('+7 days');
+            }
+        }
+        return $viernes->format('Y-m-d');
+    }
+
+    // Local u otro foráneo: 5 días hábiles
+    while ($dias < $target) {
+        $fecha->modify('+1 day');
+        $dow = (int)$fecha->format('N');
+        $f   = $fecha->format('Y-m-d');
+        if ($dow >= 6 || in_array($f, $festivos)) continue;
+        $dias++;
+    }
+    return $fecha->format('Y-m-d');
+}
+
+$body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+// ─── GET ──────────────────────────────────────────────────────────────────────
+if ($method === 'GET') {
+    $accion = $_GET['accion'] ?? 'lista_vobo';
+
+    // Lista de órdenes pendiente_vobo (más vieja primero)
+    if ($accion === 'lista_vobo') {
+        $stmt = $db->query("
+            SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_pedido,
+                   c.localidad, c.ciudad_destino, c.tipo_entrega,
+                   c.id as cot_id,
+                   ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad*IF(cp.promo_precio=1, 1, (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100))) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
+                   GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad*IF(cp.promo_precio=1, 1, (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100))) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+                   c.saldo_pagado,
+                   c.condicion_pago, c.folio as cot_folio, COALESCE(c.es_retrabajo, 0) as es_retrabajo
+            FROM ordenes o
+            LEFT JOIN cotizaciones c ON c.orden_id = o.id
+            WHERE o.estado = 'pendiente_vobo'
+            ORDER BY o.fecha_pedido ASC, o.id ASC
+        ");
+        jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC)); exit;
+    }
+
+    // Detalle de una orden con sus pagos
+    if ($accion === 'detalle' && isset($_GET['orden_id'])) {
+        $orden_id = (int)$_GET['orden_id'];
+
+        $stmt = $db->prepare("
+            SELECT o.*, c.localidad, c.id as cot_id,
+                   ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad*IF(cp.promo_precio=1, 1, (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100))) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
+                   GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad*IF(cp.promo_precio=1, 1, (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100))) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+                   c.saldo_pagado,
+                   c.condicion_pago, c.folio as cot_folio, c.vobo_por, c.vobo_at, c.cliente_id,
+                   COALESCE(c.es_retrabajo, 0) as es_retrabajo
+            FROM ordenes o
+            LEFT JOIN cotizaciones c ON c.orden_id = o.id
+            WHERE o.id = ?
+        ");
+        $stmt->execute([$orden_id]);
+        $orden = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$orden) { jsonResponse(['error' => 'No encontrada']); exit; }
+
+        // Pagos registrados
+        $stmt2 = $db->prepare("
+            SELECT * FROM cotizacion_pagos
+            WHERE cotizacion_id = ?
+            ORDER BY fecha_pago ASC, hora_pago ASC
+        ");
+        $stmt2->execute([$orden['cot_id']]);
+        $orden['pagos'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+        // Fecha entrega sugerida al dar VoBo ahora
+        $orden['fecha_vobo_sugerida'] = calcularFechaVobo($db, $orden['localidad'] ?? 'LOCAL', $orden['ciudad_destino'] ?? '');
+
+        jsonResponse($orden); exit;
+    }
+
+    // ── Cobranza general — todas las órdenes con cotización ──
+    if ($accion === 'cobranza') {
+        $stmt = $db->query("
+            SELECT o.id, o.folio, o.cliente_nombre, o.asesor, o.fecha_pedido, o.created_at,
+                   o.estado, c.localidad, c.ciudad_destino, c.tipo_entrega,
+                   c.id as cot_id, c.cliente_id,
+                   ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad*IF(cp.promo_precio=1, 1, (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100))) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) AS total,
+                   GREATEST(0, ROUND(CASE WHEN c.tipo = 'maquila' THEN c.total ELSE (COALESCE((SELECT SUM(cp.precio_m2_usado*cp.m2*cp.cantidad*IF(cp.promo_precio=1, 1, (1 - LEAST(100, COALESCE(c.descuento,0) + COALESCE(c.descuento_referido,0) + COALESCE(c.descuento_encuesta,0))/100))) FROM cotizaciones_partidas cp WHERE cp.cotizacion_id=c.id),0) + COALESCE(c.servicios_subtotal,0)) * 1.16 END, 2) - COALESCE(c.saldo_pagado,0)) AS saldo_pendiente,
+                   c.saldo_pagado,
+                   c.condicion_pago, c.folio as cot_folio, c.vobo_por, c.vobo_at,
+                   COALESCE(c.estatus_pago, 'pendiente') as estatus_pago,
+                   COALESCE(c.es_retrabajo, 0) as es_retrabajo,
+                   -- Sprint 3: folio del CFDI vigente de esta orden, para que Cobranza muestre
+                   -- el folio en vez de ofrecer facturar de nuevo (el backend de facturacion
+                   -- bloquea un segundo timbrado por orden de todos modos). Se resuelve en la
+                   -- misma consulta: hay indice idx_facturas_orden_estatus(orden_folio,estatus).
+                   (SELECT f.folio_interno FROM facturas f
+                     WHERE f.orden_folio = o.folio AND f.estatus IN ('timbrada','timbrando')
+                     LIMIT 1) AS factura_folio
+            FROM cotizaciones c
+            JOIN ordenes o ON o.id = c.orden_id
+            WHERE c.orden_id IS NOT NULL
+              AND o.estado NOT IN ('cancelada', 'rechazada')
+              AND c.estatus NOT IN ('cancelada', 'rechazada')
+            ORDER BY
+                CASE COALESCE(c.estatus_pago,'pendiente')
+                    WHEN 'pendiente' THEN 0
+                    WHEN 'parcial'   THEN 1
+                    WHEN 'pagado'    THEN 2
+                    ELSE 3
+                END ASC,
+                o.id DESC
+        ");
+        $ordenes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Cargar pagos de cada cotización
+        foreach ($ordenes as &$ord) {
+            $stmt2 = $db->prepare("SELECT * FROM cotizacion_pagos WHERE cotizacion_id = ? ORDER BY fecha_pago ASC, hora_pago ASC");
+            $stmt2->execute([$ord['cot_id']]);
+            $ord['pagos'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+        }
+        jsonResponse($ordenes); exit;
+    }
+
+    jsonResponse(['error' => 'Acción no reconocida']); exit;
+}
+
+// ─── POST: registrar pago ─────────────────────────────────────────────────────
+if ($method === 'POST') {
+    $accion = $body['accion'] ?? '';
+
+    if ($accion === 'actualizar_estatus_pago') {
+        $cot_id       = (int)($body['cotizacion_id'] ?? 0);
+        $estatus_pago = $body['estatus_pago'] ?? '';
+        $nota         = trim($body['nota'] ?? '');
+        $validos      = ['pendiente', 'en_proceso', 'pago_entrega', 'pagado'];
+        if (!$cot_id || !in_array($estatus_pago, $validos)) {
+            jsonResponse(['error' => 'Datos inválidos']); exit;
+        }
+
+        // C-11: evidencia de pagos (recalculada en servidor) o override de dir_admin;
+        // TODO cambio queda en bitácora (quién/cuándo/valor anterior).
+        $stmtC = $db->prepare("SELECT folio, estatus_pago, COALESCE(saldo_pagado,0) AS saldo_pagado
+                               FROM cotizaciones WHERE id = ?");
+        $stmtC->execute([$cot_id]);
+        $cotPago = $stmtC->fetch(PDO::FETCH_ASSOC);
+        if (!$cotPago) { jsonResponse(['error' => 'Cotización no encontrada']); exit; }
+
+        $totales   = apexTotalesCotizacion($db, $cot_id);
+        $pagado    = (float)$cotPago['saldo_pagado'];
+        $cubierto  = $totales['total'] > 0 && $pagado >= $totales['total'] - 0.99;
+        $es_dir    = in_array($rol, ['dir_admin', 'desarrollo']);
+
+        // 'pagado' manual exige que los pagos registrados cubran el total canónico…
+        if ($estatus_pago === 'pagado' && !$cubierto) {
+            if (!$es_dir) {
+                jsonResponse(['error' => 'No se puede marcar Pagado: hay $' . number_format($pagado, 2)
+                    . ' cobrados de $' . number_format($totales['total'], 2)
+                    . '. Registra el pago faltante primero.']); exit;
+            }
+            // …salvo override de dir_admin, que exige motivo y queda en bitácora.
+            if (!$nota) {
+                jsonResponse(['error' => 'Para marcar Pagado sin cubrir el total debes indicar el motivo (override dir_admin).']); exit;
+            }
+        }
+
+        $db->beginTransaction();
+        try {
+            $db->prepare("UPDATE cotizaciones SET estatus_pago = ?, updated_at = NOW() WHERE id = ?")
+               ->execute([$estatus_pago, $cot_id]);
+
+            // Bitácora — misma tabla que correcciones: quién autorizó la salida sin cobrar
+            $db->prepare("INSERT INTO correcciones_log
+                (tipo, referencia_id, folio, campo, valor_anterior, valor_nuevo, motivo, usuario)
+                VALUES ('cotizacion', ?, ?, 'estatus_pago', ?, ?, ?, ?)")
+               ->execute([
+                   $cot_id, $cotPago['folio'], $cotPago['estatus_pago'], $estatus_pago,
+                   $nota !== '' ? $nota
+                                : 'Cobrado $' . number_format($pagado, 2) . ' de $' . number_format($totales['total'], 2),
+                   $usuario_nombre
+               ]);
+
+            $db->commit();
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => $e->getMessage()]);
+        }
+        jsonResponse(['ok' => true, 'estatus_pago' => $estatus_pago]); exit;
+    }
+
+    if ($accion === 'registrar_pago') {
+        $cot_id    = (int)($body['cotizacion_id'] ?? 0);
+        $fecha     = trim($body['fecha_pago']  ?? date('Y-m-d'));
+        $hora      = trim($body['hora_pago']   ?? date('H:i:s'));
+
+        // EC-7: (float)"1,250.50" da 1.0 en PHP — un monto con separador de miles
+        // se registraba por error como $1.00, sin ningún aviso. Se quita la coma
+        // ANTES del cast y se exige que lo que quede sea realmente numérico.
+        $montoRaw = $body['monto'] ?? 0;
+        if (is_string($montoRaw)) $montoRaw = str_replace(',', '', trim($montoRaw));
+        if (!is_numeric($montoRaw)) {
+            jsonResponse(['error' => 'Monto inválido: "' . $body['monto'] . '"']); exit;
+        }
+        $monto     = (float)$montoRaw;
+
+        $forma     = $body['forma_pago']       ?? 'efectivo';
+        $notas     = trim($body['notas']       ?? '');
+        // Tipo de tarjeta (29-sep-2026): el SAT distingue crédito (04) de débito (28) en el
+        // Complemento de Pago. La pantalla manda 'tarjeta_credito'/'tarjeta_debito'.
+        $tarjetaTipo = null;
+        if ($forma === 'tarjeta_credito') { $forma = 'tarjeta'; $tarjetaTipo = 'credito'; }
+        elseif ($forma === 'tarjeta_debito') { $forma = 'tarjeta'; $tarjetaTipo = 'debito'; }
+        elseif ($forma === 'tarjeta' && in_array($body['tarjeta_tipo'] ?? '', ['credito','debito'], true)) { $tarjetaTipo = $body['tarjeta_tipo']; }
+        // Qué hacer con un pago mayor al saldo cuando la orden ya está facturada (la
+        // pantalla lo pregunta antes): 'saldo_favor' = aplicar el saldo y el resto al
+        // monedero del cliente. Sin esa decisión explícita, no se registra.
+        $excedenteAccion = ($body['excedente_accion'] ?? '') === 'saldo_favor' ? 'saldo_favor' : null;
+
+        if (!$cot_id || $monto <= 0) {
+            jsonResponse(['error' => 'Datos incompletos']); exit;
+        }
+        if (!in_array($forma, ['efectivo','tarjeta','transferencia','saldo_favor'], true)) {
+            jsonResponse(['error' => 'Forma de pago inválida']); exit;
+        }
+
+        // A-10: fecha_pago validada en servidor — sin backdating que altere
+        // cortes ya cerrados ni fechas futuras que descuadren "cobrado".
+        $dtFecha = DateTime::createFromFormat('Y-m-d', $fecha);
+        if (!$dtFecha || $dtFecha->format('Y-m-d') !== $fecha) {
+            jsonResponse(['error' => 'fecha_pago inválida (formato AAAA-MM-DD)']); exit;
+        }
+        if ($fecha > date('Y-m-d')) {
+            jsonResponse(['error' => 'fecha_pago no puede ser futura']); exit;
+        }
+        $minFecha = date('Y-m-d', strtotime('first day of last month'));
+        if ($fecha < $minFecha) {
+            jsonResponse(['error' => 'fecha_pago demasiado antigua (mínimo ' . $minFecha . '): alteraría cortes ya cerrados. Registra con fecha actual y anota la fecha real en notas.']); exit;
+        }
+
+        // Anti-doble-clic: mismo pago (cotización+monto+forma) registrado hace <8s = envío duplicado
+        $stmt_dup = $db->prepare("SELECT id FROM cotizacion_pagos
+            WHERE cotizacion_id = ? AND monto = ? AND forma_pago = ?
+              AND created_at >= (NOW() - INTERVAL 8 SECOND) LIMIT 1");
+        $stmt_dup->execute([$cot_id, $monto, $forma]);
+        if ($stmt_dup->fetch()) {
+            jsonResponse(['error' => 'Este pago ya se registró hace unos segundos (posible doble clic). Revisa el historial antes de reintentar.']); exit;
+        }
+
+        $db->beginTransaction();
+        try {
+            // Calcular total y saldo pendiente ANTES de aplicar el pago.
+            // A-10: FOR UPDATE — dos pagos concurrentes no pueden leer el mismo saldo;
+            // y no se aceptan pagos sobre cotizaciones canceladas/rechazadas.
+            $stmt_pre = $db->prepare("SELECT COALESCE(saldo_pagado,0) as saldo_pagado, tipo, total, estatus,
+                cliente_id
+                FROM cotizaciones c WHERE c.id = ? FOR UPDATE");
+            $stmt_pre->execute([$cot_id]);
+            $pre = $stmt_pre->fetch(PDO::FETCH_ASSOC);
+            if (!$pre) throw new Exception('Cotización no encontrada');
+            if (in_array($pre['estatus'], ['cancelada', 'rechazada'])) {
+                throw new Exception('No se pueden registrar pagos en una cotización ' . $pre['estatus']);
+            }
+
+            // S1-01 / A-2: helper canónico único — incluye descuento_referido y ramifica maquila
+            $tots_pre        = apexTotalesCotizacion($db, $cot_id);
+            if ($tots_pre === null) throw new Exception('Cotización no encontrada');
+            $total_real      = ($pre['tipo'] === 'maquila')
+                ? round((float)$pre['total'], 2)
+                : $tots_pre['total'];
+            $saldo_pendiente = round(max(0, $total_real - (float)$pre['saldo_pagado']), 2);
+            if ($saldo_pendiente <= 0.01) {
+                throw new Exception('La cotización ya está liquidada — registra el excedente como depósito en Saldo a Favor');
+            }
+            // Un pago con saldo a favor nunca excede lo que se debe (30-sep-2026): antes se
+            // descontaba del monedero el monto completo y el sobrante regresaba como un
+            // "depósito" nuevo, que para el SAT parecería un anticipo recibido sin que
+            // entrara dinero. Ahora solo se toma del saldo lo necesario.
+            if ($forma === 'saldo_favor' && $monto > $saldo_pendiente) {
+                $monto = $saldo_pendiente;
+            }
+            $excedente       = round($monto - $saldo_pendiente, 2);
+
+            // Orden ya facturada (29-sep-2026): el complemento de pago nunca puede exceder
+            // el saldo de la factura, así que CUALQUIER excedente (también < $10) requiere
+            // decisión explícita antes de registrar nada.
+            $facVig = _facturapiFacturaVigenteDeCotizacion($db, $cot_id);
+            // Anticipos esquema A (Fase 4, 30-sep-2026): una factura PPD ya declaró el total
+            // "por cobrar" y cada abono lleva su complemento; un pago con saldo a favor no es
+            // un cobro de ese momento (el dinero entró antes, como anticipo) y no tiene un
+            // complemento correcto. Se bloquea en vez de emitir algo dudoso.
+            if ($facVig && $facVig['metodo_pago'] === 'PPD' && $forma === 'saldo_favor') {
+                $db->rollBack();
+                jsonResponse(['ok'=>false,
+                    'error'=>'Esta orden ya tiene la factura '.$facVig['folio_interno'].' en parcialidades (PPD): no se le puede aplicar saldo a favor. '
+                        .'Registra el pago con la forma real, o consulta con el contador cómo aplicar el anticipo.']);
+                exit;
+            }
+            if ($facVig && $facVig['metodo_pago'] === 'PPD' && $forma === 'tarjeta' && !$tarjetaTipo) {
+                $db->rollBack();
+                jsonResponse(['ok'=>false, 'requiere'=>'tipo_tarjeta',
+                    'error'=>'Esta orden tiene la factura '.$facVig['folio_interno'].' en parcialidades: indica si la tarjeta fue de crédito o de débito (el complemento de pago lo exige).']);
+                exit;
+            }
+            $forzarSaldoFavor = false;
+            if ($facVig && $excedente > 0.005) {
+                if ($excedenteAccion !== 'saldo_favor') {
+                    $db->rollBack();
+                    jsonResponse(['ok'=>false, 'requiere'=>'decision_excedente',
+                        'saldo_pendiente'=>$saldo_pendiente, 'excedente'=>$excedente, 'factura'=>$facVig['folio_interno'],
+                        'error'=>'El pago ($'.number_format($monto, 2).') es mayor al saldo pendiente ($'.number_format($saldo_pendiente, 2)
+                            .') de una orden ya facturada ('.$facVig['folio_interno'].').']);
+                    exit;
+                }
+                $forzarSaldoFavor = true;
+            }
+
+            // A-10: excedente real va a una cuenta explícita (saldo a favor) — pero
+            // solo si es >= $10 (Armando, 26-ago-2026): un excedente menor (ej. deuda
+            // de $994 pagada con $1000) no vale la pena convertirlo en un depósito
+            // formal de saldo a favor — se registra el pago completo tal cual y el
+            // residuo queda absorbido por ahora, sin mecanismo de registro aparte
+            // todavía (pendiente que Armando defina cómo tratar esos pesos/centavos).
+            $UMBRAL_EXCEDENTE_SALDO_FAVOR = 10.00;
+            $monto_aplicar = ($excedente >= $UMBRAL_EXCEDENTE_SALDO_FAVOR) ? $saldo_pendiente : $monto;
+            $depositar_favor = ($excedente >= $UMBRAL_EXCEDENTE_SALDO_FAVOR) ? $excedente : 0.0;
+            if ($forzarSaldoFavor) {   // orden facturada: nada por encima del saldo, ni centavos
+                $monto_aplicar   = $saldo_pendiente;
+                $depositar_favor = $excedente;
+            }
+
+            // Insertar pago (por el monto que realmente se aplica a la orden)
+            $db->prepare("INSERT INTO cotizacion_pagos
+                (cotizacion_id, fecha_pago, hora_pago, monto, forma_pago, tarjeta_tipo, notas, registrado_por)
+                VALUES (?,?,?,?,?,?,?,?)
+            ")->execute([$cot_id, $fecha, $hora, $monto_aplicar, $forma, ($forma === 'tarjeta' ? $tarjetaTipo : null), $notas, $usuario_nombre]);
+            $pagoId = (int)$db->lastInsertId();
+
+            // Actualizar saldo_pagado en cotizaciones
+            $db->prepare("UPDATE cotizaciones SET
+                saldo_pagado = COALESCE(saldo_pagado,0) + ?,
+                updated_at = NOW()
+                WHERE id = ?
+            ")->execute([$monto_aplicar, $cot_id]);
+
+            // Si aplica saldo a favor → descontar del monedero del cliente
+            if ($forma === 'saldo_favor') {
+                // Derivar cliente_id del servidor — nunca del body para evitar IDOR
+                $stmt_c = $db->prepare("SELECT cliente_id FROM cotizaciones WHERE id = ?");
+                $stmt_c->execute([$cot_id]);
+                $cliente_id = (int)($stmt_c->fetchColumn() ?: 0);
+                if (!$cliente_id) {
+                    throw new Exception('Cotización sin cliente asociado');
+                }
+                // FOR UPDATE bloquea las filas del monedero del cliente hasta el commit:
+                // dos aplicaciones concurrentes del mismo saldo ya no pueden pasar las dos
+                // el chequeo de suficiencia y dejar el monedero en negativo (M-1).
+                $stmt_s = $db->prepare("SELECT COALESCE(SUM(monto),0) as saldo FROM clientes_saldo_favor WHERE cliente_id = ? FOR UPDATE");
+                $stmt_s->execute([$cliente_id]);
+                $saldo_disp = (float)$stmt_s->fetch(PDO::FETCH_ASSOC)['saldo'];
+                if ($saldo_disp < $monto) {
+                    throw new Exception('Saldo a favor insuficiente. Disponible: $' . number_format($saldo_disp, 2));
+                }
+                $stmt_f = $db->prepare("SELECT o.folio FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id WHERE c.id = ?");
+                $stmt_f->execute([$cot_id]);
+                $fila = $stmt_f->fetch(PDO::FETCH_ASSOC);
+                $ref  = $fila ? 'Aplicado a ' . $fila['folio'] : 'Aplicado a cot. #' . $cot_id;
+                $db->prepare("INSERT INTO clientes_saldo_favor
+                    (cliente_id, tipo, monto, fecha, referencia, notas, cotizacion_id, creado_por)
+                    VALUES (?, 'aplicacion', ?, ?, ?, ?, ?, ?)
+                ")->execute([$cliente_id, -$monto, $fecha, $ref, $notas, $cot_id, $usuario_nombre]);
+            }
+
+            // Si el pago excedió el total en más de $5 → depositar diferencia como saldo a favor
+            if ($depositar_favor > 0) {
+                $cliente_id_dep = (int)($pre['cliente_id'] ?? 0);
+                if (!$cliente_id_dep) throw new Exception('Cotización sin cliente asociado para depósito de excedente');
+                $stmt_fol = $db->prepare("SELECT o.folio FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id WHERE c.id = ?");
+                $stmt_fol->execute([$cot_id]);
+                $fila_fol = $stmt_fol->fetch(PDO::FETCH_ASSOC);
+                $ref_dep  = 'Excedente de pago en ' . ($fila_fol ? $fila_fol['folio'] : 'cot. #'.$cot_id);
+                // Anticipo (esquema A del SAT): el excedente hereda la forma del pago que lo generó.
+                $db->prepare("INSERT INTO clientes_saldo_favor
+                    (cliente_id, tipo, monto, forma_pago, tarjeta_tipo, fecha, referencia, notas, cotizacion_id, creado_por)
+                    VALUES (?, 'deposito', ?, ?, ?, ?, ?, ?, ?, ?)
+                ")->execute([$cliente_id_dep, $depositar_favor, $forma, ($forma === 'tarjeta' ? $tarjetaTipo : null),
+                             $fecha, $ref_dep, $notas, $cot_id, $usuario_nombre]);
+            }
+
+            // Fase 6.2 — póliza automática de cobro real (Debe Bancos / Haber CxC), por el
+            // monto que efectivamente se aplicó a la cotización. Pagos con saldo_favor NO
+            // generan póliza aquí a propósito: ese dinero ya entró (o no) al banco cuando se
+            // hizo el depósito original, mecanismo que todavía no está conectado a Pólizas
+            // (proyecto de Saldo a Favor sigue en diseño) — conectarlo aquí también duplicaría
+            // el ingreso de efectivo. Efecto conocido: Cuentas por Cobrar en el Balance queda
+            // sobreestimada en órdenes pagadas con saldo a favor, hasta que se conecte ese flujo.
+            if ($forma !== 'saldo_favor' && $monto_aplicar > 0) {
+                $bancosCta = pl_cuentaId($db, '1.1');
+                $cxcCta    = pl_cuentaId($db, '1.2');
+                if ($bancosCta && $cxcCta) {
+                    $stmt_fpol = $db->prepare("SELECT o.folio FROM ordenes o JOIN cotizaciones c ON c.orden_id = o.id WHERE c.id = ?");
+                    $stmt_fpol->execute([$cot_id]);
+                    $folioPago = $stmt_fpol->fetchColumn() ?: ('cot. #' . $cot_id);
+                    pl_generarAutomatica($db, 'finanzas_pago', $pagoId, 'ingresos', $fecha,
+                        'Cobro — Orden ' . $folioPago,
+                        [
+                            [$bancosCta, $monto_aplicar, 0, 'Cobro (' . $forma . ') — ' . $folioPago],
+                            [$cxcCta, 0, $monto_aplicar, 'Cobro (' . $forma . ') — ' . $folioPago],
+                        ],
+                        (int)$user['id']);
+                }
+            }
+
+            // LN-8: movido DENTRO de la transacción (antes corría después de
+            // $db->commit(), suelto) — si este UPDATE fallaba, el dinero ya había
+            // quedado aplicado (commit hecho) pero el estatus se quedaba desfasado;
+            // y sin condicionar el estatus previo podía pisar uno puesto a mano
+            // entre el commit y este UPDATE. Se calcula el saldo nuevo in-memory
+            // (sin SELECT extra) con los valores que ya están en scope.
+            $saldo_pagado_nuevo = round((float)$pre['saldo_pagado'] + $monto_aplicar, 2);
+            if ($total_real > 0 && ($total_real - $saldo_pagado_nuevo) <= 0.99) {
+                $db->prepare("UPDATE cotizaciones SET estatus_pago = 'pagado', updated_at = NOW() WHERE id = ? AND estatus_pago <> 'pagado'")
+                   ->execute([$cot_id]);
+            }
+
+            $db->commit();
+
+            // Devolver saldo actualizado (bruto desde partidas para evitar inconsistencia en c.subtotal) — solo lectura, ya commiteado
+            $stmt = $db->prepare("SELECT saldo_pagado FROM cotizaciones c WHERE c.id = ?");
+            $stmt->execute([$cot_id]);
+            $cot = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // Complemento de pago automático (29-sep-2026): si la orden tiene factura PPD
+            // vigente, se emiten en orden los complementos pendientes (este abono incluido).
+            // Nunca rompe el registro del pago: si el PAC falla, queda en "Complementos
+            // pendientes" de Facturación con su aviso.
+            $complementos = [];
+            if ($facVig && $facVig['metodo_pago'] === 'PPD') {
+                try {
+                    $complementos = _facturapiEmitirPendientesAuto($db, (int)$facVig['id'], $usuario_nombre);
+                } catch (Throwable $e) {
+                    error_log('APEX Cobranza: complemento automático falló (factura id='.$facVig['id'].'): '.$e->getMessage());
+                    $complementos = [['ok'=>false, 'error'=>'No se pudo emitir el complemento en automático; quedó en Facturación → Complementos pendientes.']];
+                }
+            }
+
+            jsonResponse([
+                'ok'              => true,
+                'saldo_pagado'    => $cot['saldo_pagado'],
+                'total'           => $total_real,
+                'excedente'       => $depositar_favor > 0 ? $depositar_favor : null,
+                'complementos'    => $complementos,
+            ]);
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    jsonResponse(['error' => 'Acción no reconocida']); exit;
+}
+
+// ─── PUT: dar VoBo ───────────────────────────────────────────────────────────
+if ($method === 'PUT') {
+    $accion   = $body['accion'] ?? '';
+    $orden_id = (int)($body['orden_id'] ?? 0);
+
+    // Promo de precio fijo vencida para VoBo (SALT_SEP2026): regresa las partidas en
+    // promo a precio de catálogo y recalcula totales — solo cuando ya pasó el límite
+    // de VoBo de la promo (antes de eso la promo se respeta tal cual).
+    if ($accion === 'quitar_promo_precio' && $orden_id) {
+        $st = $db->prepare("SELECT c.id, c.promo_precio_codigo FROM cotizaciones c JOIN ordenes o ON o.id = c.orden_id
+                            WHERE o.id = ? AND o.estado = 'pendiente_vobo'");
+        $st->execute([$orden_id]);
+        $cp = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$cp || !$cp['promo_precio_codigo']) { jsonResponse(['error' => 'La orden no tiene promoción de precio o ya no está pendiente de VoBo']); exit; }
+        if (promoPrecioVoboVigente($cp['promo_precio_codigo'])) { jsonResponse(['error' => 'La promoción sigue vigente para VoBo — no se puede quitar desde aquí']); exit; }
+        $db->beginTransaction();
+        try {
+            promoPrecioQuitar($db, (int)$cp['id'], $usuario_nombre);
+            $db->commit();
+        } catch (Exception $e) {
+            $db->rollBack();
+            error_log('[promo_precio] quitar: ' . $e->getMessage());
+            jsonResponse(['error' => 'No se pudo quitar la promoción']); exit;
+        }
+        jsonResponse(['ok' => true]); exit;
+    }
+
+    if ($accion === 'vobo' && $orden_id) {
+        // Fecha entrega: usa la que manda Lina (puede haberla ajustado)
+        $fecha_entrega = trim($body['fecha_entrega'] ?? '');
+
+        // Verificar que la orden está en pendiente_vobo
+        $stmt = $db->prepare("SELECT o.*, c.localidad, c.id as cot_id FROM ordenes o LEFT JOIN cotizaciones c ON c.orden_id = o.id WHERE o.id = ? AND o.estado = 'pendiente_vobo'");
+        $stmt->execute([$orden_id]);
+        $orden = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$orden) {
+            jsonResponse(['error' => 'Orden no encontrada o no está pendiente de VoBo']); exit;
+        }
+
+        // Promo de precio fijo (SALT_SEP2026): el VoBo debe darse dentro del límite de la promo.
+        if ($orden['cot_id']) {
+            $stPP = $db->prepare("SELECT promo_precio_codigo FROM cotizaciones WHERE id = ?");
+            $stPP->execute([(int)$orden['cot_id']]);
+            $ppCod = $stPP->fetchColumn();
+            if ($ppCod && !promoPrecioVoboVigente($ppCod)) {
+                jsonResponse(['error' => promoPrecioMsgVoboVencida($ppCod), 'promo_vencida' => true]); exit;
+            }
+        }
+
+        // Si no viene fecha, calcular ahora
+        if (!$fecha_entrega) {
+            $fecha_entrega = calcularFechaVobo($db, $orden['localidad'] ?? 'LOCAL', $orden['ciudad_destino'] ?? '');
+        }
+
+        // C-12: fecha de entrega válida y no pasada
+        $dtFecha = DateTime::createFromFormat('Y-m-d', $fecha_entrega);
+        if (!$dtFecha || $dtFecha->format('Y-m-d') !== $fecha_entrega) {
+            jsonResponse(['error' => 'Fecha de entrega inválida']); exit;
+        }
+        if ($fecha_entrega < date('Y-m-d')) {
+            jsonResponse(['error' => 'La fecha de entrega no puede ser anterior a hoy']); exit;
+        }
+
+        // C-12: condiciones de pago — sin anticipo no hay producción.
+        // condicion_pago: 'anticipo' = 50% del total; 'pago_total' = 100%.
+        $vobo_override = false;
+        if ($orden['cot_id']) {
+            $stmtCP = $db->prepare("SELECT condicion_pago, COALESCE(saldo_pagado,0) AS saldo_pagado, folio, es_retrabajo,
+                                    tipo, subtotal, iva, total AS total_cot
+                                    FROM cotizaciones WHERE id = ?");
+            $stmtCP->execute([$orden['cot_id']]);
+            $cp = $stmtCP->fetch(PDO::FETCH_ASSOC);
+
+            $totalesCot    = apexTotalesCotizacion($db, $orden['cot_id']);
+            $totalCot      = $totalesCot['total'];
+            $anticipo_req  = ($cp['condicion_pago'] === 'pago_total')
+                ? $totalCot
+                : round($totalCot * 0.5, 2);
+            $pagado        = (float)$cp['saldo_pagado'];
+
+            // Retrabajo (error comercial, ver CLAUDE.md UPD-467/470): el cliente casi
+            // nunca paga nada — la empresa ya sabe que absorbe esa pérdida, no es una
+            // excepción que Lina deba justificar cada vez. Exento del anticipo
+            // requerido; el VoBo lo sigue dando Lina a mano (nada cambia en eso), solo
+            // ya no se le fuerza a escribir motivo. Queda igual registrado en bitácora
+            // para trazabilidad, con nota automática (no la escribe ella).
+            if (!empty($cp['es_retrabajo']) && $pagado + 0.99 < $anticipo_req) {
+                $vobo_override = true;
+                $notaOv = 'VoBo sin anticipo — orden de retrabajo, pérdida absorbida por la empresa';
+            } elseif ($pagado + 0.99 < $anticipo_req) {
+                $pctTxt = ($cp['condicion_pago'] === 'pago_total') ? '100%' : '50%';
+                // C-12: dir_admin/desarrollo pasan directo sin anticipo — no necesitan mandar
+                // nada extra — pero queda registrado en bitácora automáticamente (nota_vobo
+                // opcional, si la mandan se usa; si no, se genera una nota por default).
+                if (in_array($rol, ['dir_admin', 'desarrollo'])) {
+                    $notaOv = trim($body['nota_vobo'] ?? '') ?: 'VoBo forzado por ' . $rol . ' sin anticipo completo';
+                    $vobo_override = true;
+                } elseif ($rol === 'administracion') {
+                    // A diferencia de dir_admin/desarrollo, aquí el motivo es obligatorio —
+                    // no se genera un texto genérico por default.
+                    $notaOv = trim($body['nota_vobo'] ?? '');
+                    if ($notaOv === '') {
+                        jsonResponse(['error' => 'Anticipo insuficiente para VoBo: la condición es ' . $pctTxt
+                            . ' ($' . number_format($anticipo_req, 2) . ' de $' . number_format($totalCot, 2)
+                            . ') y solo hay $' . number_format($pagado, 2)
+                            . ' cobrados. Para forzar el VoBo sin el anticipo completo debes escribir el motivo.']); exit;
+                    }
+                    $vobo_override = true;
+                } else {
+                    jsonResponse(['error' => 'Anticipo insuficiente para VoBo: la condición es ' . $pctTxt
+                        . ' ($' . number_format($anticipo_req, 2) . ' de $' . number_format($totalCot, 2)
+                        . ') y solo hay $' . number_format($pagado, 2)
+                        . ' cobrados. Registra el pago o pide a dir_admin el override.']); exit;
+                }
+            }
+        }
+
+        $db->beginTransaction();
+        try {
+            // LN-3: claim atómico — el SELECT de arriba (línea 433) confirmó
+            // 'pendiente_vobo' FUERA de la transacción; dos requests concurrentes
+            // (doble clic / dos pestañas) podían pasar los dos y correr todo el
+            // bloque de abajo dos veces (póliza + bono de referidos). Repetir la
+            // condición aquí, dentro de la transacción, y abortar si otro proceso
+            // ya la activó (mismo patrón que 'rechazar', línea ~1187).
+            $stUpd = $db->prepare("UPDATE ordenes SET
+                estado = 'activa',
+                fecha_entrega = ?,
+                updated_at = NOW()
+                WHERE id = ? AND estado = 'pendiente_vobo'
+            ");
+            $stUpd->execute([$fecha_entrega, $orden_id]);
+            if ($stUpd->rowCount() !== 1) {
+                throw new Exception('Esta orden ya no está pendiente de VoBo — otro proceso ya la activó.');
+            }
+
+            // Marcar VoBo en cotización
+            if ($orden['cot_id']) {
+                $db->prepare("UPDATE cotizaciones SET
+                    vobo_por = ?,
+                    vobo_at  = NOW(),
+                    updated_at = NOW()
+                    WHERE id = ?
+                ")->execute([$usuario_nombre, $orden['cot_id']]);
+
+                // C-12: override de anticipo — bitácora con quién y por qué
+                if ($vobo_override) {
+                    $db->prepare("INSERT INTO correcciones_log
+                        (tipo, referencia_id, folio, campo, valor_anterior, valor_nuevo, motivo, usuario)
+                        VALUES ('cotizacion', ?, ?, 'vobo_sin_anticipo', ?, 'OVERRIDE', ?, ?)")
+                       ->execute([
+                           $orden['cot_id'], $cp['folio'],
+                           'Cobrado $' . number_format($pagado, 2) . ' de anticipo requerido $' . number_format($anticipo_req, 2),
+                           $notaOv, $usuario_nombre
+                       ]);
+                }
+
+                // Fase 6.2 — póliza automática de reconocimiento de venta, en el MISMO
+                // momento y con los MISMOS montos que ya usa el Estado de Resultados para
+                // Ingresos (cotizaciones.subtotal/iva/total, criterio vobo_at). Retrabajo
+                // (es_retrabajo=1) no genera venta — igual que el P&L, que lo excluye de
+                // Ingresos porque el cliente casi nunca paga (UPD-467/470).
+                if (!$cp['es_retrabajo']) {
+                    $cxcCta    = pl_cuentaId($db, '1.2');
+                    $ivaCta    = pl_cuentaId($db, '2.2');
+                    $ventasCta = pl_cuentaId($db, $cp['tipo'] === 'maquila' ? '4.2' : '4.1');
+                    // B-03: la póliza usa el total CANÓNICO ($totalesCot, ya calculado arriba
+                    // para el candado de anticipo), no los campos subtotal/iva/total guardados
+                    // en cotizaciones — que pueden desincronizarse del real (ya visto en
+                    // producción con saldo_pendiente stale).
+                    if ($cxcCta && $ivaCta && $ventasCta && $totalesCot['total'] > 0) {
+                        pl_generarAutomatica($db, 'finanzas_vobo', (int)$orden['cot_id'], 'ingresos',
+                            date('Y-m-d'), 'Venta reconocida — Orden ' . $orden['folio'],
+                            [
+                                [$cxcCta, $totalesCot['total'], 0, 'CxC — ' . $orden['folio']],
+                                [$ventasCta, 0, $totalesCot['subtotal'], 'Venta — ' . $orden['folio']],
+                                [$ivaCta, 0, $totalesCot['iva'], 'IVA — ' . $orden['folio']],
+                            ],
+                            (int)$user['id']);
+                    }
+                }
+
+                // Venta anticipada de lámina completa (UPD-554): por cada partida marcada
+                // como "vender lámina completa" (lamina_id), reservar contra stock/compra
+                // futura — se liquida sola apenas haya stock físico disponible.
+                $stLam = $db->prepare("SELECT id, lamina_id, cantidad FROM cotizaciones_partidas
+                                       WHERE cotizacion_id = ? AND lamina_id IS NOT NULL");
+                $stLam->execute([$orden['cot_id']]);
+                foreach ($stLam->fetchAll(PDO::FETCH_ASSOC) as $pLam) {
+                    laminasCrearReservaVenta($db, $pLam['lamina_id'], (int)$pLam['cantidad'],
+                        $pLam['id'], $orden['folio'], (int)$user['id']);
+                }
+            }
+
+            $db->commit();
+
+            // Notificar al asesor comercial que su orden entró a producción
+            try {
+                $asesor_row = $db->prepare("SELECT id FROM usuarios WHERE nombre = ? AND rol = 'comercial' LIMIT 1");
+                $asesor_row->execute([$orden['asesor']]);
+                $asesor_row = $asesor_row->fetch(PDO::FETCH_ASSOC);
+                $db->prepare("
+                    INSERT INTO notificaciones (tipo, titulo, mensaje, folio, orden_id, rol_destino, usuario_id_dest, leida)
+                    VALUES ('vobo_aprobado', 'Orden aprobada — en producción', ?, ?, ?, 'comercial', ?, 0)
+                ")->execute([
+                    'La orden ' . $orden['folio'] . ' fue autorizada y ya está en producción.',
+                    $orden['folio'],
+                    $orden_id,
+                    $asesor_row['id'] ?? null
+                ]);
+            } catch (Exception $ignored) {}
+
+            // Esquema de Referidos: si el cliente de esta orden tiene un referente
+            // registrado, abonar 5% de saldo a favor y avisar por WhatsApp. Nunca
+            // debe bloquear el VoBo — ya se hizo commit arriba, esto es un bono
+            // aparte (mismo patrón que la notificación al asesor de arriba).
+            if ($orden['cot_id']) {
+                try {
+                    $bono = referidosAcreditarVoBo($db, $orden['cot_id']);
+                    if ($bono) {
+                        $telRaw = preg_replace('/\D/', '', $bono['referente_telefono'] ?? '');
+                        if ($telRaw && strlen($telRaw) >= 10) {
+                            if (strlen($telRaw) === 10) $telRaw = '52' . $telRaw;
+                            $waResp = enviarMensajeWA([
+                                'messaging_product' => 'whatsapp',
+                                'to'   => $telRaw,
+                                'type' => 'template',
+                                'template' => [
+                                    'name'     => 'referido_saldo_abonado',
+                                    'language' => ['code' => 'es_MX'],
+                                    'components' => [[
+                                        'type' => 'body',
+                                        'parameters' => [
+                                            ['type' => 'text', 'text' => substr(strip_tags($bono['referente_nombre']), 0, 60)],
+                                            ['type' => 'text', 'text' => number_format($bono['monto'], 2)],
+                                            ['type' => 'text', 'text' => substr(strip_tags($bono['cliente_referido_nombre']), 0, 60)],
+                                        ]
+                                    ]]
+                                ]
+                            ]);
+                            // No se valida la respuesta de Meta ni se reintenta — el saldo
+                            // ya quedó abonado en BD (lo importante); el WA es solo cortesía.
+                            // Registrar el mensaje en la conversación del referente para que
+                            // aparezca en el hilo de chat del inbox (mismo patrón que api/campanas.php).
+                            $waId = $waResp['data']['messages'][0]['id'] ?? null;
+                            if ($waId) {
+                                try {
+                                    $contenidoWA = 'Hola ' . $bono['referente_nombre'] . ', ¡gracias por recomendarnos! 🙌' . "\n\n"
+                                        . 'Tu referido ' . $bono['cliente_referido_nombre'] . ' realizó su compra con APEX GLASS, y como agradecimiento te abonamos $'
+                                        . number_format($bono['monto'], 2) . ' de saldo a favor en tu cuenta.' . "\n\n"
+                                        . 'Puedes usar este saldo en tu próxima compra. Sigue recomendándonos y sigue acumulando. ¡Gracias por tu confianza!';
+                                    $stmtConvRef = $db->prepare("SELECT id FROM whatsapp_conversaciones WHERE RIGHT(REGEXP_REPLACE(telefono,'[^0-9]',''),10) = ?");
+                                    $stmtConvRef->execute([substr($telRaw, -10)]);
+                                    $convRef = $stmtConvRef->fetch(PDO::FETCH_ASSOC);
+                                    if (!$convRef) {
+                                        $db->prepare("INSERT INTO whatsapp_conversaciones (cliente_id, telefono, ultima_actividad) VALUES (?,?,NOW())")
+                                           ->execute([(int)$bono['referente_cliente_id'] ?: null, $telRaw]);
+                                        $convRefId = $db->lastInsertId();
+                                    } else {
+                                        $convRefId = $convRef['id'];
+                                    }
+                                    $db->prepare("INSERT INTO whatsapp_mensajes (conversacion_id, direccion, contenido, tipo, wa_message_id, enviado_por) VALUES (?,'outbound',?,'template',?,?)")
+                                       ->execute([$convRefId, $contenidoWA, $waId, 'Sistema (Referidos)']);
+                                    $db->prepare("UPDATE whatsapp_conversaciones SET ultima_actividad=NOW() WHERE id=?")
+                                       ->execute([$convRefId]);
+                                } catch (Exception $ignored2) {}
+                            }
+                        }
+                    }
+                } catch (Exception $ignored) {}
+            }
+
+            jsonResponse([
+                'ok'            => true,
+                'fecha_entrega' => $fecha_entrega,
+                'vobo_por'      => $usuario_nombre,
+            ]);
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(['error' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    jsonResponse(['error' => 'Acción no reconocida']); exit;
+}
+
+jsonResponse(['error' => 'Método no soportado']);

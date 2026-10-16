@@ -278,6 +278,7 @@ $esModoLive = (FACTURAPI_MODE === 'live');
       <thead>
         <tr>
           <th>Folio</th>
+          <th>Orden(es)</th>
           <th>Cliente / RFC</th>
           <th>Uso CFDI</th>
           <th>Forma de Pago</th>
@@ -287,7 +288,7 @@ $esModoLive = (FACTURAPI_MODE === 'live');
         </tr>
       </thead>
       <tbody id="fac-tbody">
-        <tr><td colspan="7" class="fac-empty">No hay facturas. Crea la primera.</td></tr>
+        <tr><td colspan="8" class="fac-empty">No hay facturas. Crea la primera.</td></tr>
       </tbody>
     </table>
   </div>
@@ -821,12 +822,36 @@ var ModFacturacion = (function() {
     });
     if (!_filtroTexto) return base;
     return base.filter(function(f) {
-      var campos = [f.folio_interno, f.orden_folio, f.receptor_nombre, f.receptor_rfc, f.cliente_solicito_nombre, f.cp_factura_folio, f.cp_orden_folio];
+      var campos = [f.folio_interno, f.orden_folio, _ordenesDe(f).join(' '), f.receptor_nombre, f.receptor_rfc, f.cliente_solicito_nombre, f.cp_factura_folio, f.cp_orden_folio];
       for (var i = 0; i < campos.length; i++) {
         if (campos[i] && String(campos[i]).toLowerCase().indexOf(_filtroTexto) !== -1) return true;
       }
       return false;
     });
+  }
+
+  // UPD-715: órdenes que ampara la factura. Ligada → su orden; complemento → la de su factura;
+  // anticipo / nota de crédito → donde se aplicó; sin ligar → el folio que trae la descripción.
+  function _ordenesDe(f) {
+    if (f.orden_folio) return [f.orden_folio];
+    if (f.cp_orden_folio) return [f.cp_orden_folio];
+    if (f.ordenes_rel) return String(f.ordenes_rel).split(', ');
+    var out = [];
+    try {
+      var cs = typeof f.conceptos === 'string' ? JSON.parse(f.conceptos) : (f.conceptos || []);
+      for (var i = 0; i < cs.length; i++) {
+        var m = String(cs[i].desc || '').match(/Orden ([A-Z]{1,3}-[A-Z]?-?\d+)/);
+        if (m && out.indexOf(m[1]) === -1) out.push(m[1]);
+      }
+    } catch (e) {}
+    return out;
+  }
+
+  function _ordenesHtml(f) {
+    var ords = _ordenesDe(f);
+    if (ords.length) return '<span style="font-weight:600;color:#334155">' + _esc(ords.join(', ')) + '</span>';
+    if (f.saldo_favor_id) return '<span style="font-size:11px;color:var(--c-muted)">Sin aplicar</span>';
+    return '<span style="color:var(--c-muted)">&#8212;</span>';
   }
 
   function _fmt(n) {
@@ -911,7 +936,7 @@ var ModFacturacion = (function() {
     var tbody = document.getElementById('fac-tbody');
     if (!tbody) return;
     if (!_facturas.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="fac-empty">No hay facturas. Crea la primera.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="fac-empty">No hay facturas. Crea la primera.</td></tr>';
       return;
     }
     var lista = _facturasFiltradas();
@@ -919,7 +944,7 @@ var ModFacturacion = (function() {
       var msg = _filtroTexto
         ? 'Sin resultados para "' + _esc(_filtroTexto) + '".'
         : 'No hay facturas en ' + (labelsTab[_tabActivo] || _tabActivo) + '.';
-      tbody.innerHTML = '<tr><td colspan="7" class="fac-empty">' + msg + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="fac-empty">' + msg + '</td></tr>';
       return;
     }
     var TIPOS = {I:'Factura',E:'Nota Cred.',P:'Comp. Pago',IG:'Global'};
@@ -939,6 +964,7 @@ var ModFacturacion = (function() {
       if (f.tipo_cfdi === 'E') antBadge += '<span style="font-size:9px;background:#fce7f3;color:#9d174d;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:700">NOTA DE CR\u00c9DITO</span>';
       var faltaNota = (f.estatus === 'timbrada' && Number(f.anticipos_aplicados) > 0 && !f.nota_credito_folio);
       html += '<td style="font-weight:600;color:#2563eb">' + _esc(f.folio_interno) + modoBadge + pubBadge + antBadge + '</td>';
+      html += '<td style="white-space:nowrap">' + _ordenesHtml(f) + '</td>';
       html += '<td><div style="font-weight:600">' + _esc(f.receptor_nombre||'—') + '</div>';
       html += '<div style="font-size:11px;color:var(--c-muted)">' + _esc(f.receptor_rfc||'') + '</div>';
       if (pubGeneral && f.cliente_solicito_nombre) {

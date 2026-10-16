@@ -61,6 +61,40 @@ tbody tr:hover { background: #fafafa; }
 tbody tr:last-child { border-bottom: none; }
 tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
 
+/* UPD-715: tabla de Cobranza compacta — orden y cliente juntos, cifras alineadas a la derecha,
+   acciones agrupadas junto a los montos en vez de perderse en el borde */
+.cob-table th.num, .cob-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cob-table th.th-acc { text-align: right; }
+.cob-ord-folio { font-weight: 700; color: #2563eb; }
+.cob-ord-cli   { font-weight: 600; color: #1e293b; margin-top: 2px; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cob-ord-meta  { font-size: 11px; color: var(--c-muted); margin-top: 2px; }
+.cob-fecha     { font-size: 12px; color: #475569; white-space: nowrap; margin-bottom: 4px; }
+.cob-cobrado   { color: #16a34a; font-weight: 600; }
+.cob-avance    { display: flex; align-items: center; gap: 6px; justify-content: flex-end; margin-top: 5px; }
+.cob-avance .pay-bar { flex: none; width: 64px; height: 4px; }
+.cob-avance .pay-pct { min-width: 0; font-size: 10px; }
+.cob-table thead th:first-child { width: 34%; }
+.cob-acc { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.cob-acc .btn-expand { min-width: 84px; justify-content: center; }
+.cob-acc .btn-expand + .btn-expand { min-width: 104px; }
+.cob-acc .btn-expand, .cob-acc .btn-salida { height: 28px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }
+.cob-acc .btn-expand[aria-expanded="true"] { background: #f1f5f9; border-color: #cbd5e1; color: #1e293b; }
+.btn-fac-ver { color: #15803d !important; border-color: #bbf7d0 !important; }
+.btn-fac-ver:hover { background: #f0fdf4 !important; }
+.cob-fac-cnt { font-size: 10px; font-weight: 700; color: #b45309; background: #fef3c7; border-radius: 99px; padding: 1px 6px; }
+.cob-acc button:focus-visible, .sel-epago:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+
+/* Ventana "Ver facturas" */
+.cob-fac-lista { width: 100%; border-collapse: collapse; }
+.cob-fac-lista td { padding: 9px 6px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
+.cob-fac-lista tr:last-child td { border-bottom: none; }
+.cob-fac-folio { font-weight: 700; color: #1e293b; }
+.cob-fac-tipo  { font-size: 11px; color: var(--c-muted); }
+.cob-fac-cancel td { color: var(--c-muted); }
+.cob-fac-cancel .cob-fac-folio { text-decoration: line-through; color: var(--c-muted); }
+.cob-fac-pdf { font-size: 12px; font-weight: 600; color: #2563eb; text-decoration: none; white-space: nowrap; }
+.cob-fac-pdf:hover { text-decoration: underline; }
+
 /* Barra de pago */
 .pay-bar-wrap { display: flex; align-items: center; gap: 8px; min-width: 140px; }
 .pay-bar { flex: 1; background: #e2e8f0; border-radius: 99px; height: 6px; overflow: hidden; }
@@ -209,19 +243,18 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
   .kpi-val  { font-size: 18px; }
   .kpi-lbl  { font-size: 10px; }
 
-  /* Tabla cobranza: ocultar Asesor, Fecha, Estado, Cobrado, Avance, Pago */
+  /* Tabla cobranza (UPD-715): en celular quedan Orden, Pendiente, Estatus y Acciones */
+  .cob-table thead th:nth-child(2),
   .cob-table thead th:nth-child(3),
   .cob-table thead th:nth-child(4),
-  .cob-table thead th:nth-child(5),
-  .cob-table thead th:nth-child(7),
-  .cob-table thead th:nth-child(9),
-  .cob-table thead th:nth-child(10),
-  .cob-table tbody td:nth-child(3),
-  .cob-table tbody td:nth-child(4),
-  .cob-table tbody td:nth-child(5),
-  .cob-table tbody td:nth-child(7),
-  .cob-table tbody td:nth-child(9),
-  .cob-table tbody td:nth-child(10) { display: none; }
+  .cob-table tbody tr:not(.pagos-panel) td:nth-child(2),
+  .cob-table tbody tr:not(.pagos-panel) td:nth-child(3),
+  .cob-table tbody tr:not(.pagos-panel) td:nth-child(4) { display: none; }
+  .cob-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cob-table thead th:first-child { width: auto; }
+  .cob-ord-cli { max-width: 120px; }
+  .cob-acc { flex-direction: column; align-items: stretch; }
+  .cob-acc .btn-expand, .cob-acc .btn-expand + .btn-expand { min-width: 0; }
 
   /* Tabla saldo a favor: ocultar Código, Teléfono, Último Movimiento */
   .sf-table thead th:nth-child(2),
@@ -240,7 +273,7 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
   /* Botones col acciones: en columna */
   .td-acciones-cob { white-space: normal !important; display: table-cell !important; }
   .td-acciones-cob .btn-expand,
-  .td-acciones-cob .btn-salida { display: block !important; width: 100%; margin-bottom: 4px; text-align: center; box-sizing: border-box; }
+  .td-acciones-cob .btn-salida { width: 100%; justify-content: center; }
 
   /* Barra de pago más compacta */
   .pay-bar-wrap { min-width: 60px; }
@@ -450,25 +483,31 @@ tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
   <div class="cob-table">
     <table>
       <thead><tr>
-        <th>Folio</th>
-        <th>Cliente</th>
-        <th>Asesor</th>
-        <th>Fecha VoBo</th>
-        <th>Estado</th>
-        <th>Total</th>
-        <th>Cobrado</th>
-        <th>Pendiente</th>
-        <th>Avance</th>
-        <th>Pago</th>
+        <th>Orden</th>
+        <th>VoBo</th>
+        <th class="num">Total</th>
+        <th class="num">Cobrado</th>
+        <th class="num">Pendiente</th>
         <th>Estatus pago</th>
-        <th></th>
+        <th class="th-acc">Acciones</th>
       </tr></thead>
       <tbody id="cob-tbody">
-        <tr><td colspan="12" class="loading-msg">Cargando...</td></tr>
+        <tr><td colspan="7" class="loading-msg">Cargando...</td></tr>
       </tbody>
     </table>
   </div>
   </div><!-- /sec-cobranza -->
+
+  <!-- UPD-715: ventana "Ver facturas" de una orden -->
+  <div class="sf-modal-bg" id="cob-fac-bg" onclick="if(event.target===this)ModFinanzasCobranza._cerrarFacturas()">
+    <div class="sf-modal" role="dialog" aria-modal="true" aria-labelledby="cob-fac-tit" style="max-width:560px">
+      <div class="sf-modal-head">
+        <h3 id="cob-fac-tit">Facturas</h3>
+        <button class="sf-btn-cancel" style="color:white;border-color:rgba(255,255,255,.3)" onclick="ModFinanzasCobranza._cerrarFacturas()" aria-label="Cerrar">Cerrar</button>
+      </div>
+      <div class="sf-modal-body" id="cob-fac-body"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -582,7 +621,7 @@ function renderKpis() {
 function renderTabla() {
   var tbody = document.getElementById('cob-tbody');
   if (!_lista.length) {
-    tbody.innerHTML = '<tr><td colspan="12" class="empty-msg">Sin registros</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">Sin registros</td></tr>';
     return;
   }
 
@@ -621,13 +660,19 @@ function renderTabla() {
     var puedeImprimir = pagado >= total || ['en_proceso','pago_entrega','pagado'].indexOf(epActual) !== -1 || +o.es_retrabajo === 1;
     // Sprint 3: "Facturar" lleva al modulo de Facturacion con la orden ya cargada, en vez
     // de teclear el folio a mano. Si ya tiene CFDI vigente se muestra el folio.
+    // UPD-715: "Ver facturas" solo cuando la orden está pagada y todo lo cobrado ya tiene CFDI
+    // (fac_completa, calculado en api/finanzas.php). Si falta el finiquito u otro pago, sigue
+    // "Facturar" y se indica cuántas facturas lleva.
     var btnFacturar = '';
     if (PUEDE_FACTURAR && o.folio) {
-      if (o.factura_folio) {
-        btnFacturar = '<span class="btn-expand" style="cursor:default;opacity:.7" title="Esta orden ya tiene un CFDI vigente">'
-          + String(o.factura_folio).replace(/[^A-Za-z0-9\-]/g, '') + '</span>';
+      var folioSeg = escHtml(String(o.folio).replace(/[^A-Za-z0-9\-]/g, ''));
+      var nFac = +o.fac_count || 0;
+      if (o.fac_completa) {
+        btnFacturar = '<button class="btn-expand btn-fac-ver" onclick="ModFinanzasCobranza._verFacturas(\'' + folioSeg + '\')">Ver facturas</button>';
       } else {
-        btnFacturar = '<button class="btn-expand" onclick="ModFinanzasCobranza._facturar(\'' + escHtml(String(o.folio).replace(/[^A-Za-z0-9\-]/g,'')) + '\')">Facturar</button>';
+        btnFacturar = '<button class="btn-expand" onclick="ModFinanzasCobranza._facturar(\'' + folioSeg + '\')"'
+          + (nFac ? ' title="Ya tiene ' + nFac + (nFac === 1 ? ' factura' : ' facturas') + '; falta facturar lo demás"' : '') + '>Facturar'
+          + (nFac ? ' <span class="cob-fac-cnt">' + nFac + '</span>' : '') + '</button>';
       }
     }
     var btnSalida = '<button class="btn-salida" '
@@ -639,25 +684,23 @@ function renderTabla() {
       : '';
 
     rows += '<tr>'
-      + '<td style="font-weight:700;color:#2563eb">' + escHtml(o.folio) + tagRetrabajo + '</td>'
-      + '<td>' + escHtml(o.cliente_nombre) + '</td>'
-      + '<td style="font-size:12px;color:#64748b">' + escHtml(o.asesor||'—') + '</td>'
-      + '<td style="font-size:12px;color:#64748b">' + fmtF(fechaVenta(o)) + '</td>'
-      + '<td><span class="ord-badge ' + ordClass + '">' + ordLabel + '</span></td>'
-      + '<td style="font-weight:600">' + fmt(total) + '</td>'
-      + '<td style="color:#16a34a;font-weight:600">' + fmt(pagado) + '</td>'
-      + '<td style="color:' + (pend>0?'#dc2626':'#16a34a') + ';font-weight:600">' + fmt(pend) + '</td>'
-      + '<td><div class="pay-bar-wrap"><div class="pay-bar"><div class="pay-fill ' + ep + '" style="width:' + pct + '%"></div></div><span class="pay-pct">' + pct + '%</span></div></td>'
-      + '<td><span class="pay-badge ' + ep + '">' + epLabel + '</span></td>'
+      + '<td><div class="cob-ord-folio">' + escHtml(o.folio) + '</div>'
+      +   '<div class="cob-ord-cli" title="' + escHtml(o.cliente_nombre) + '">' + escHtml(o.cliente_nombre) + '</div>'
+      +   '<div class="cob-ord-meta">' + escHtml(o.asesor||'Sin asesor') + '</div>' + tagRetrabajo + '</td>'
+      + '<td><div class="cob-fecha">' + fmtF(fechaVenta(o)) + '</div><span class="ord-badge ' + ordClass + '">' + ordLabel + '</span></td>'
+      + '<td class="num" style="font-weight:600">' + fmt(total) + '</td>'
+      + '<td class="num"><div class="cob-cobrado">' + fmt(pagado) + '</div>'
+      +   '<div class="cob-avance" title="' + epLabel + '"><div class="pay-bar"><div class="pay-fill ' + ep + '" style="width:' + pct + '%"></div></div><span class="pay-pct">' + pct + '%</span></div></td>'
+      + '<td class="num" style="color:' + (ep !== 'completo' && pend > 0 ? '#dc2626' : '#16a34a') + ';font-weight:600">' + fmt(pend) + '</td>'
       + '<td class="td-sel-epago">' + selHtml + '</td>'
-      + '<td class="td-acciones-cob">'
-      +   '<button class="btn-expand" onclick="ModFinanzasCobranza._toggle(' + o.cot_id + ',' + i + ')">Ver pagos</button>'
+      + '<td class="td-acciones-cob"><div class="cob-acc">'
+      +   '<button class="btn-expand" aria-expanded="' + (abierto ? 'true' : 'false') + '" onclick="ModFinanzasCobranza._toggle(' + o.cot_id + ',' + i + ')">Ver pagos</button>'
       +   btnFacturar
       +   btnSalida
-      + '</td>'
+      + '</div></td>'
       + '</tr>'
       + '<tr class="pagos-panel ' + abierto + '" id="panel-' + o.cot_id + '">'
-      + '<td colspan="12">' + renderPanelPagos(o) + '</td>'
+      + '<td colspan="7">' + renderPanelPagos(o) + '</td>'
       + '</tr>';
   }
   tbody.innerHTML = rows;
@@ -723,12 +766,12 @@ function toggle(cot_id, idx) {
     delete _abiertos[cot_id];
     panel.classList.remove('open');
     var btn = panel.previousElementSibling?.querySelector('.btn-expand');
-    if (btn) btn.textContent = 'Ver pagos';
+    if (btn) { btn.textContent = 'Ver pagos'; btn.setAttribute('aria-expanded', 'false'); }
   } else {
     _abiertos[cot_id] = true;
     panel.classList.add('open');
     var btn2 = panel.previousElementSibling?.querySelector('.btn-expand');
-    if (btn2) btn2.textContent = 'Cerrar';
+    if (btn2) { btn2.textContent = 'Cerrar'; btn2.setAttribute('aria-expanded', 'true'); }
     var o = _lista[idx];
     if (o && o.cliente_id && _sfCache[o.cliente_id] === undefined) {
       cargarSaldoFavor(o.cliente_id, cot_id);
@@ -900,6 +943,43 @@ function escHtml(s) {
 aplicarPeriodoDefault();
 cargar();
 
+// UPD-715: CFDI de la orden (facturas, complementos, notas de crédito y anticipos aplicados).
+var FAC_ROL = { factura: 'Factura', complemento: 'Complemento de pago', nota: 'Nota de crédito', anticipo: 'Anticipo aplicado' };
+async function verFacturas(folio) {
+  var bg = document.getElementById('cob-fac-bg'), body = document.getElementById('cob-fac-body');
+  if (!bg || !body) return;
+  document.getElementById('cob-fac-tit').textContent = 'Facturas de ' + folio;
+  body.innerHTML = '<div class="loading-msg" style="padding:24px">Cargando...</div>';
+  bg.classList.add('open');
+  var fmt = function(n) { return '$' + parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  try {
+    var res = await fetch(API + '?accion=facturas_orden&folio=' + encodeURIComponent(folio) + '&t=' + Date.now());
+    var d = await res.json();
+    if (!d.ok) { body.innerHTML = '<div class="empty-msg" style="padding:24px">' + escHtml(d.error || 'No se pudieron cargar las facturas') + '</div>'; return; }
+    if (!d.facturas.length) { body.innerHTML = '<div class="empty-msg" style="padding:24px">Esta orden no tiene facturas.</div>'; return; }
+    var h = '<table class="cob-fac-lista"><tbody>';
+    d.facturas.forEach(function(f) {
+      var cancel = f.estatus === 'cancelada';
+      var monto = f.rol === 'complemento' && f.cp_monto !== null ? f.cp_monto : f.total;
+      var fecha = f.fecha ? new Date(String(f.fecha).replace(' ', 'T')).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '';
+      h += '<tr' + (cancel ? ' class="cob-fac-cancel"' : '') + '>'
+        + '<td><div class="cob-fac-folio">' + escHtml(f.folio_interno) + '</div>'
+        +   '<div class="cob-fac-tipo">' + escHtml(FAC_ROL[f.rol] || f.rol) + (f.rol === 'factura' && f.metodo_pago ? ' ' + escHtml(f.metodo_pago) : '') + (cancel ? ' · cancelada' : '') + '</div></td>'
+        + '<td style="font-size:12px;color:#64748b;white-space:nowrap">' + fecha + '</td>'
+        + '<td style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums">' + fmt(monto) + '</td>'
+        + '<td style="text-align:right"><a class="cob-fac-pdf" href="../api/facturapi.php?accion=pdf&id=' + parseInt(f.id, 10) + '" target="_blank" rel="noopener">Ver PDF</a></td>'
+        + '</tr>';
+    });
+    body.innerHTML = h + '</tbody></table>';
+  } catch (e) {
+    body.innerHTML = '<div class="empty-msg" style="padding:24px">No se pudieron cargar las facturas. Revisa tu conexión e intenta de nuevo.</div>';
+  }
+}
+function cerrarFacturas() {
+  var bg = document.getElementById('cob-fac-bg');
+  if (bg) bg.classList.remove('open');
+}
+
 // Sprint 3: navega a Facturacion con la orden precargada. cargarModulo() es global del SPA.
 function facturarOrden(folio) {
   if (!folio) return;
@@ -913,6 +993,8 @@ function facturarOrden(folio) {
 return {
   init:           cargar,
   _facturar:      facturarOrden,
+  _verFacturas:   verFacturas,
+  _cerrarFacturas: cerrarFacturas,
   _filtrar:       filtrar,
   _limpiar:       limpiar,
   _toggle:        toggle,

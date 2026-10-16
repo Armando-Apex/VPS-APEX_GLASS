@@ -1,0 +1,1406 @@
+<?php
+require_once __DIR__ . '/../../api/config.php';
+require_once __DIR__ . '/../../api/permisos.php';
+$user = requirePermiso('ver_ordenes');
+$_rol = $user['rol'];
+$es_finanzas = in_array($_rol, ['administracion','dir_admin','dueno','desarrollo','contador']);  // contador: solo consulta (UPD-652)
+// Sprint 3: entrada directa a Facturacion desde Cobranza, mismo permiso que exige ese modulo.
+$puedeFacturar = tienePermiso($_rol, 'facturar');
+if (!$es_finanzas) {
+    echo '<div style="padding:40px;text-align:center;color:#dc2626">Sin permiso.</div>'; exit;
+}
+if (!isset($_SERVER['HTTP_X_SPA_REQUEST'])) {
+    header('Location: ../dashboard.php?m=finanzas_cobranza'); exit;
+}
+header('Content-Type: text/html; charset=utf-8');
+?>
+<style>
+.cob-wrap { padding: 24px; max-width: 1400px; margin: 0 auto; }
+.page-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+.page-sub   { font-size: 12px; color:var(--c-muted); margin-bottom: 20px; }
+
+/* Filtros */
+.filtros { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end; padding: 14px 16px; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: var(--r-sm); }
+.filtro-field { display: flex; flex-direction: column; gap: 3px; }
+.filtro-field label { font-size: 10px; font-weight: 700; color:var(--c-muted); text-transform: uppercase; letter-spacing: .4px; }
+.filtro-field input, .filtro-field select {
+  padding: 7px 11px; border: 1px solid #e2e8f0; border-radius: 6px;
+  font-size: 13px; color: #1e293b; background: white; min-width: 150px;
+  transition: border-color .15s;
+}
+.filtro-field input:focus, .filtro-field select:focus { outline: none; border-color: #1a1a2e; box-shadow: 0 0 0 3px rgba(26,26,46,.07); }
+.btn-limpiar { padding: 7px 14px; background: white; color: #64748b; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; align-self: flex-end; transition: background .15s; }
+.btn-limpiar:hover { background: #f1f5f9; color: #334155; }
+
+/* KPIs */
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.kpi-card {
+  background: white; border-radius: 10px; padding: 16px 18px;
+  border: 1px solid #e2e8f0;
+  display: flex; align-items: flex-start; gap: 12px;
+}
+.kpi-icon { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.kpi-icon.azul  { background: #eff6ff; color: #2563eb; }
+.kpi-icon.verde { background: #f0fdf4; color: #16a34a; }
+.kpi-icon.rojo  { background: #fef2f2; color: #dc2626; }
+.kpi-icon.gris  { background: #f8fafc; color: #64748b; }
+.kpi-info { min-width: 0; }
+.kpi-lbl { font-size: 10px; font-weight: 700; color:var(--c-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.kpi-val { font-size: 20px; font-weight: 800; color: #1e293b; font-variant-numeric: tabular-nums; }
+.kpi-val.verde  { color: #16a34a; }
+.kpi-val.rojo   { color: #dc2626; }
+.kpi-val.azul   { color: #2563eb; }
+
+/* Tabla */
+.cob-table { background: white; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; }
+thead tr { background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+thead th { padding: 10px 14px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color:var(--c-muted); text-align: left; }
+tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .12s; }
+tbody tr:hover { background: #fafafa; }
+tbody tr:last-child { border-bottom: none; }
+tbody td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
+
+/* Barra de pago */
+.pay-bar-wrap { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+.pay-bar { flex: 1; background: #e2e8f0; border-radius: 99px; height: 6px; overflow: hidden; }
+.pay-fill { height: 100%; border-radius: 99px; transition: width .3s; }
+.pay-fill.completo { background: #16a34a; }
+.pay-fill.parcial  { background: #f59e0b; }
+.pay-fill.sin-pago { background: #e2e8f0; }
+.pay-pct { font-size: 11px; font-weight: 700; color: #64748b; min-width: 32px; text-align: right; }
+
+/* Badge estado pago */
+.pay-badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
+.pay-badge.completo { background: #dcfce7; color: #15803d; }
+.pay-badge.parcial  { background: #fef3c7; color: #b45309; }
+.pay-badge.sin-pago { background: #fee2e2; color: #dc2626; }
+.retrabajo-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; white-space: nowrap; background: #fef3c7; color: #92400e; display: inline-block; margin-top: 3px; }
+
+/* Selector estatus pago Lina */
+.sel-epago { font-size: 11px; font-weight: 600; padding: 3px 7px; border-radius: 6px; border: 1.5px solid #e2e8f0; cursor: pointer; background: #f8fafc; outline: none; }
+.sel-epago:focus { border-color: #1a1a2e; outline: none; }
+.sel-epago.ep-pendiente   { border-color: #fca5a5; color: #dc2626; background: #fef2f2; }
+.sel-epago.ep-en_proceso  { border-color: #fcd34d; color: #b45309; background: #fffbeb; }
+.sel-epago.ep-pago_entrega{ border-color: #93c5fd; color: #1d4ed8; background: #eff6ff; }
+.sel-epago.ep-pagado      { border-color: #6ee7b7; color: #15803d; background: #f0fdf4; }
+
+/* Botón imprimir salida */
+.btn-salida { font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 6px; border: 1px solid #1a1a2e; cursor: pointer; background: white; color: #1a1a2e; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; transition: background .15s; }
+.btn-salida:hover { background: #1a1a2e; color: white; }
+.btn-salida:disabled { background: #f1f5f9; color:var(--c-muted); border-color: #e2e8f0; cursor: not-allowed; }
+
+/* Badge estado orden */
+.ord-badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 99px; }
+.ord-vobo    { background: #f3e8ff; color: #7c3aed; }
+.ord-activa  { background: #dbeafe; color: #1d4ed8; }
+.ord-entregada { background: #dcfce7; color: #15803d; }
+.ord-cancelada { background: #f1f5f9; color:var(--c-muted); }
+
+/* Botón expandir */
+.btn-expand { background: none; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; color: #475569; font-weight: 600; transition: background .12s, border-color .12s; }
+.btn-expand:hover { background: #f8fafc; border-color: #cbd5e1; color: #1e293b; }
+
+/* Panel de pagos expandido */
+.pagos-panel { display: none; background: #f8fafc; }
+.pagos-panel.open { display: table-row; }
+.pagos-inner { padding: 16px 20px; }
+.pagos-lista { margin-bottom: 12px; }
+.pago-row { display: flex; align-items: center; gap: 12px; padding: 7px 10px; background: white; border-radius: 8px; margin-bottom: 5px; font-size: 13px; border: 1px solid #e2e8f0; }
+.pago-fecha { color: #64748b; font-size: 12px; min-width: 130px; }
+.pago-forma { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+.forma-efectivo      { background: #dcfce7; color: #15803d; }
+.forma-tarjeta       { background: #dbeafe; color: #1d4ed8; }
+.forma-transferencia { background: #f3e8ff; color: #7c3aed; }
+.forma-saldo-favor   { background: #fef9c3; color: #78350f; }
+.pago-monto { font-weight: 700; color: #1e293b; margin-left: auto; }
+.pago-por   { font-size: 11px; color:var(--c-muted); }
+.sin-pagos  { font-size: 13px; color:var(--c-muted); padding: 8px 0; }
+
+/* Form pago inline */
+.pago-form-inline { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; }
+.pago-form-titulo { font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.pago-form-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+.pf { display: flex; flex-direction: column; gap: 3px; }
+.pf label { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; }
+.pf input, .pf select { padding: 7px 10px; border: 1.5px solid #e2e8f0; border-radius: 6px; font-size: 13px; min-width: 110px; }
+.pf input:focus, .pf select:focus { outline: none; border-color: #0369a1; }
+.btn-reg { padding: 7px 14px; background: var(--c-blue); color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; align-self: flex-end; transition: background .15s; }
+.btn-reg:hover { background: var(--c-blue-dark); }
+
+.loading-msg { text-align: center; padding: 48px; color:var(--c-muted); }
+.empty-msg   { text-align: center; padding: 48px; color:var(--c-muted); }
+
+/* Tabs */
+.fin-tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1.5px solid #e2e8f0; }
+.fin-tab  { padding: 9px 20px; font-size: 13px; font-weight: 600; color:var(--c-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1.5px; background: none; border-top: none; border-left: none; border-right: none; transition: color .15s; display: flex; align-items: center; gap: 6px; }
+.fin-tab:hover  { color: #475569; }
+.fin-tab.active { color: #1a1a2e; border-bottom-color: #1a1a2e; font-weight: 700; }
+
+/* Saldo a Favor */
+.sf-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+.sf-search  { flex: 1; min-width: 200px; padding: 8px 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; outline: none; }
+.sf-search:focus { border-color: #2563eb; }
+.btn-sf-nuevo { background: var(--c-blue); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s; }
+.btn-sf-nuevo:hover { background: var(--c-blue-dark); }
+.sf-table  { background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+.sf-badge  { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: #dcfce7; color: #15803d; }
+.sf-badge.cero { background: #f1f5f9; color:var(--c-muted); }
+.btn-sf-hist { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0; background: white; cursor: pointer; color: #2563eb; }
+.btn-sf-hist:hover { background: #eff6ff; }
+
+/* Historial expandido */
+.sf-hist-panel { display: none; background: #f8fafc; }
+.sf-hist-panel.open { display: table-row; }
+.sf-hist-inner { padding: 16px 20px; }
+.sf-mov-row { display: flex; gap: 12px; align-items: center; padding: 7px 10px; background: white; border-radius: 8px; margin-bottom: 5px; font-size: 13px; border: 1px solid #e2e8f0; }
+.sf-mov-tipo { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+.sf-mov-deposito  { background: #dcfce7; color: #15803d; }
+.sf-mov-aplicacion{ background: #dbeafe; color: #1d4ed8; }
+.sf-mov-ajuste    { background: #fef3c7; color: #b45309; }
+.sf-mov-fecha  { color: #64748b; font-size: 12px; min-width: 100px; }
+.sf-mov-ref    { font-size: 12px; color: #64748b; flex: 1; }
+.sf-mov-monto  { font-weight: 700; margin-left: auto; }
+.sf-mov-monto.positivo { color: #16a34a; }
+.sf-mov-monto.negativo { color: #dc2626; }
+
+/* Modal depósito */
+.sf-modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1200; align-items: center; justify-content: center; }
+.sf-modal-bg.open { display: flex; }
+.sf-modal { background: white; border-radius: 16px; width: 100%; max-width: 500px; margin: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.2); overflow: hidden; }
+.sf-modal-head { background: #0f172a; color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; }
+.sf-modal-head h3 { font-size: 16px; font-weight: 700; }
+.sf-modal-body { padding: 24px; }
+.sf-form-row { margin-bottom: 16px; }
+.sf-form-label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #64748b; margin-bottom: 6px; }
+.sf-form-input, .sf-form-select { width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; outline: none; box-sizing: border-box; background: white; }
+.sf-form-input:focus { border-color: #16a34a; }
+.sf-modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid #f1f5f9; }
+.sf-btn-cancel { background: none; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; color: #64748b; transition: background .15s; }
+.sf-btn-cancel:hover { background: #f8fafc; }
+.sf-btn-save   { background: #1a1a2e; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
+.sf-btn-save:hover    { background: #2d2d4a; }
+.sf-btn-save:disabled { opacity: .6; cursor: not-allowed; }
+.sf-cli-autocomplete { position: relative; }
+.sf-cli-lista { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--c-border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 1300; max-height: 200px; overflow-y: auto; display: none; }
+.sf-cli-item  { padding: 9px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
+.sf-cli-item:hover { background: #f0fdf4; }
+.sf-cli-item .sf-cli-cod { font-size: 11px; color:var(--c-muted); }
+
+@media(max-width:768px){
+  .cob-wrap { padding: 12px; }
+
+  /* Tabs */
+  .fin-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+  .fin-tab  { white-space: nowrap; padding: 10px 14px; font-size: 12px; flex-shrink: 0; }
+
+  /* Filtros: en columna */
+  .filtros { flex-direction: column; gap: 8px; }
+  .filtro-field { width: 100%; }
+  .filtro-field input,
+  .filtro-field select { min-width: 0 !important; width: 100%; box-sizing: border-box; }
+  .td-sel-epago .sel-epago { min-width: 0 !important; width: auto !important; max-width: 85px !important; font-size: 10px !important; padding: 3px 4px !important; }
+  .btn-filtrar,
+  .btn-limpiar { width: 100%; text-align: center; }
+
+  /* KPIs: 2 columnas */
+  .kpis { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .kpi-card { padding: 12px 14px; }
+  .kpi-val  { font-size: 18px; }
+  .kpi-lbl  { font-size: 10px; }
+
+  /* Tabla cobranza: ocultar Asesor, Fecha, Estado, Cobrado, Avance, Pago */
+  .cob-table thead th:nth-child(3),
+  .cob-table thead th:nth-child(4),
+  .cob-table thead th:nth-child(5),
+  .cob-table thead th:nth-child(7),
+  .cob-table thead th:nth-child(9),
+  .cob-table thead th:nth-child(10),
+  .cob-table tbody td:nth-child(3),
+  .cob-table tbody td:nth-child(4),
+  .cob-table tbody td:nth-child(5),
+  .cob-table tbody td:nth-child(7),
+  .cob-table tbody td:nth-child(9),
+  .cob-table tbody td:nth-child(10) { display: none; }
+
+  /* Tabla saldo a favor: ocultar Código, Teléfono, Último Movimiento */
+  .sf-table thead th:nth-child(2),
+  .sf-table thead th:nth-child(3),
+  .sf-table thead th:nth-child(5),
+  .sf-table tbody td:nth-child(2),
+  .sf-table tbody td:nth-child(3),
+  .sf-table tbody td:nth-child(5) { display: none; }
+
+  thead th { padding: 8px 10px; font-size: 10px; white-space: normal; }
+  tbody td  { padding: 9px 10px; font-size: 12px; }
+
+  /* Estatus pago: select compacto */
+  .td-sel-epago .sel-epago { font-size: 10px !important; padding: 3px 4px !important; width: 100%; max-width: 85px; }
+
+  /* Botones col acciones: en columna */
+  .td-acciones-cob { white-space: normal !important; display: table-cell !important; }
+  .td-acciones-cob .btn-expand,
+  .td-acciones-cob .btn-salida { display: block !important; width: 100%; margin-bottom: 4px; text-align: center; box-sizing: border-box; }
+
+  /* Barra de pago más compacta */
+  .pay-bar-wrap { min-width: 60px; }
+
+  /* Panel de pagos expandido */
+  .pago-form-row { flex-direction: column; }
+  .pf input, .pf select { min-width: 0; width: 100%; }
+  .btn-reg { width: 100%; text-align: center; }
+
+  /* Toolbar saldo */
+  .sf-toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .sf-search  { width: 100%; min-width: 0; }
+  .btn-sf-nuevo { width: 100%; text-align: center; }
+}
+</style>
+
+<div class="cob-wrap">
+  <div class="page-title">Finanzas</div>
+  <div class="page-sub" id="cob-sub">Cargando...</div>
+
+  <!-- Tabs -->
+  <div class="fin-tabs">
+    <button class="fin-tab active" id="tab-cobranza" onclick="sfSwitchTab('cobranza')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      Cobranza
+    </button>
+    <button class="fin-tab" id="tab-saldo" onclick="sfSwitchTab('saldo')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Saldo a Favor
+    </button>
+  </div>
+
+  <!-- Sección Saldo a Favor -->
+  <div id="sec-saldo" style="display:none">
+    <?php if ($_rol === 'dir_admin'): ?>
+    <div id="sf-ap-vobo-box" style="display:none;margin-bottom:16px"></div>
+    <?php endif; ?>
+    <div class="sf-toolbar">
+      <input type="text" class="sf-search" id="sf-q" placeholder="Buscar cliente..." oninput="sfFiltrar()">
+      <button class="btn-sf-nuevo" onclick="sfAbrirModal()">&#43; Registrar Dep&#243;sito</button>
+      <button class="btn-sf-nuevo" id="sf-prev-btn" style="background:#475569" onclick="sfPrevToggle()">Anticipos anteriores al 1-oct <span id="sf-prev-cnt"></span></button>
+    </div>
+    <!-- Depositos anteriores al arranque de la facturacion en Apex: ¿se facturaron en CONTPAQi? (UPD-629) -->
+    <div id="sf-prev-box" style="display:none;margin-bottom:16px"></div>
+    <div class="sf-table">
+      <table>
+        <thead><tr>
+          <th>Cliente</th>
+          <th>C&#243;digo</th>
+          <th>Tel&#233;fono</th>
+          <th>Saldo Disponible</th>
+          <th>&#218;ltimo Movimiento</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="sf-tbody"><tr><td colspan="6" class="loading-msg">Cargando...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal Registrar Depósito -->
+  <div class="sf-modal-bg" id="sfModalBg">
+    <div class="sf-modal">
+      <div class="sf-modal-head">
+        <h3>Registrar Dep&#243;sito — Saldo a Favor</h3>
+        <button style="background:none;border:none;color:var(--c-muted);font-size:20px;cursor:pointer;padding:0" onclick="sfCerrarModal()">&#10005;</button>
+      </div>
+      <div class="sf-modal-body">
+        <div class="sf-form-row">
+          <label class="sf-form-label" for="sf-cli-busq">Cliente <span style="color:#ef4444">*</span></label>
+          <div class="sf-cli-autocomplete">
+            <input class="sf-form-input" id="sf-cli-busq" type="text" placeholder="Buscar cliente..." oninput="sfBuscarCliente()" autocomplete="off">
+            <div class="sf-cli-lista" id="sf-cli-lista"></div>
+            <input type="hidden" id="sf-cli-id">
+          </div>
+        </div>
+        <div class="sf-form-row">
+          <label class="sf-form-label" for="sf-monto">Monto <span style="color:#ef4444">*</span></label>
+          <input class="sf-form-input" id="sf-monto" type="number" min="0.01" step="0.01" placeholder="0.00">
+        </div>
+        <div class="sf-form-row">
+          <label class="sf-form-label" for="sf-fecha">Fecha <span style="color:#ef4444">*</span></label>
+          <input class="sf-form-input" id="sf-fecha" type="date">
+        </div>
+        <div class="sf-form-row">
+          <label class="sf-form-label" for="sf-forma">Forma de pago <span style="color:#ef4444">*</span></label>
+          <select class="sf-form-input" id="sf-forma">
+            <option value="">— Selecciona —</option>
+            <option value="transferencia">Transferencia</option>
+            <option value="efectivo">Efectivo</option>
+            <option value="cheque">Cheque</option>
+            <option value="tarjeta_credito">Tarjeta de crédito</option>
+            <option value="tarjeta_debito">Tarjeta de débito</option>
+          </select>
+        </div>
+        <div class="sf-form-row">
+          <label class="sf-form-label" for="sf-ref">Referencia / No. de transferencia</label>
+          <input class="sf-form-input" id="sf-ref" type="text" placeholder="Ej. SPEI-123456">
+        </div>
+        <div class="sf-form-row">
+          <label class="sf-form-label" for="sf-notas">Anotaciones</label>
+          <input class="sf-form-input" id="sf-notas" type="text" placeholder="Notas adicionales...">
+        </div>
+        <div class="sf-form-row" style="border-top:1px solid #f1f5f9;padding-top:12px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#374151;cursor:pointer">
+            <input type="checkbox" id="sf-ap-check" onchange="sfToggleApartado()">
+            Apartar precio de productos espec&#237;ficos (protege al cliente de un incremento)
+          </label>
+        </div>
+        <div id="sf-ap-box" style="display:none">
+          <div class="sf-form-row">
+            <label class="sf-form-label" for="sf-ap-vigencia">Vigencia de la garant&#237;a de precio (d&#237;as) <span style="color:#ef4444">*</span></label>
+            <input class="sf-form-input" id="sf-ap-vigencia" type="number" min="1" max="45" value="7">
+            <div style="font-size:11px;color:#64748b;margin-top:4px">Hasta 7 d&#237;as: aplica directo. M&#225;s de 7 d&#237;as (hasta 45): requiere VoBo del Director antes de tener validez. El dinero nunca vence, solo la garant&#237;a de precio.</div>
+          </div>
+          <div class="sf-form-row">
+            <label class="sf-form-label" for="sf-ap-cristal">Agregar producto apartado</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+              <select class="sf-form-input" id="sf-ap-cristal" style="flex:2;min-width:160px" onchange="sfApPrellenar()"><option value="">Producto...</option></select>
+              <input class="sf-form-input" id="sf-ap-precio" type="number" min="0.01" step="0.01" placeholder="Precio/m&#178; pactado" style="flex:1;min-width:120px">
+              <input class="sf-form-input" id="sf-ap-m2" type="number" min="0" step="0.01" placeholder="m&#178; ref. (opcional)" style="flex:1;min-width:110px">
+              <button type="button" class="sf-btn-cancel" onclick="sfAgregarItem()" style="white-space:nowrap">&#43; Agregar</button>
+            </div>
+          </div>
+          <div id="sf-ap-items" style="margin-top:6px"></div>
+          <div style="font-size:11px;color:var(--c-muted);margin-top:8px">El monto depositado no es reembolsable en efectivo, solo aplicable a productos que ofrece la empresa. El total puede repartirse libremente entre los productos apartados mientras no exceda el monto depositado.</div>
+        </div>
+      </div>
+      <div class="sf-modal-foot">
+        <button class="sf-btn-cancel" onclick="sfCerrarModal()">Cancelar</button>
+        <button class="sf-btn-save" id="sf-btn-guardar" onclick="sfGuardar()">Guardar Dep&#243;sito</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sección Cobranza -->
+  <div id="sec-cobranza">
+  <!-- Filtros -->
+  <div class="filtros">
+    <div class="filtro-field">
+      <label for="f-q">Cliente / Folio</label>
+      <input type="text" id="f-q" placeholder="Buscar..." oninput="ModFinanzasCobranza._filtrar()">
+    </div>
+    <div class="filtro-field">
+      <label for="f-estado">Estado orden</label>
+      <select id="f-estado" onchange="ModFinanzasCobranza._filtrar()">
+        <option value="">Todos</option>
+        <option value="pendiente_vobo">Pendiente VoBo</option>
+        <option value="activa">Activa</option>
+        <option value="entregada">Entregada</option>
+      </select>
+    </div>
+    <div class="filtro-field">
+      <label for="f-pago">Estado pago</label>
+      <select id="f-pago" onchange="ModFinanzasCobranza._filtrar()">
+        <option value="">Todos</option>
+        <option value="sin_pago">Sin pago</option>
+        <option value="parcial">Parcial</option>
+        <option value="completo">Completo</option>
+      </select>
+    </div>
+    <div class="filtro-field">
+      <label for="f-asesor">Asesor</label>
+      <select id="f-asesor" onchange="ModFinanzasCobranza._filtrar()">
+        <option value="">Todos</option>
+      </select>
+    </div>
+    <div class="filtro-field">
+      <label for="f-retrabajo">Retrabajo</label>
+      <select id="f-retrabajo" onchange="ModFinanzasCobranza._filtrar()">
+        <option value="">Todos</option>
+        <option value="sin">Sin retrabajo</option>
+        <option value="solo">Solo retrabajo</option>
+      </select>
+    </div>
+    <div class="filtro-field">
+      <label for="f-desde">Desde</label>
+      <input type="date" id="f-desde" onchange="ModFinanzasCobranza._filtrar()">
+    </div>
+    <div class="filtro-field">
+      <label for="f-hasta">Hasta</label>
+      <input type="date" id="f-hasta" onchange="ModFinanzasCobranza._filtrar()">
+    </div>
+    <button class="btn-limpiar" onclick="ModFinanzasCobranza._limpiar()">&#10005; Limpiar</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpis" id="cob-kpis">
+    <div class="kpi-card">
+      <div class="kpi-icon azul"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+      <div class="kpi-info"><div class="kpi-lbl">Total facturado</div><div class="kpi-val azul" id="k-total">—</div></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon verde"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="kpi-info"><div class="kpi-lbl">Cobrado</div><div class="kpi-val verde" id="k-cobrado">—</div></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon rojo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+      <div class="kpi-info"><div class="kpi-lbl">Por cobrar</div><div class="kpi-val rojo" id="k-porcobrar">—</div></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon gris"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+      <div class="kpi-info"><div class="kpi-lbl">&#211;rdenes</div><div class="kpi-val" id="k-ordenes">—</div></div>
+    </div>
+  </div>
+
+  <!-- Tabla -->
+  <div class="cob-table">
+    <table>
+      <thead><tr>
+        <th>Folio</th>
+        <th>Cliente</th>
+        <th>Asesor</th>
+        <th>Fecha VoBo</th>
+        <th>Estado</th>
+        <th>Total</th>
+        <th>Cobrado</th>
+        <th>Pendiente</th>
+        <th>Avance</th>
+        <th>Pago</th>
+        <th>Estatus pago</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="cob-tbody">
+        <tr><td colspan="12" class="loading-msg">Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  </div><!-- /sec-cobranza -->
+</div>
+
+<script>
+var ModFinanzasCobranza = (function() {
+
+var API        = '../api/finanzas.php';
+var PUEDE_FACTURAR = <?= $puedeFacturar ? 'true' : 'false' ?>;
+var API_SF_COB = '../api/saldo_favor.php';
+var _data      = [];
+var _lista     = [];
+var _abiertos  = {};
+var _sfCache      = {}; // cliente_id -> saldo a favor disponible
+var _clientePorCot = {}; // cot_id -> cliente_id
+
+async function cargar() {
+  try {
+    var res  = await fetch(API + '?accion=cobranza&t=' + Date.now());
+    var data = await res.json();
+    _data = Array.isArray(data) ? data : [];
+    poblarAsesores();
+    filtrar();
+    document.getElementById('cob-sub').textContent =
+      'Actualizado a las ' + new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+  } catch(e) {
+    document.getElementById('cob-sub').textContent = 'Error al cargar';
+  }
+}
+
+function poblarAsesores() {
+  var sel = document.getElementById('f-asesor');
+  var asesores = [];
+  _data.forEach(function(o) {
+    if (o.asesor && asesores.indexOf(o.asesor) === -1) asesores.push(o.asesor);
+  });
+  asesores.sort();
+  asesores.forEach(function(a) {
+    var opt = document.createElement('option');
+    opt.value = a; opt.textContent = a;
+    sel.appendChild(opt);
+  });
+}
+
+// La venta se efectúa al VoBo (Armando, 18-sep-2026) — no en la fecha en que
+// se cotizó/pidió. Mismo criterio de fecha que ya usa Reporte Dirección
+// (COALESCE vobo_at → fecha_pedido → created_at) para que ambas pantallas
+// coincidan en qué mes cae cada orden.
+function fechaVenta(o) {
+  if (o.vobo_at) return o.vobo_at.substring(0, 10);
+  if (o.fecha_pedido) return o.fecha_pedido;
+  return o.created_at ? o.created_at.substring(0, 10) : '';
+}
+
+function filtrar() {
+  var q      = (document.getElementById('f-q')?.value || '').toLowerCase();
+  var estado = document.getElementById('f-estado')?.value || '';
+  var pago   = document.getElementById('f-pago')?.value   || '';
+  var asesor = document.getElementById('f-asesor')?.value || '';
+  var retrab = document.getElementById('f-retrabajo')?.value || '';
+  var desde  = document.getElementById('f-desde')?.value  || '';
+  var hasta  = document.getElementById('f-hasta')?.value  || '';
+
+  _lista = _data.filter(function(o) {
+    if (q && !(o.folio||'').toLowerCase().includes(q) && !(o.cliente_nombre||'').toLowerCase().includes(q)) return false;
+    if (estado && o.estado !== estado) return false;
+    if (asesor && o.asesor !== asesor) return false;
+    if (retrab === 'sin'  && +o.es_retrabajo === 1) return false;
+    if (retrab === 'solo' && +o.es_retrabajo !== 1) return false;
+    // Una búsqueda por folio/cliente ignora el rango de fechas — si Lina busca S-097
+    // debe aparecer aunque sea de un mes anterior al periodo mostrado por default.
+    if (!q) {
+      var fv = fechaVenta(o);
+      if (desde && fv < desde) return false;
+      if (hasta && fv > hasta) return false;
+    }
+    if (pago) {
+      var total  = parseFloat(o.total||0);
+      var pagado = parseFloat(o.saldo_pagado||0);
+      var ep = estadoPago(total, pagado);
+      if (ep !== pago) return false;
+    }
+    return true;
+  });
+
+  renderKpis();
+  renderTabla();
+}
+
+function estadoPago(total, pagado) {
+  if (!total || total <= 0) return 'sin_pago';
+  if (pagado <= 0) return 'sin_pago';
+  if ((total - pagado) <= 0.99) return 'completo';
+  return 'parcial';
+}
+
+function renderKpis() {
+  var total = 0, cobrado = 0;
+  _lista.forEach(function(o) {
+    // Retrabajo no es venta ni cobro real (la empresa absorbe el costo, ver P&L 5.5) —
+    // nunca debe sumar en las tarjetas de dinero, aunque el filtro esté en "Todos".
+    if (+o.es_retrabajo === 1) return;
+    total   += parseFloat(o.total||0);
+    cobrado += parseFloat(o.saldo_pagado||0);
+  });
+  var fmt = function(n) { return '$' + n.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  document.getElementById('k-total').textContent    = fmt(total);
+  document.getElementById('k-cobrado').textContent  = fmt(cobrado);
+  document.getElementById('k-porcobrar').textContent= fmt(Math.max(0, total - cobrado));
+  document.getElementById('k-ordenes').textContent  = _lista.length;
+}
+
+function renderTabla() {
+  var tbody = document.getElementById('cob-tbody');
+  if (!_lista.length) {
+    tbody.innerHTML = '<tr><td colspan="12" class="empty-msg">Sin registros</td></tr>';
+    return;
+  }
+
+  var fmt = function(n) { return '$' + parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var fmtF= function(f) { return f ? new Date(f+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—'; };
+
+  var epagoOpts = [
+    {v:'pendiente',    l:'Pendiente'},
+    {v:'en_proceso',   l:'En proceso'},
+    {v:'pago_entrega', l:'Pago a entrega'},
+    {v:'pagado',       l:'Pagado'},
+  ];
+
+  var rows = '';
+  for (var i = 0; i < _lista.length; i++) {
+    var o      = _lista[i];
+    var total  = parseFloat(o.total||0);
+    var pagado = parseFloat(o.saldo_pagado||0);
+    var pend   = Math.max(0, total - pagado);
+    var pct    = total > 0 ? Math.min(100, Math.round(pagado/total*100)) : 0;
+    var ep     = estadoPago(total, pagado);
+    var epLabel= ep==='completo'?'Completo':ep==='parcial'?'Parcial':'Sin pago';
+    var ordLabel= o.estado==='pendiente_vobo'?'Pend. VoBo':o.estado==='activa'?'Activa':o.estado==='entregada'?'Entregada':'Cancelada';
+    var ordClass= 'ord-'+(o.estado==='pendiente_vobo'?'vobo':o.estado);
+    var abierto = _abiertos[o.cot_id] ? 'open' : '';
+    _clientePorCot[o.cot_id] = o.cliente_id;
+
+    var epActual = o.estatus_pago || 'pendiente';
+    var selOpts  = epagoOpts.map(function(opt) {
+      return '<option value="' + opt.v + '"' + (opt.v === epActual ? ' selected' : '') + '>' + opt.l + '</option>';
+    }).join('');
+    var selHtml  = '<select class="sel-epago ep-' + epActual + '" '
+      + 'onchange="ModFinanzasCobranza._cambiarEpago(' + o.cot_id + ',this)">'
+      + selOpts + '</select>';
+
+    var puedeImprimir = pagado >= total || ['en_proceso','pago_entrega','pagado'].indexOf(epActual) !== -1 || +o.es_retrabajo === 1;
+    // Sprint 3: "Facturar" lleva al modulo de Facturacion con la orden ya cargada, en vez
+    // de teclear el folio a mano. Si ya tiene CFDI vigente se muestra el folio.
+    var btnFacturar = '';
+    if (PUEDE_FACTURAR && o.folio) {
+      if (o.factura_folio) {
+        btnFacturar = '<span class="btn-expand" style="cursor:default;opacity:.7" title="Esta orden ya tiene un CFDI vigente">'
+          + String(o.factura_folio).replace(/[^A-Za-z0-9\-]/g, '') + '</span>';
+      } else {
+        btnFacturar = '<button class="btn-expand" onclick="ModFinanzasCobranza._facturar(\'' + escHtml(String(o.folio).replace(/[^A-Za-z0-9\-]/g,'')) + '\')">Facturar</button>';
+      }
+    }
+    var btnSalida = '<button class="btn-salida" '
+      + (puedeImprimir ? 'onclick="window.open(\'imprimir_salida.php?id=' + o.cot_id + '\',\'_blank\')"' : 'disabled')
+      + '><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Salida</button>';
+
+    var tagRetrabajo = (+o.es_retrabajo === 1)
+      ? '<br><span class="retrabajo-badge" title="Orden de retrabajo — la empresa absorbe la pérdida, no perseguir este cobro">Retrabajo — no cobrar</span>'
+      : '';
+
+    rows += '<tr>'
+      + '<td style="font-weight:700;color:#2563eb">' + escHtml(o.folio) + tagRetrabajo + '</td>'
+      + '<td>' + escHtml(o.cliente_nombre) + '</td>'
+      + '<td style="font-size:12px;color:#64748b">' + escHtml(o.asesor||'—') + '</td>'
+      + '<td style="font-size:12px;color:#64748b">' + fmtF(fechaVenta(o)) + '</td>'
+      + '<td><span class="ord-badge ' + ordClass + '">' + ordLabel + '</span></td>'
+      + '<td style="font-weight:600">' + fmt(total) + '</td>'
+      + '<td style="color:#16a34a;font-weight:600">' + fmt(pagado) + '</td>'
+      + '<td style="color:' + (pend>0?'#dc2626':'#16a34a') + ';font-weight:600">' + fmt(pend) + '</td>'
+      + '<td><div class="pay-bar-wrap"><div class="pay-bar"><div class="pay-fill ' + ep + '" style="width:' + pct + '%"></div></div><span class="pay-pct">' + pct + '%</span></div></td>'
+      + '<td><span class="pay-badge ' + ep + '">' + epLabel + '</span></td>'
+      + '<td class="td-sel-epago">' + selHtml + '</td>'
+      + '<td class="td-acciones-cob">'
+      +   '<button class="btn-expand" onclick="ModFinanzasCobranza._toggle(' + o.cot_id + ',' + i + ')">Ver pagos</button>'
+      +   btnFacturar
+      +   btnSalida
+      + '</td>'
+      + '</tr>'
+      + '<tr class="pagos-panel ' + abierto + '" id="panel-' + o.cot_id + '">'
+      + '<td colspan="12">' + renderPanelPagos(o) + '</td>'
+      + '</tr>';
+  }
+  tbody.innerHTML = rows;
+
+  // Refrescar saldo a favor de paneles ya abiertos (ej. tras registrar un pago)
+  _lista.forEach(function(o) {
+    if (_abiertos[o.cot_id] && o.cliente_id && _sfCache[o.cliente_id] === undefined) {
+      cargarSaldoFavor(o.cliente_id, o.cot_id);
+    }
+  });
+}
+
+var FORMA_LABELS = {efectivo:'Efectivo', tarjeta:'Tarjeta', transferencia:'Transferencia', saldo_favor:'Saldo a Favor'};
+
+function renderPanelPagos(o) {
+  var pagos  = o.pagos || [];
+  var fmt    = function(n) { return '$' + parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var totalP  = parseFloat(o.total||0);
+  var pendP   = Math.max(0, totalP - parseFloat(o.saldo_pagado||0));
+  var html   = '<div class="pagos-inner">';
+
+  html += '<div class="pagos-lista">';
+  if (pagos.length) {
+    pagos.forEach(function(p) {
+      var fc = 'forma-' + p.forma_pago.replace('_','-');
+      var fl = FORMA_LABELS[p.forma_pago] || (p.forma_pago.charAt(0).toUpperCase() + p.forma_pago.slice(1));
+      html += '<div class="pago-row">'
+        + '<div class="pago-fecha">' + p.fecha_pago + ' ' + (p.hora_pago||'').substring(0,5) + '</div>'
+        + '<span class="pago-forma ' + fc + '">' + fl + '</span>'
+        + (p.notas ? '<span style="font-size:12px;color:#64748b">' + escHtml(p.notas) + '</span>' : '')
+        + '<div class="pago-monto">' + fmt(p.monto) + '</div>'
+        + '<div class="pago-por">por ' + escHtml(p.registrado_por||'—') + '</div>'
+        + '</div>';
+    });
+  } else {
+    html += '<div class="sin-pagos">Sin pagos registrados</div>';
+  }
+  html += '</div>';
+
+  // Form registrar pago
+  html += '<div class="pago-form-inline">';
+  html += '<div class="pago-form-titulo"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Registrar pago</div>';
+  html += '<div class="pago-form-row">';
+  html += '<div class="pf"><label>Fecha</label><input type="date" id="pf-fecha-' + o.cot_id + '" value="' + new Date().toISOString().substring(0,10) + '"></div>';
+  html += '<div class="pf"><label>Hora</label><input type="time" id="pf-hora-' + o.cot_id + '" value="' + new Date().toTimeString().substring(0,5) + '"></div>';
+  html += '<div class="pf"><label>Monto $</label><input type="number" id="pf-monto-' + o.cot_id + '" min="0" step="0.01" placeholder="0.00" style="min-width:130px"></div>';
+  var sfSaldo = _sfCache[o.cliente_id];
+  var sfLabel = (typeof sfSaldo === 'number' && sfSaldo > 0)
+    ? 'Saldo a Favor (Disp: $' + sfSaldo.toLocaleString('es-MX',{minimumFractionDigits:2}) + ')'
+    : 'Saldo a Favor';
+  html += '<div class="pf"><label>Forma</label><select id="pf-forma-' + o.cot_id + '" onchange="ModFinanzasCobranza._onFormaChange(' + o.cot_id + ',' + pendP.toFixed(2) + ')"><option value="efectivo">Efectivo</option><option value="tarjeta_credito">Tarjeta crédito</option><option value="tarjeta_debito">Tarjeta débito</option><option value="transferencia">Transferencia</option><option value="saldo_favor">' + escHtml(sfLabel) + '</option></select></div>';
+  html += '<div class="pf" style="flex:1"><label>Notas</label><input type="text" id="pf-notas-' + o.cot_id + '" placeholder="Opcional..." style="min-width:180px"></div>';
+  html += '<button class="btn-reg" id="pf-btn-' + o.cot_id + '" onclick="ModFinanzasCobranza._registrarPago(' + o.cot_id + ',this)">Registrar</button>';
+  html += '</div></div></div>';
+
+  return html;
+}
+
+function toggle(cot_id, idx) {
+  var panel = document.getElementById('panel-' + cot_id);
+  if (!panel) return;
+  if (_abiertos[cot_id]) {
+    delete _abiertos[cot_id];
+    panel.classList.remove('open');
+    var btn = panel.previousElementSibling?.querySelector('.btn-expand');
+    if (btn) btn.textContent = 'Ver pagos';
+  } else {
+    _abiertos[cot_id] = true;
+    panel.classList.add('open');
+    var btn2 = panel.previousElementSibling?.querySelector('.btn-expand');
+    if (btn2) btn2.textContent = 'Cerrar';
+    var o = _lista[idx];
+    if (o && o.cliente_id && _sfCache[o.cliente_id] === undefined) {
+      cargarSaldoFavor(o.cliente_id, cot_id);
+    }
+  }
+}
+
+// ── Saldo a Favor: carga perezosa + actualización del select ya renderizado ──
+async function cargarSaldoFavor(cliente_id, cot_id) {
+  try {
+    var res  = await fetch(API_SF_COB + '?accion=saldo&cliente_id=' + cliente_id);
+    var data = await res.json();
+    _sfCache[cliente_id] = parseFloat(data.saldo || 0);
+  } catch (e) {
+    _sfCache[cliente_id] = 0;
+  }
+  var sel = document.getElementById('pf-forma-' + cot_id);
+  if (!sel) return;
+  var saldo = _sfCache[cliente_id];
+  var opt = sel.querySelector('option[value="saldo_favor"]');
+  if (opt) {
+    opt.textContent = saldo > 0
+      ? 'Saldo a Favor (Disp: $' + saldo.toLocaleString('es-MX',{minimumFractionDigits:2}) + ')'
+      : 'Saldo a Favor';
+  }
+}
+
+// ── Auto-rellenar monto al elegir Saldo a Favor ───────────────
+function onFormaChange(cot_id, pendiente) {
+  var sel = document.getElementById('pf-forma-' + cot_id);
+  var forma = sel ? sel.value : '';
+  if (forma !== 'saldo_favor') return;
+  var saldo = _sfCache[_clientePorCot[cot_id]];
+  if (typeof saldo === 'number' && saldo > 0) {
+    var montoInput = document.getElementById('pf-monto-' + cot_id);
+    if (montoInput) montoInput.value = Math.min(saldo, pendiente).toFixed(2);
+  }
+}
+
+// Resultado de los Complementos de Pago automáticos (orden con factura PPD, 29-sep-2026).
+function _resumenComplementosPago(list) {
+  if (!list || !list.length) return '';
+  var t = '\n\nComplemento de pago (factura en parcialidades):';
+  for (var i = 0; i < list.length; i++) {
+    var c = list[i];
+    t += '\n• Abono del ' + (c.fecha_pago || '') + ': ' + (c.ok ? (c.folio + ' timbrado') : (c.error || 'no se emitió; queda en Facturación → Complementos pendientes'));
+  }
+  return t;
+}
+// Pago mayor al saldo de una orden ya facturada: se pregunta antes de registrar nada.
+function _confirmarExcedente(data) {
+  var f = function(n) { return '$' + parseFloat(n || 0).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); };
+  return confirm(data.error + '\n\n¿Qué hacer con el excedente?\n\n'
+    + 'ACEPTAR: aplicar ' + f(data.saldo_pendiente) + ' a la orden (y a su factura ' + (data.factura || '') + ') y abonar los '
+    + f(data.excedente) + ' restantes al Saldo a Favor del cliente.\n\n'
+    + 'CANCELAR: no registrar nada (corrige el monto y vuelve a intentar).');
+}
+
+async function registrarPago(cot_id, btn, extra) {
+  if (btn && btn.disabled) return; // ya se está procesando este mismo clic
+
+  var fecha = document.getElementById('pf-fecha-' + cot_id)?.value;
+  var hora  = (document.getElementById('pf-hora-'  + cot_id)?.value || '00:00') + ':00';
+  var monto = parseFloat(document.getElementById('pf-monto-' + cot_id)?.value || 0);
+  var forma = document.getElementById('pf-forma-' + cot_id)?.value;
+  var notas = document.getElementById('pf-notas-' + cot_id)?.value || '';
+
+  if (!monto || monto <= 0) { alert('Ingresa un monto válido'); return; }
+
+  var clienteId = _clientePorCot[cot_id];
+  if (forma === 'saldo_favor') {
+    var saldoDisp = _sfCache[clienteId];
+    if (typeof saldoDisp === 'number' && monto > saldoDisp) {
+      alert('El monto excede el Saldo a Favor disponible ($' + saldoDisp.toLocaleString('es-MX',{minimumFractionDigits:2}) + ')');
+      return;
+    }
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Registrando...'; }
+
+  var res, data;
+  try {
+    res  = await fetch(API, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'registrar_pago', cotizacion_id: cot_id, fecha_pago: fecha, hora_pago: hora, monto: monto, forma_pago: forma, notas: notas,
+                            excedente_accion: (extra && extra.excedente_accion) || null})
+    });
+    data = await res.json();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Registrar'; }
+    alert('Error de conexión al registrar el pago');
+    return;
+  }
+
+  if (!data.ok && data.requiere === 'decision_excedente') {
+    if (btn) { btn.disabled = false; btn.textContent = 'Registrar'; }
+    if (_confirmarExcedente(data)) return registrarPago(cot_id, btn, {excedente_accion: 'saldo_favor'});
+    return;
+  }
+  if (data.ok) {
+    _abiertos[cot_id] = true;
+    delete _sfCache[clienteId]; // forzar re-fetch: el saldo a favor pudo cambiar (uso o excedente)
+    await cargar(); // re-renderiza el panel con un botón nuevo ya habilitado
+    var avisoPago = '';
+    if (data.excedente) {
+      avisoPago += '\n\nEl excedente de $' + parseFloat(data.excedente).toLocaleString('es-MX',{minimumFractionDigits:2}) + ' fue abonado al saldo a favor del cliente.';
+    }
+    avisoPago += _resumenComplementosPago(data.complementos);
+    if (avisoPago) alert('Pago registrado.' + avisoPago);
+  } else {
+    if (btn) { btn.disabled = false; btn.textContent = 'Registrar'; }
+    alert(data.error || 'Error al registrar pago');
+  }
+}
+
+async function cambiarEpago(cot_id, sel) {
+  var nuevo = sel.value;
+  // Quitar clases anteriores y aplicar la nueva
+  sel.className = 'sel-epago ep-' + nuevo;
+
+  var res  = await fetch(API, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({accion:'actualizar_estatus_pago', cotizacion_id: cot_id, estatus_pago: nuevo})
+  });
+  var data = await res.json();
+  if (data.ok) {
+    _abiertos[cot_id] = true;
+    await cargar();
+  } else {
+    alert(data.error || 'Error al actualizar');
+    sel.value = sel.dataset.prev || 'pendiente';
+  }
+  sel.dataset.prev = nuevo;
+}
+
+function primerYUltimoDiaMes() {
+  var hoy = new Date();
+  var y = hoy.getFullYear();
+  var m = hoy.getMonth();
+  var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+  var ultimoDia = new Date(y, m + 1, 0).getDate();
+  return { desde: y + '-' + pad(m + 1) + '-01', hasta: y + '-' + pad(m + 1) + '-' + pad(ultimoDia) };
+}
+
+function aplicarPeriodoDefault() {
+  var per = primerYUltimoDiaMes();
+  var elD = document.getElementById('f-desde');
+  var elH = document.getElementById('f-hasta');
+  if (elD) elD.value = per.desde;
+  if (elH) elH.value = per.hasta;
+}
+
+function limpiar() {
+  document.getElementById('f-q').value      = '';
+  document.getElementById('f-estado').value = '';
+  document.getElementById('f-pago').value   = '';
+  document.getElementById('f-asesor').value = '';
+  document.getElementById('f-retrabajo').value = '';
+  aplicarPeriodoDefault();
+  filtrar();
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+aplicarPeriodoDefault();
+cargar();
+
+// Sprint 3: navega a Facturacion con la orden precargada. cargarModulo() es global del SPA.
+function facturarOrden(folio) {
+  if (!folio) return;
+  if (typeof cargarModulo === 'function') {
+    cargarModulo('facturacion', { orden: folio });
+  } else {
+    window.location.href = '../dashboard.php?m=facturacion&orden=' + encodeURIComponent(folio);
+  }
+}
+
+return {
+  init:           cargar,
+  _facturar:      facturarOrden,
+  _filtrar:       filtrar,
+  _limpiar:       limpiar,
+  _toggle:        toggle,
+  _registrarPago: registrarPago,
+  _cambiarEpago:  cambiarEpago,
+  _onFormaChange: onFormaChange,
+};
+})();
+
+// ── Saldo a Favor ─────────────────────────────────────────────────────────────
+var _sfData     = [];
+var _sfLista    = [];
+var _sfAbiertos = {};
+var _sfCliTimer = null;
+var API_SF = '../api/saldo_favor.php';
+var ES_DIR_ADMIN = <?= $_rol === 'dir_admin' ? 'true' : 'false' ?>;
+var _sfApItems = [];
+var _sfCristalesCargados = false;
+
+function sfSwitchTab(tab) {
+  var isCobranza = tab === 'cobranza';
+  document.getElementById('tab-cobranza').classList.toggle('active', isCobranza);
+  document.getElementById('tab-saldo').classList.toggle('active', !isCobranza);
+  document.getElementById('sec-saldo').style.display   = isCobranza ? 'none' : '';
+  // Ocultar/mostrar sección de cobranza
+  var secCob = document.getElementById('sec-cobranza');
+  if (secCob) secCob.style.display = isCobranza ? '' : 'none';
+  if (!isCobranza && !_sfData.length) sfCargar();
+  if (!isCobranza && ES_DIR_ADMIN) sfCargarVoboPendientes();
+  if (!isCobranza) sfPrevCargar();
+}
+window.sfSwitchTab = sfSwitchTab;
+
+// ── Anticipos anteriores al 1-oct (UPD-629) ─────────────────────────────────
+// Depositos de saldo a favor anteriores al arranque de la facturacion en Apex que siguen
+// vigentes. Administracion marca si se facturaron como anticipo en CONTPAQi: si si, al
+// usarse en una orden la factura se relaciona (07) con ese UUID y lleva su nota de credito.
+var _sfPrev = [];
+var _sfPrevAbierto = false;
+var _sfPrevGuardando = {};
+
+async function sfPrevCargar() {
+  try {
+    var r = await fetch(API_SF + '?accion=anticipos_previos&t=' + Date.now());
+    var d = await r.json();
+    if (!d || !d.ok) { var b = document.getElementById('sf-prev-btn'); if (b) b.style.display = 'none'; return; }
+    _sfPrev = d.depositos || [];
+    var c = document.getElementById('sf-prev-cnt');
+    if (c) c.textContent = d.pendientes > 0 ? '(' + d.pendientes + ' por revisar)' : '(revisados)';
+    var btn = document.getElementById('sf-prev-btn');
+    if (btn) btn.style.background = d.pendientes > 0 ? '#b45309' : '#475569';
+    if (_sfPrevAbierto) sfPrevRender();
+  } catch(e) {}
+}
+window.sfPrevCargar = sfPrevCargar;
+
+function sfPrevToggle() {
+  _sfPrevAbierto = !_sfPrevAbierto;
+  var box = document.getElementById('sf-prev-box');
+  if (!box) return;
+  box.style.display = _sfPrevAbierto ? 'block' : 'none';
+  if (_sfPrevAbierto) sfPrevRender();
+}
+window.sfPrevToggle = sfPrevToggle;
+
+function sfPrevRender() {
+  var box = document.getElementById('sf-prev-box');
+  if (!box) return;
+  var fmt = function(n) { return '$' + parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var html = '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">'
+    + '<div style="font-weight:700;font-size:14px;margin-bottom:4px">Anticipos anteriores al 1 de octubre de 2026</div>'
+    + '<div style="font-size:12px;color:#475569;margin-bottom:12px;max-width:820px">Estos dep&#243;sitos siguen con saldo y se registraron antes de facturar en Apex. '
+    + 'Indica de cada uno si <b>se factur&#243; como anticipo en CONTPAQi</b>. Si s&#237;, captura el folio y el <b>UUID</b> (folio fiscal de 36 caracteres): '
+    + 'al usarse en una orden, la factura se relacionar&#225; con ese CFDI y se emitir&#225; su nota de cr&#233;dito. Si no, la factura de la orden va normal. '
+    + 'Mientras un dep&#243;sito no est&#233; revisado, no se puede timbrar la factura de una orden que lo use.</div>';
+  if (!_sfPrev.length) {
+    box.innerHTML = html + '<div style="color:#64748b;font-size:13px">No hay dep&#243;sitos anteriores con saldo vigente.</div></div>';
+    return;
+  }
+  html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
+    + '<thead><tr style="background:#f8fafc;color:#64748b;text-align:left">'
+    + '<th style="padding:6px 8px">Cliente</th><th style="padding:6px 8px">Fecha</th><th style="padding:6px 8px">Referencia</th>'
+    + '<th style="padding:6px 8px">Monto</th><th style="padding:6px 8px">Saldo vigente</th><th style="padding:6px 8px">&#191;Facturado en CONTPAQi?</th>'
+    + '<th style="padding:6px 8px">Folio</th><th style="padding:6px 8px">UUID</th><th style="padding:6px 8px"></th></tr></thead><tbody>';
+  _sfPrev.forEach(function(r) {
+    var id = Number(r.id);
+    var est = r.previo_facturado === null ? '' : (String(r.previo_facturado) === '1' ? 'si' : 'no');
+    html += '<tr style="border-top:1px solid #f1f5f9;' + (est === '' ? 'background:#fffbeb' : '') + '">'
+      + '<td style="padding:6px 8px"><b>' + escHtmlSf(r.cliente_nombre) + '</b><div style="color:#64748b">' + escHtmlSf(r.cliente_codigo) + '</div></td>'
+      + '<td style="padding:6px 8px;white-space:nowrap">' + escHtmlSf(r.fecha) + '</td>'
+      + '<td style="padding:6px 8px">' + escHtmlSf(r.referencia || '') + (r.notas ? '<div style="color:#64748b">' + escHtmlSf(r.notas) + '</div>' : '') + '</td>'
+      + '<td style="padding:6px 8px;white-space:nowrap">' + fmt(r.monto) + '</td>'
+      + '<td style="padding:6px 8px;white-space:nowrap;font-weight:700">' + fmt(r.saldo_vigente) + '</td>'
+      + '<td style="padding:6px 8px"><select id="sfp-sel-' + id + '" onchange="sfPrevCambio(' + id + ')" style="padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px">'
+      + '<option value=""' + (est === '' ? ' selected' : '') + '>&#8212; Sin revisar &#8212;</option>'
+      + '<option value="si"' + (est === 'si' ? ' selected' : '') + '>S&#237;, se factur&#243;</option>'
+      + '<option value="no"' + (est === 'no' ? ' selected' : '') + '>No se factur&#243;</option></select>'
+      + (r.previo_revisado_por ? '<div style="color:#64748b;margin-top:2px">' + escHtmlSf(r.previo_revisado_por) + '</div>' : '') + '</td>'
+      + '<td style="padding:6px 8px"><input id="sfp-folio-' + id + '" type="text" maxlength="40" value="' + escHtmlSf(r.previo_folio || '') + '" placeholder="Ej. 8754" style="width:80px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px"' + (est === 'si' ? '' : ' disabled') + '></td>'
+      + '<td style="padding:6px 8px"><input id="sfp-uuid-' + id + '" type="text" maxlength="36" value="' + escHtmlSf(r.previo_uuid || '') + '" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" style="width:290px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;font-family:monospace;text-transform:uppercase"' + (est === 'si' ? '' : ' disabled') + '></td>'
+      + '<td style="padding:6px 8px"><button id="sfp-btn-' + id + '" onclick="sfPrevGuardar(' + id + ')" style="padding:5px 10px;border:none;border-radius:6px;background:#2563eb;color:#fff;cursor:pointer">Guardar</button></td>'
+      + '</tr>';
+  });
+  box.innerHTML = html + '</tbody></table></div></div>';
+}
+
+function sfPrevCambio(id) {
+  var v = document.getElementById('sfp-sel-' + id).value;
+  document.getElementById('sfp-folio-' + id).disabled = (v !== 'si');
+  document.getElementById('sfp-uuid-' + id).disabled  = (v !== 'si');
+}
+window.sfPrevCambio = sfPrevCambio;
+
+async function sfPrevGuardar(id) {
+  if (_sfPrevGuardando[id]) return;
+  var v = document.getElementById('sfp-sel-' + id).value;
+  var body = {accion: 'marcar_anticipo_previo', id: id, facturado: v || 'limpiar'};
+  if (v === 'si') {
+    body.folio = document.getElementById('sfp-folio-' + id).value.trim();
+    body.uuid  = document.getElementById('sfp-uuid-' + id).value.trim().toUpperCase();
+    if (!body.folio) { alert('Captura el folio de la factura de CONTPAQi.'); return; }
+    if (!/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/.test(body.uuid)) { alert('El UUID debe tener 36 caracteres con guiones (folio fiscal del CFDI).'); return; }
+  }
+  _sfPrevGuardando[id] = true;
+  var btn = document.getElementById('sfp-btn-' + id);
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+  try {
+    var r = await fetch(API_SF, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error desconocido');
+    await sfPrevCargar();
+  } catch(e) {
+    alert('No se pudo guardar: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
+  }
+  delete _sfPrevGuardando[id];
+}
+window.sfPrevGuardar = sfPrevGuardar;
+
+// ── Apartado de Precio: VoBo pendiente (solo dir_admin) ──────────────────────
+async function sfCargarVoboPendientes() {
+  var box = document.getElementById('sf-ap-vobo-box');
+  if (!box) return;
+  try {
+    var res   = await fetch(API_SF + '?accion=apartados_pendientes&t=' + Date.now());
+    var items = await res.json();
+    if (!Array.isArray(items) || !items.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    var fmt = function(n) { return '$' + parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+    var html = '<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px 14px">'
+      + '<div style="font-weight:700;color:#92400e;font-size:13px;margin-bottom:8px">Apartados de precio pendientes de tu VoBo</div>';
+    items.forEach(function(a) {
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #fde68a;font-size:12px;flex-wrap:wrap">'
+        + '<span style="flex:1;min-width:200px"><b>' + escHtmlSf(a.cliente_nombre) + '</b> &#8212; ' + fmt(a.monto) + ' &#183; vigencia ' + a.vigencia_dias + ' d&#237;as (hasta ' + escHtmlSf(a.vigencia_hasta) + ')</span>'
+        + '<button type="button" onclick="sfVoboResolver(' + a.id + ',\'activo\')" style="background:#16a34a;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">Aprobar</button>'
+        + '<button type="button" onclick="sfVoboResolver(' + a.id + ',\'rechazado\')" style="background:#ef4444;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">Rechazar</button>'
+        + '<button type="button" onclick="window.open(\'../app/imprimir_apartado.php?id=' + a.id + '\',\'_blank\')" style="background:#f1f5f9;border:none;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer">Ver</button>'
+        + '</div>';
+    });
+    html += '</div>';
+    box.innerHTML = html;
+    box.style.display = '';
+  } catch(e) {}
+}
+window.sfCargarVoboPendientes = sfCargarVoboPendientes;
+
+async function sfVoboResolver(apartadoId, nuevoEstatus) {
+  var nota = '';
+  if (nuevoEstatus === 'rechazado') {
+    nota = prompt('Motivo del rechazo (obligatorio):') || '';
+    if (!nota.trim()) { alert('Se requiere un motivo para rechazar'); return; }
+  }
+  try {
+    var r = await fetch(API_SF, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({accion:'vobo_apartado', apartado_id: apartadoId, estatus: nuevoEstatus, nota: nota})
+    });
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error desconocido');
+    sfCargarVoboPendientes();
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+window.sfVoboResolver = sfVoboResolver;
+
+// ── Apartado de Precio: armar productos en el modal de depósito ──────────────
+function sfToggleApartado() {
+  var checked = document.getElementById('sf-ap-check').checked;
+  document.getElementById('sf-ap-box').style.display = checked ? '' : 'none';
+  if (checked && !_sfCristalesCargados) sfCargarCristalesAp();
+}
+window.sfToggleApartado = sfToggleApartado;
+
+async function sfCargarCristalesAp() {
+  try {
+    var res   = await fetch('../api/cristales.php');
+    var items = await res.json();
+    var sel   = document.getElementById('sf-ap-cristal');
+    if (!sel) return;
+    var html = '<option value="">Producto...</option>';
+    items.forEach(function(c) {
+      html += '<option value="' + c.id + '" data-precio="' + parseFloat(c.precio_m2||0).toFixed(2) + '">' + escHtmlSf(c.nombre) + '</option>';
+    });
+    sel.innerHTML = html;
+    _sfCristalesCargados = true;
+  } catch(e) {}
+}
+
+function sfApPrellenar() {
+  var sel = document.getElementById('sf-ap-cristal');
+  var opt = sel.options[sel.selectedIndex];
+  var precio = opt ? opt.getAttribute('data-precio') : '';
+  if (precio) document.getElementById('sf-ap-precio').value = precio;
+}
+window.sfApPrellenar = sfApPrellenar;
+
+function sfAgregarItem() {
+  var sel        = document.getElementById('sf-ap-cristal');
+  var cristal_id = parseInt(sel.value || 0);
+  var nombre     = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+  var precio     = parseFloat(document.getElementById('sf-ap-precio').value || 0);
+  var m2refInput = document.getElementById('sf-ap-m2').value;
+  var m2ref      = m2refInput === '' ? null : parseFloat(m2refInput);
+
+  if (!cristal_id) { alert('Selecciona un producto'); return; }
+  if (precio <= 0) { alert('El precio pactado debe ser mayor a cero'); return; }
+
+  _sfApItems.push({cristal_id: cristal_id, cristal_nombre: nombre, precio_m2_pactado: precio, m2_referencia: m2ref});
+  document.getElementById('sf-ap-precio').value = '';
+  document.getElementById('sf-ap-m2').value     = '';
+  sfRenderApItems();
+}
+window.sfAgregarItem = sfAgregarItem;
+
+function sfQuitarItem(idx) {
+  _sfApItems.splice(idx, 1);
+  sfRenderApItems();
+}
+window.sfQuitarItem = sfQuitarItem;
+
+function sfRenderApItems() {
+  var box = document.getElementById('sf-ap-items');
+  if (!box) return;
+  if (!_sfApItems.length) { box.innerHTML = '<div style="font-size:12px;color:var(--c-muted)">Sin productos agregados</div>'; return; }
+  var html = '';
+  _sfApItems.forEach(function(it, idx) {
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f8fafc;border-radius:6px;margin-bottom:4px;font-size:12px">'
+      + '<span style="flex:1;font-weight:600">' + escHtmlSf(it.cristal_nombre) + '</span>'
+      + '<span>$' + it.precio_m2_pactado.toFixed(2) + '/m&#178;</span>'
+      + (it.m2_referencia ? '<span style="color:#64748b">ref. ' + it.m2_referencia + 'm&#178;</span>' : '')
+      + '<button type="button" onclick="sfQuitarItem(' + idx + ')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 4px">&times;</button>'
+      + '</div>';
+  });
+  box.innerHTML = html;
+}
+
+async function sfCargar() {
+  try {
+    var res  = await fetch(API_SF + '?accion=lista&t=' + Date.now());
+    _sfData  = await res.json();
+    sfFiltrar();
+  } catch(e) {}
+}
+
+function sfFiltrar() {
+  var q = (document.getElementById('sf-q')?.value || '').toLowerCase();
+  _sfLista = _sfData.filter(function(c) {
+    if (!q) return true;
+    return (c.razon_social||'').toLowerCase().includes(q) || (c.codigo||'').toLowerCase().includes(q);
+  });
+  sfRender();
+}
+window.sfFiltrar = sfFiltrar;
+
+function sfRender() {
+  var tbody = document.getElementById('sf-tbody');
+  if (!tbody) return;
+  if (!_sfLista.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-msg">Sin clientes</td></tr>'; return;
+  }
+  var fmt = function(n) { return '$' + parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var rows = '';
+  _sfLista.forEach(function(c, i) {
+    var saldo = parseFloat(c.saldo||0);
+    var badgeCls = saldo > 0 ? 'sf-badge' : 'sf-badge cero';
+    var abierto  = _sfAbiertos[c.id] ? 'open' : '';
+    rows += '<tr>'
+      + '<td style="font-weight:600;color:#1e293b">' + escHtmlSf(c.razon_social) + '</td>'
+      + '<td style="font-size:12px;color:#64748b">' + escHtmlSf(c.codigo||'—') + '</td>'
+      + '<td style="font-size:12px;color:#64748b">' + escHtmlSf(c.telefono||'—') + '</td>'
+      + '<td><span class="' + badgeCls + '">' + fmt(saldo) + '</span></td>'
+      + '<td style="font-size:12px;color:#64748b">' + (c.ultimo_movimiento || '—') + '</td>'
+      + '<td><button class="btn-sf-hist" onclick="sfToggleHist(' + c.id + ',' + i + ')">Historial</button></td>'
+      + '</tr>'
+      + '<tr class="sf-hist-panel ' + abierto + '" id="sfhist-' + c.id + '">'
+      + '<td colspan="6"><div class="sf-hist-inner" id="sfhist-inner-' + c.id + '"><div style="color:var(--c-muted);font-size:13px">Cargando...</div></div></td>'
+      + '</tr>';
+  });
+  tbody.innerHTML = rows;
+}
+
+async function sfToggleHist(cid, idx) {
+  var panel = document.getElementById('sfhist-' + cid);
+  if (!panel) return;
+  if (_sfAbiertos[cid]) {
+    delete _sfAbiertos[cid];
+    panel.classList.remove('open');
+  } else {
+    _sfAbiertos[cid] = true;
+    panel.classList.add('open');
+    // Cargar historial
+    try {
+      var res  = await fetch(API_SF + '?accion=historial&cliente_id=' + cid);
+      var movs = await res.json();
+      var inner = document.getElementById('sfhist-inner-' + cid);
+      if (!inner) return;
+      var fmt = function(n) { return '$' + parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+      var html = !movs.length
+        ? '<div style="color:var(--c-muted);font-size:13px;padding:8px 0">Sin movimientos registrados</div>'
+        : movs.map(function(m) {
+            var pos = parseFloat(m.monto) >= 0;
+            return '<div class="sf-mov-row">'
+              + '<span class="sf-mov-tipo sf-mov-' + m.tipo + '">' + m.tipo.charAt(0).toUpperCase() + m.tipo.slice(1) + '</span>'
+              + '<span class="sf-mov-fecha">' + m.fecha + '</span>'
+              + (m.forma_pago ? '<span style="font-size:11px;color:#475569;font-weight:600">' + escHtmlSf(sfFormaTxt(m.forma_pago, m.tarjeta_tipo)) + '</span>' : '')
+              + (m.referencia ? '<span class="sf-mov-ref">' + escHtmlSf(m.referencia) + '</span>' : '<span class="sf-mov-ref" style="font-style:italic;color:#cbd5e1">Sin referencia</span>')
+              + (m.notas ? '<span style="font-size:12px;color:#64748b">' + escHtmlSf(m.notas) + '</span>' : '')
+              + '<span class="sf-mov-monto ' + (pos?'positivo':'negativo') + '">' + (pos?'+':'') + fmt(m.monto) + '</span>'
+              + '<span style="font-size:11px;color:var(--c-muted)">por ' + escHtmlSf(m.creado_por||'—') + '</span>'
+              + '</div>';
+          }).join('');
+      inner.innerHTML = html;
+
+      // Apartados de precio de este cliente
+      try {
+        var resAp = await fetch(API_SF + '?accion=apartados_cliente&cliente_id=' + cid);
+        var aps   = await resAp.json();
+        if (Array.isArray(aps) && aps.length) {
+          var etiquetas = {activo:'Activo', pendiente_vobo:'Pendiente de VoBo', rechazado:'Rechazado', vencido:'Vencido'};
+          var colores   = {activo:'#16a34a', pendiente_vobo:'#d97706', rechazado:'#ef4444', vencido:'#94a3b8'};
+          var htmlAp = '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin:10px 0 6px">Apartados de Precio</div>';
+          aps.forEach(function(a) {
+            var est = a.estatus_efectivo;
+            htmlAp += '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #f1f5f9;font-size:12px">'
+              + '<span style="color:' + (colores[est]||'#64748b') + ';font-weight:700;min-width:110px">' + (etiquetas[est]||est) + '</span>'
+              + '<span style="flex:1">' + fmt(a.monto) + ' &#183; vigencia hasta ' + escHtmlSf(a.vigencia_hasta) + '</span>'
+              + '<button type="button" onclick="window.open(\'../app/imprimir_apartado.php?id=' + a.id + '\',\'_blank\')" style="background:#f1f5f9;border:none;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer">Imprimir</button>'
+              + '</div>';
+          });
+          inner.innerHTML += htmlAp;
+        }
+      } catch(e2) {}
+    } catch(e) {}
+  }
+}
+window.sfToggleHist = sfToggleHist;
+
+function sfFormaTxt(forma, tipo) {
+  if (forma === 'tarjeta') return tipo === 'debito' ? 'Tarjeta d\u00e9bito' : (tipo === 'credito' ? 'Tarjeta cr\u00e9dito' : 'Tarjeta');
+  return {efectivo:'Efectivo', transferencia:'Transferencia', cheque:'Cheque'}[forma] || forma;
+}
+
+function sfAbrirModal(clienteId, clienteNombre) {
+  document.getElementById('sf-cli-busq').value = clienteNombre || '';
+  document.getElementById('sf-cli-id').value   = clienteId    || '';
+  document.getElementById('sf-monto').value    = '';
+  document.getElementById('sf-fecha').value    = new Date().toISOString().substring(0,10);
+  document.getElementById('sf-ref').value      = '';
+  document.getElementById('sf-forma').value    = '';
+  document.getElementById('sf-notas').value    = '';
+  document.getElementById('sf-cli-lista').style.display = 'none';
+  document.getElementById('sf-ap-check').checked = false;
+  document.getElementById('sf-ap-box').style.display = 'none';
+  document.getElementById('sf-ap-vigencia').value = 7;
+  document.getElementById('sf-ap-precio').value   = '';
+  document.getElementById('sf-ap-m2').value       = '';
+  _sfApItems = [];
+  sfRenderApItems();
+  document.getElementById('sfModalBg').classList.add('open');
+  setTimeout(function() {
+    var el = clienteId ? document.getElementById('sf-monto') : document.getElementById('sf-cli-busq');
+    if (el) el.focus();
+  }, 80);
+}
+window.sfAbrirModal = sfAbrirModal;
+
+function sfCerrarModal() {
+  document.getElementById('sfModalBg').classList.remove('open');
+}
+window.sfCerrarModal = sfCerrarModal;
+
+function sfBuscarCliente() {
+  clearTimeout(_sfCliTimer);
+  _sfCliTimer = setTimeout(async function() {
+    var q = document.getElementById('sf-cli-busq').value.trim();
+    if (q.length < 2) { document.getElementById('sf-cli-lista').style.display = 'none'; return; }
+    try {
+      var res   = await fetch('../api/clientes.php?q=' + encodeURIComponent(q));
+      var items = await res.json();
+      var lista = document.getElementById('sf-cli-lista');
+      if (!items.length) { lista.style.display = 'none'; return; }
+      lista.innerHTML = items.map(function(c) {
+        var nombre = c.razon_social || c.nombre;
+        return '<div class="sf-cli-item" onclick="sfSelCliente(' + c.id + ',\'' + escJsSf(nombre) + '\')">'
+          + escHtmlSf(nombre)
+          + '<div class="sf-cli-cod">' + escHtmlSf(c.codigo||'') + '</div>'
+          + '</div>';
+      }).join('');
+      lista.style.display = 'block';
+    } catch(e) {}
+  }, 250);
+}
+window.sfBuscarCliente = sfBuscarCliente;
+
+function sfSelCliente(id, nombre) {
+  document.getElementById('sf-cli-id').value   = id;
+  document.getElementById('sf-cli-busq').value = nombre;
+  document.getElementById('sf-cli-lista').style.display = 'none';
+  document.getElementById('sf-monto').focus();
+}
+window.sfSelCliente = sfSelCliente;
+
+async function sfGuardar() {
+  var cid       = document.getElementById('sf-cli-id').value;
+  var monto     = parseFloat(document.getElementById('sf-monto').value || 0);
+  var fecha     = document.getElementById('sf-fecha').value;
+  var ref       = document.getElementById('sf-ref').value.trim();
+  var forma     = document.getElementById('sf-forma').value;
+  var notas     = document.getElementById('sf-notas').value.trim();
+  var esApartado = document.getElementById('sf-ap-check').checked;
+
+  if (!cid)      { alert('Selecciona un cliente'); document.getElementById('sf-cli-busq').focus(); return; }
+  if (monto <= 0){ alert('El monto debe ser mayor a cero'); document.getElementById('sf-monto').focus(); return; }
+  if (!fecha)    { alert('La fecha es obligatoria'); return; }
+  if (!forma)    { alert('Indica la forma de pago del dep\u00f3sito (la factura del anticipo la exige)'); document.getElementById('sf-forma').focus(); return; }
+
+  var payload;
+  if (esApartado) {
+    var vigencia = parseInt(document.getElementById('sf-ap-vigencia').value || 0);
+    if (vigencia < 1 || vigencia > 45) { alert('La vigencia debe ser de 1 a 45 días'); return; }
+    if (!_sfApItems.length) { alert('Agrega al menos un producto apartado'); return; }
+    payload = {
+      accion: 'crear_apartado', cliente_id: parseInt(cid), monto: monto, fecha: fecha,
+      referencia: ref, notas: notas, vigencia_dias: vigencia, forma_pago: forma,
+      items: _sfApItems.map(function(it) {
+        return {cristal_id: it.cristal_id, precio_m2_pactado: it.precio_m2_pactado, m2_referencia: it.m2_referencia};
+      })
+    };
+  } else {
+    payload = {accion:'deposito', cliente_id: parseInt(cid), monto: monto, fecha: fecha, referencia: ref, notas: notas, forma_pago: forma};
+  }
+
+  var btn = document.getElementById('sf-btn-guardar');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    var r = await fetch(API_SF, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error desconocido');
+    sfCerrarModal();
+    await sfCargar();
+    // Abrir historial del cliente recién registrado
+    _sfAbiertos[parseInt(cid)] = true;
+    sfRender();
+    sfToggleHist(parseInt(cid), 0);
+    if (esApartado) {
+      var msg = d.estatus === 'activo'
+        ? 'Apartado registrado y activo. Se abrirá el comprobante para imprimir.'
+        : 'Apartado registrado. Queda pendiente del VoBo del Director antes de tener validez.';
+      alert(msg);
+      window.open('../app/imprimir_apartado.php?id=' + d.apartado_id, '_blank');
+    }
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar Depósito';
+  }
+}
+window.sfGuardar = sfGuardar;
+
+function escHtmlSf(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escJsSf(s) {
+  return String(s||'').replace(/'/g,"\\'").replace(/\n/g,' ');
+}
+</script>
