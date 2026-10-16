@@ -357,7 +357,9 @@ function pintarLigar(q) {
   var d = movSel, m = d.movimiento, puede = window._bcoPuedeImportar;
   var h = '<p>' + fFecha(m.fecha) + ' · ' + esc(m.concepto) + (m.detalle ? ' · <b>' + esc(m.detalle) + '</b>' : '') + '</p>' +
     '<div class="bco-sum"><span>Abono: <b class="bco-ok">' + fmt(m.abono) + '</b></span><span>Ligado: <b>' + fmt(d.ligado) + '</b></span>' +
-    '<span>Falta: <b class="' + (d.restante > 0.005 ? 'bco-warn' : 'bco-ok') + '">' + fmt(d.restante) + '</b></span></div>';
+    (d.restante < -0.005
+      ? '<span>Diferencia: <b class="bco-warn">' + fmt(-d.restante) + '</b> (Apex arriba del banco)</span></div>'
+      : '<span>Falta: <b class="' + (d.restante > 0.005 ? 'bco-warn' : 'bco-ok') + '">' + fmt(d.restante) + '</b></span></div>');
   if (d.ligas.length) {
     h += '<table style="margin-bottom:12px"><thead><tr><th>Ligado a</th><th>Fecha</th><th>Forma</th><th class="num">Monto</th><th></th></tr></thead><tbody>';
     for (var i = 0; i < d.ligas.length; i++) {
@@ -425,7 +427,7 @@ function pintarSuma() {
   for (var k in selItems) { if (Object.prototype.hasOwnProperty.call(selItems, k)) { t += selItems[k]; n++; } }
   if (!n) { s.textContent = ''; return; }
   var dif = Math.round((movSel.restante - t) * 100) / 100;
-  s.innerHTML = n + ' elegido(s): <b>' + fmt(t) + '</b> · ' + (Math.abs(dif) < 0.005 ? '<span class="bco-ok">cuadra exacto</span>' : (dif > 0 ? 'faltan ' + fmt(dif) : '<span class="bco-bad">se pasa por ' + fmt(-dif) + '</span>'));
+  s.innerHTML = n + ' elegido(s): <b>' + fmt(t) + '</b> · ' + (Math.abs(dif) < 0.005 ? '<span class="bco-ok">cuadra exacto</span>' : (dif > 0 ? 'faltan ' + fmt(dif) : (-dif < 1 ? '<span class="bco-warn">se pasa por ' + fmt(-dif) + ' (centavos, se acepta)</span>' : '<span class="bco-bad">se pasa por ' + fmt(-dif) + '</span>')));
 }
 
 async function guardarLiga() {

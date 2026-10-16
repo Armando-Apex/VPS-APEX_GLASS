@@ -11,6 +11,10 @@
 // Un registro de Apex solo puede ligarse a un abono (uk_origen). La suma ligada no puede
 // pasar del abono. Sin sesión ni salida: se puede probar desde consola.
 
+// UPD-713: lo ligado puede pasar del abono por centavos (efectivo depositado sin monedas, ej. S-992
+// $709.99 vs. banco $709.90). Misma tolerancia que Cobranza/Facturación: diferencia menor a $1.
+const CONC_TOLERANCIA = 1.00;
+
 const CONC_CATEGORIAS = [
     'traspaso'   => 'Traspaso entre cuentas',
     'prestamo'   => 'Préstamo / aportación',
@@ -93,6 +97,7 @@ function concCalificar($mov, $r, $pistas, $restante) {
     $monto = (float)$r['monto'];
     if (abs($monto - (float)$mov['abono']) < 0.005) { $score += 100; $razones[] = 'Mismo monto'; }
     elseif (abs($monto - $restante) < 0.005)        { $score += 90;  $razones[] = 'Completa lo que falta'; }
+    elseif ($monto > $restante && $monto - $restante < CONC_TOLERANCIA) { $score += 80; $razones[] = 'Casi el mismo monto (dif. $' . number_format($monto - $restante, 2) . ')'; }
     elseif ($monto > $restante + 0.005)             { $score -= 40; }
     if ($r['cot_folio'] && in_array($r['cot_folio'], $pistas['cots'], true))       { $score += 60; $razones[] = 'El banco dice ' . $r['cot_folio']; }
     if ($r['orden_folio'] && in_array($r['orden_folio'], $pistas['ordenes'], true)) { $score += 60; $razones[] = 'El banco dice ' . $r['orden_folio']; }
@@ -197,8 +202,8 @@ function concLigar($db, $movId, $items, $usuario, $automatico = 0) {
         }
         $total += $monto;
     }
-    if ($total > (float)$mov['abono'] + 0.005) {
-        throw new Exception('Lo ligado ($' . number_format($total, 2) . ') pasa del abono del banco ($' . number_format((float)$mov['abono'], 2) . ')');
+    if (round($total - (float)$mov['abono'], 2) >= CONC_TOLERANCIA) {
+        throw new Exception('Lo ligado ($' . number_format($total, 2) . ') pasa del abono del banco ($' . number_format((float)$mov['abono'], 2) . ') por $1.00 o más');
     }
     return round($total, 2);
 }
