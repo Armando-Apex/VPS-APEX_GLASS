@@ -9,6 +9,7 @@
 require_once 'config.php';
 require_once 'permisos.php';
 require_once 'wa_helper.php'; // WA orden_lista al corregir a terminado
+require_once __DIR__ . '/helpers/orden_terminada_lib.php'; // UPD-720: aviso en la campana
 require_once __DIR__ . '/helpers/saldo_favor_lib.php';
 require_once __DIR__ . '/helpers/totales.php'; // A-03: barrera de cobro en corregir_estatus
 require_once __DIR__ . '/helpers/laminas_reservas.php'; // Venta anticipada de lámina completa (UPD-554)
@@ -297,6 +298,8 @@ if ($method === 'POST') {
             // avisar al cliente por WA (orden_lista, una sola vez por orden).
             if ($estatus === 'terminado') {
                 waEnviarOrdenLista($db, $ordenId);
+                // UPD-720: también el aviso en la campana (administración + asesora), una vez por orden
+                notificarOrdenTerminada($db, $ordenId, true);
             }
             jsonResponse(['ok' => true, 'piezas_actualizadas' => $count]);
 

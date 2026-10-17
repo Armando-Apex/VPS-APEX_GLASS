@@ -21,6 +21,7 @@
 require_once 'config.php';
 require_once 'permisos.php';
 require_once 'wa_helper.php';
+require_once __DIR__ . '/helpers/orden_terminada_lib.php'; // UPD-720
 $usuario = requireSessionApi();
 
 
@@ -284,37 +285,7 @@ $ordenCompleta = ($check['total'] == $check['coinciden']);
 
 // Cuando toda la orden llega a TERMINADO: alertar a Lina y al asesor
 if ($ordenCompleta && $estatus === 'terminado') {
-    try {
-        $ord = $db->prepare('SELECT folio, asesor, cliente_nombre FROM ordenes WHERE id = ?');
-        $ord->execute([$pieza['orden_id']]);
-        $ord = $ord->fetch();
-
-        if ($ord) {
-            // Alerta a Lina (administracion): verificar pago
-            $db->prepare("
-                INSERT INTO notificaciones (tipo, titulo, mensaje, folio, orden_id, rol_destino, leida)
-                VALUES ('orden_terminada', 'Orden terminada — verificar pago', ?, ?, ?, 'administracion', 0)
-            ")->execute([
-                'La orden ' . $ord['folio'] . ' (' . $ord['cliente_nombre'] . ') está terminada. Verificar estado de pago.',
-                $ord['folio'],
-                $pieza['orden_id']
-            ]);
-
-            // Alerta al asesor comercial: programar entrega
-            $asesor_row = $db->prepare("SELECT id FROM usuarios WHERE nombre = ? AND rol = 'comercial' LIMIT 1");
-            $asesor_row->execute([$ord['asesor']]);
-            $asesor_row = $asesor_row->fetch(PDO::FETCH_ASSOC);
-            $db->prepare("
-                INSERT INTO notificaciones (tipo, titulo, mensaje, folio, orden_id, rol_destino, usuario_id_dest, leida)
-                VALUES ('orden_terminada', 'Orden lista — programar entrega', ?, ?, ?, 'comercial', ?, 0)
-            ")->execute([
-                'La orden ' . $ord['folio'] . ' (' . $ord['cliente_nombre'] . ') está lista. Programa la entrega.',
-                $ord['folio'],
-                $pieza['orden_id'],
-                $asesor_row['id'] ?? null
-            ]);
-        }
-    } catch (Exception $ignored) {}
+    notificarOrdenTerminada($db, $pieza['orden_id']); // UPD-720: helper compartido con Admin Órdenes
 
     // Envío WA automático (una sola vez) cuando toda la orden está terminada
     waEnviarOrdenLista($db, $pieza['orden_id']);
